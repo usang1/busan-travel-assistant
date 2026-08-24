@@ -1,0 +1,31 @@
+{
+  "name": "busan-travel-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node node_modules/next/dist/bin/next dev",
+    "build": "node node_modules/next/dist/bin/next build",
+    "lint": "node node_modules/eslint/bin/eslint.js app components data lib types",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "clsx": "latest",
+    "lucide-react": "latest",
+    "next": "16.3.2",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@tailwindcss/postcss": "latest",
+    "@typescript-eslint/parser": "8.67.0",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint": "latest",
+    "globals": "16.4.0",
+    "tailwindcss": "latest",
+    "typescript": "latest"
+  }
+}

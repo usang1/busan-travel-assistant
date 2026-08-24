@@ -1,0 +1,23 @@
+{
+  "name": "釜山旅行助手",
+  "short_name": "Busan Trip",
+  "description": "A mobile-first Gwangalli travel assistant for Chinese independent travelers.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f766e",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "orientation": "portrait-primary",
+  "categories": ["travel", "navigation", "food"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

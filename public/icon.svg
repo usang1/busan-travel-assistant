@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Busan Travel Assistant icon">
+  <rect width="512" height="512" rx="112" fill="#0f766e"/>
+  <path d="M96 302c42-54 86-78 132-72 34 4 60 22 88 39 34 21 70 40 120 27v64c-52 12-96-5-138-31-31-20-58-38-92-35-32 3-64 24-110 78z" fill="#ccfbf1"/>
+  <path d="M92 228c44-38 83-55 121-51 34 4 58 21 83 39 34 24 70 49 124 37v54c-50 11-91-7-130-34-29-20-55-38-88-35-29 3-61 20-110 63z" fill="#ffffff"/>
+  <path d="M145 174h222c9 0 16 7 16 16v16H129v-16c0-9 7-16 16-16z" fill="#99f6e4"/>
+  <path d="M181 134h150c7 0 13 6 13 13v27H168v-27c0-7 6-13 13-13z" fill="#ffffff"/>
+  <circle cx="178" cy="382" r="18" fill="#ffffff"/>
+  <circle cx="334" cy="382" r="18" fill="#ffffff"/>
+</svg>
