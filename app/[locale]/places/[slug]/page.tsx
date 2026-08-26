@@ -1,0 +1,322 @@
+import Image from "next/image";
+import Link from "next/link";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import {
+  ArrowLeft,
+  Clock3,
+  CreditCard,
+  MapPin,
+  MessageSquareText,
+  Route,
+  Soup,
+  Users,
+  WalletCards,
+  type LucideIcon,
+} from "lucide-react";
+import { OrderGuide } from "@/components/OrderGuide";
+import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
+import { SaveButton } from "@/components/SaveButton";
+import { SectionTitle } from "@/components/SectionTitle";
+import { ShareButton } from "@/components/ShareButton";
+import { StructuredData } from "@/components/StructuredData";
+import { TagChip } from "@/components/TagChip";
+import { demoPlaces } from "@/data/demo-places";
+import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
+import {
+  getPlaceContent,
+  isLocale,
+  localeAlternates,
+  localeMeta,
+  localizedCanonical,
+  type Locale,
+  ui,
+  withLocale,
+} from "@/lib/i18n";
+import { categoryLabels } from "@/types/database";
+
+type LocalizedPlaceDetailPageProps = {
+  params: Promise<{
+    locale: string;
+    slug: string;
+  }>;
+};
+
+export const dynamic = "force-dynamic";
+
+export function generateStaticParams() {
+  return demoPlaces.flatMap((place) => [
+    { locale: "zh", slug: place.slug },
+    { locale: "en", slug: place.slug },
+    { locale: "ja", slug: place.slug },
+    { locale: "ko", slug: place.slug },
+  ]);
+}
+
+async function getRouteParams(params: LocalizedPlaceDetailPageProps["params"]) {
+  const { locale, slug } = await params;
+
+  if (!isLocale(locale)) {
+    notFound();
+  }
+
+  return { locale, slug };
+}
+
+export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps): Promise<Metadata> {
+  const { locale, slug } = await getRouteParams(params);
+  const { place } = await getPlaceBySlug(slug);
+  const copy = ui[locale];
+
+  if (!place) {
+    return {
+      title: copy.placeDetail.titleFallback,
+      description: copy.places.description,
+      alternates: {
+        canonical: localizedCanonical(`/places/${slug}`, locale),
+        languages: localeAlternates(`/places/${slug}`),
+      },
+    };
+  }
+
+  const content = getPlaceContent(place, locale);
+  const title = `${content.name} | ${content.secondaryName}`;
+  const description = `${content.name}: ${content.description}`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: localizedCanonical(`/places/${slug}`, locale),
+      languages: localeAlternates(`/places/${slug}`),
+    },
+    openGraph: {
+      title,
+      description,
+      url: localizedCanonical(`/places/${slug}`, locale),
+      siteName: copy.siteName,
+      locale: localeMeta[locale].openGraphLocale,
+      type: "article",
+      images: place.thumbnail_url ? [{ url: place.thumbnail_url }] : undefined,
+    },
+  };
+}
+
+export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlaceDetailPageProps) {
+  const { locale, slug } = await getRouteParams(params);
+  const { place, source, error } = await getPlaceBySlug(slug);
+  const copy = ui[locale];
+
+  if (!place) {
+    notFound();
+  }
+
+  const content = getPlaceContent(place, locale);
+  const recommendedMenus = place.menu_items.filter((item) => item.is_recommended);
+  const otherMenus = place.menu_items.filter((item) => !item.is_recommended);
+  const facilityTags = [
+    place.solo_friendly ? { zh: "一个人也可以", en: "Solo friendly", ja: "一人でもOK", ko: "혼자 가능" } : null,
+    place.luggage_friendly ? { zh: "行李OK", en: "Luggage OK", ja: "荷物OK", ko: "캐리어 가능" } : null,
+    place.chinese_menu ? { zh: "中文菜单", en: "Chinese menu", ja: "中国語メニュー", ko: "중국어 메뉴" } : null,
+    place.card_payment ? { zh: "可以刷卡", en: "Card accepted", ja: "カード可", ko: "카드 가능" } : null,
+  ].filter((label): label is Record<Locale, string> => Boolean(label));
+  const placeHref = withLocale(`/places/${place.slug}`, locale);
+
+  return (
+    <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
+      <StructuredData
+        data={{
+          "@context": "https://schema.org",
+          "@type": "TouristAttraction",
+          name: `${content.name} / ${content.secondaryName}`,
+          description: content.description,
+          image: place.thumbnail_url,
+          url: localizedCanonical(`/places/${place.slug}`, locale),
+          address: content.address,
+          geo:
+            place.latitude && place.longitude
+              ? {
+                  "@type": "GeoCoordinates",
+                  latitude: place.latitude,
+                  longitude: place.longitude,
+                }
+              : undefined,
+        }}
+      />
+      <Link href={withLocale("/places", locale)} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+        <ArrowLeft size={17} aria-hidden="true" />
+        {copy.common.backToPlaces}
+      </Link>
+
+      {error ? <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
+
+      <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
+        <div className="relative aspect-[4/3] bg-slate-200">
+          <Image
+            src={place.thumbnail_url}
+            alt={`${content.name} / ${content.secondaryName}`}
+            fill
+            sizes="(max-width: 768px) 100vw, 720px"
+            className="object-cover"
+            priority
+          />
+          <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-sm backdrop-blur">
+            {categoryLabels[place.category][locale]} · {source === "demo" ? copy.common.demo : copy.common.live}
+          </div>
+        </div>
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <TagChip tone={place.is_active ? "green" : "amber"}>{place.is_active ? copy.common.available : copy.common.unavailable}</TagChip>
+              <h1 className="mt-3 text-3xl font-black tracking-normal text-slate-950">{content.name}</h1>
+              <p className="mt-1 text-base text-slate-500">{content.secondaryName}</p>
+            </div>
+            <SaveButton
+              className="size-11 shrink-0"
+              item={{
+                id: place.id,
+                type: "place",
+                titleZh: place.name_zh,
+                titleKo: place.name_ko,
+                href: placeHref,
+                imageUrl: place.thumbnail_url,
+                meta: `${categoryLabels[place.category][locale]} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
+              }}
+            />
+          </div>
+          <div className="mt-4">
+            <ShareButton
+              title={content.name}
+              text={`${content.name} / ${content.secondaryName} - ${content.description}`}
+              url={localizedCanonical(`/places/${place.slug}`, locale)}
+            />
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <InfoTile icon={WalletCards} label={copy.placeDetail.payment} value={formatPriceRange(place, locale)} />
+            <InfoTile icon={Clock3} label={copy.common.walk} value={`${place.walking_minutes}${copy.common.minutes}`} />
+            <InfoTile icon={Route} label={copy.placeDetail.location} value={place.opening_hours || copy.common.notRegistered} />
+          </div>
+
+          <section className="mt-6">
+            <SectionTitle title={copy.placeDetail.recommendation} subtitle="추천 이유" />
+            <p className="mt-3 text-base leading-7 text-slate-700">{content.description}</p>
+          </section>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {place.tags.map((tag) => (
+              <TagChip key={tag.slug}>{locale === "ko" ? tag.label_ko : tag.label_zh}</TagChip>
+            ))}
+            {facilityTags.map((label) => (
+              <TagChip key={label.zh} tone="blue">
+                {label[locale]}
+              </TagChip>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-6 space-y-3">
+        <SectionTitle title={copy.placeDetail.menu} subtitle="추천 메뉴" />
+        {place.menu_items.length > 0 ? (
+          <div className="space-y-3">
+            {[...recommendedMenus, ...otherMenus].map((item) => (
+              <div key={item.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-slate-950">{locale === "ko" ? item.name_ko : item.name_zh}</h2>
+                      {item.is_recommended ? <TagChip tone="green">{copy.placeDetail.recommended}</TagChip> : null}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">{locale === "ko" ? item.name_zh : item.name_ko}</p>
+                  </div>
+                  <span className="shrink-0 font-black text-slate-950">{formatWon(item.price, locale)}</span>
+                </div>
+                {item.description_zh ? <p className="mt-3 text-sm leading-6 text-slate-600">{item.description_zh}</p> : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[22px] bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
+            {copy.placeDetail.noMenu}
+          </div>
+        )}
+      </section>
+
+      {place.category === "restaurant" ? (
+        <OrderGuide place={place} />
+      ) : (
+        <section className="mt-6 space-y-3">
+          <SectionTitle title={copy.placeDetail.howToSay} subtitle="어떻게 말할까?" />
+          <div className="rounded-[24px] bg-teal-700 p-5 text-white shadow-sm">
+            <MessageSquareText size={22} aria-hidden="true" />
+            <p className="mt-3 text-lg font-bold">{content.recommendedOrder || "请问可以推荐这里最受欢迎的菜单吗？"}</p>
+            <p className="mt-3 rounded-2xl bg-white/12 p-3 text-sm leading-6 text-teal-50">
+              {place.recommended_order_ko || "여기에서 가장 인기 있는 메뉴를 추천해주실 수 있나요?"}
+            </p>
+          </div>
+        </section>
+      )}
+
+      <section className="mt-6 grid gap-3 sm:grid-cols-2">
+        <InfoPanel icon={Users} title={copy.placeDetail.waiting} subtitle="웨이팅" body={content.waitingInfo || copy.common.noInfo} />
+        <InfoPanel
+          icon={MapPin}
+          title={copy.placeDetail.directions}
+          subtitle="가는 방법"
+          body={`${place.nearest_station} ${place.nearest_exit} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`}
+        />
+      </section>
+
+      <section className="mt-6 space-y-3">
+        <SectionTitle title={copy.placeDetail.travelTip} subtitle="여행 팁" />
+        <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <Soup size={22} className="text-teal-700" aria-hidden="true" />
+          <p className="mt-3 text-base leading-7 text-slate-700">{content.travelTip || copy.common.noInfo}</p>
+        </div>
+      </section>
+
+      <section className="mt-6 grid grid-cols-2 gap-3">
+        <InfoTile icon={CreditCard} label={copy.placeDetail.payment} value={place.card_payment ? facilityTags[3]?.[locale] ?? "OK" : copy.common.noInfo} />
+        <InfoTile icon={MapPin} label={copy.placeDetail.coordinates} value={place.latitude && place.longitude ? `${place.latitude}, ${place.longitude}` : copy.common.notRegistered} />
+      </section>
+
+      <section className="mt-6 rounded-[24px] bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        {copy.placeDetail.confirmationNote}
+      </section>
+
+      <PlaceLocationPanel place={place} locale={locale} />
+    </main>
+  );
+}
+
+function InfoTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3">
+      <Icon size={17} className="text-teal-700" aria-hidden="true" />
+      <p className="mt-2 text-xs text-slate-500">{label}</p>
+      <p className="break-words text-sm font-bold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function InfoPanel({
+  icon: Icon,
+  title,
+  subtitle,
+  body,
+}: {
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <Icon size={22} className="text-teal-700" aria-hidden="true" />
+      <h2 className="mt-3 text-lg font-bold text-slate-950">{title}</h2>
+      <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-700">{body}</p>
+    </div>
+  );
+}

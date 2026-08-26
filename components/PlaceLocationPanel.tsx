@@ -11,15 +11,19 @@ import {
   getOpeningStatusLabel,
   type Coordinates,
 } from "@/lib/location";
+import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
 import type { PlaceWithRelations } from "@/types/database";
 
 type PlaceLocationPanelProps = {
   place: PlaceWithRelations;
+  locale?: Locale;
 };
 
-export function PlaceLocationPanel({ place }: PlaceLocationPanelProps) {
+export function PlaceLocationPanel({ place, locale = defaultLocale }: PlaceLocationPanelProps) {
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [message, setMessage] = useState("현재 위치를 허용하면 이 장소까지의 거리를 계산합니다.");
+  const content = getPlaceContent(place, locale);
+  const copy = ui[locale];
 
   const hasCoordinate = typeof place.latitude === "number" && typeof place.longitude === "number";
   const placeCoordinate = hasCoordinate
@@ -33,8 +37,8 @@ export function PlaceLocationPanel({ place }: PlaceLocationPanelProps) {
   const openingStatus = getOpeningStatus(place.opening_hours);
   const openingLabel = getOpeningStatusLabel(openingStatus);
   const mapUrl = hasCoordinate
-    ? `https://map.kakao.com/link/map/${encodeURIComponent(place.name_ko)},${place.latitude},${place.longitude}`
-    : `https://map.kakao.com/?q=${encodeURIComponent(place.name_ko)}`;
+    ? `https://map.kakao.com/link/map/${encodeURIComponent(content.secondaryName)},${place.latitude},${place.longitude}`
+    : `https://map.kakao.com/?q=${encodeURIComponent(content.secondaryName)}`;
 
   function requestLocation() {
     if (!("geolocation" in navigator)) {
@@ -75,13 +79,13 @@ export function PlaceLocationPanel({ place }: PlaceLocationPanelProps) {
       <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="rounded-2xl bg-slate-50 p-3">
           <Navigation size={17} className="text-teal-700" aria-hidden="true" />
-          <p className="mt-2 text-xs text-slate-500">距离你</p>
-          <p className="text-lg font-black text-slate-950">{distance === null ? "待确认" : formatDistance(distance)}</p>
+          <p className="mt-2 text-xs text-slate-500">{copy.placeDetail.distanceFromYou}</p>
+          <p className="text-lg font-black text-slate-950">{distance === null ? copy.common.noInfo : formatDistance(distance)}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 p-3">
           <MapPin size={17} className="text-teal-700" aria-hidden="true" />
-          <p className="mt-2 text-xs text-slate-500">步行约</p>
-          <p className="text-lg font-black text-slate-950">{walkingMinutes === null ? `${place.walking_minutes}分钟` : `${walkingMinutes}分钟`}</p>
+          <p className="mt-2 text-xs text-slate-500">{copy.placeDetail.walkingApprox}</p>
+          <p className="text-lg font-black text-slate-950">{walkingMinutes === null ? `${place.walking_minutes}${copy.common.minutes}` : `${walkingMinutes}${copy.common.minutes}`}</p>
         </div>
       </div>
 
@@ -94,7 +98,7 @@ export function PlaceLocationPanel({ place }: PlaceLocationPanelProps) {
           className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition active:scale-95"
         >
           <LocateFixed size={18} aria-hidden="true" />
-          거리 계산
+          {copy.placeDetail.calculateDistance}
         </button>
         <a
           href={mapUrl}
@@ -103,7 +107,7 @@ export function PlaceLocationPanel({ place }: PlaceLocationPanelProps) {
           className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-95"
         >
           <ExternalLink size={18} aria-hidden="true" />
-          打开地图
+          {copy.common.openMap}
         </a>
       </div>
     </section>

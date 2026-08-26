@@ -3,19 +3,30 @@
 import Link from "next/link";
 import { Bookmark, CalendarDays, Home, MapPinned } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { defaultLocale, getLocaleFromPath, ui, withLocale, withoutLocale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { label: "首页", ko: "홈", href: "/", icon: Home },
-  { label: "附近", ko: "주변", href: "/nearby", icon: MapPinned },
-  { label: "行程", ko: "일정", href: "/itinerary", icon: CalendarDays },
-  { label: "收藏", ko: "저장", href: "/saved", icon: Bookmark },
-];
+  { key: "home", href: "/", icon: Home },
+  { key: "nearby", href: "/nearby", icon: MapPinned },
+  { key: "itinerary", href: "/itinerary", icon: CalendarDays },
+  { key: "saved", href: "/saved", icon: Bookmark },
+] as const;
+
+const secondaryLabels = {
+  zh: { home: "홈", nearby: "주변", itinerary: "일정", saved: "저장" },
+  en: { home: "Home", nearby: "Nearby", itinerary: "Routes", saved: "Saved" },
+  ja: { home: "ホーム", nearby: "近く", itinerary: "旅程", saved: "保存" },
+  ko: { home: "Home", nearby: "Nearby", itinerary: "Routes", saved: "Saved" },
+};
 
 export function BottomNavigation() {
   const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname) ?? defaultLocale;
+  const currentPath = withoutLocale(pathname);
+  const copy = ui[locale];
 
-  if (pathname.startsWith("/admin")) {
+  if (currentPath.startsWith("/admin")) {
     return null;
   }
 
@@ -24,20 +35,20 @@ export function BottomNavigation() {
       <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href.split("?")[0]));
+          const active = currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href));
 
           return (
             <Link
-              key={item.label}
-              href={item.href}
+              key={item.key}
+              href={withLocale(item.href, locale)}
               className={cn(
                 "flex h-14 flex-col items-center justify-center rounded-2xl text-xs font-medium transition active:scale-95",
                 active ? "bg-teal-50 text-teal-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
               )}
             >
               <Icon size={20} aria-hidden="true" />
-              <span className="mt-1 leading-none">{item.label}</span>
-              <span className="sr-only">{item.ko}</span>
+              <span className="mt-1 leading-none">{copy.nav[item.key]}</span>
+              <span className="sr-only">{secondaryLabels[locale][item.key]}</span>
             </Link>
           );
         })}

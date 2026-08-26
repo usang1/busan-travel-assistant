@@ -6,46 +6,65 @@ import { EmptyState } from "@/components/EmptyState";
 import { PlaceCard } from "@/components/PlaceCard";
 import { SearchBar } from "@/components/SearchBar";
 import { TagChip } from "@/components/TagChip";
+import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
 import { categoryLabels, placeCategories, type PlaceCategory, type PlaceWithRelations } from "@/types/database";
 
 type PlacesExplorerProps = {
   places: PlaceWithRelations[];
   initialCategory?: string;
+  locale?: Locale;
 };
 
-const categoryFilters: Array<{ label: string; value: PlaceCategory | "all" }> = [
-  { label: "全部", value: "all" },
-  { label: "餐厅", value: "restaurant" },
-  { label: "咖啡", value: "cafe" },
-  { label: "酒吧", value: "bar" },
-  { label: "景点", value: "attraction" },
-  { label: "购物", value: "shopping" },
-  { label: "拍照", value: "photo_spot" },
-  { label: "行李", value: "luggage" },
+const categoryFilters: Array<{ value: PlaceCategory | "all" }> = [
+  { value: "all" },
+  { value: "restaurant" },
+  { value: "cafe" },
+  { value: "bar" },
+  { value: "attraction" },
+  { value: "shopping" },
+  { value: "photo_spot" },
+  { value: "luggage" },
 ];
 
 const extraFilters = [
-  { key: "solo", label: "一个人也可以", ko: "혼자 가능" },
-  { key: "luggage", label: "行李OK", ko: "캐리어 가능" },
-  { key: "chineseMenu", label: "中文菜单", ko: "중국어 메뉴" },
-  { key: "under20000", label: "₩20,000 以下", ko: "2만원 이하" },
+  {
+    key: "solo",
+    label: { zh: "一个人也可以", en: "Solo friendly", ja: "一人でもOK", ko: "혼자 가능" },
+  },
+  {
+    key: "luggage",
+    label: { zh: "行李OK", en: "Luggage OK", ja: "荷物OK", ko: "캐리어 가능" },
+  },
+  {
+    key: "chineseMenu",
+    label: { zh: "中文菜单", en: "Chinese menu", ja: "中国語メニュー", ko: "중국어 메뉴" },
+  },
+  {
+    key: "under20000",
+    label: { zh: "₩20,000 以下", en: "Under ₩20,000", ja: "₩20,000以下", ko: "2만원 이하" },
+  },
 ] as const;
 
 type ExtraFilter = (typeof extraFilters)[number]["key"];
 
-export function PlacesExplorer({ places, initialCategory }: PlacesExplorerProps) {
+export function PlacesExplorer({ places, initialCategory, locale = defaultLocale }: PlacesExplorerProps) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PlaceCategory | "all">(
     placeCategories.includes(initialCategory as PlaceCategory) ? (initialCategory as PlaceCategory) : "all",
   );
   const [activeExtras, setActiveExtras] = useState<ExtraFilter[]>([]);
+  const copy = ui[locale];
 
   const filteredPlaces = useMemo(() => {
     const lowered = query.trim().toLowerCase();
 
     return places.filter((place) => {
+      const content = getPlaceContent(place, locale);
       const categoryMatch = category === "all" || place.category === category;
       const searchText = [
+        content.name,
+        content.secondaryName,
+        content.description,
         place.name_zh,
         place.name_ko,
         place.short_description_zh,
@@ -76,7 +95,7 @@ export function PlacesExplorer({ places, initialCategory }: PlacesExplorerProps)
 
       return categoryMatch && queryMatch && extraMatch;
     });
-  }, [activeExtras, category, places, query]);
+  }, [activeExtras, category, locale, places, query]);
 
   function toggleExtra(filter: ExtraFilter) {
     setActiveExtras((current) =>
@@ -90,7 +109,7 @@ export function PlacesExplorer({ places, initialCategory }: PlacesExplorerProps)
         <SearchBar
           value={query}
           onChange={setQuery}
-          placeholder="搜索中文名、韩文名、说明、类别"
+          placeholder={copy.places.searchPlaceholder}
           compact
         />
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -109,14 +128,14 @@ export function PlacesExplorer({ places, initialCategory }: PlacesExplorerProps)
                     : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
                 ].join(" ")}
               >
-                {filter.label}
+                {filter.value === "all" ? copy.places.all : categoryLabels[filter.value][locale]}
               </button>
             );
           })}
           <button
             type="button"
             className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200"
-            aria-label="筛选"
+            aria-label={copy.places.filter}
           >
             <SlidersHorizontal size={18} aria-hidden="true" />
           </button>
@@ -127,8 +146,7 @@ export function PlacesExplorer({ places, initialCategory }: PlacesExplorerProps)
 
             return (
               <button key={filter.key} type="button" onClick={() => toggleExtra(filter.key)} className="active:scale-95">
-                <TagChip tone={active ? "green" : "default"}>{filter.label}</TagChip>
-                <span className="sr-only">{filter.ko}</span>
+                <TagChip tone={active ? "green" : "default"}>{filter.label[locale]}</TagChip>
               </button>
             );
           })}
@@ -138,17 +156,17 @@ export function PlacesExplorer({ places, initialCategory }: PlacesExplorerProps)
       {filteredPlaces.length > 0 ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {filteredPlaces.map((place, index) => (
-            <PlaceCard key={place.id} place={place} priority={index === 0} />
+            <PlaceCard key={place.id} place={place} priority={index === 0} locale={locale} />
           ))}
         </div>
       ) : (
         <div className="mt-5">
-          <EmptyState title="没有找到地点" description="필터나 검색어를 줄여 다시 확인해 주세요." />
+          <EmptyState title={copy.places.emptyTitle} description={copy.places.emptyDescription} />
         </div>
       )}
 
       <p className="mt-4 text-center text-xs text-slate-500">
-        当前显示 {filteredPlaces.length} / {places.length} 个地点 · 类别 {placeCategories.length} 个
+        {copy.places.countLabel} {filteredPlaces.length} / {places.length} · {placeCategories.length}
       </p>
     </div>
   );

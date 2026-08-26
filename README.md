@@ -2,7 +2,7 @@
 
 중국인 자유여행객이 부산 광안리에서 바로 쓸 수 있는 모바일 중심 여행 도구 MVP입니다.
 
-사용자 화면은 중국어 간체를 기본으로 하고, 관리자 화면은 한국어로 제공합니다. 실제 업체 정보는 Supabase 관리자 데이터만 노출하며, 환경 변수가 없는 로컬 환경에서는 명확한 Demo 데이터로 fallback됩니다.
+사용자 화면은 중국어 간체를 기본으로 하며 `/zh`, `/en`, `/ja`, `/ko` locale URL 기반 확장을 준비했습니다. 관리자 화면은 한국어로 제공합니다. 실제 업체 정보는 Supabase 관리자 데이터만 노출하며, 환경 변수가 없는 로컬 환경에서는 명확한 Demo 데이터로 fallback됩니다.
 
 ## 기술 스택
 
@@ -25,7 +25,7 @@
 - Mock 결제로 PRO 권한 활성화
 - localStorage 저장/공유 기능
 - 한국어 관리자 장소 CRUD와 대시보드
-- SEO metadata, OpenGraph, sitemap, robots, legal page 초안
+- locale별 SEO metadata, hreflang, sitemap, OpenGraph, robots, legal page 초안
 
 ## 설치
 
@@ -57,18 +57,28 @@ Supabase SQL editor 또는 CLI에서 아래 순서로 실행합니다.
 ```bash
 supabase/migrations/001_places_schema.sql
 supabase/migrations/002_photo_spots.sql
+supabase/migrations/003_multilingual_place_architecture.sql
 supabase/seed.sql
 ```
 
 테이블:
 
 - `places`: 장소 기본 정보, 가격, 위치, 운영시간, 시설, 추천 문구
+- `place_translations`: 장소명, 설명, 여행 팁의 locale별 번역
+- `place_sources`: NAVER/KAKAO/GOOGLE/MANUAL 공식 소스 연결용 참조
 - `tags`: 중국어/한국어 태그
 - `place_tags`: 장소-태그 관계
 - `place_menu_items`: 음식점 메뉴 정보
 - `photo_spots`: 사진스팟과 FREE/PRO 구분
+- `profiles`: Supabase Auth 사용자 프로필과 role
+- `place_saves`: 사용자별 장소 저장, `unique(user_id, place_id)` 적용
+- `place_submissions`: 사용자 장소 제보
+- `place_events`: 장소별 이벤트
+- `place_corrections`: 장소 정보 수정 요청
 
-현재 RLS 정책의 관리자 쓰기 권한은 MVP용 임시 정책입니다. 실제 공개 전 Supabase Auth와 admin role 기반 정책으로 교체해야 합니다.
+기존 `places.name_zh/name_ko` 계열 컬럼은 호환을 위해 유지합니다. `003_multilingual_place_architecture.sql`은 기존 중국어/한국어 데이터를 `place_translations`로 backfill하며, 새 기능은 점진적으로 번역 테이블을 우선 사용하도록 확장할 수 있습니다.
+
+현재 기존 장소 테이블의 관리자 쓰기 권한은 MVP용 임시 정책입니다. 새 확장 테이블은 Supabase Auth와 `profiles.role = 'admin'` 기반 RLS를 준비했습니다. 실제 공개 전 관리자 계정의 profile role을 설정해야 합니다.
 
 ## 로컬 실행
 

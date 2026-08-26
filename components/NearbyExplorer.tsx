@@ -17,11 +17,13 @@ import {
   mapCategories,
   type Coordinates,
 } from "@/lib/location";
+import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
 import type { PlaceCategory, PlaceWithRelations } from "@/types/database";
 
 type NearbyExplorerProps = {
   places: PlaceWithRelations[];
+  locale?: Locale;
 };
 
 type OriginMode = "current" | "gwangalli";
@@ -42,7 +44,7 @@ const categoryOptions: Array<{ label: string; ko: string; value: PlaceCategory |
   { label: "行李", ko: "짐보관", value: "luggage" },
 ];
 
-export function NearbyExplorer({ places }: NearbyExplorerProps) {
+export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplorerProps) {
   const [originMode, setOriginMode] = useState<OriginMode>("gwangalli");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState("广安里 기준으로 표시 중입니다.");
@@ -51,6 +53,7 @@ export function NearbyExplorer({ places }: NearbyExplorerProps) {
 
   const origin = originMode === "current" && userLocation ? userLocation : gwangalliCenter;
   const provider = getPreferredMapProvider();
+  const copy = ui[locale];
 
   const nearbyPlaces = useMemo(() => {
     return places
@@ -84,19 +87,23 @@ export function NearbyExplorer({ places }: NearbyExplorerProps) {
       });
   }, [category, origin, places, radius]);
 
-  const markers: MapMarker[] = nearbyPlaces.map(({ place, distance, walkingMinutes }) => ({
-    id: place.id,
-    title: place.name_zh,
-    subtitle: place.name_ko,
-    category: place.category,
-    position: {
-      latitude: place.latitude ?? gwangalliCenter.latitude,
-      longitude: place.longitude ?? gwangalliCenter.longitude,
-    },
-    href: `/places/${place.slug}`,
-    imageUrl: place.thumbnail_url,
-    meta: `${formatDistance(distance)} · 步行约 ${walkingMinutes ?? place.walking_minutes}分钟`,
-  }));
+  const markers: MapMarker[] = nearbyPlaces.map(({ place, distance, walkingMinutes }) => {
+    const content = getPlaceContent(place, locale);
+
+    return {
+      id: place.id,
+      title: content.name,
+      subtitle: content.secondaryName,
+      category: place.category,
+      position: {
+        latitude: place.latitude ?? gwangalliCenter.latitude,
+        longitude: place.longitude ?? gwangalliCenter.longitude,
+      },
+      href: withLocale(`/places/${place.slug}`, locale),
+      imageUrl: place.thumbnail_url,
+      meta: `${formatDistance(distance)} · ${copy.placeDetail.walkingApprox} ${walkingMinutes ?? place.walking_minutes}${copy.common.minutes}`,
+    };
+  });
 
   function requestLocation() {
     if (!("geolocation" in navigator)) {
@@ -240,7 +247,7 @@ export function NearbyExplorer({ places }: NearbyExplorerProps) {
                       {formatDistance(distance)} · 步行约 {walkingMinutes ?? place.walking_minutes}分钟
                     </TagChip>
                   </div>
-                  <PlaceCard place={place} priority={index === 0} />
+                  <PlaceCard place={place} priority={index === 0} locale={locale} />
                 </div>
               );
             })}

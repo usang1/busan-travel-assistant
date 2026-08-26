@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { ProEntitlementProvider } from "@/components/ProEntitlementProvider";
 import { absoluteUrl, siteConfig } from "@/config/site";
+import { localeAlternates } from "@/lib/i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,6 +18,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   alternates: {
     canonical: absoluteUrl("/"),
+    languages: localeAlternates("/"),
   },
   openGraph: {
     title: "釜山旅行助手｜广安里自由行工具",
@@ -48,7 +51,9 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body>
         <ProEntitlementProvider>
-          <Header />
+          <Suspense fallback={null}>
+            <Header />
+          </Suspense>
           {children}
           <Footer />
           <BottomNavigation />

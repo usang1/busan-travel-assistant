@@ -7,15 +7,18 @@ import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
+import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { formatPriceRange } from "@/lib/place-store";
-import type { PlaceWithRelations } from "@/types/database";
+import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 
 type LuggageExplorerProps = {
   places: PlaceWithRelations[];
+  locale?: Locale;
 };
 
-export function LuggageExplorer({ places }: LuggageExplorerProps) {
+export function LuggageExplorer({ places, locale = defaultLocale }: LuggageExplorerProps) {
   const [query, setQuery] = useState("");
+  const copy = ui[locale];
 
   const filtered = useMemo(() => {
     const lowered = query.trim().toLowerCase();
@@ -23,16 +26,18 @@ export function LuggageExplorer({ places }: LuggageExplorerProps) {
     return [...places]
       .sort((a, b) => a.walking_minutes - b.walking_minutes)
       .filter((place) => {
+        const content = getPlaceContent(place, locale);
+
         if (!lowered) {
           return true;
         }
 
-        return [place.name_zh, place.name_ko, place.address_zh, place.address_ko, place.nearest_station]
+        return [content.name, content.secondaryName, content.address, place.name_zh, place.name_ko, place.address_zh, place.address_ko, place.nearest_station]
           .join(" ")
           .toLowerCase()
           .includes(lowered);
       });
-  }, [places, query]);
+  }, [locale, places, query]);
 
   return (
     <div>
@@ -58,14 +63,14 @@ export function LuggageExplorer({ places }: LuggageExplorerProps) {
           {filtered.map((place) => (
             <article key={place.id} className="overflow-hidden rounded-[26px] bg-white shadow-sm ring-1 ring-slate-200">
               <div className="grid grid-cols-[112px_1fr] gap-0">
-                <Link href={`/places/${place.slug}`} className="relative min-h-40 bg-slate-200">
-                  <Image src={place.thumbnail_url} alt={place.name_zh} fill sizes="112px" className="object-cover" />
+                <Link href={withLocale(`/places/${place.slug}`, locale)} className="relative min-h-40 bg-slate-200">
+                  <Image src={place.thumbnail_url} alt={getPlaceContent(place, locale).name} fill sizes="112px" className="object-cover" />
                 </Link>
                 <div className="min-w-0 p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <Link href={`/places/${place.slug}`} className="min-w-0">
-                      <h2 className="truncate text-lg font-black text-slate-950">{place.name_zh}</h2>
-                      <p className="mt-1 truncate text-sm text-slate-500">{place.name_ko}</p>
+                    <Link href={withLocale(`/places/${place.slug}`, locale)} className="min-w-0">
+                      <h2 className="truncate text-lg font-black text-slate-950">{getPlaceContent(place, locale).name}</h2>
+                      <p className="mt-1 truncate text-sm text-slate-500">{getPlaceContent(place, locale).secondaryName}</p>
                     </Link>
                     <SaveButton
                       item={{
@@ -73,19 +78,19 @@ export function LuggageExplorer({ places }: LuggageExplorerProps) {
                         type: "place",
                         titleZh: place.name_zh,
                         titleKo: place.name_ko,
-                        href: `/places/${place.slug}`,
+                        href: withLocale(`/places/${place.slug}`, locale),
                         imageUrl: place.thumbnail_url,
-                        meta: `行李寄存 · 步行 ${place.walking_minutes}分钟`,
+                        meta: `${categoryLabels.luggage[locale]} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
                       }}
                     />
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <Info icon={MapPin} label="位置" value={`${place.nearest_station} ${place.nearest_exit}`} />
-                    <Info icon={Clock3} label="运营" value={place.opening_hours || "未登记"} />
-                    <Info icon={WalletCards} label="价格" value={formatPriceRange(place)} />
+                    <Info icon={Clock3} label="运营" value={place.opening_hours || copy.common.notRegistered} />
+                    <Info icon={WalletCards} label="价格" value={formatPriceRange(place, locale)} />
                     <Info icon={Luggage} label="大行李箱" value={place.luggage_friendly ? "可以" : "需确认"} />
                   </div>
-                  <p className="mt-3 text-sm font-semibold text-teal-700">从车站步行 {place.walking_minutes} 分钟</p>
+                  <p className="mt-3 text-sm font-semibold text-teal-700">{copy.common.walk} {place.walking_minutes}{copy.common.minutes}</p>
                   <p className="mt-1 text-xs text-slate-500">최대 보관시간: 당일 영업시간 내 확인 필요</p>
                 </div>
               </div>

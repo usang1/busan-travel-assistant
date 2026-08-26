@@ -60,6 +60,26 @@ on conflict (slug) do update set
   is_featured = excluded.is_featured,
   is_active = excluded.is_active;
 
+insert into public.place_translations (place_id, locale, name, description, travel_tip)
+select id, 'zh'::app_locale, name_zh, short_description_zh, tips_zh
+from public.places
+where slug like 'demo-%'
+on conflict (place_id, locale) do update set
+  name = excluded.name,
+  description = excluded.description,
+  travel_tip = excluded.travel_tip,
+  updated_at = now();
+
+insert into public.place_translations (place_id, locale, name, description, travel_tip)
+select id, 'ko'::app_locale, name_ko, short_description_ko, tips_ko
+from public.places
+where slug like 'demo-%'
+on conflict (place_id, locale) do update set
+  name = excluded.name,
+  description = excluded.description,
+  travel_tip = excluded.travel_tip,
+  updated_at = now();
+
 insert into public.place_tags (place_id, tag_id)
 select p.id, t.id
 from public.places p
