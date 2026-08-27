@@ -10,6 +10,14 @@ export type MapMarker = {
   href: string;
   imageUrl: string;
   meta: string;
+  saveCount?: number;
+};
+
+export type MapBounds = {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
 };
 
 export type MapProviderId = "kakao" | "fallback";

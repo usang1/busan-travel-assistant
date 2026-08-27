@@ -10,6 +10,8 @@ export const placeCategories = [
 
 export type PlaceCategory = (typeof placeCategories)[number];
 
+export type PlaceSourceProvider = "NAVER" | "KAKAO" | "GOOGLE" | "MANUAL";
+
 export type PlaceRecord = {
   id: string;
   slug: string;
@@ -83,11 +85,89 @@ export type PlaceWithRelations = PlaceRecord & {
   tags: TagRecord[];
   menu_items: PlaceMenuItem[];
   translations?: PlaceTranslationRecord[];
+  save_count?: number;
 };
+
+export type PlaceSourceRecord = {
+  id: string;
+  place_id: string;
+  provider: PlaceSourceProvider;
+  external_id?: string | null;
+  source_url?: string | null;
+  last_synced_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlaceSaveRecord = {
+  id: string;
+  user_id: string;
+  place_id: string;
+  created_at: string;
+};
+
+export type PlaceCorrectionStatus = "pending" | "accepted" | "rejected";
+
+export type PlaceCorrectionRecord = {
+  id: string;
+  place_id: string;
+  user_id: string | null;
+  locale: "zh" | "en" | "ja" | "ko";
+  field_name: string;
+  current_value?: string | null;
+  suggested_value: string;
+  source_url?: string | null;
+  notes: string;
+  status: PlaceCorrectionStatus;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  places?: Pick<PlaceRecord, "id" | "slug" | "name_zh" | "name_ko" | "category"> | null;
+};
+
+export type PlaceActionEventType =
+  | "place_view"
+  | "place_save"
+  | "place_unsave"
+  | "marker_click"
+  | "directions_click"
+  | "share"
+  | "submission_created"
+  | "correction_submitted";
 
 export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at"> & {
   tags: Array<Pick<TagRecord, "label_zh" | "label_ko" | "slug">>;
   menu_items: Array<Omit<PlaceMenuItem, "id" | "place_id">>;
+  translations?: Array<Pick<PlaceTranslationRecord, "locale" | "name" | "description" | "travel_tip">>;
+  source?: {
+    provider: PlaceSourceProvider;
+    source_url?: string | null;
+    external_id?: string | null;
+  };
+};
+
+export type SubmissionStatus = "pending" | "reviewing" | "approved" | "rejected" | "duplicate";
+
+export type PlaceSubmissionRecord = {
+  id: string;
+  user_id: string | null;
+  place_id?: string | null;
+  locale: "zh" | "en" | "ja" | "ko";
+  name?: string | null;
+  category?: PlaceCategory | null;
+  provider: PlaceSourceProvider;
+  external_id?: string | null;
+  source_url?: string | null;
+  address_text?: string | null;
+  location_text?: string | null;
+  recommendation_reason?: string | null;
+  notes: string;
+  status: SubmissionStatus;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type PlaceListResult = {

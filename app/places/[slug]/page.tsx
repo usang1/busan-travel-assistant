@@ -15,7 +15,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { OrderGuide } from "@/components/OrderGuide";
+import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
+import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
 import { SectionTitle } from "@/components/SectionTitle";
 import { ShareButton } from "@/components/ShareButton";
@@ -23,6 +25,7 @@ import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { absoluteUrl, siteConfig } from "@/config/site";
 import { demoPlaces } from "@/data/demo-places";
+import { formatOpeningStatus } from "@/lib/location";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { categoryLabels } from "@/types/database";
 
@@ -79,6 +82,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
     place.chinese_menu ? "中文菜单" : null,
     place.card_payment ? "可以刷卡" : null,
   ].filter((label): label is string => Boolean(label));
+  const opening = formatOpeningStatus(place.opening_hours, "zh");
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -99,6 +103,18 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
                   longitude: place.longitude,
                 }
               : undefined,
+        }}
+      />
+      <PlaceViewTracker
+        locale="zh"
+        place={{
+          id: place.id,
+          slug: place.slug,
+          title: place.name_zh,
+          subtitle: place.name_ko,
+          href: `/places/${place.slug}`,
+          imageUrl: place.thumbnail_url,
+          category: place.category,
         }}
       />
       <Link href="/places" className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
@@ -130,7 +146,8 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
               <p className="mt-1 text-base text-slate-500">{place.name_ko}</p>
             </div>
             <SaveButton
-              className="size-11 shrink-0"
+              className="h-11 px-3"
+              initialSaveCount={place.save_count ?? 0}
               item={{
                 id: place.id,
                 type: "place",
@@ -147,13 +164,15 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
               title={place.name_zh}
               text={`${place.name_zh} / ${place.name_ko} - ${place.short_description_zh}`}
               url={absoluteUrl(`/places/${place.slug}`)}
+              placeId={place.id}
+              locale="zh"
             />
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <InfoTile icon={WalletCards} label="价格" value={formatPriceRange(place)} />
             <InfoTile icon={Clock3} label="距离" value={`步行 ${place.walking_minutes}分钟`} />
-            <InfoTile icon={Route} label="营业" value={place.opening_hours || "未登记"} />
+            <InfoTile icon={Route} label="营业" value={place.opening_hours ? opening.text : "未登记"} />
           </div>
 
           <section className="mt-6">
@@ -246,6 +265,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
         信息可能会发生变化，请出发前再次确认。가격, 영업시간, 대기 정보는 변경될 수 있으니 방문 전 다시 확인하세요.
       </section>
 
+      <PlaceCorrectionForm placeId={place.id} locale="zh" />
       <PlaceLocationPanel place={place} />
     </main>
   );

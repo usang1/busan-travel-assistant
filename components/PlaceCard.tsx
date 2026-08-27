@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Clock3, MapPin } from "lucide-react";
+import { DirectionsButton } from "@/components/DirectionsButton";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
+import { formatDistance, formatOpeningStatus, type Coordinates } from "@/lib/location";
 import { formatPriceRange } from "@/lib/place-store";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
@@ -11,12 +13,19 @@ type PlaceCardProps = {
   place: PlaceWithRelations;
   priority?: boolean;
   locale?: Locale;
+  distanceMeters?: number | null;
+  compact?: boolean;
 };
 
-export function PlaceCard({ place, priority = false, locale = defaultLocale }: PlaceCardProps) {
+export function PlaceCard({ place, priority = false, locale = defaultLocale, distanceMeters = null, compact = false }: PlaceCardProps) {
   const content = getPlaceContent(place, locale);
   const copy = ui[locale];
   const placeHref = withLocale(`/places/${place.slug}`, locale);
+  const opening = formatOpeningStatus(place.opening_hours, locale);
+  const coordinates: Coordinates | null =
+    typeof place.latitude === "number" && typeof place.longitude === "number"
+      ? { latitude: place.latitude, longitude: place.longitude }
+      : null;
 
   return (
     <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -35,13 +44,15 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale }: P
           </div>
         </div>
       </Link>
-      <div className="p-4">
+      <div className={compact ? "p-3" : "p-4"}>
         <div className="flex items-start justify-between gap-3">
           <Link href={placeHref} className="min-w-0">
-            <h3 className="truncate text-lg font-bold text-slate-950">{content.name}</h3>
+            <h3 className={compact ? "truncate text-base font-bold text-slate-950" : "truncate text-lg font-bold text-slate-950"}>{content.name}</h3>
             <p className="mt-0.5 text-sm text-slate-500">{content.secondaryName}</p>
           </Link>
           <SaveButton
+            initialSaveCount={place.save_count ?? 0}
+            locale={locale}
             item={{
               id: place.id,
               type: "place",
@@ -63,7 +74,13 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale }: P
             <MapPin size={14} aria-hidden="true" />
             {place.nearest_station}
           </span>
+          {distanceMeters !== null ? <span className="font-semibold text-teal-700">{formatDistance(distanceMeters)}</span> : null}
         </div>
+        {place.opening_hours ? (
+          <div className="mt-3">
+            <TagChip tone={opening.tone}>{opening.text}</TagChip>
+          </div>
+        ) : null}
         <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{content.description}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {place.tags.slice(0, 3).map((tag) => (
@@ -71,6 +88,16 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale }: P
               {locale === "ko" ? tag.label_ko : tag.label_zh}
             </TagChip>
           ))}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <DirectionsButton
+            placeId={place.id}
+            name={content.name}
+            address={content.address}
+            coordinates={coordinates}
+            locale={locale}
+            compact
+          />
         </div>
       </div>
     </article>

@@ -15,7 +15,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { OrderGuide } from "@/components/OrderGuide";
+import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
+import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
 import { SectionTitle } from "@/components/SectionTitle";
 import { ShareButton } from "@/components/ShareButton";
@@ -23,6 +25,7 @@ import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { demoPlaces } from "@/data/demo-places";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
+import { formatOpeningStatus } from "@/lib/location";
 import {
   getPlaceContent,
   isLocale,
@@ -121,6 +124,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     place.card_payment ? { zh: "可以刷卡", en: "Card accepted", ja: "カード可", ko: "카드 가능" } : null,
   ].filter((label): label is Record<Locale, string> => Boolean(label));
   const placeHref = withLocale(`/places/${place.slug}`, locale);
+  const opening = formatOpeningStatus(place.opening_hours, locale);
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -141,6 +145,18 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
                   longitude: place.longitude,
                 }
               : undefined,
+        }}
+      />
+      <PlaceViewTracker
+        locale={locale}
+        place={{
+          id: place.id,
+          slug: place.slug,
+          title: content.name,
+          subtitle: content.secondaryName,
+          href: placeHref,
+          imageUrl: place.thumbnail_url,
+          category: place.category,
         }}
       />
       <Link href={withLocale("/places", locale)} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
@@ -172,7 +188,9 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
               <p className="mt-1 text-base text-slate-500">{content.secondaryName}</p>
             </div>
             <SaveButton
-              className="size-11 shrink-0"
+              className="h-11 px-3"
+              initialSaveCount={place.save_count ?? 0}
+              locale={locale}
               item={{
                 id: place.id,
                 type: "place",
@@ -189,13 +207,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
               title={content.name}
               text={`${content.name} / ${content.secondaryName} - ${content.description}`}
               url={localizedCanonical(`/places/${place.slug}`, locale)}
+              placeId={place.id}
+              locale={locale}
             />
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <InfoTile icon={WalletCards} label={copy.placeDetail.payment} value={formatPriceRange(place, locale)} />
             <InfoTile icon={Clock3} label={copy.common.walk} value={`${place.walking_minutes}${copy.common.minutes}`} />
-            <InfoTile icon={Route} label={copy.placeDetail.location} value={place.opening_hours || copy.common.notRegistered} />
+            <InfoTile icon={Route} label="영업" value={place.opening_hours ? opening.text : copy.common.notRegistered} />
           </div>
 
           <section className="mt-6">
@@ -285,6 +305,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         {copy.placeDetail.confirmationNote}
       </section>
 
+      <PlaceCorrectionForm placeId={place.id} locale={locale} />
       <PlaceLocationPanel place={place} locale={locale} />
     </main>
   );

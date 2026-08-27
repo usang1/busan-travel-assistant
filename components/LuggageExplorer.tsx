@@ -73,6 +73,8 @@ export function LuggageExplorer({ places, locale = defaultLocale }: LuggageExplo
                       <p className="mt-1 truncate text-sm text-slate-500">{getPlaceContent(place, locale).secondaryName}</p>
                     </Link>
                     <SaveButton
+                      initialSaveCount={place.save_count ?? 0}
+                      locale={locale}
                       item={{
                         id: place.id,
                         type: "place",

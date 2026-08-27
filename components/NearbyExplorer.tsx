@@ -1,25 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { LocateFixed, MapPinned, Navigation, SlidersHorizontal } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import type { MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronUp, LocateFixed, MapPinned, Navigation, Search } from "lucide-react";
+import { DirectionsButton } from "@/components/DirectionsButton";
 import { EmptyState } from "@/components/EmptyState";
-import { PlaceCard } from "@/components/PlaceCard";
+import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
 import { TravelMap } from "@/components/TravelMap";
 import {
   calculateDistanceMeters,
   estimateWalkingMinutes,
   formatDistance,
+  formatOpeningStatus,
   getOpeningStatus,
-  getOpeningStatusLabel,
   getPlaceDistance,
   gwangalliCenter,
   mapCategories,
   type Coordinates,
 } from "@/lib/location";
+import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
-import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
-import type { PlaceCategory, PlaceWithRelations } from "@/types/database";
+import { getPreferredMapProvider, type MapBounds, type MapMarker } from "@/lib/map-provider";
+import { categoryLabels, type PlaceCategory, type PlaceWithRelations } from "@/types/database";
 
 type NearbyExplorerProps = {
   places: PlaceWithRelations[];
@@ -28,52 +33,92 @@ type NearbyExplorerProps = {
 
 type OriginMode = "current" | "gwangalli";
 
-const radiusOptions = [
-  { label: "500m", value: 500 },
-  { label: "1km", value: 1000 },
-  { label: "2km", value: 2000 },
+type PlaceListItem = {
+  place: PlaceWithRelations;
+  distance: number | null;
+  walkingMinutes: number | null;
+  openingStatus: ReturnType<typeof getOpeningStatus>;
+};
+
+const categoryOptions: Array<{ value: PlaceCategory | "all"; short: Record<Locale, string> }> = [
+  { value: "all", short: { zh: "全部", en: "All", ja: "すべて", ko: "전체" } },
+  { value: "restaurant", short: categoryLabels.restaurant },
+  { value: "cafe", short: categoryLabels.cafe },
+  { value: "attraction", short: categoryLabels.attraction },
+  { value: "shopping", short: categoryLabels.shopping },
 ];
 
-const categoryOptions: Array<{ label: string; ko: string; value: PlaceCategory | "all" }> = [
-  { label: "全部", ko: "전체", value: "all" },
-  { label: "吃饭", ko: "식사", value: "restaurant" },
-  { label: "咖啡", ko: "카페", value: "cafe" },
-  { label: "拍照", ko: "사진", value: "photo_spot" },
-  { label: "景点", ko: "관광", value: "attraction" },
-  { label: "购物", ko: "쇼핑", value: "shopping" },
-  { label: "行李", ko: "짐보관", value: "luggage" },
-];
+function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
+  if (!bounds || typeof place.latitude !== "number" || typeof place.longitude !== "number") {
+    return true;
+  }
+
+  return (
+    place.latitude >= bounds.minLat &&
+    place.latitude <= bounds.maxLat &&
+    place.longitude >= bounds.minLng &&
+    place.longitude <= bounds.maxLng
+  );
+}
 
 export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplorerProps) {
   const [originMode, setOriginMode] = useState<OriginMode>("gwangalli");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState("广安里 기준으로 표시 중입니다.");
-  const [radius, setRadius] = useState(1000);
+  const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PlaceCategory | "all">("all");
-
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ id: string; sequence: number } | null>(null);
+  const [currentBounds, setCurrentBounds] = useState<MapBounds | null>(null);
+  const [appliedBounds, setAppliedBounds] = useState<MapBounds | null>(null);
+  const [mapMoved, setMapMoved] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
   const origin = originMode === "current" && userLocation ? userLocation : gwangalliCenter;
   const provider = getPreferredMapProvider();
   const copy = ui[locale];
 
-  const nearbyPlaces = useMemo(() => {
+  const baseItems = useMemo(() => {
     return places
       .filter((place) => mapCategories.includes(place.category))
+      .filter((place) => typeof place.latitude === "number" && typeof place.longitude === "number")
       .map((place) => {
         const distance = getPlaceDistance(place, origin);
-        const status = getOpeningStatus(place.opening_hours);
 
         return {
           place,
           distance,
           walkingMinutes: estimateWalkingMinutes(distance),
-          openingStatus: status,
+          openingStatus: getOpeningStatus(place.opening_hours),
         };
-      })
-      .filter((item) => {
-        const radiusMatch = item.distance !== null && item.distance <= radius;
-        const categoryMatch = category === "all" || item.place.category === category;
+      });
+  }, [origin, places]);
 
-        return radiusMatch && categoryMatch;
+  const filteredItems = useMemo(() => {
+    const lowered = query.trim().toLowerCase();
+
+    return baseItems
+      .filter((item) => {
+        const content = getPlaceContent(item.place, locale);
+        const categoryMatch = category === "all" || item.place.category === category;
+        const boundsMatch = isInsideBounds(item.place, appliedBounds);
+        const searchText = [
+          content.name,
+          content.secondaryName,
+          content.description,
+          content.address,
+          item.place.name_zh,
+          item.place.name_ko,
+          item.place.address_zh,
+          item.place.address_ko,
+          item.place.nearest_station,
+          categoryLabels[item.place.category][locale],
+        ]
+          .join(" ")
+          .toLowerCase();
+        const searchMatch = lowered.length === 0 || searchText.includes(lowered);
+
+        return categoryMatch && boundsMatch && searchMatch;
       })
       .sort((a, b) => {
         const statusRank = { open: 0, closing_soon: 1, unknown: 2, closed: 3 };
@@ -85,25 +130,69 @@ export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplore
 
         return (a.distance ?? Number.MAX_SAFE_INTEGER) - (b.distance ?? Number.MAX_SAFE_INTEGER);
       });
-  }, [category, origin, places, radius]);
+  }, [appliedBounds, baseItems, category, locale, query]);
 
-  const markers: MapMarker[] = nearbyPlaces.map(({ place, distance, walkingMinutes }) => {
-    const content = getPlaceContent(place, locale);
+  const markers: MapMarker[] = useMemo(() => {
+    return filteredItems.map(({ place, distance, walkingMinutes }) => {
+      const content = getPlaceContent(place, locale);
 
-    return {
-      id: place.id,
-      title: content.name,
-      subtitle: content.secondaryName,
-      category: place.category,
-      position: {
-        latitude: place.latitude ?? gwangalliCenter.latitude,
-        longitude: place.longitude ?? gwangalliCenter.longitude,
-      },
-      href: withLocale(`/places/${place.slug}`, locale),
-      imageUrl: place.thumbnail_url,
-      meta: `${formatDistance(distance)} · ${copy.placeDetail.walkingApprox} ${walkingMinutes ?? place.walking_minutes}${copy.common.minutes}`,
-    };
-  });
+      return {
+        id: place.id,
+        title: content.name,
+        subtitle: content.secondaryName,
+        category: place.category,
+        position: {
+          latitude: place.latitude as number,
+          longitude: place.longitude as number,
+        },
+        href: withLocale(`/places/${place.slug}`, locale),
+        imageUrl: place.thumbnail_url,
+        meta: `${formatDistance(distance)} · ${copy.placeDetail.walkingApprox} ${walkingMinutes ?? place.walking_minutes}${copy.common.minutes}`,
+        saveCount: place.save_count ?? 0,
+      };
+    });
+  }, [copy.common.minutes, copy.placeDetail.walkingApprox, filteredItems, locale]);
+
+  const selectedItem = useMemo(() => {
+    return filteredItems.find((item) => item.place.id === selectedId) ?? filteredItems[0] ?? null;
+  }, [filteredItems, selectedId]);
+
+  useEffect(() => {
+    if (!selectedItem) {
+      setSelectedId(null);
+      return;
+    }
+
+    if (selectedId !== selectedItem.place.id) {
+      setSelectedId(selectedItem.place.id);
+    }
+  }, [selectedId, selectedItem]);
+
+  function selectPlace(placeId: string, source: "card" | "marker") {
+    setSelectedId(placeId);
+    setFocusRequest((current) => ({ id: placeId, sequence: (current?.sequence ?? 0) + 1 }));
+
+    if (source === "marker") {
+      window.setTimeout(() => {
+        cardRefs.current.get(placeId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+    }
+  }
+
+  function applyCurrentMapBounds(bounds = currentBounds) {
+    if (!bounds) {
+      return;
+    }
+
+    setAppliedBounds(bounds);
+    setMapMoved(false);
+    setSheetOpen(true);
+  }
+
+  function clearAreaSearch() {
+    setAppliedBounds(null);
+    setMapMoved(false);
+  }
 
   function requestLocation() {
     if (!("geolocation" in navigator)) {
@@ -137,125 +226,376 @@ export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplore
     );
   }
 
+  const searchControls = (
+    <SearchAndFilters
+      query={query}
+      category={category}
+      locale={locale}
+      appliedBounds={appliedBounds}
+      onQueryChange={setQuery}
+      onCategoryChange={setCategory}
+      onClearArea={clearAreaSearch}
+      onRequestLocation={requestLocation}
+      originMode={originMode}
+      locationStatus={locationStatus}
+      canUseCurrentLocation={Boolean(userLocation)}
+      onOriginModeChange={setOriginMode}
+    />
+  );
+
+  const list = (
+    <PlaceResultList
+      items={filteredItems}
+      selectedId={selectedItem?.place.id ?? null}
+      locale={locale}
+      cardRefs={cardRefs}
+      onSelect={(id) => selectPlace(id, "card")}
+    />
+  );
+
   return (
-    <div className="space-y-5">
-      <section className="rounded-[28px] bg-slate-950 p-5 text-white shadow-xl shadow-teal-900/10">
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-teal-100 ring-1 ring-white/10">
+    <div className="space-y-4 lg:space-y-0">
+      <section className="lg:hidden">{searchControls}</section>
+
+      <section className="hidden min-h-[calc(100vh-150px)] grid-cols-[minmax(320px,38%)_minmax(0,1fr)] gap-4 lg:grid">
+        <aside className="flex min-h-0 flex-col rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
+          <div className="border-b border-slate-100 p-4">{searchControls}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">{list}</div>
+        </aside>
+        <div className="sticky top-[88px] h-[calc(100vh-112px)] min-h-[560px]">
+          <TravelMap
+            center={origin}
+            markers={markers}
+            userLocation={originMode === "current" ? userLocation : null}
+            provider={provider}
+            locale={locale}
+            selectedId={selectedItem?.place.id ?? null}
+            focusRequest={focusRequest}
+            searchAreaVisible={mapMoved}
+            onSearchArea={applyCurrentMapBounds}
+            onSelectMarker={(id) => selectPlace(id, "marker")}
+            onViewportSettled={(bounds, source) => {
+              setCurrentBounds(bounds);
+              if (source === "user") {
+                setMapMoved(true);
+              }
+            }}
+            className="h-full"
+          />
+        </div>
+      </section>
+
+      <section className="lg:hidden">
+        <div className="relative h-[52vh] min-h-[360px]">
+          <TravelMap
+            center={origin}
+            markers={markers}
+            userLocation={originMode === "current" ? userLocation : null}
+            provider={provider}
+            locale={locale}
+            selectedId={selectedItem?.place.id ?? null}
+            focusRequest={focusRequest}
+            searchAreaVisible={mapMoved}
+            onSearchArea={applyCurrentMapBounds}
+            onSelectMarker={(id) => selectPlace(id, "marker")}
+            onViewportSettled={(bounds, source) => {
+              setCurrentBounds(bounds);
+              if (source === "user") {
+                setMapMoved(true);
+              }
+            }}
+            className="h-full"
+          />
+        </div>
+
+        {selectedItem ? (
+          <div className="mt-3">
+            <SelectedPlaceCard item={selectedItem} locale={locale} compact />
+          </div>
+        ) : null}
+
+        <section
+          className={cn(
+            "fixed inset-x-0 z-40 rounded-t-[28px] bg-white shadow-[0_-14px_40px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 transition-transform duration-200 lg:hidden",
+            sheetOpen ? "bottom-0 translate-y-0" : "bottom-[76px] translate-y-[calc(100%-64px)]",
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => setSheetOpen((current) => !current)}
+            className="flex h-16 w-full items-center justify-between px-5 text-left"
+          >
+            <span>
+              <span className="block text-sm font-black text-slate-950">장소 {filteredItems.length}</span>
+              <span className="block text-xs text-slate-500">선택한 지역과 필터 기준</span>
+            </span>
+            <ChevronUp className={cn("text-slate-500 transition", sheetOpen && "rotate-180")} size={20} aria-hidden="true" />
+          </button>
+          <div className="max-h-[58vh] overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+96px)]">{list}</div>
+        </section>
+      </section>
+
+      <p className="hidden text-center text-xs text-slate-500 lg:block">
+        {copy.places.countLabel} {filteredItems.length} / {baseItems.length}
+      </p>
+    </div>
+  );
+}
+
+function SearchAndFilters({
+  query,
+  category,
+  locale,
+  appliedBounds,
+  locationStatus,
+  originMode,
+  canUseCurrentLocation,
+  onQueryChange,
+  onCategoryChange,
+  onClearArea,
+  onRequestLocation,
+  onOriginModeChange,
+}: {
+  query: string;
+  category: PlaceCategory | "all";
+  locale: Locale;
+  appliedBounds: MapBounds | null;
+  locationStatus: string;
+  originMode: OriginMode;
+  canUseCurrentLocation: boolean;
+  onQueryChange: (value: string) => void;
+  onCategoryChange: (value: PlaceCategory | "all") => void;
+  onClearArea: () => void;
+  onRequestLocation: () => void;
+  onOriginModeChange: (value: OriginMode) => void;
+}) {
+  const copy = ui[locale];
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-[24px] bg-slate-950 p-4 text-white lg:bg-transparent lg:p-0 lg:text-slate-950 lg:shadow-none">
+        <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-teal-100 ring-1 ring-white/10 lg:bg-teal-50 lg:text-teal-700 lg:ring-teal-100">
           <MapPinned size={16} aria-hidden="true" />
           当前位置 / 广安里
         </div>
-        <h1 className="mt-4 text-3xl font-black tracking-normal">现在附近去哪？</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-300">현재 위치 또는 광안리 중심에서 가까운 장소를 거리순으로 찾습니다.</p>
+        <h1 className="mt-3 text-2xl font-black tracking-normal lg:text-xl">现在附近去哪？</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-300 lg:text-slate-500">{locationStatus}</p>
+      </div>
+
+      <label className="relative block">
+        <span className="sr-only">{copy.places.searchPlaceholder}</span>
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder={copy.places.searchPlaceholder}
+          className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-[16px] text-slate-900 shadow-sm outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+        />
+      </label>
+
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
-          onClick={requestLocation}
-          className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-teal-500 px-4 text-base font-black text-white transition active:scale-[0.98]"
+          onClick={() => onOriginModeChange("current")}
+          disabled={!canUseCurrentLocation}
+          className={cn(
+            "h-11 rounded-2xl text-sm font-black ring-1 transition active:scale-95 disabled:opacity-50",
+            originMode === "current" ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
+          )}
         >
-          <LocateFixed size={20} aria-hidden="true" />
-          查看我附近
-          <span className="text-sm font-semibold text-teal-50">내 주변 보기</span>
+          当前位置
         </button>
-        <p className="mt-3 text-xs leading-5 text-slate-300">{locationStatus}</p>
-      </section>
+        <button
+          type="button"
+          onClick={onRequestLocation}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-teal-700 px-3 text-sm font-black text-white transition active:scale-95"
+        >
+          <LocateFixed size={17} aria-hidden="true" />
+          내 위치
+        </button>
+      </div>
 
-      <section className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {categoryOptions.map((option) => (
           <button
+            key={option.value}
             type="button"
-            onClick={() => setOriginMode("current")}
-            disabled={!userLocation}
-            className={[
-              "h-12 rounded-2xl text-sm font-black ring-1 transition active:scale-95 disabled:opacity-50",
-              originMode === "current" ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
-            ].join(" ")}
+            onClick={() => onCategoryChange(option.value)}
+            className={cn(
+              "shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
+              category === option.value ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
+            )}
           >
-            当前位置
+            {option.short[locale]}
           </button>
-          <button
-            type="button"
-            onClick={() => setOriginMode("gwangalli")}
-            className={[
-              "h-12 rounded-2xl text-sm font-black ring-1 transition active:scale-95",
-              originMode === "gwangalli" ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
-            ].join(" ")}
-          >
-            广安里
-          </button>
-        </div>
+        ))}
+      </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {radiusOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setRadius(option.value)}
-              className={[
-                "shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
-                radius === option.value ? "bg-teal-700 text-white ring-teal-700" : "bg-white text-slate-700 ring-slate-200",
-              ].join(" ")}
-            >
-              {option.label}
-            </button>
-          ))}
-          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200">
-            <SlidersHorizontal size={18} aria-hidden="true" />
-          </div>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {categoryOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setCategory(option.value)}
-              className={[
-                "shrink-0 rounded-full px-4 py-2 text-sm font-semibold ring-1 transition active:scale-95",
-                category === option.value ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
-              ].join(" ")}
-            >
-              {option.label}
-              <span className="ml-1 text-xs opacity-70">{option.ko}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <TravelMap center={origin} markers={markers} userLocation={originMode === "current" ? userLocation : null} provider={provider} />
-
-      <section>
-        <div className="mb-3 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-black text-slate-950">现在可以去</h2>
-            <p className="mt-1 text-sm text-slate-500">지금 갈 수 있어요 · {formatDistance(radius)} 이내</p>
-          </div>
-          <div className="inline-flex items-center gap-1 text-xs font-bold text-teal-700">
-            <Navigation size={14} aria-hidden="true" />
-            거리순
-          </div>
-        </div>
-
-        {nearbyPlaces.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {nearbyPlaces.map(({ place, distance, walkingMinutes, openingStatus }, index) => {
-              const label = getOpeningStatusLabel(openingStatus);
-
-              return (
-                <div key={place.id} className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    <TagChip tone={label.tone}>{label.zh}</TagChip>
-                    <TagChip tone="blue">
-                      {formatDistance(distance)} · 步行约 {walkingMinutes ?? place.walking_minutes}分钟
-                    </TagChip>
-                  </div>
-                  <PlaceCard place={place} priority={index === 0} locale={locale} />
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState title="附近没有符合条件的地点" description="거리 범위를 넓히거나 카테고리 필터를 바꿔 주세요." />
-        )}
-      </section>
+      {appliedBounds ? (
+        <button
+          type="button"
+          onClick={onClearArea}
+          className="rounded-full bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 ring-1 ring-amber-100"
+        >
+          지역 검색 해제
+        </button>
+      ) : null}
     </div>
+  );
+}
+
+function PlaceResultList({
+  items,
+  selectedId,
+  locale,
+  cardRefs,
+  onSelect,
+}: {
+  items: PlaceListItem[];
+  selectedId: string | null;
+  locale: Locale;
+  cardRefs: MutableRefObject<Map<string, HTMLDivElement | null>>;
+  onSelect: (id: string) => void;
+}) {
+  if (items.length === 0) {
+    return <EmptyState title="附近没有符合条件的地点" description="지도를 움직이거나 필터를 줄여 다시 확인해 주세요." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div
+          key={item.place.id}
+          ref={(node) => {
+            cardRefs.current.set(item.place.id, node);
+          }}
+        >
+          <PlaceListCard item={item} active={selectedId === item.place.id} locale={locale} onSelect={() => onSelect(item.place.id)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlaceListCard({
+  item,
+  active,
+  locale,
+  onSelect,
+}: {
+  item: PlaceListItem;
+  active: boolean;
+  locale: Locale;
+  onSelect: () => void;
+}) {
+  const { place, distance, walkingMinutes, openingStatus } = item;
+  const opening = formatOpeningStatus(place.opening_hours, locale);
+  const content = getPlaceContent(place, locale);
+  const href = withLocale(`/places/${place.slug}`, locale);
+  const copy = ui[locale];
+  const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
+
+  return (
+    <article
+      className={cn(
+        "rounded-[24px] bg-white p-3 shadow-sm ring-1 transition",
+        active ? "ring-2 ring-slate-950" : "ring-slate-200 hover:ring-teal-200",
+      )}
+    >
+      <button type="button" onClick={onSelect} className="grid w-full grid-cols-[92px_1fr] gap-3 text-left">
+        <span className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
+          <Image src={place.thumbnail_url} alt={content.name} fill sizes="92px" className="object-cover" />
+        </span>
+        <span className="min-w-0 py-1">
+          <span className="block truncate text-base font-black text-slate-950">{content.name}</span>
+          <span className="mt-1 block truncate text-sm text-slate-500">{content.secondaryName}</span>
+          <span className="mt-3 flex flex-wrap gap-1.5">
+            <TagChip tone={openingStatus === "unknown" ? "blue" : opening.tone}>{opening.text}</TagChip>
+            <TagChip tone="blue">
+              {formatDistance(distance)} · {walkingMinutes ?? place.walking_minutes}{copy.common.minutes}
+            </TagChip>
+          </span>
+        </span>
+      </button>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <Link href={href} className="inline-flex h-10 items-center justify-center gap-1 rounded-2xl px-3 text-sm font-black text-teal-700 transition hover:bg-teal-50">
+          상세
+          <Navigation size={15} aria-hidden="true" />
+        </Link>
+        <div className="flex items-center gap-2">
+          <DirectionsButton
+            placeId={place.id}
+            name={content.name}
+            address={content.address}
+            coordinates={coordinates}
+            locale={locale}
+            compact
+          />
+          <SaveButton
+            initialSaveCount={place.save_count ?? 0}
+            locale={locale}
+            item={{
+              id: place.id,
+              type: "place",
+              titleZh: place.name_zh,
+              titleKo: place.name_ko,
+              href,
+              imageUrl: place.thumbnail_url,
+              meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance)}`,
+            }}
+          />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListItem; locale: Locale; compact?: boolean }) {
+  const { place, distance, walkingMinutes } = item;
+  const content = getPlaceContent(place, locale);
+  const href = withLocale(`/places/${place.slug}`, locale);
+  const copy = ui[locale];
+  const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
+
+  return (
+    <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
+      <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
+        <Image src={place.thumbnail_url} alt={content.name} fill sizes="88px" className="object-cover" />
+      </Link>
+      <div className="min-w-0">
+        <Link href={href} className="block min-w-0 py-1">
+          <p className="truncate text-base font-black text-slate-950">{content.name}</p>
+          <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p>
+          <p className="mt-2 text-xs font-bold text-teal-700">
+            {categoryLabels[place.category][locale]} · {formatDistance(distance)} · {walkingMinutes ?? place.walking_minutes}
+            {copy.common.minutes}
+          </p>
+        </Link>
+        <div className="mt-2 flex flex-wrap justify-end gap-2">
+          <DirectionsButton
+            placeId={place.id}
+            name={content.name}
+            address={content.address}
+            coordinates={coordinates}
+            locale={locale}
+            compact
+          />
+          <SaveButton
+            className={compact ? "px-2" : undefined}
+            initialSaveCount={place.save_count ?? 0}
+            locale={locale}
+            item={{
+              id: place.id,
+              type: "place",
+              titleZh: place.name_zh,
+              titleKo: place.name_ko,
+              href,
+              imageUrl: place.thumbnail_url,
+              meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance)}`,
+            }}
+          />
+        </div>
+      </div>
+    </article>
   );
 }

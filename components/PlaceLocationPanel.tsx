@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, LocateFixed, MapPin, Navigation } from "lucide-react";
+import { LocateFixed, MapPin, Navigation } from "lucide-react";
+import { DirectionsButton } from "@/components/DirectionsButton";
 import { TagChip } from "@/components/TagChip";
 import {
   calculateDistanceMeters,
   estimateWalkingMinutes,
   formatDistance,
-  getOpeningStatus,
-  getOpeningStatusLabel,
+  formatOpeningStatus,
   type Coordinates,
 } from "@/lib/location";
 import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
@@ -34,11 +34,7 @@ export function PlaceLocationPanel({ place, locale = defaultLocale }: PlaceLocat
     : null;
   const distance = userLocation && placeCoordinate ? calculateDistanceMeters(userLocation, placeCoordinate) : null;
   const walkingMinutes = estimateWalkingMinutes(distance);
-  const openingStatus = getOpeningStatus(place.opening_hours);
-  const openingLabel = getOpeningStatusLabel(openingStatus);
-  const mapUrl = hasCoordinate
-    ? `https://map.kakao.com/link/map/${encodeURIComponent(content.secondaryName)},${place.latitude},${place.longitude}`
-    : `https://map.kakao.com/?q=${encodeURIComponent(content.secondaryName)}`;
+  const opening = formatOpeningStatus(place.opening_hours, locale);
 
   function requestLocation() {
     if (!("geolocation" in navigator)) {
@@ -73,7 +69,7 @@ export function PlaceLocationPanel({ place, locale = defaultLocale }: PlaceLocat
           <h2 className="text-xl font-black text-slate-950">位置</h2>
           <p className="mt-1 text-sm text-slate-500">위치와 이동 시간</p>
         </div>
-        <TagChip tone={openingLabel.tone}>{openingLabel.zh}</TagChip>
+        <TagChip tone={opening.tone}>{opening.text}</TagChip>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
@@ -100,15 +96,14 @@ export function PlaceLocationPanel({ place, locale = defaultLocale }: PlaceLocat
           <LocateFixed size={18} aria-hidden="true" />
           {copy.placeDetail.calculateDistance}
         </button>
-        <a
-          href={mapUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-95"
-        >
-          <ExternalLink size={18} aria-hidden="true" />
-          {copy.common.openMap}
-        </a>
+        <DirectionsButton
+          placeId={place.id}
+          name={content.name}
+          address={content.address}
+          coordinates={placeCoordinate}
+          locale={locale}
+          className="w-full justify-end"
+        />
       </div>
     </section>
   );

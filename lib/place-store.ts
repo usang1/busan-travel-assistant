@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { demoPlaces } from "@/data/demo-places";
+import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type {
   PlaceTranslationRecord,
@@ -100,20 +102,29 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
 
 function withDemoFallback(error?: string): PlaceListResult {
   return {
-    places: demoPlaces,
+    places: demoPlaces.map((place) => ({ ...place, save_count: 0 })),
     source: "demo",
     error,
   };
 }
 
-export async function getPlaces(options: { activeOnly?: boolean; featuredOnly?: boolean } = {}): Promise<PlaceListResult> {
-  const client = getSupabaseClient();
+async function addSaveCounts(places: PlaceWithRelations[]) {
+  const counts = await getPlaceSaveCounts(places.map((place) => place.id));
 
-  if (!client) {
+  return withPlaceSaveCounts(places, counts);
+}
+
+export async function getPlaces(
+  options: { activeOnly?: boolean; featuredOnly?: boolean } = {},
+  client?: SupabaseClient,
+): Promise<PlaceListResult> {
+  const resolvedClient = resolveClient(client);
+
+  if (!resolvedClient) {
     return withDemoFallback("Supabase 환경 변수가 없어 demo 데이터를 사용합니다.");
   }
 
-  let query = client
+  let query = resolvedClient
     .from("places")
     .select("*, place_translations(*), place_tags(tags(*)), place_menu_items(*)")
     .order("is_featured", { ascending: false })
@@ -130,7 +141,7 @@ export async function getPlaces(options: { activeOnly?: boolean; featuredOnly?: 
   const { data, error } = await query;
 
   if (error || !data) {
-    let legacyQuery = client
+    let legacyQuery = resolvedClient
       .from("places")
       .select("*, place_tags(tags(*)), place_menu_items(*)")
       .order("is_featured", { ascending: false })
@@ -151,13 +162,13 @@ export async function getPlaces(options: { activeOnly?: boolean; featuredOnly?: 
     }
 
     return {
-      places: (legacyResult.data as SupabasePlaceRow[]).map(mapPlace),
+      places: await addSaveCounts((legacyResult.data as SupabasePlaceRow[]).map(mapPlace)),
       source: "supabase",
     };
   }
 
   return {
-    places: (data as SupabasePlaceRow[]).map(mapPlace),
+    places: await addSaveCounts((data as SupabasePlaceRow[]).map(mapPlace)),
     source: "supabase",
   };
 }
@@ -165,10 +176,11 @@ export async function getPlaces(options: { activeOnly?: boolean; featuredOnly?: 
 export async function getPlaceBySlug(
   slug: string,
   options: { activeOnly?: boolean } = {},
+  client?: SupabaseClient,
 ): Promise<{ place: PlaceWithRelations | null; source: "supabase" | "demo"; error?: string }> {
-  const client = getSupabaseClient();
+  const resolvedClient = resolveClient(client);
 
-  if (!client) {
+  if (!resolvedClient) {
     return {
       place: demoPlaces.find((place) => place.slug === slug) ?? null,
       source: "demo",
@@ -176,7 +188,7 @@ export async function getPlaceBySlug(
     };
   }
 
-  let query = client
+  let query = resolvedClient
     .from("places")
     .select("*, place_translations(*), place_tags(tags(*)), place_menu_items(*)")
     .eq("slug", slug);
@@ -188,7 +200,7 @@ export async function getPlaceBySlug(
   const { data, error } = await query.single();
 
   if (error || !data) {
-    let legacyQuery = client
+    let legacyQuery = resolvedClient
       .from("places")
       .select("*, place_tags(tags(*)), place_menu_items(*)")
       .eq("slug", slug);
@@ -200,8 +212,11 @@ export async function getPlaceBySlug(
     const legacyResult = await legacyQuery.single();
 
     if (!legacyResult.error && legacyResult.data) {
+      const place = mapPlace(legacyResult.data as SupabasePlaceRow);
+      const counts = await getPlaceSaveCounts([place.id]);
+
       return {
-        place: mapPlace(legacyResult.data as SupabasePlaceRow),
+        place: { ...place, save_count: counts.get(place.id) ?? 0 },
         source: "supabase",
       };
     }
@@ -209,34 +224,43 @@ export async function getPlaceBySlug(
     const demoPlace = demoPlaces.find((place) => place.slug === slug) ?? null;
 
     return {
-      place: demoPlace,
+      place: demoPlace ? { ...demoPlace, save_count: 0 } : null,
       source: "demo",
       error: legacyResult.error?.message ?? error?.message ?? "장소를 찾지 못했습니다.",
     };
   }
 
+  const place = mapPlace(data as SupabasePlaceRow);
+  const counts = await getPlaceSaveCounts([place.id]);
+
   return {
-    place: mapPlace(data as SupabasePlaceRow),
+    place: { ...place, save_count: counts.get(place.id) ?? 0 },
     source: "supabase",
   };
 }
 
 function toPlaceWriteRow(payload: PlacePayload): PlaceWriteRow {
-  const { tags: _tags, menu_items: _menuItems, ...place } = payload;
+  const { tags: _tags, menu_items: _menuItems, translations: _translations, source: _source, ...place } = payload;
   void _tags;
   void _menuItems;
+  void _translations;
+  void _source;
 
   return place;
 }
 
-async function syncTags(placeId: string, tags: PlacePayload["tags"]) {
-  const client = getSupabaseClient();
+function resolveClient(client?: SupabaseClient) {
+  return client ?? getSupabaseClient();
+}
 
-  if (!client) {
+async function syncTags(placeId: string, tags: PlacePayload["tags"], client?: SupabaseClient) {
+  const resolvedClient = resolveClient(client);
+
+  if (!resolvedClient) {
     throw new Error("Supabase is not configured.");
   }
 
-  await client.from("place_tags").delete().eq("place_id", placeId);
+  await resolvedClient.from("place_tags").delete().eq("place_id", placeId);
 
   if (tags.length === 0) {
     return;
@@ -248,7 +272,7 @@ async function syncTags(placeId: string, tags: PlacePayload["tags"]) {
     label_ko: tag.label_ko,
   }));
 
-  const { data: upsertedTags, error: tagError } = await client
+  const { data: upsertedTags, error: tagError } = await resolvedClient
     .from("tags")
     .upsert(normalizedTags, { onConflict: "slug" })
     .select("id, slug, label_zh, label_ko");
@@ -262,21 +286,21 @@ async function syncTags(placeId: string, tags: PlacePayload["tags"]) {
     tag_id: tag.id,
   }));
 
-  const { error: linkError } = await client.from("place_tags").insert(links);
+  const { error: linkError } = await resolvedClient.from("place_tags").insert(links);
 
   if (linkError) {
     throw new Error(linkError.message);
   }
 }
 
-async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_items"]) {
-  const client = getSupabaseClient();
+async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_items"], client?: SupabaseClient) {
+  const resolvedClient = resolveClient(client);
 
-  if (!client) {
+  if (!resolvedClient) {
     throw new Error("Supabase is not configured.");
   }
 
-  await client.from("place_menu_items").delete().eq("place_id", placeId);
+  await resolvedClient.from("place_menu_items").delete().eq("place_id", placeId);
 
   if (menuItems.length === 0) {
     return;
@@ -292,31 +316,109 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
     sort_order: item.sort_order || index + 1,
   }));
 
-  const { error } = await client.from("place_menu_items").insert(rows);
+  const { error } = await resolvedClient.from("place_menu_items").insert(rows);
 
   if (error) {
     throw new Error(error.message);
   }
 }
 
-export async function createPlace(payload: PlacePayload): Promise<PlaceWithRelations> {
-  const client = getSupabaseClient();
+async function syncTranslations(placeId: string, payload: PlacePayload, client?: SupabaseClient) {
+  const resolvedClient = resolveClient(client);
 
-  if (!client) {
+  if (!resolvedClient) {
     throw new Error("Supabase is not configured.");
   }
 
-  const { data, error } = await client.from("places").insert(toPlaceWriteRow(payload)).select("id").single();
+  const translations = payload.translations?.length
+    ? payload.translations
+    : [
+        {
+          locale: "zh" as const,
+          name: payload.name_zh,
+          description: payload.short_description_zh,
+          travel_tip: payload.tips_zh,
+        },
+        {
+          locale: "ko" as const,
+          name: payload.name_ko,
+          description: payload.short_description_ko,
+          travel_tip: payload.tips_ko,
+        },
+      ];
+
+  if (translations.length === 0) {
+    return;
+  }
+
+  const rows = translations
+    .filter((translation) => translation.name.trim())
+    .map((translation) => ({
+      place_id: placeId,
+      locale: translation.locale,
+      name: translation.name,
+      description: translation.description,
+      travel_tip: translation.travel_tip,
+    }));
+
+  const { error } = await resolvedClient
+    .from("place_translations")
+    .upsert(rows, { onConflict: "place_id,locale" });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function syncSource(placeId: string, payload: PlacePayload, client?: SupabaseClient) {
+  const resolvedClient = resolveClient(client);
+
+  if (!resolvedClient || !payload.source?.source_url) {
+    return;
+  }
+
+  const sourceRow = {
+    place_id: placeId,
+    provider: payload.source.provider,
+    external_id: payload.source.external_id || null,
+    source_url: payload.source.source_url,
+  };
+  const { data: existing } = await resolvedClient
+    .from("place_sources")
+    .select("id")
+    .eq("place_id", placeId)
+    .eq("provider", payload.source.provider)
+    .eq("source_url", payload.source.source_url)
+    .maybeSingle();
+  const { error } = existing
+    ? await resolvedClient.from("place_sources").update(sourceRow).eq("id", existing.id)
+    : await resolvedClient.from("place_sources").insert(sourceRow);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function createPlace(payload: PlacePayload, client?: SupabaseClient): Promise<PlaceWithRelations> {
+  const resolvedClient = resolveClient(client);
+
+  if (!resolvedClient) {
+    throw new Error("Supabase is not configured.");
+  }
+
+  const { data, error } = await resolvedClient.from("places").insert(toPlaceWriteRow(payload)).select("id").single();
 
   if (error || !data) {
     throw new Error(error?.message ?? "장소 추가에 실패했습니다.");
   }
 
   const id = (data as Pick<PlaceRecord, "id">).id;
-  await syncTags(id, payload.tags);
-  await syncMenuItems(id, payload.menu_items);
+  await syncTags(id, payload.tags, resolvedClient);
+  await syncMenuItems(id, payload.menu_items, resolvedClient);
+  await syncTranslations(id, payload, resolvedClient);
+  await syncSource(id, payload, resolvedClient);
 
-  const result = await getPlaceBySlug(payload.slug, { activeOnly: false });
+  const result = await getPlaceBySlug(payload.slug, { activeOnly: false }, resolvedClient);
 
   if (!result.place) {
     throw new Error("저장한 장소를 다시 불러오지 못했습니다.");
@@ -325,23 +427,25 @@ export async function createPlace(payload: PlacePayload): Promise<PlaceWithRelat
   return result.place;
 }
 
-export async function updatePlace(id: string, payload: PlacePayload): Promise<PlaceWithRelations> {
-  const client = getSupabaseClient();
+export async function updatePlace(id: string, payload: PlacePayload, client?: SupabaseClient): Promise<PlaceWithRelations> {
+  const resolvedClient = resolveClient(client);
 
-  if (!client) {
+  if (!resolvedClient) {
     throw new Error("Supabase is not configured.");
   }
 
-  const { error } = await client.from("places").update(toPlaceWriteRow(payload)).eq("id", id);
+  const { error } = await resolvedClient.from("places").update(toPlaceWriteRow(payload)).eq("id", id);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  await syncTags(id, payload.tags);
-  await syncMenuItems(id, payload.menu_items);
+  await syncTags(id, payload.tags, resolvedClient);
+  await syncMenuItems(id, payload.menu_items, resolvedClient);
+  await syncTranslations(id, payload, resolvedClient);
+  await syncSource(id, payload, resolvedClient);
 
-  const result = await getPlaceBySlug(payload.slug, { activeOnly: false });
+  const result = await getPlaceBySlug(payload.slug, { activeOnly: false }, resolvedClient);
 
   if (!result.place) {
     throw new Error("수정한 장소를 다시 불러오지 못했습니다.");
@@ -358,6 +462,23 @@ export async function deletePlace(id: string) {
   }
 
   const { error } = await client.from("places").delete().eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function archivePlace(id: string, client?: SupabaseClient) {
+  const resolvedClient = resolveClient(client);
+
+  if (!resolvedClient) {
+    throw new Error("Supabase is not configured.");
+  }
+
+  const { error } = await resolvedClient
+    .from("places")
+    .update({ is_active: false, status: "ARCHIVED" })
+    .eq("id", id);
 
   if (error) {
     throw new Error(error.message);

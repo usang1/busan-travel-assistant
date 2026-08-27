@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Languages, MapPin, Sparkles } from "lucide-react";
+import { Languages, LogIn, LogOut, MapPin, Sparkles } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, getLocaleFromPath, localeMeta, locales, ui, withLocale, withoutLocale } from "@/lib/i18n";
+import { getSupabaseClient } from "@/lib/supabase";
 
 export function Header() {
   const pathname = usePathname();
@@ -13,6 +15,17 @@ export function Header() {
   const basePath = withoutLocale(pathname);
   const queryString = searchParams.toString();
   const querySuffix = queryString ? `?${queryString}` : "";
+  const { user } = useAuth();
+
+  async function signOut() {
+    const client = getSupabaseClient();
+
+    if (!client) {
+      return;
+    }
+
+    await client.auth.signOut();
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-slate-50/90 px-4 py-3 backdrop-blur-xl">
@@ -31,6 +44,26 @@ export function Header() {
             <MapPin size={15} className="text-teal-700" aria-hidden="true" />
             {copy.region}
           </div>
+          {user ? (
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="grid size-9 place-items-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={16} aria-hidden="true" />
+            </button>
+          ) : (
+            <Link
+              href={`${withLocale("/login", currentLocale)}?next=${encodeURIComponent(`${pathname}${querySuffix}`)}`}
+              className="grid size-9 place-items-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
+              aria-label="Log in"
+              title="Log in"
+            >
+              <LogIn size={16} aria-hidden="true" />
+            </Link>
+          )}
           <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Language">
             <Languages size={15} className="ml-2 text-slate-500" aria-hidden="true" />
             {locales.map((locale) => (

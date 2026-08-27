@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Share2 } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import { recordPlaceEvent } from "@/lib/place-events";
+import { defaultLocale, getLocaleFromPath, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type ShareButtonProps = {
@@ -9,10 +13,15 @@ type ShareButtonProps = {
   text: string;
   url?: string;
   className?: string;
+  placeId?: string;
+  locale?: Locale;
 };
 
-export function ShareButton({ title, text, url, className }: ShareButtonProps) {
+export function ShareButton({ title, text, url, className, placeId, locale }: ShareButtonProps) {
   const [status, setStatus] = useState("");
+  const pathname = usePathname();
+  const currentLocale = locale ?? getLocaleFromPath(pathname) ?? defaultLocale;
+  const { user } = useAuth();
 
   async function share() {
     const shareUrl = url ?? window.location.href;
@@ -33,6 +42,15 @@ export function ShareButton({ title, text, url, className }: ShareButtonProps) {
       } catch {
         setStatus("复制失败");
       }
+    }
+
+    if (placeId) {
+      void recordPlaceEvent({
+        eventType: "share",
+        placeId,
+        locale: currentLocale,
+        userId: user?.id,
+      });
     }
   }
 

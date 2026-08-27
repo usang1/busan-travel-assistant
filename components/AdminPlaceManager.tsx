@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Check, Pencil, Plus, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
@@ -11,6 +11,7 @@ type AdminPlaceManagerProps = {
   source: "supabase" | "demo";
   error?: string;
   supabaseConfigured: boolean;
+  adminAccessToken?: string;
 };
 
 type MenuDraft = {
@@ -224,9 +225,12 @@ function toPayload(form: FormState): PlacePayload {
 function localPlaceFromPayload(payload: PlacePayload, id?: string): PlaceWithRelations {
   const placeId = id ?? `local-${Date.now()}`;
   const now = new Date().toISOString();
+  const { translations, source, ...placePayload } = payload;
+  void translations;
+  void source;
 
   return {
-    ...payload,
+    ...placePayload,
     id: placeId,
     created_at: now,
     updated_at: now,
@@ -242,14 +246,40 @@ function localPlaceFromPayload(payload: PlacePayload, id?: string): PlaceWithRel
   };
 }
 
-export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfigured }: AdminPlaceManagerProps) {
+export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfigured, adminAccessToken }: AdminPlaceManagerProps) {
   const [places, setPlaces] = useState(initialPlaces);
   const [form, setForm] = useState<FormState>(() => (initialPlaces[0] ? toForm(initialPlaces[0]) : createEmptyForm()));
+  const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState(error ?? "");
 
   const activeCount = useMemo(() => places.filter((place) => place.is_active).length, [places]);
   const featuredCount = useMemo(() => places.filter((place) => place.is_featured).length, [places]);
+  const visiblePlaces = useMemo(() => {
+    const lowered = query.trim().toLowerCase();
+
+    if (!lowered) {
+      return places;
+    }
+
+    return places.filter((place) =>
+      [place.name_ko, place.name_zh, place.slug, place.address_ko, place.address_zh, place.nearest_station]
+        .join(" ")
+        .toLowerCase()
+        .includes(lowered),
+    );
+  }, [places, query]);
+
+  function adminHeaders() {
+    return {
+      "Content-Type": "application/json",
+      ...(adminAccessToken ? { Authorization: `Bearer ${adminAccessToken}` } : {}),
+    };
+  }
+
+  useEffect(() => {
+    setPlaces(initialPlaces);
+  }, [initialPlaces]);
 
   function persistLocal(nextPlaces: PlaceWithRelations[]) {
     setPlaces(nextPlaces);
@@ -285,7 +315,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
       const response = await fetch(nextForm.id ? `/api/admin/places/${nextForm.id}` : "/api/admin/places", {
         method: nextForm.id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: adminHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -309,7 +339,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   async function deleteSelected(place: PlaceWithRelations) {
-    const confirmed = window.confirm(`${place.name_ko} 장소를 삭제할까요?`);
+    const confirmed = window.confirm(`${place.name_ko} 장소를 비공개 처리할까요?`);
 
     if (!confirmed) {
       return;
@@ -320,7 +350,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
     try {
       if (supabaseConfigured) {
-        const response = await fetch(`/api/admin/places/${place.id}`, { method: "DELETE" });
+        const response = await fetch(`/api/admin/places/${place.id}`, {
+          method: "DELETE",
+          headers: adminHeaders(),
+        });
 
         if (!response.ok) {
           const body = (await response.json()) as { message?: string };
@@ -335,7 +368,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         persistLocal(nextPlaces);
       }
       setForm(nextPlaces[0] ? toForm(nextPlaces[0]) : createEmptyForm());
-      setStatus("삭제했습니다.");
+      setStatus("비공개 처리했습니다.");
     } catch (deleteError) {
       setStatus(deleteError instanceof Error ? deleteError.message : "삭제 중 오류가 발생했습니다.");
     } finally {
@@ -391,9 +424,15 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           <Plus size={17} aria-hidden="true" />
           새 장소 추가
         </button>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="장소 검색"
+          className="h-11 w-full rounded-2xl bg-white px-3 text-sm outline-none ring-1 ring-slate-200"
+        />
         <div className="rounded-[24px] bg-white p-2 shadow-sm ring-1 ring-slate-200">
-          {places.length > 0 ? (
-            places.map((place) => (
+          {visiblePlaces.length > 0 ? (
+            visiblePlaces.map((place) => (
               <div key={place.id} className="rounded-[20px] p-3 transition hover:bg-slate-50">
                 <button type="button" onClick={() => setForm(toForm(place))} className="block w-full text-left">
                   <div className="flex items-start justify-between gap-3">
@@ -410,7 +449,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   <IconButton label="수정" onClick={() => setForm(toForm(place))} icon={Pencil} />
                   <IconButton label="활성 토글" onClick={() => void togglePlace(place, "is_active")} icon={place.is_active ? Check : X} />
                   <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
-                  <IconButton label="삭제" onClick={() => void deleteSelected(place)} icon={Trash2} danger />
+                  <IconButton label="비공개" onClick={() => void deleteSelected(place)} icon={Trash2} danger />
                 </div>
               </div>
             ))

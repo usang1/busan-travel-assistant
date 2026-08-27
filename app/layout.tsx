@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
+import { AuthProvider } from "@/components/AuthProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -50,14 +51,16 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body>
-        <ProEntitlementProvider>
-          <Suspense fallback={null}>
-            <Header />
-          </Suspense>
-          {children}
-          <Footer />
-          <BottomNavigation />
-        </ProEntitlementProvider>
+        <AuthProvider>
+          <ProEntitlementProvider>
+            <Suspense fallback={null}>
+              <Header />
+            </Suspense>
+            {children}
+            <Footer />
+            <BottomNavigation />
+          </ProEntitlementProvider>
+        </AuthProvider>
       </body>
     </html>
   );
