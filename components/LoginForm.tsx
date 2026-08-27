@@ -24,6 +24,7 @@ const copy: Record<
     switchToSignin: string;
     missingConfig: string;
     confirmEmail: string;
+    emailRateLimited: string;
     signedIn: string;
   }
 > = {
@@ -37,7 +38,8 @@ const copy: Record<
     switchToSignup: "没有账号？注册",
     switchToSignin: "已有账号？登录",
     missingConfig: "Supabase 环境变量未配置。",
-    confirmEmail: "请确认邮箱后再登录。",
+    confirmEmail: "已发送注册确认邮件。请点击邮件中的确认链接后再登录。",
+    emailRateLimited: "注册确认邮件发送次数已达上限。请约 1 小时后再试，或配置自定义 SMTP 后提高发送限制。",
     signedIn: "已登录，正在返回。",
   },
   en: {
@@ -50,7 +52,8 @@ const copy: Record<
     switchToSignup: "No account? Sign up",
     switchToSignin: "Have an account? Sign in",
     missingConfig: "Supabase environment variables are not configured.",
-    confirmEmail: "Check your email, then sign in.",
+    confirmEmail: "We sent a confirmation email. Open the link in that email, then sign in.",
+    emailRateLimited: "The signup email limit has been reached. Try again in about 1 hour, or configure custom SMTP to raise the limit.",
     signedIn: "Signed in. Returning now.",
   },
   ja: {
@@ -63,7 +66,8 @@ const copy: Record<
     switchToSignup: "アカウントがない場合は登録",
     switchToSignin: "アカウントがある場合はログイン",
     missingConfig: "Supabase環境変数が設定されていません。",
-    confirmEmail: "メールを確認してからログインしてください。",
+    confirmEmail: "登録確認メールを送信しました。メール内の確認リンクを開いてからログインしてください。",
+    emailRateLimited: "登録確認メールの送信上限に達しました。約1時間後に再試行するか、カスタムSMTPを設定して上限を引き上げてください。",
     signedIn: "ログインしました。戻ります。",
   },
   ko: {
@@ -76,10 +80,29 @@ const copy: Record<
     switchToSignup: "계정이 없나요? 회원가입",
     switchToSignin: "계정이 있나요? 로그인",
     missingConfig: "Supabase 환경 변수가 설정되지 않았습니다.",
-    confirmEmail: "이메일 확인 후 로그인해 주세요.",
+    confirmEmail: "회원가입 확인 메일을 보냈습니다. 메일의 확인 링크를 연 뒤 로그인해 주세요.",
+    emailRateLimited: "회원가입 확인 메일 발송 한도를 초과했습니다. 약 1시간 후 다시 시도하거나, 커스텀 SMTP를 설정해 발송 한도를 늘려 주세요.",
     signedIn: "로그인되었습니다. 원래 화면으로 돌아갑니다.",
   },
 };
+
+type AuthDisplayError = {
+  code?: string;
+  message?: string;
+  status?: number;
+};
+
+function getAuthErrorMessage(error: AuthDisplayError, text: (typeof copy)[Locale]) {
+  const message = error.message ?? "";
+  const normalizedMessage = message.toLowerCase();
+  const isEmailRateLimit =
+    error.code === "over_email_send_rate_limit" ||
+    error.status === 429 ||
+    normalizedMessage.includes("email rate limit") ||
+    normalizedMessage.includes("rate limit exceeded");
+
+  return isEmailRateLimit ? text.emailRateLimited : message;
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -171,12 +194,18 @@ export function LoginForm() {
     const result =
       mode === "signin"
         ? await client.auth.signInWithPassword({ email, password })
-        : await client.auth.signUp({ email, password });
+        : await client.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${window.location.origin}${withLocale("/login", locale)}?next=${encodeURIComponent(nextPath)}`,
+            },
+          });
 
     setSubmitting(false);
 
     if (result.error) {
-      setMessage(result.error.message);
+      setMessage(getAuthErrorMessage(result.error, text));
       return;
     }
 
@@ -185,6 +214,7 @@ export function LoginForm() {
       return;
     }
 
+    setMode("signin");
     setMessage(text.confirmEmail);
   }
 
