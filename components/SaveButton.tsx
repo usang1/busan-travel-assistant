@@ -53,7 +53,7 @@ export function SaveButton({ item, initialSaveCount = 0, className, label, local
     );
   }
 
-  return <LegacySaveButton item={item} className={className} label={label} />;
+  return <LegacySaveButton item={item} className={className} label={label} locale={locale} />;
 }
 
 function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: SaveButtonProps & { initialSaveCount: number }) {
@@ -205,7 +205,10 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
   );
 }
 
-function LegacySaveButton({ item, className, label }: SaveButtonProps) {
+function LegacySaveButton({ item, className, label, locale }: SaveButtonProps) {
+  const pathname = usePathname();
+  const derivedLocale = locale ?? getLocaleFromPath(pathname) ?? defaultLocale;
+  const text = saveLabels[derivedLocale];
   const snapshot = useSyncExternalStore(
     (onStoreChange) => {
       window.addEventListener("saved-items-change", onStoreChange);
@@ -250,10 +253,10 @@ function LegacySaveButton({ item, className, label }: SaveButtonProps) {
         saved && "bg-teal-50 text-teal-700 ring-teal-100",
       )}
       aria-pressed={saved}
-      aria-label={`${saved ? "取消收藏" : "收藏"} ${item.titleZh}`}
+      aria-label={`${saved ? text.saved : text.save} ${derivedLocale === "ko" ? item.titleKo : item.titleZh}`}
     >
       <Heart size={17} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
-      {label ? <span>{saved ? "已收藏" : label}</span> : null}
+      {label ? <span>{saved ? text.saved : label}</span> : null}
     </button>
   );
 }

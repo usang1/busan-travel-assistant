@@ -44,6 +44,29 @@ const luggageLabels: Record<Locale, { title: string; hero: string; description: 
   },
 };
 
+const luggagePhrase: Record<Locale, { title: string; phrase: string; korean: string }> = {
+  zh: {
+    title: "给店员看",
+    phrase: "我想寄存一个行李箱，大概三个小时。",
+    korean: "캐리어 하나를 세 시간 정도 맡기고 싶어요.",
+  },
+  en: {
+    title: "Show staff",
+    phrase: "I would like to store one suitcase for about three hours.",
+    korean: "캐리어 하나를 세 시간 정도 맡기고 싶어요.",
+  },
+  ja: {
+    title: "スタッフに見せる",
+    phrase: "スーツケースを1つ、3時間ほど預けたいです。",
+    korean: "캐리어 하나를 세 시간 정도 맡기고 싶어요.",
+  },
+  ko: {
+    title: "직원에게 보여주기",
+    phrase: "캐리어 하나를 세 시간 정도 맡기고 싶어요.",
+    korean: "",
+  },
+};
+
 async function getLocale(params: LocalizedLuggagePageProps["params"]): Promise<Locale> {
   const { locale } = await params;
 
@@ -79,6 +102,7 @@ export async function generateMetadata({ params }: LocalizedLuggagePageProps): P
 export default async function LocalizedLuggagePage({ params }: LocalizedLuggagePageProps) {
   const locale = await getLocale(params);
   const luggageCopy = luggageLabels[locale];
+  const phraseCopy = luggagePhrase[locale];
   const { places, error } = await getPlaces({ activeOnly: true });
   const luggagePlaces = places.filter((place) => place.category === "luggage");
 
@@ -94,10 +118,10 @@ export default async function LocalizedLuggagePage({ params }: LocalizedLuggageP
         <div className="mt-4 rounded-2xl bg-slate-950 p-4 text-white">
           <div className="inline-flex items-center gap-2 text-sm font-semibold text-amber-200">
             <MessageSquareText size={16} aria-hidden="true" />
-            给店员看
+            {phraseCopy.title}
           </div>
-          <p className="mt-3 text-lg font-bold">我想寄存一个行李箱，大概三个小时。</p>
-          <p className="mt-2 text-sm text-slate-300">캐리어 하나를 세 시간 정도 맡기고 싶어요.</p>
+          <p className="mt-3 text-lg font-bold">{phraseCopy.phrase}</p>
+          {phraseCopy.korean ? <p className="mt-2 text-sm text-slate-300">{phraseCopy.korean}</p> : null}
         </div>
       </section>
 

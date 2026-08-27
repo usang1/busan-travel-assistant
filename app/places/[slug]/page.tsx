@@ -222,7 +222,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
       </section>
 
       {place.category === "restaurant" ? (
-        <OrderGuide place={place} />
+        <OrderGuide place={place} locale="zh" />
       ) : (
         <section className="mt-6 space-y-3">
           <SectionTitle title="怎么说？" subtitle="어떻게 말할까?" />

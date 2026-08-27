@@ -62,9 +62,10 @@ function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
 }
 
 export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplorerProps) {
+  const localizedCopy = nearbyCopy[locale];
   const [originMode, setOriginMode] = useState<OriginMode>("gwangalli");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
-  const [locationStatus, setLocationStatus] = useState("广安里 기준으로 표시 중입니다.");
+  const [locationStatus, setLocationStatus] = useState(localizedCopy.gwangalliBase);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PlaceCategory | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -196,12 +197,12 @@ export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplore
 
   function requestLocation() {
     if (!("geolocation" in navigator)) {
-      setLocationStatus("이 브라우저에서는 현재 위치를 사용할 수 없습니다. 广安里 기준으로 계속 사용할 수 있습니다.");
+      setLocationStatus(localizedCopy.locationUnsupported);
       setOriginMode("gwangalli");
       return;
     }
 
-    setLocationStatus("현재 위치를 확인하는 중입니다...");
+    setLocationStatus(localizedCopy.locationChecking);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const nextLocation = {
@@ -212,11 +213,11 @@ export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplore
 
         setUserLocation(nextLocation);
         setOriginMode("current");
-        setLocationStatus(`현재 위치 기준입니다. 광안리 중심까지 ${formatDistance(distanceToGwangalli)}.`);
+        setLocationStatus(`${localizedCopy.currentBase} ${localizedCopy.distanceToGwangalli} ${formatDistance(distanceToGwangalli)}.`);
       },
       () => {
         setOriginMode("gwangalli");
-        setLocationStatus("위치 권한이 거부되었습니다. 사이트는 广安里 기준으로 계속 사용할 수 있습니다.");
+        setLocationStatus(localizedCopy.locationDenied);
       },
       {
         enableHighAccuracy: true,
@@ -326,8 +327,8 @@ export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplore
             className="flex h-16 w-full items-center justify-between px-5 text-left"
           >
             <span>
-              <span className="block text-sm font-black text-slate-950">장소 {filteredItems.length}</span>
-              <span className="block text-xs text-slate-500">선택한 지역과 필터 기준</span>
+              <span className="block text-sm font-black text-slate-950">{localizedCopy.placesCount} {filteredItems.length}</span>
+              <span className="block text-xs text-slate-500">{localizedCopy.sheetSubtitle}</span>
             </span>
             <ChevronUp className={cn("text-slate-500 transition", sheetOpen && "rotate-180")} size={20} aria-hidden="true" />
           </button>
@@ -370,15 +371,16 @@ function SearchAndFilters({
   onOriginModeChange: (value: OriginMode) => void;
 }) {
   const copy = ui[locale];
+  const localizedCopy = nearbyCopy[locale];
 
   return (
     <div className="space-y-3">
       <div className="rounded-[24px] bg-slate-950 p-4 text-white lg:bg-transparent lg:p-0 lg:text-slate-950 lg:shadow-none">
         <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-teal-100 ring-1 ring-white/10 lg:bg-teal-50 lg:text-teal-700 lg:ring-teal-100">
           <MapPinned size={16} aria-hidden="true" />
-          当前位置 / 广安里
+          {localizedCopy.origin}
         </div>
-        <h1 className="mt-3 text-2xl font-black tracking-normal lg:text-xl">现在附近去哪？</h1>
+        <h1 className="mt-3 text-2xl font-black tracking-normal lg:text-xl">{localizedCopy.heading}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-300 lg:text-slate-500">{locationStatus}</p>
       </div>
 
@@ -403,7 +405,7 @@ function SearchAndFilters({
             originMode === "current" ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
           )}
         >
-          当前位置
+          {localizedCopy.currentLocation}
         </button>
         <button
           type="button"
@@ -411,7 +413,7 @@ function SearchAndFilters({
           className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-teal-700 px-3 text-sm font-black text-white transition active:scale-95"
         >
           <LocateFixed size={17} aria-hidden="true" />
-          내 위치
+          {localizedCopy.useMyLocation}
         </button>
       </div>
 
@@ -437,7 +439,7 @@ function SearchAndFilters({
           onClick={onClearArea}
           className="rounded-full bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 ring-1 ring-amber-100"
         >
-          지역 검색 해제
+          {localizedCopy.clearArea}
         </button>
       ) : null}
     </div>
@@ -457,8 +459,10 @@ function PlaceResultList({
   cardRefs: MutableRefObject<Map<string, HTMLDivElement | null>>;
   onSelect: (id: string) => void;
 }) {
+  const copy = nearbyCopy[locale];
+
   if (items.length === 0) {
-    return <EmptyState title="附近没有符合条件的地点" description="지도를 움직이거나 필터를 줄여 다시 확인해 주세요." />;
+    return <EmptyState title={copy.emptyTitle} description={copy.emptyDescription} />;
   }
 
   return (
@@ -493,6 +497,7 @@ function PlaceListCard({
   const content = getPlaceContent(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const copy = ui[locale];
+  const localizedCopy = nearbyCopy[locale];
   const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
 
   return (
@@ -508,7 +513,7 @@ function PlaceListCard({
         </span>
         <span className="min-w-0 py-1">
           <span className="block truncate text-base font-black text-slate-950">{content.name}</span>
-          <span className="mt-1 block truncate text-sm text-slate-500">{content.secondaryName}</span>
+          {content.secondaryName ? <span className="mt-1 block truncate text-sm text-slate-500">{content.secondaryName}</span> : null}
           <span className="mt-3 flex flex-wrap gap-1.5">
             <TagChip tone={openingStatus === "unknown" ? "blue" : opening.tone}>{opening.text}</TagChip>
             <TagChip tone="blue">
@@ -519,7 +524,7 @@ function PlaceListCard({
       </button>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
         <Link href={href} className="inline-flex h-10 items-center justify-center gap-1 rounded-2xl px-3 text-sm font-black text-teal-700 transition hover:bg-teal-50">
-          상세
+          {localizedCopy.detail}
           <Navigation size={15} aria-hidden="true" />
         </Link>
         <div className="flex items-center gap-2">
@@ -555,6 +560,7 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
   const content = getPlaceContent(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const copy = ui[locale];
+  const localizedCopy = nearbyCopy[locale];
   const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
 
   return (
@@ -565,7 +571,7 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
       <div className="min-w-0">
         <Link href={href} className="block min-w-0 py-1">
           <p className="truncate text-base font-black text-slate-950">{content.name}</p>
-          <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p>
+          {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
           <p className="mt-2 text-xs font-bold text-teal-700">
             {categoryLabels[place.category][locale]} · {formatDistance(distance)} · {walkingMinutes ?? place.walking_minutes}
             {copy.common.minutes}
@@ -599,3 +605,95 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
     </article>
   );
 }
+
+const nearbyCopy: Record<Locale, {
+  gwangalliBase: string;
+  locationUnsupported: string;
+  locationChecking: string;
+  currentBase: string;
+  distanceToGwangalli: string;
+  locationDenied: string;
+  placesCount: string;
+  sheetSubtitle: string;
+  origin: string;
+  heading: string;
+  currentLocation: string;
+  useMyLocation: string;
+  clearArea: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  detail: string;
+}> = {
+  zh: {
+    gwangalliBase: "以广安里为基准显示。",
+    locationUnsupported: "此浏览器无法使用当前位置，将继续以广安里为基准显示。",
+    locationChecking: "正在确认当前位置...",
+    currentBase: "当前以你的位置为基准。",
+    distanceToGwangalli: "到广安里中心约",
+    locationDenied: "位置权限被拒绝，将继续以广安里为基准显示。",
+    placesCount: "地点",
+    sheetSubtitle: "按所选区域和筛选条件",
+    origin: "当前位置 / 广安里",
+    heading: "现在附近去哪？",
+    currentLocation: "当前位置",
+    useMyLocation: "我的位置",
+    clearArea: "取消区域搜索",
+    emptyTitle: "附近没有符合条件的地点",
+    emptyDescription: "移动地图或减少筛选条件后再试。",
+    detail: "详情",
+  },
+  en: {
+    gwangalliBase: "Showing results from Gwangalli.",
+    locationUnsupported: "Current location is unavailable. Continuing from Gwangalli.",
+    locationChecking: "Checking your current location...",
+    currentBase: "Showing results from your current location.",
+    distanceToGwangalli: "Distance to central Gwangalli:",
+    locationDenied: "Location permission was denied. Continuing from Gwangalli.",
+    placesCount: "Places",
+    sheetSubtitle: "Based on selected area and filters",
+    origin: "Current location / Gwangalli",
+    heading: "Where nearby now?",
+    currentLocation: "Current location",
+    useMyLocation: "Use my location",
+    clearArea: "Clear area search",
+    emptyTitle: "No nearby places match",
+    emptyDescription: "Move the map or reduce filters and try again.",
+    detail: "Details",
+  },
+  ja: {
+    gwangalliBase: "広安里を基準に表示しています。",
+    locationUnsupported: "このブラウザでは現在地を使用できません。広安里基準で続行します。",
+    locationChecking: "現在地を確認しています...",
+    currentBase: "現在地を基準に表示しています。",
+    distanceToGwangalli: "広安里中心まで約",
+    locationDenied: "位置情報の権限が拒否されました。広安里基準で続行します。",
+    placesCount: "スポット",
+    sheetSubtitle: "選択エリアとフィルター基準",
+    origin: "現在地 / 広安里",
+    heading: "今近くでどこへ行く？",
+    currentLocation: "現在地",
+    useMyLocation: "現在地を使う",
+    clearArea: "エリア検索を解除",
+    emptyTitle: "条件に合う近くのスポットがありません",
+    emptyDescription: "地図を動かすか、フィルターを減らして再確認してください。",
+    detail: "詳細",
+  },
+  ko: {
+    gwangalliBase: "광안리 기준으로 표시 중입니다.",
+    locationUnsupported: "이 브라우저에서는 현재 위치를 사용할 수 없습니다. 광안리 기준으로 계속 표시합니다.",
+    locationChecking: "현재 위치를 확인하는 중입니다...",
+    currentBase: "현재 위치 기준입니다.",
+    distanceToGwangalli: "광안리 중심까지",
+    locationDenied: "위치 권한이 거부되었습니다. 광안리 기준으로 계속 표시합니다.",
+    placesCount: "장소",
+    sheetSubtitle: "선택한 지역과 필터 기준",
+    origin: "현재 위치 / 광안리",
+    heading: "지금 근처 어디 갈까?",
+    currentLocation: "현재 위치",
+    useMyLocation: "내 위치",
+    clearArea: "지역 검색 해제",
+    emptyTitle: "주변에 조건에 맞는 장소가 없습니다",
+    emptyDescription: "지도를 움직이거나 필터를 줄여 다시 확인해 주세요.",
+    detail: "상세",
+  },
+};

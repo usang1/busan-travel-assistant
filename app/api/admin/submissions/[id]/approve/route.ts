@@ -16,6 +16,21 @@ export async function POST(request: Request, { params }: RouteContext) {
     const { client, user } = await requireAdmin(request);
     const { id } = await params;
     const payload = (await request.json()) as PlacePayload;
+
+    const { data: existingSubmission, error: existingError } = await client
+      .from("place_submissions")
+      .select("id, status, place_id")
+      .eq("id", id)
+      .single();
+
+    if (existingError || !existingSubmission) {
+      throw new Error(existingError?.message ?? "제보를 찾지 못했습니다.");
+    }
+
+    if (existingSubmission.status === "approved" || existingSubmission.place_id) {
+      return NextResponse.json({ message: "이미 승인 처리된 제보입니다." }, { status: 409 });
+    }
+
     const finalIsActive = payload.is_active;
     const draftPayload = { ...payload, is_active: false, status: "DRAFT" };
     const draftPlace = await createPlace(draftPayload, client);
@@ -30,6 +45,8 @@ export async function POST(request: Request, { params }: RouteContext) {
         reviewed_at: new Date().toISOString(),
       })
       .eq("id", id)
+      .neq("status", "approved")
+      .is("place_id", null)
       .select("*")
       .single();
 

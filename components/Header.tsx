@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Languages, LogIn, LogOut, MapPin, Sparkles } from "lucide-react";
+import { Flag, Languages, LogIn, LogOut, MapPin, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, getLocaleFromPath, localeMeta, locales, ui, withLocale, withoutLocale } from "@/lib/i18n";
@@ -15,7 +15,7 @@ export function Header() {
   const basePath = withoutLocale(pathname);
   const queryString = searchParams.toString();
   const querySuffix = queryString ? `?${queryString}` : "";
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   async function signOut() {
     const client = getSupabaseClient();
@@ -45,25 +45,52 @@ export function Header() {
             {copy.region}
           </div>
           {user ? (
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="grid size-9 place-items-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
-              aria-label="Log out"
-              title="Log out"
-            >
-              <LogOut size={16} aria-hidden="true" />
-            </button>
+            <>
+              <Link
+                href={withLocale("/mypage", currentLocale)}
+                className="hidden h-9 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95 sm:inline-flex"
+              >
+                <UserRound size={16} aria-hidden="true" />
+                {copy.auth.mypage}
+              </Link>
+              {isAdmin ? (
+                <Link
+                  href={withLocale("/admin", currentLocale)}
+                  className="hidden h-9 items-center justify-center gap-1.5 rounded-full bg-slate-950 px-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 active:scale-95 sm:inline-flex"
+                >
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  {copy.auth.admin}
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
+                aria-label={copy.auth.logout}
+                title={copy.auth.logout}
+              >
+                <LogOut size={16} aria-hidden="true" />
+                <span className="hidden sm:inline">{copy.auth.logout}</span>
+              </button>
+            </>
           ) : (
             <Link
               href={`${withLocale("/login", currentLocale)}?next=${encodeURIComponent(`${pathname}${querySuffix}`)}`}
-              className="grid size-9 place-items-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
-              aria-label="Log in"
-              title="Log in"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
+              aria-label={copy.auth.login}
+              title={copy.auth.login}
             >
               <LogIn size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">{copy.auth.login}</span>
             </Link>
           )}
+          <Link
+            href={withLocale("/contact", currentLocale)}
+            className="hidden h-9 items-center justify-center gap-1.5 rounded-full bg-teal-700 px-3 text-sm font-black text-white shadow-sm transition hover:bg-teal-800 active:scale-95 sm:inline-flex"
+          >
+            <Flag size={16} aria-hidden="true" />
+            {copy.common.submitPlace}
+          </Link>
           <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Language">
             <Languages size={15} className="ml-2 text-slate-500" aria-hidden="true" />
             {locales.map((locale) => (

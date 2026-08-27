@@ -22,6 +22,7 @@ export function ShareButton({ title, text, url, className, placeId, locale }: Sh
   const pathname = usePathname();
   const currentLocale = locale ?? getLocaleFromPath(pathname) ?? defaultLocale;
   const { user } = useAuth();
+  const copy = shareCopy[currentLocale];
 
   async function share() {
     const shareUrl = url ?? window.location.href;
@@ -29,18 +30,18 @@ export function ShareButton({ title, text, url, className, placeId, locale }: Sh
     try {
       if (navigator.share) {
         await navigator.share({ title, text, url: shareUrl });
-        setStatus("已分享");
+        setStatus(copy.shared);
         return;
       }
 
       await navigator.clipboard.writeText(shareUrl);
-      setStatus("链接已复制");
+      setStatus(copy.copied);
     } catch {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        setStatus("链接已复制");
+        setStatus(copy.copied);
       } catch {
-        setStatus("复制失败");
+        setStatus(copy.failed);
       }
     }
 
@@ -65,9 +66,16 @@ export function ShareButton({ title, text, url, className, placeId, locale }: Sh
         )}
       >
         <Share2 size={17} aria-hidden="true" />
-        分享
+        {copy.share}
       </button>
       {status ? <span className="text-xs font-semibold text-teal-700">{status}</span> : null}
     </div>
   );
 }
+
+const shareCopy: Record<Locale, { share: string; shared: string; copied: string; failed: string }> = {
+  zh: { share: "分享", shared: "已分享", copied: "链接已复制", failed: "复制失败" },
+  en: { share: "Share", shared: "Shared", copied: "Link copied", failed: "Copy failed" },
+  ja: { share: "共有", shared: "共有しました", copied: "リンクをコピーしました", failed: "コピーに失敗しました" },
+  ko: { share: "공유", shared: "공유했습니다", copied: "링크를 복사했습니다", failed: "복사에 실패했습니다" },
+};

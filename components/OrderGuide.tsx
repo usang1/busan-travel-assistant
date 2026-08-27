@@ -2,19 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { MessageSquareText, X } from "lucide-react";
+import { getLocalizedMenuItem, type Locale } from "@/lib/i18n";
 import { formatWon } from "@/lib/place-store";
 import type { PlaceMenuItem, PlaceWithRelations } from "@/types/database";
 
 type OrderGuideProps = {
   place: PlaceWithRelations;
+  locale: Locale;
 };
-
-const partyOptions = [
-  { label: "1人", value: 1 },
-  { label: "2人", value: 2 },
-  { label: "3人", value: 3 },
-  { label: "4人+", value: 4 },
-];
 
 function buildOrder(menuItems: PlaceMenuItem[], people: number) {
   const sorted = [...menuItems].sort((a, b) => {
@@ -72,9 +67,68 @@ function joinChinese(parts: string[]) {
   return `请给我们${parts.join("和")}。`;
 }
 
-export function OrderGuide({ place }: OrderGuideProps) {
+const orderGuideCopy: Record<Locale, {
+  title: string;
+  peopleSuffix: string;
+  recommendation: string;
+  expected: string;
+  askStaff: string;
+  close: string;
+  staffCard: string;
+  confirmWithStaff: string;
+}> = {
+  zh: {
+    title: "怎么点？",
+    peopleSuffix: "人",
+    recommendation: "推荐",
+    expected: "预计",
+    askStaff: "给店员看",
+    close: "关闭",
+    staffCard: "请把这个画面给店员看",
+    confirmWithStaff: "请向店员确认",
+  },
+  en: {
+    title: "How to order",
+    peopleSuffix: " people",
+    recommendation: "Recommendation",
+    expected: "Estimate",
+    askStaff: "Show staff",
+    close: "Close",
+    staffCard: "Show this screen to staff",
+    confirmWithStaff: "Ask staff",
+  },
+  ja: {
+    title: "注文方法",
+    peopleSuffix: "人",
+    recommendation: "おすすめ",
+    expected: "目安",
+    askStaff: "スタッフに見せる",
+    close: "閉じる",
+    staffCard: "この画面をスタッフに見せてください",
+    confirmWithStaff: "スタッフ確認",
+  },
+  ko: {
+    title: "어떻게 주문할까?",
+    peopleSuffix: "명",
+    recommendation: "추천",
+    expected: "예상",
+    askStaff: "직원에게 보여주기",
+    close: "닫기",
+    staffCard: "이 화면을 직원에게 보여주세요",
+    confirmWithStaff: "직원 확인",
+  },
+};
+
+function partyLabel(value: number, locale: Locale) {
+  const suffix = orderGuideCopy[locale].peopleSuffix;
+
+  return value === 4 ? `4${suffix}+` : `${value}${suffix}`;
+}
+
+export function OrderGuide({ place, locale }: OrderGuideProps) {
   const [people, setPeople] = useState(2);
   const [showStaffCard, setShowStaffCard] = useState(false);
+  const copy = orderGuideCopy[locale];
 
   const recommendation = useMemo(() => {
     const order = buildOrder(place.menu_items, people);
@@ -93,54 +147,60 @@ export function OrderGuide({ place }: OrderGuideProps) {
   return (
     <section className="mt-6 space-y-3">
       <div>
-        <h2 className="text-xl font-bold tracking-normal text-slate-950">怎么点？</h2>
-        <p className="mt-1 text-sm text-slate-500">어떻게 주문하지?</p>
+        <h2 className="text-xl font-bold tracking-normal text-slate-950">{copy.title}</h2>
       </div>
 
       <div className="rounded-[26px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <div className="grid grid-cols-4 gap-2">
-          {partyOptions.map((option) => (
+          {[1, 2, 3, 4].map((value) => (
             <button
-              key={option.value}
+              key={value}
               type="button"
-              onClick={() => setPeople(option.value)}
+              onClick={() => setPeople(value)}
               className={[
                 "h-11 rounded-2xl text-sm font-black transition active:scale-95",
-                people === option.value ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                people === value ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200",
               ].join(" ")}
             >
-              {option.label}
+              {partyLabel(value, locale)}
             </button>
           ))}
         </div>
 
         <div className="mt-5 rounded-[22px] bg-teal-50 p-4">
-          <p className="text-lg font-black text-slate-950">{people}个人推荐</p>
-          <p className="mt-1 text-sm text-slate-500">{people}명 추천</p>
+          <p className="text-lg font-black text-slate-950">{partyLabel(people, locale)} {copy.recommendation}</p>
 
           {recommendation.order.length > 0 ? (
             <div className="mt-4 space-y-3">
-              {recommendation.order.map((line) => (
-                <div key={line.item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                  <div>
-                    <p className="font-bold text-slate-950">
-                      {line.item.name_zh} ×{line.quantity}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {line.item.name_ko} ×{line.quantity}
-                    </p>
+              {recommendation.order.map((line) => {
+                const menu = getLocalizedMenuItem(line.item, locale);
+
+                return (
+                  <div key={line.item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
+                    <div>
+                      <p className="font-bold text-slate-950">
+                        {menu.name} x{line.quantity}
+                      </p>
+                      {menu.secondaryName ? (
+                        <p className="mt-1 text-sm text-slate-500">
+                          {menu.secondaryName} x{line.quantity}
+                        </p>
+                      ) : null}
+                    </div>
+                    <p className="shrink-0 text-sm font-black text-teal-700">{formatWon((line.item.price ?? 0) * line.quantity, locale)}</p>
                   </div>
-                  <p className="shrink-0 text-sm font-black text-teal-700">{formatWon((line.item.price ?? 0) * line.quantity)}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <p className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-600">{place.recommended_order_zh}</p>
+            <p className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-600">
+              {locale === "zh" ? place.recommended_order_zh : place.recommended_order_ko}
+            </p>
           )}
 
           <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-950 px-4 py-3 text-white">
-            <span className="text-sm text-slate-300">预计 / 예상</span>
-            <span className="text-xl font-black">{recommendation.total > 0 ? formatWon(recommendation.total) : "직원 확인"}</span>
+            <span className="text-sm text-slate-300">{copy.expected}</span>
+            <span className="text-xl font-black">{recommendation.total > 0 ? formatWon(recommendation.total, locale) : copy.confirmWithStaff}</span>
           </div>
         </div>
 
@@ -150,8 +210,7 @@ export function OrderGuide({ place }: OrderGuideProps) {
           className="mt-4 inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 text-base font-black text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.98]"
         >
           <MessageSquareText size={20} aria-hidden="true" />
-          给店员看
-          <span className="text-sm font-semibold text-teal-100">직원에게 보여주기</span>
+          {copy.askStaff}
         </button>
       </div>
 
@@ -161,15 +220,15 @@ export function OrderGuide({ place }: OrderGuideProps) {
             type="button"
             onClick={() => setShowStaffCard(false)}
             className="absolute right-4 top-4 grid size-12 place-items-center rounded-full bg-white/10 text-white"
-            aria-label="关闭"
+            aria-label={copy.close}
           >
             <X size={24} aria-hidden="true" />
           </button>
           <div className="flex min-h-full flex-col items-center justify-center text-center">
-            <p className="mb-6 rounded-full bg-teal-400/15 px-4 py-2 text-sm font-bold text-teal-100">请把这个画面给店员看</p>
+            <p className="mb-6 rounded-full bg-teal-400/15 px-4 py-2 text-sm font-bold text-teal-100">{copy.staffCard}</p>
             <p className="max-w-2xl text-[40px] font-black leading-tight tracking-normal sm:text-6xl">{recommendation.koreanText}</p>
             <p className="mt-8 max-w-xl rounded-[24px] bg-white/10 p-5 text-xl font-bold leading-8 text-slate-100">
-              {recommendation.chineseText}
+              {locale === "ko" ? recommendation.koreanText : recommendation.chineseText}
             </p>
           </div>
         </div>

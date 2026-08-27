@@ -11,33 +11,6 @@ const legalLinks = [
   { href: "/contact", key: "contact" },
 ] as const;
 
-const secondaryLabels = {
-  zh: {
-    serviceInfo: "서비스 안내",
-    privacy: "개인정보처리방침",
-    terms: "이용약관",
-    contact: "문의",
-  },
-  en: {
-    serviceInfo: "Service Info",
-    privacy: "Privacy",
-    terms: "Terms",
-    contact: "Contact",
-  },
-  ja: {
-    serviceInfo: "サービス案内",
-    privacy: "プライバシー",
-    terms: "利用規約",
-    contact: "連絡先",
-  },
-  ko: {
-    serviceInfo: "Service Info",
-    privacy: "Privacy",
-    terms: "Terms",
-    contact: "Contact",
-  },
-};
-
 export function Footer() {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname) ?? defaultLocale;
@@ -56,7 +29,6 @@ export function Footer() {
               className="rounded-2xl bg-slate-50 px-3 py-3 text-slate-700 transition hover:bg-slate-100"
             >
               <span className="block font-bold">{copy.footerLinks[link.key]}</span>
-              <span className="mt-1 block text-xs text-slate-500">{secondaryLabels[locale][link.key]}</span>
             </Link>
           ))}
         </div>

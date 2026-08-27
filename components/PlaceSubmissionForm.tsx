@@ -9,7 +9,8 @@ import { useAuth } from "@/components/AuthProvider";
 import { parseMapUrl } from "@/lib/map-url";
 import { recordPlaceEvent } from "@/lib/place-events";
 import { getSupabaseClient } from "@/lib/supabase";
-import { defaultLocale, getLocaleFromPath, type Locale, withLocale } from "@/lib/i18n";
+import { categoryLabels, placeCategories, type PlaceCategory } from "@/types/database";
+import { defaultLocale, getLocaleFromPath, type Locale, ui, withLocale } from "@/lib/i18n";
 
 type PlaceSubmissionFormProps = {
   locale?: Locale;
@@ -18,11 +19,16 @@ type PlaceSubmissionFormProps = {
 export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionFormProps) {
   const pathname = usePathname();
   const currentLocale = getLocaleFromPath(pathname) ?? locale;
+  const copy = ui[currentLocale];
   const { user, loading } = useAuth();
   const [mapUrl, setMapUrl] = useState("");
   const [reason, setReason] = useState("");
   const [name, setName] = useState("");
+  const [category, setCategory] = useState<PlaceCategory | "">("");
+  const [description, setDescription] = useState("");
   const [locationText, setLocationText] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [extraNotes, setExtraNotes] = useState("");
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const parsed = useMemo(() => parseMapUrl(mapUrl), [mapUrl]);
@@ -38,15 +44,24 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
     setSubmitting(true);
     setStatus("");
 
+    const notes = [
+      reason.trim(),
+      description.trim() ? `${copy.submissions.descriptionLabel}: ${description.trim()}` : "",
+      imageUrl.trim() ? `${copy.submissions.imageUrl}: ${imageUrl.trim()}` : "",
+      extraNotes.trim() ? `${copy.submissions.notes}: ${extraNotes.trim()}` : "",
+    ].filter(Boolean).join("\n\n");
+
     const { error } = await client.from("place_submissions").insert({
       user_id: user.id,
       locale: currentLocale,
       name: name.trim() || null,
+      category: category || null,
       provider: parsed.provider,
-      source_url: parsed.normalizedUrl,
+      source_url: parsed.normalizedUrl || null,
+      address_text: locationText.trim() || null,
       location_text: locationText.trim() || null,
       recommendation_reason: reason.trim(),
-      notes: reason.trim(),
+      notes: notes || reason.trim() || name.trim() || parsed.normalizedUrl,
       status: "pending",
     });
 
@@ -67,38 +82,41 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
     setMapUrl("");
     setReason("");
     setName("");
+    setCategory("");
+    setDescription("");
     setLocationText("");
-    setStatus("제보가 접수되었습니다. 내 제보에서 검수 상태를 확인할 수 있습니다.");
+    setImageUrl("");
+    setExtraNotes("");
+    setStatus(copy.submissions.submitted);
   }
 
   if (loading) {
-    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">Loading...</div>;
+    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.common.loading}</div>;
   }
 
   if (!user) {
-    return <AuthRequiredPanel title="장소 제보" description="장소 제보는 로그인 후 접수할 수 있습니다." locale={currentLocale} />;
+    return <AuthRequiredPanel title={copy.submissions.title} description={copy.submissions.loginDescription} locale={currentLocale} />;
   }
 
   return (
     <section className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-slate-950">장소 제보</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">지도 링크와 추천 이유만 보내면 관리자가 검수 후 장소 정보를 완성합니다.</p>
+          <h2 className="text-xl font-black text-slate-950">{copy.submissions.title}</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{copy.submissions.description}</p>
         </div>
         <Link href={withLocale("/submissions", currentLocale)} className="shrink-0 text-sm font-black text-teal-700">
-          내 제보
+          {copy.submissions.myTitle}
         </Link>
       </div>
 
       <form className="mt-5 space-y-4" onSubmit={submit}>
         <label className="block">
-          <span className="text-sm font-bold text-slate-700">장소 지도 링크</span>
+          <span className="text-sm font-bold text-slate-700">{copy.submissions.mapUrl}</span>
           <input
             type="url"
             value={mapUrl}
             onChange={(event) => setMapUrl(event.target.value)}
-            required
             placeholder="Naver / Kakao / Google Maps URL"
             className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200"
           />
@@ -110,22 +128,22 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
         </div>
 
         <label className="block">
-          <span className="text-sm font-bold text-slate-700">추천 이유</span>
+          <span className="text-sm font-bold text-slate-700">{copy.submissions.reason}</span>
           <textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             required
             rows={4}
-            placeholder="왜 여행자에게 추천하고 싶은지 알려주세요."
+            placeholder={copy.submissions.reason}
             className="mt-2 w-full rounded-2xl bg-slate-50 px-3 py-3 text-base outline-none ring-1 ring-slate-200"
           />
         </label>
 
         <details className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
-          <summary className="cursor-pointer text-sm font-black text-slate-700">선택 입력</summary>
+          <summary className="cursor-pointer text-sm font-black text-slate-700">{copy.submissions.optional}</summary>
           <div className="mt-3 space-y-3">
             <label className="block">
-              <span className="text-sm font-bold text-slate-700">장소명</span>
+              <span className="text-sm font-bold text-slate-700">{copy.submissions.name}</span>
               <input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -133,12 +151,52 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
               />
             </label>
             <label className="block">
-              <span className="text-sm font-bold text-slate-700">위치 힌트</span>
+              <span className="text-sm font-bold text-slate-700">{copy.submissions.category}</span>
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value as PlaceCategory | "")}
+                className="mt-2 h-11 w-full rounded-2xl bg-white px-3 text-base outline-none ring-1 ring-slate-200"
+              >
+                <option value="">{copy.common.noInfo}</option>
+                {placeCategories.map((item) => (
+                  <option key={item} value={item}>{categoryLabels[item][currentLocale]}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">{copy.submissions.address}</span>
               <input
                 value={locationText}
                 onChange={(event) => setLocationText(event.target.value)}
-                placeholder="예: 광안리 해변 근처"
+                placeholder={copy.submissions.address}
                 className="mt-2 h-11 w-full rounded-2xl bg-white px-3 text-base outline-none ring-1 ring-slate-200"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">{copy.submissions.descriptionLabel}</span>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+                className="mt-2 w-full rounded-2xl bg-white px-3 py-3 text-base outline-none ring-1 ring-slate-200"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">{copy.submissions.imageUrl}</span>
+              <input
+                value={imageUrl}
+                onChange={(event) => setImageUrl(event.target.value)}
+                placeholder="https://..."
+                className="mt-2 h-11 w-full rounded-2xl bg-white px-3 text-base outline-none ring-1 ring-slate-200"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">{copy.submissions.notes}</span>
+              <textarea
+                value={extraNotes}
+                onChange={(event) => setExtraNotes(event.target.value)}
+                rows={3}
+                className="mt-2 w-full rounded-2xl bg-white px-3 py-3 text-base outline-none ring-1 ring-slate-200"
               />
             </label>
           </div>
@@ -150,7 +208,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition active:scale-95 disabled:opacity-60"
         >
           <Send size={17} aria-hidden="true" />
-          접수
+          {copy.submissions.submit}
         </button>
       </form>
 

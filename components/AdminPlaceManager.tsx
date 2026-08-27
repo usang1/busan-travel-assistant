@@ -27,9 +27,13 @@ type FormState = {
   id?: string;
   slug: string;
   name_zh: string;
+  name_en: string;
+  name_ja: string;
   name_ko: string;
   category: PlaceCategory;
   short_description_zh: string;
+  short_description_en: string;
+  short_description_ja: string;
   short_description_ko: string;
   address_ko: string;
   address_zh: string;
@@ -50,6 +54,8 @@ type FormState = {
   recommended_order_zh: string;
   recommended_order_ko: string;
   tips_zh: string;
+  tips_en: string;
+  tips_ja: string;
   tips_ko: string;
   thumbnail_url: string;
   is_featured: boolean;
@@ -65,9 +71,13 @@ function createEmptyForm(): FormState {
   return {
     slug: "",
     name_zh: "",
+    name_en: "",
+    name_ja: "",
     name_ko: "",
     category: "restaurant",
     short_description_zh: "",
+    short_description_en: "",
+    short_description_ja: "",
     short_description_ko: "",
     address_ko: "",
     address_zh: "",
@@ -88,6 +98,8 @@ function createEmptyForm(): FormState {
     recommended_order_zh: "",
     recommended_order_ko: "",
     tips_zh: "",
+    tips_en: "",
+    tips_ja: "",
     tips_ko: "",
     thumbnail_url: defaultImage,
     is_featured: false,
@@ -107,13 +119,20 @@ function slugify(value: string) {
 }
 
 function toForm(place: PlaceWithRelations): FormState {
+  const en = place.translations?.find((translation) => translation.locale === "en");
+  const ja = place.translations?.find((translation) => translation.locale === "ja");
+
   return {
     id: place.id,
     slug: place.slug,
     name_zh: place.name_zh,
+    name_en: en?.name ?? "",
+    name_ja: ja?.name ?? "",
     name_ko: place.name_ko,
     category: place.category,
     short_description_zh: place.short_description_zh,
+    short_description_en: en?.description ?? "",
+    short_description_ja: ja?.description ?? "",
     short_description_ko: place.short_description_ko,
     address_ko: place.address_ko,
     address_zh: place.address_zh,
@@ -134,6 +153,8 @@ function toForm(place: PlaceWithRelations): FormState {
     recommended_order_zh: place.recommended_order_zh,
     recommended_order_ko: place.recommended_order_ko,
     tips_zh: place.tips_zh,
+    tips_en: en?.travel_tip ?? "",
+    tips_ja: ja?.travel_tip ?? "",
     tips_ko: place.tips_ko,
     thumbnail_url: place.thumbnail_url,
     is_featured: place.is_featured,
@@ -219,6 +240,36 @@ function toPayload(form: FormState): PlacePayload {
         is_recommended: item.is_recommended,
         sort_order: Number(item.sort_order) || index + 1,
       })),
+    translations: [
+      {
+        locale: "zh",
+        name: form.name_zh,
+        description: form.short_description_zh,
+        travel_tip: form.tips_zh,
+      },
+      {
+        locale: "ko",
+        name: form.name_ko,
+        description: form.short_description_ko,
+        travel_tip: form.tips_ko,
+      },
+      form.name_en.trim()
+        ? {
+            locale: "en" as const,
+            name: form.name_en,
+            description: form.short_description_en,
+            travel_tip: form.tips_en,
+          }
+        : null,
+      form.name_ja.trim()
+        ? {
+            locale: "ja" as const,
+            name: form.name_ja,
+            description: form.short_description_ja,
+            travel_tip: form.tips_ja,
+          }
+        : null,
+    ].filter((translation): translation is NonNullable<PlacePayload["translations"]>[number] => Boolean(translation)),
   };
 }
 
@@ -497,6 +548,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 className={inputClass}
               />
             </Field>
+            <Field label="영어 장소명">
+              <input value={form.name_en} onChange={(event) => updateField("name_en", event.target.value)} className={inputClass} />
+            </Field>
+            <Field label="일본어 장소명">
+              <input value={form.name_ja} onChange={(event) => updateField("name_ja", event.target.value)} className={inputClass} />
+            </Field>
             <Field label="한국어 장소명">
               <input value={form.name_ko} onChange={(event) => updateField("name_ko", event.target.value)} className={inputClass} />
             </Field>
@@ -511,6 +568,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             </Field>
             <Field label="중국어 짧은 설명">
               <textarea value={form.short_description_zh} onChange={(event) => updateField("short_description_zh", event.target.value)} className={textareaClass} />
+            </Field>
+            <Field label="영어 짧은 설명">
+              <textarea value={form.short_description_en} onChange={(event) => updateField("short_description_en", event.target.value)} className={textareaClass} />
+            </Field>
+            <Field label="일본어 짧은 설명">
+              <textarea value={form.short_description_ja} onChange={(event) => updateField("short_description_ja", event.target.value)} className={textareaClass} />
             </Field>
             <Field label="한국어 짧은 설명">
               <textarea value={form.short_description_ko} onChange={(event) => updateField("short_description_ko", event.target.value)} className={textareaClass} />
@@ -577,6 +640,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             </Field>
             <Field label="여행 팁 중국어">
               <textarea value={form.tips_zh} onChange={(event) => updateField("tips_zh", event.target.value)} className={textareaClass} />
+            </Field>
+            <Field label="여행 팁 영어">
+              <textarea value={form.tips_en} onChange={(event) => updateField("tips_en", event.target.value)} className={textareaClass} />
+            </Field>
+            <Field label="여행 팁 일본어">
+              <textarea value={form.tips_ja} onChange={(event) => updateField("tips_ja", event.target.value)} className={textareaClass} />
             </Field>
             <Field label="여행 팁 한국어">
               <textarea value={form.tips_ko} onChange={(event) => updateField("tips_ko", event.target.value)} className={textareaClass} />

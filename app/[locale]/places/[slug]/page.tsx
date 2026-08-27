@@ -28,6 +28,8 @@ import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { formatOpeningStatus } from "@/lib/location";
 import {
   getPlaceContent,
+  getLocalizedMenuItem,
+  getLocalizedTag,
   isLocale,
   localeAlternates,
   localeMeta,
@@ -125,6 +127,13 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   ].filter((label): label is Record<Locale, string> => Boolean(label));
   const placeHref = withLocale(`/places/${place.slug}`, locale);
   const opening = formatOpeningStatus(place.opening_hours, locale);
+  const localizedHoursLabel = { zh: "营业", en: "Hours", ja: "営業時間", ko: "영업" }[locale];
+  const localizedOrderFallback = {
+    zh: "请问可以推荐这里最受欢迎的菜单吗？",
+    en: "Could you recommend the most popular item here?",
+    ja: "ここで一番人気のメニューをおすすめしてもらえますか？",
+    ko: "여기에서 가장 인기 있는 메뉴를 추천해주실 수 있나요?",
+  }[locale];
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -132,7 +141,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         data={{
           "@context": "https://schema.org",
           "@type": "TouristAttraction",
-          name: `${content.name} / ${content.secondaryName}`,
+          name: content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name,
           description: content.description,
           image: place.thumbnail_url,
           url: localizedCanonical(`/places/${place.slug}`, locale),
@@ -170,7 +179,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         <div className="relative aspect-[4/3] bg-slate-200">
           <Image
             src={place.thumbnail_url}
-            alt={`${content.name} / ${content.secondaryName}`}
+              alt={content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name}
             fill
             sizes="(max-width: 768px) 100vw, 720px"
             className="object-cover"
@@ -185,7 +194,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             <div>
               <TagChip tone={place.is_active ? "green" : "amber"}>{place.is_active ? copy.common.available : copy.common.unavailable}</TagChip>
               <h1 className="mt-3 text-3xl font-black tracking-normal text-slate-950">{content.name}</h1>
-              <p className="mt-1 text-base text-slate-500">{content.secondaryName}</p>
+              {content.secondaryName ? <p className="mt-1 text-base text-slate-500">{content.secondaryName}</p> : null}
             </div>
             <SaveButton
               className="h-11 px-3"
@@ -205,7 +214,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           <div className="mt-4">
             <ShareButton
               title={content.name}
-              text={`${content.name} / ${content.secondaryName} - ${content.description}`}
+              text={`${content.name}${content.secondaryName ? ` / ${content.secondaryName}` : ""} - ${content.description}`}
               url={localizedCanonical(`/places/${place.slug}`, locale)}
               placeId={place.id}
               locale={locale}
@@ -215,17 +224,17 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           <div className="mt-5 grid grid-cols-3 gap-2">
             <InfoTile icon={WalletCards} label={copy.placeDetail.payment} value={formatPriceRange(place, locale)} />
             <InfoTile icon={Clock3} label={copy.common.walk} value={`${place.walking_minutes}${copy.common.minutes}`} />
-            <InfoTile icon={Route} label="영업" value={place.opening_hours ? opening.text : copy.common.notRegistered} />
+            <InfoTile icon={Route} label={localizedHoursLabel} value={place.opening_hours ? opening.text : copy.common.notRegistered} />
           </div>
 
           <section className="mt-6">
-            <SectionTitle title={copy.placeDetail.recommendation} subtitle="추천 이유" />
+            <SectionTitle title={copy.placeDetail.recommendation} />
             <p className="mt-3 text-base leading-7 text-slate-700">{content.description}</p>
           </section>
 
           <div className="mt-5 flex flex-wrap gap-2">
             {place.tags.map((tag) => (
-              <TagChip key={tag.slug}>{locale === "ko" ? tag.label_ko : tag.label_zh}</TagChip>
+              <TagChip key={tag.slug}>{getLocalizedTag(tag, locale)}</TagChip>
             ))}
             {facilityTags.map((label) => (
               <TagChip key={label.zh} tone="blue">
@@ -237,24 +246,28 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       </section>
 
       <section className="mt-6 space-y-3">
-        <SectionTitle title={copy.placeDetail.menu} subtitle="추천 메뉴" />
+        <SectionTitle title={copy.placeDetail.menu} />
         {place.menu_items.length > 0 ? (
           <div className="space-y-3">
-            {[...recommendedMenus, ...otherMenus].map((item) => (
-              <div key={item.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-slate-950">{locale === "ko" ? item.name_ko : item.name_zh}</h2>
-                      {item.is_recommended ? <TagChip tone="green">{copy.placeDetail.recommended}</TagChip> : null}
+            {[...recommendedMenus, ...otherMenus].map((item) => {
+              const menu = getLocalizedMenuItem(item, locale);
+
+              return (
+                <div key={item.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-bold text-slate-950">{menu.name}</h2>
+                        {item.is_recommended ? <TagChip tone="green">{copy.placeDetail.recommended}</TagChip> : null}
+                      </div>
+                      {menu.secondaryName ? <p className="mt-1 text-sm text-slate-500">{menu.secondaryName}</p> : null}
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">{locale === "ko" ? item.name_zh : item.name_ko}</p>
+                    <span className="shrink-0 font-black text-slate-950">{formatWon(item.price, locale)}</span>
                   </div>
-                  <span className="shrink-0 font-black text-slate-950">{formatWon(item.price, locale)}</span>
+                  {menu.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{menu.description}</p> : null}
                 </div>
-                {item.description_zh ? <p className="mt-3 text-sm leading-6 text-slate-600">{item.description_zh}</p> : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-[22px] bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
@@ -264,13 +277,13 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       </section>
 
       {place.category === "restaurant" ? (
-        <OrderGuide place={place} />
+        <OrderGuide place={place} locale={locale} />
       ) : (
         <section className="mt-6 space-y-3">
-          <SectionTitle title={copy.placeDetail.howToSay} subtitle="어떻게 말할까?" />
+          <SectionTitle title={copy.placeDetail.howToSay} />
           <div className="rounded-[24px] bg-teal-700 p-5 text-white shadow-sm">
             <MessageSquareText size={22} aria-hidden="true" />
-            <p className="mt-3 text-lg font-bold">{content.recommendedOrder || "请问可以推荐这里最受欢迎的菜单吗？"}</p>
+            <p className="mt-3 text-lg font-bold">{content.recommendedOrder || localizedOrderFallback}</p>
             <p className="mt-3 rounded-2xl bg-white/12 p-3 text-sm leading-6 text-teal-50">
               {place.recommended_order_ko || "여기에서 가장 인기 있는 메뉴를 추천해주실 수 있나요?"}
             </p>
@@ -279,17 +292,16 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       )}
 
       <section className="mt-6 grid gap-3 sm:grid-cols-2">
-        <InfoPanel icon={Users} title={copy.placeDetail.waiting} subtitle="웨이팅" body={content.waitingInfo || copy.common.noInfo} />
+        <InfoPanel icon={Users} title={copy.placeDetail.waiting} body={content.waitingInfo || copy.common.noInfo} />
         <InfoPanel
           icon={MapPin}
           title={copy.placeDetail.directions}
-          subtitle="가는 방법"
           body={`${place.nearest_station} ${place.nearest_exit} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`}
         />
       </section>
 
       <section className="mt-6 space-y-3">
-        <SectionTitle title={copy.placeDetail.travelTip} subtitle="여행 팁" />
+        <SectionTitle title={copy.placeDetail.travelTip} />
         <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <Soup size={22} className="text-teal-700" aria-hidden="true" />
           <p className="mt-3 text-base leading-7 text-slate-700">{content.travelTip || copy.common.noInfo}</p>
@@ -324,19 +336,16 @@ function InfoTile({ icon: Icon, label, value }: { icon: LucideIcon; label: strin
 function InfoPanel({
   icon: Icon,
   title,
-  subtitle,
   body,
 }: {
   icon: LucideIcon;
   title: string;
-  subtitle: string;
   body: string;
 }) {
   return (
     <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <Icon size={22} className="text-teal-700" aria-hidden="true" />
       <h2 className="mt-3 text-lg font-bold text-slate-950">{title}</h2>
-      <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
       <p className="mt-3 text-sm leading-6 text-slate-700">{body}</p>
     </div>
   );

@@ -22,6 +22,7 @@ type SavedPlace = {
 
 type SavedItemsViewProps = {
   locale?: Locale;
+  compact?: boolean;
 };
 
 type SupabaseSavedPlaceRow = {
@@ -43,7 +44,7 @@ const filters: Array<{ value: PlaceCategory | "all"; label: Record<Locale, strin
   { value: "shopping", label: categoryLabels.shopping },
 ];
 
-export function SavedItemsView({ locale }: SavedItemsViewProps) {
+export function SavedItemsView({ locale, compact = false }: SavedItemsViewProps) {
   const pathname = usePathname();
   const currentLocale = locale ?? getLocaleFromPath(pathname) ?? defaultLocale;
   const copy = ui[currentLocale];
@@ -77,7 +78,7 @@ export function SavedItemsView({ locale }: SavedItemsViewProps) {
       }
 
       if (error || !data) {
-        setStatus(error?.message ?? "저장 목록을 불러오지 못했습니다.");
+        setStatus(error?.message ?? copy.common.noInfo);
         setSavedPlaces([]);
         setIsLoading(false);
         return;
@@ -115,7 +116,7 @@ export function SavedItemsView({ locale }: SavedItemsViewProps) {
       mounted = false;
       window.removeEventListener("place-save-change", handleSaveChange);
     };
-  }, [user]);
+  }, [copy.common.noInfo, user]);
 
   const filteredPlaces = useMemo(() => {
     return category === "all" ? savedPlaces : savedPlaces.filter((item) => item.place.category === category);
@@ -151,7 +152,7 @@ export function SavedItemsView({ locale }: SavedItemsViewProps) {
   }
 
   if (loading || isLoading) {
-    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">Loading...</div>;
+    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.common.loading}</div>;
   }
 
   if (!user) {
@@ -159,17 +160,17 @@ export function SavedItemsView({ locale }: SavedItemsViewProps) {
       <div className="space-y-6">
         <section className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-xl font-black text-slate-950">{copy.nav.saved}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">로그인하면 저장한 장소를 기기와 locale 변경 후에도 유지할 수 있습니다.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{copy.submissions.loginDescription}</p>
           <Link
             href={`${withLocale("/login", currentLocale)}?next=${encodeURIComponent(withLocale("/saved", currentLocale))}`}
             className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-95"
           >
             <LogIn size={17} aria-hidden="true" />
-            로그인
+            {copy.auth.login}
           </Link>
         </section>
         <section>
-          <SectionTitle title="최근 본 장소" subtitle="localStorage" />
+          <SectionTitle title={copy.mypage.savedPlaces} subtitle="localStorage" />
           <div className="mt-4">
             <RecentPlacesView locale={currentLocale} />
           </div>
@@ -210,16 +211,26 @@ export function SavedItemsView({ locale }: SavedItemsViewProps) {
             ))}
           </div>
         ) : (
-          <EmptyState title="저장한 장소가 없습니다" description="장소 카드나 상세페이지에서 저장을 눌러 추가하세요." />
+          <EmptyState
+            title={copy.mypage.savedEmptyTitle}
+            description={copy.mypage.savedEmptyDescription}
+            action={
+              <Link href={withLocale("/places", currentLocale)} className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-white">
+                {copy.common.explorePlaces}
+              </Link>
+            }
+          />
         )}
       </section>
 
-      <section>
-        <SectionTitle title="최근 본 장소" subtitle="localStorage" />
-        <div className="mt-4">
-          <RecentPlacesView locale={currentLocale} />
-        </div>
-      </section>
+      {compact ? null : (
+        <section>
+          <SectionTitle title={copy.mypage.savedPlaces} subtitle="localStorage" />
+          <div className="mt-4">
+            <RecentPlacesView locale={currentLocale} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -243,9 +254,9 @@ function SavedPlaceCard({
       </Link>
       <Link href={href} className="min-w-0 py-1">
         <p className="truncate text-base font-black text-slate-950">{content.name}</p>
-        <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p>
+        {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
         <p className="mt-3 text-xs font-semibold text-teal-700">
-          {categoryLabels[place.category][locale]} · 저장 {place.save_count ?? 0}
+          {categoryLabels[place.category][locale]} · {place.save_count ?? 0}
         </p>
       </Link>
       <button

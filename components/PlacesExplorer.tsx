@@ -72,6 +72,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
   const copy = ui[locale];
+  const explorerCopy = placesExplorerCopy[locale];
   const availableExtras = useMemo(() => extraFilters.filter((filter) => filter.enabled(places)), [places]);
   const availablePriceBuckets = useMemo(() => priceBuckets.filter((bucket) => bucket.value === "all" || places.some(bucket.match)), [places]);
   const regions = useMemo(() => buildRegions(places), [places]);
@@ -141,11 +142,11 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
 
   function requestLocation() {
     if (!("geolocation" in navigator)) {
-      setLocationMessage("이 브라우저에서는 현재 위치를 사용할 수 없습니다.");
+      setLocationMessage(explorerCopy.locationUnsupported);
       return;
     }
 
-    setLocationMessage("현재 위치를 확인하는 중입니다...");
+    setLocationMessage(explorerCopy.locationChecking);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setUserLocation({
@@ -153,10 +154,10 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           longitude: position.coords.longitude,
         });
         setSortMode("distance");
-        setLocationMessage("현재 위치 기준 거리순 정렬을 사용할 수 있습니다.");
+        setLocationMessage(explorerCopy.locationReady);
       },
       () => {
-        setLocationMessage("위치 권한이 거부되었습니다. 다른 검색 기능은 계속 사용할 수 있습니다.");
+        setLocationMessage(explorerCopy.locationDenied);
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
     );
@@ -198,16 +199,16 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
 
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-black text-slate-500">지역</span>
+            <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.region}</span>
             <select value={region} onChange={(event) => setRegion(event.target.value)} className={selectClass}>
-              <option value="all">전체 지역</option>
+              <option value="all">{explorerCopy.allRegions}</option>
               {regions.map((item) => (
                 <option key={item.key} value={item.key}>{item.label}</option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-black text-slate-500">가격대</span>
+            <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.price}</span>
             <select value={priceBucket} onChange={(event) => setPriceBucket(event.target.value as PriceBucket)} className={selectClass}>
               {availablePriceBuckets.map((bucket) => (
                 <option key={bucket.value} value={bucket.value}>{bucket.label[locale]}</option>
@@ -215,11 +216,11 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-black text-slate-500">정렬</span>
+            <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.sort}</span>
             <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} className={selectClass}>
-              <option value="recommended">추천순</option>
-              <option value="saved">저장순</option>
-              <option value="distance" disabled={!userLocation}>거리순</option>
+              <option value="recommended">{explorerCopy.recommendedSort}</option>
+              <option value="saved">{explorerCopy.savedSort}</option>
+              <option value="distance" disabled={!userLocation}>{explorerCopy.distanceSort}</option>
             </select>
           </label>
         </div>
@@ -236,7 +237,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           })}
           <button type="button" onClick={requestLocation} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-black text-blue-700 ring-1 ring-blue-100">
             <LocateFixed size={14} aria-hidden="true" />
-            거리순
+            {explorerCopy.distanceSort}
           </button>
         </div>
 
@@ -247,8 +248,8 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
         <section className="mt-5">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-slate-950">인기 장소</h2>
-              <p className="mt-1 text-xs text-slate-500">저장 수 기반</p>
+              <h2 className="text-lg font-black text-slate-950">{explorerCopy.popular}</h2>
+              <p className="mt-1 text-xs text-slate-500">{explorerCopy.savedBased}</p>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -277,6 +278,83 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     </div>
   );
 }
+
+const placesExplorerCopy: Record<Locale, {
+  region: string;
+  allRegions: string;
+  price: string;
+  sort: string;
+  recommendedSort: string;
+  savedSort: string;
+  distanceSort: string;
+  popular: string;
+  savedBased: string;
+  locationUnsupported: string;
+  locationChecking: string;
+  locationReady: string;
+  locationDenied: string;
+}> = {
+  zh: {
+    region: "区域",
+    allRegions: "全部区域",
+    price: "价格",
+    sort: "排序",
+    recommendedSort: "推荐顺序",
+    savedSort: "收藏顺序",
+    distanceSort: "距离顺序",
+    popular: "热门地点",
+    savedBased: "按收藏数",
+    locationUnsupported: "此浏览器无法使用当前位置。",
+    locationChecking: "正在确认当前位置...",
+    locationReady: "可以按当前位置距离排序。",
+    locationDenied: "位置权限被拒绝。仍可继续使用其他搜索功能。",
+  },
+  en: {
+    region: "Region",
+    allRegions: "All regions",
+    price: "Price",
+    sort: "Sort",
+    recommendedSort: "Recommended",
+    savedSort: "Most saved",
+    distanceSort: "Distance",
+    popular: "Popular places",
+    savedBased: "Based on saves",
+    locationUnsupported: "Current location is unavailable in this browser.",
+    locationChecking: "Checking your current location...",
+    locationReady: "Distance sorting is available from your current location.",
+    locationDenied: "Location permission was denied. Other search features remain available.",
+  },
+  ja: {
+    region: "エリア",
+    allRegions: "すべてのエリア",
+    price: "価格",
+    sort: "並び替え",
+    recommendedSort: "おすすめ順",
+    savedSort: "保存順",
+    distanceSort: "距離順",
+    popular: "人気スポット",
+    savedBased: "保存数基準",
+    locationUnsupported: "このブラウザでは現在地を使用できません。",
+    locationChecking: "現在地を確認しています...",
+    locationReady: "現在地から距離順で並び替えできます。",
+    locationDenied: "位置情報の権限が拒否されました。他の検索機能は利用できます。",
+  },
+  ko: {
+    region: "지역",
+    allRegions: "전체 지역",
+    price: "가격대",
+    sort: "정렬",
+    recommendedSort: "추천순",
+    savedSort: "저장순",
+    distanceSort: "거리순",
+    popular: "인기 장소",
+    savedBased: "저장 수 기반",
+    locationUnsupported: "이 브라우저에서는 현재 위치를 사용할 수 없습니다.",
+    locationChecking: "현재 위치를 확인하는 중입니다...",
+    locationReady: "현재 위치 기준 거리순 정렬을 사용할 수 있습니다.",
+    locationDenied: "위치 권한이 거부되었습니다. 다른 검색 기능은 계속 사용할 수 있습니다.",
+  },
+};
 
 function buildSearchText(place: PlaceWithRelations, locale: Locale) {
   const content = getPlaceContent(place, locale);

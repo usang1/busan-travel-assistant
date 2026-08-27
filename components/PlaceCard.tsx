@@ -6,7 +6,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
 import { formatDistance, formatOpeningStatus, type Coordinates } from "@/lib/location";
 import { formatPriceRange } from "@/lib/place-store";
-import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
+import { defaultLocale, getLocalizedTag, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 
 type PlaceCardProps = {
@@ -33,7 +33,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         <div className="relative aspect-[16/10] bg-slate-200">
           <Image
             src={place.thumbnail_url}
-            alt={`${content.name} / ${content.secondaryName}`}
+            alt={content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name}
             fill
             sizes="(max-width: 768px) 100vw, 420px"
             className="object-cover"
@@ -48,7 +48,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         <div className="flex items-start justify-between gap-3">
           <Link href={placeHref} className="min-w-0">
             <h3 className={compact ? "truncate text-base font-bold text-slate-950" : "truncate text-lg font-bold text-slate-950"}>{content.name}</h3>
-            <p className="mt-0.5 text-sm text-slate-500">{content.secondaryName}</p>
+            {content.secondaryName ? <p className="mt-0.5 text-sm text-slate-500">{content.secondaryName}</p> : null}
           </Link>
           <SaveButton
             initialSaveCount={place.save_count ?? 0}
@@ -85,7 +85,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         <div className="mt-3 flex flex-wrap gap-2">
           {place.tags.slice(0, 3).map((tag) => (
             <TagChip key={tag.slug} tone={place.is_active ? "green" : "amber"}>
-              {locale === "ko" ? tag.label_ko : tag.label_zh}
+              {getLocalizedTag(tag, locale)}
             </TagChip>
           ))}
         </div>

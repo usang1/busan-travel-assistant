@@ -106,6 +106,15 @@ export const ui = {
       nearby: "附近",
       itinerary: "行程",
       saved: "收藏",
+      mypage: "我的",
+      submit: "提交地点",
+      admin: "管理",
+    },
+    auth: {
+      login: "登录",
+      logout: "退出登录",
+      mypage: "我的页面",
+      admin: "管理",
     },
     footerLinks: {
       serviceInfo: "服务说明",
@@ -129,6 +138,10 @@ export const ui = {
       minutes: "分钟",
       perPerson: "人均",
       openMap: "打开地图",
+      submitPlace: "提交地点",
+      explorePlaces: "浏览地点",
+      loading: "Loading...",
+      notSubmittedYet: "还没有提交地点。",
     },
     home: {
       title: "釜山广安里旅行助手｜美食、拍照、行李寄存",
@@ -136,7 +149,7 @@ export const ui = {
       area: "当前区域 · 广安里",
       heading: "釜山怎么玩？",
       subheading: "韩国本地人帮你整理好了。",
-      supporting: "부산에서 어떻게 놀지? 한국 현지인이 정리해뒀어요.",
+      supporting: "围绕广安里美食、拍照、行李寄存和短路线整理。",
       recommended: "韩国本地人推荐",
       searchPlaceholder: "搜索美食、景点、咖啡店",
     },
@@ -156,7 +169,7 @@ export const ui = {
       recommendation: "推荐理由",
       menu: "推荐菜单",
       recommended: "推荐",
-      noMenu: "등록된 메뉴가 없습니다.",
+      noMenu: "暂无菜单。",
       howToSay: "怎么说？",
       waiting: "等候",
       directions: "怎么去？",
@@ -166,8 +179,48 @@ export const ui = {
       location: "位置",
       distanceFromYou: "距离你",
       walkingApprox: "步行约",
-      calculateDistance: "거리 계산",
-      confirmationNote: "信息可能会发生变化，请出发前再次确认。가격, 영업시간, 대기 정보는 변경될 수 있으니 방문 전 다시 확인하세요.",
+      calculateDistance: "计算距离",
+      confirmationNote: "价格、营业时间和等待信息可能会变化，请出发前再次确认。",
+    },
+    submissions: {
+      title: "提交地点",
+      myTitle: "我的提交",
+      description: "提交地图链接和推荐理由，管理员审核后会补全地点信息。",
+      loginDescription: "登录后可以提交地点并查看审核状态。",
+      mapUrl: "地图链接",
+      name: "地点名称",
+      category: "分类",
+      address: "地址或位置",
+      descriptionLabel: "地点说明",
+      reason: "推荐理由",
+      imageUrl: "照片或图片 URL",
+      notes: "其他参考",
+      optional: "选填",
+      submit: "提交",
+      submitted: "已提交。可以在我的页面查看审核状态。",
+      empty: "还没有提交地点。",
+      status: {
+        pending: "待审核",
+        reviewing: "审核中",
+        approved: "已通过",
+        rejected: "已拒绝",
+        duplicate: "重复",
+      },
+    },
+    mypage: {
+      title: "我的页面",
+      subtitle: "个人资料、收藏和地点提交",
+      profile: "个人资料",
+      email: "邮箱",
+      nickname: "昵称",
+      joinedAt: "加入日期",
+      role: "权限",
+      savedPlaces: "收藏地点",
+      savedEmptyTitle: "还没有收藏地点",
+      savedEmptyDescription: "浏览地点并点保存后会显示在这里。",
+      removeSaved: "取消保存",
+      mySubmissions: "我的地点提交",
+      settingsUnavailable: "资料修改功能将在数据库字段确认后开放。",
     },
   },
   en: {
@@ -179,6 +232,15 @@ export const ui = {
       nearby: "Nearby",
       itinerary: "Routes",
       saved: "Saved",
+      mypage: "My Page",
+      submit: "Submit",
+      admin: "Admin",
+    },
+    auth: {
+      login: "Login",
+      logout: "Logout",
+      mypage: "My Page",
+      admin: "Admin",
     },
     footerLinks: {
       serviceInfo: "Service Info",
@@ -202,6 +264,10 @@ export const ui = {
       minutes: "min",
       perPerson: "Avg.",
       openMap: "Open map",
+      submitPlace: "Submit a place",
+      explorePlaces: "Explore places",
+      loading: "Loading...",
+      notSubmittedYet: "No place submissions yet.",
     },
     home: {
       title: "Busan Gwangalli Travel Assistant | Food, Photos, Luggage",
@@ -242,6 +308,46 @@ export const ui = {
       calculateDistance: "Calculate",
       confirmationNote: "Prices, hours, and wait times can change. Please confirm before you go.",
     },
+    submissions: {
+      title: "Submit a place",
+      myTitle: "My submissions",
+      description: "Send a map link and recommendation. Admins review it before publishing.",
+      loginDescription: "Sign in to submit places and check review status.",
+      mapUrl: "Map URL",
+      name: "Place name",
+      category: "Category",
+      address: "Address or location",
+      descriptionLabel: "Place description",
+      reason: "Why recommend it",
+      imageUrl: "Photo or image URL",
+      notes: "Other notes",
+      optional: "Optional",
+      submit: "Submit",
+      submitted: "Submitted. You can check the status on My Page.",
+      empty: "No place submissions yet.",
+      status: {
+        pending: "Pending",
+        reviewing: "Reviewing",
+        approved: "Approved",
+        rejected: "Rejected",
+        duplicate: "Duplicate",
+      },
+    },
+    mypage: {
+      title: "My Page",
+      subtitle: "Profile, saved places, and submissions",
+      profile: "Profile",
+      email: "Email",
+      nickname: "Nickname",
+      joinedAt: "Joined",
+      role: "Role",
+      savedPlaces: "Saved places",
+      savedEmptyTitle: "No saved places yet",
+      savedEmptyDescription: "Save places while browsing and they will appear here.",
+      removeSaved: "Unsave",
+      mySubmissions: "My submissions",
+      settingsUnavailable: "Profile editing will be enabled after confirming writable profile fields.",
+    },
   },
   ja: {
     siteName: "釜山旅行アシスタント",
@@ -252,6 +358,15 @@ export const ui = {
       nearby: "近く",
       itinerary: "旅程",
       saved: "保存",
+      mypage: "マイページ",
+      submit: "投稿",
+      admin: "管理",
+    },
+    auth: {
+      login: "ログイン",
+      logout: "ログアウト",
+      mypage: "マイページ",
+      admin: "管理",
     },
     footerLinks: {
       serviceInfo: "サービス案内",
@@ -275,6 +390,10 @@ export const ui = {
       minutes: "分",
       perPerson: "目安",
       openMap: "地図を開く",
+      submitPlace: "スポット投稿",
+      explorePlaces: "スポットを見る",
+      loading: "Loading...",
+      notSubmittedYet: "投稿したスポットはまだありません。",
     },
     home: {
       title: "釜山・広安里旅行アシスタント｜グルメ・写真・荷物預かり",
@@ -315,6 +434,46 @@ export const ui = {
       calculateDistance: "計算",
       confirmationNote: "価格、営業時間、待ち時間は変更される場合があります。訪問前に再確認してください。",
     },
+    submissions: {
+      title: "スポット投稿",
+      myTitle: "自分の投稿",
+      description: "地図リンクとおすすめ理由を送ると、管理者が確認して掲載します。",
+      loginDescription: "ログインするとスポット投稿と審査状況の確認ができます。",
+      mapUrl: "地図リンク",
+      name: "スポット名",
+      category: "カテゴリ",
+      address: "住所または位置",
+      descriptionLabel: "スポット説明",
+      reason: "おすすめ理由",
+      imageUrl: "写真または画像 URL",
+      notes: "その他メモ",
+      optional: "任意",
+      submit: "送信",
+      submitted: "送信しました。マイページで審査状況を確認できます。",
+      empty: "投稿したスポットはまだありません。",
+      status: {
+        pending: "審査待ち",
+        reviewing: "確認中",
+        approved: "承認",
+        rejected: "却下",
+        duplicate: "重複",
+      },
+    },
+    mypage: {
+      title: "マイページ",
+      subtitle: "プロフィール、保存スポット、投稿",
+      profile: "プロフィール",
+      email: "メール",
+      nickname: "ニックネーム",
+      joinedAt: "登録日",
+      role: "権限",
+      savedPlaces: "保存したスポット",
+      savedEmptyTitle: "保存したスポットはまだありません",
+      savedEmptyDescription: "スポットを保存するとここに表示されます。",
+      removeSaved: "保存解除",
+      mySubmissions: "自分の投稿",
+      settingsUnavailable: "プロフィール編集は書き込み可能な項目を確認後に対応します。",
+    },
   },
   ko: {
     siteName: "부산 여행 어시스턴트",
@@ -325,6 +484,15 @@ export const ui = {
       nearby: "주변",
       itinerary: "일정",
       saved: "저장",
+      mypage: "마이",
+      submit: "제보",
+      admin: "관리자",
+    },
+    auth: {
+      login: "로그인",
+      logout: "로그아웃",
+      mypage: "마이페이지",
+      admin: "관리자",
     },
     footerLinks: {
       serviceInfo: "서비스 안내",
@@ -348,6 +516,10 @@ export const ui = {
       minutes: "분",
       perPerson: "평균",
       openMap: "지도 열기",
+      submitPlace: "장소 제보하기",
+      explorePlaces: "장소 둘러보기",
+      loading: "로딩 중...",
+      notSubmittedYet: "아직 제보한 장소가 없습니다.",
     },
     home: {
       title: "부산 광안리 여행 어시스턴트 | 맛집, 사진, 짐보관",
@@ -388,20 +560,120 @@ export const ui = {
       calculateDistance: "거리 계산",
       confirmationNote: "가격, 영업시간, 대기 정보는 변경될 수 있으니 방문 전 다시 확인하세요.",
     },
+    submissions: {
+      title: "장소 제보",
+      myTitle: "내 제보",
+      description: "지도 링크와 추천 이유를 보내면 관리자가 검수 후 장소 정보를 완성합니다.",
+      loginDescription: "로그인 후 장소를 제보하고 검수 상태를 확인할 수 있습니다.",
+      mapUrl: "지도 링크",
+      name: "장소명",
+      category: "카테고리",
+      address: "주소 또는 위치",
+      descriptionLabel: "장소 설명",
+      reason: "추천 이유",
+      imageUrl: "사진 또는 이미지 URL",
+      notes: "기타 참고사항",
+      optional: "선택",
+      submit: "접수",
+      submitted: "제보가 접수되었습니다. 마이페이지에서 검수 상태를 확인할 수 있습니다.",
+      empty: "아직 제보한 장소가 없습니다.",
+      status: {
+        pending: "검토 대기",
+        reviewing: "검토 중",
+        approved: "승인",
+        rejected: "반려",
+        duplicate: "중복",
+      },
+    },
+    mypage: {
+      title: "마이페이지",
+      subtitle: "프로필, 저장한 장소, 장소 제보",
+      profile: "프로필",
+      email: "이메일",
+      nickname: "닉네임",
+      joinedAt: "가입일",
+      role: "권한",
+      savedPlaces: "저장한 장소",
+      savedEmptyTitle: "아직 저장한 장소가 없습니다",
+      savedEmptyDescription: "장소를 둘러보고 저장하면 여기에 표시됩니다.",
+      removeSaved: "저장 해제",
+      mySubmissions: "내가 제보한 장소",
+      settingsUnavailable: "프로필 수정은 쓰기 가능한 DB 필드 확인 후 제공됩니다.",
+    },
   },
 } as const;
 
-export function getPlaceContent(place: PlaceWithRelations, locale: Locale) {
-  const translation = place.translations?.find((item) => item.locale === locale);
+type LocalizedValue = Partial<Record<Locale, string | null | undefined>>;
+
+export function getLocalizedValue(values: LocalizedValue, locale: Locale, fallbackLocale: Locale = "ko") {
+  const preferred = values[locale]?.trim();
+
+  if (preferred) {
+    return preferred;
+  }
+
+  const fallback = values[fallbackLocale]?.trim();
+
+  if (fallback) {
+    return fallback;
+  }
+
+  return locales.map((item) => values[item]?.trim()).find(Boolean) ?? "";
+}
+
+export function getLocalizedField(place: PlaceWithRelations, field: "name" | "description" | "travelTip", locale: Locale) {
+  const legacyValues = {
+    name: {
+      zh: place.name_zh,
+      ko: place.name_ko,
+    },
+    description: {
+      zh: place.short_description_zh,
+      ko: place.short_description_ko,
+    },
+    travelTip: {
+      zh: place.tips_zh,
+      ko: place.tips_ko,
+    },
+  } satisfies Record<typeof field, LocalizedValue>;
+  const translatedValues = place.translations?.reduce<LocalizedValue>((acc, translation) => {
+    const value = field === "travelTip" ? translation.travel_tip : translation[field];
+    acc[translation.locale] = value;
+    return acc;
+  }, {}) ?? {};
+
+  return getLocalizedValue({ ...legacyValues[field], ...translatedValues }, locale);
+}
+
+export function getLocalizedTag(tag: { label_zh: string; label_ko: string }, locale: Locale) {
+  return getLocalizedValue({ zh: tag.label_zh, ko: tag.label_ko }, locale);
+}
+
+export function getLocalizedMenuItem(
+  item: { name_ko: string; name_zh: string; description_zh?: string },
+  locale: Locale,
+) {
+  const name = getLocalizedValue({ zh: item.name_zh, ko: item.name_ko }, locale);
+  const secondaryName = locale === "ko" || name === item.name_ko ? "" : item.name_ko;
 
   return {
-    name: translation?.name || (locale === "ko" ? place.name_ko : place.name_zh),
-    secondaryName: locale === "ko" ? place.name_zh : place.name_ko,
-    description:
-      translation?.description || (locale === "ko" ? place.short_description_ko : place.short_description_zh),
-    travelTip: translation?.travel_tip || (locale === "ko" ? place.tips_ko : place.tips_zh),
-    address: locale === "ko" ? place.address_ko : place.address_zh || place.address_ko,
-    waitingInfo: locale === "ko" ? place.waiting_info_ko : place.waiting_info_zh,
-    recommendedOrder: locale === "ko" ? place.recommended_order_ko : place.recommended_order_zh,
+    name,
+    secondaryName,
+    description: locale === "zh" ? item.description_zh ?? "" : "",
+  };
+}
+
+export function getPlaceContent(place: PlaceWithRelations, locale: Locale) {
+  const name = getLocalizedField(place, "name", locale);
+  const fallbackKoName = getLocalizedValue({ ko: place.name_ko }, "ko");
+
+  return {
+    name,
+    secondaryName: locale === "ko" || name === fallbackKoName ? "" : fallbackKoName,
+    description: getLocalizedField(place, "description", locale),
+    travelTip: getLocalizedField(place, "travelTip", locale),
+    address: getLocalizedValue({ zh: place.address_zh, ko: place.address_ko }, locale),
+    waitingInfo: getLocalizedValue({ zh: place.waiting_info_zh, ko: place.waiting_info_ko }, locale),
+    recommendedOrder: getLocalizedValue({ zh: place.recommended_order_zh, ko: place.recommended_order_ko }, locale),
   };
 }

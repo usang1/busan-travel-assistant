@@ -21,6 +21,7 @@ export type GeneratedItineraryStop = {
   category: PlaceCategory;
   placeSlug: string;
   descriptionZh: string;
+  descriptionKo: string;
   walkingFromPreviousMinutes: number | null;
   openingStatus: ReturnType<typeof getOpeningStatus>;
 };
@@ -105,6 +106,7 @@ function generateDay(places: PlaceWithRelations[], preferences: ItineraryPrefere
       category: slot.category,
       placeSlug: selected?.slug ?? "",
       descriptionZh: selected?.short_description_zh ?? "暂无合适地点，请在附近推荐里确认。",
+      descriptionKo: selected?.short_description_ko ?? "조건에 맞는 장소가 없습니다. 주변 추천에서 다시 확인해 주세요.",
       walkingFromPreviousMinutes: distance === null ? null : Math.max(1, Math.round(distance / 72)),
       openingStatus: getOpeningStatus(selected?.opening_hours ?? ""),
     };
