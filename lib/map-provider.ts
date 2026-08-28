@@ -41,8 +41,10 @@ export const mapProviders: Record<MapProviderId, TravelMapProvider> = {
   },
 };
 
+export const naverMapNcpKeyId = process.env.NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID ?? process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "agas2u5535";
+
 export function getPreferredMapProvider(): TravelMapProvider {
-  if (process.env.NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID || process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID) {
+  if (naverMapNcpKeyId) {
     return mapProviders.naver;
   }
 

@@ -7,7 +7,7 @@ import { recordPlaceEvent } from "@/lib/place-events";
 import { cn } from "@/lib/utils";
 import { defaultLocale, type Locale } from "@/lib/i18n";
 import type { Coordinates } from "@/lib/location";
-import type { MapBounds, MapMarker, TravelMapProvider } from "@/lib/map-provider";
+import { naverMapNcpKeyId, type MapBounds, type MapMarker, type TravelMapProvider } from "@/lib/map-provider";
 
 type TravelMapProps = {
   center: Coordinates;
@@ -132,8 +132,6 @@ const minLatitudeSpan = 0.028;
 const minLongitudeSpan = 0.038;
 const boundsPaddingRatio = 0.32;
 const clusterDistance = 5.6;
-const naverMapNcpKeyId = process.env.NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID ?? process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "";
-
 let naverMapsPromise: Promise<NaverMapsNamespace> | null = null;
 
 function clamp(value: number, min: number, max: number) {
