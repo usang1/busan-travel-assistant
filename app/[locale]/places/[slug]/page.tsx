@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
+import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
@@ -26,6 +27,7 @@ import { TagChip } from "@/components/TagChip";
 import { demoPlaces } from "@/data/demo-places";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { formatOpeningStatus } from "@/lib/location";
+import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   getPlaceContent,
   getLocalizedMenuItem,
@@ -86,7 +88,12 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
 
   const content = getPlaceContent(place, locale);
   const title = `${content.name} | ${content.secondaryName}`;
-  const description = `${content.name}: ${content.description}`;
+  const chinaSummary = buildChinaPlaceSummary(place.china_info);
+  const zhFeatureText = chinaSummary.tags.slice(0, 3).join("、");
+  const description =
+    locale === "zh"
+      ? `${content.name}: 釜山${categoryLabels[place.category].zh}，${zhFeatureText ? `${zhFeatureText}。` : ""}${chinaSummary.summary}`
+      : `${content.name}: ${content.description}`;
 
   return {
     title,
@@ -127,6 +134,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   ].filter((label): label is Record<Locale, string> => Boolean(label));
   const placeHref = withLocale(`/places/${place.slug}`, locale);
   const opening = formatOpeningStatus(place.opening_hours, locale);
+  const priceText = formatPriceRange(place, locale);
   const localizedHoursLabel = { zh: "营业", en: "Hours", ja: "営業時間", ko: "영업" }[locale];
   const localizedOrderFallback = {
     zh: "请问可以推荐这里最受欢迎的菜单吗？",
@@ -222,7 +230,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
-            <InfoTile icon={WalletCards} label={copy.placeDetail.payment} value={formatPriceRange(place, locale)} />
+            <InfoTile icon={WalletCards} label={copy.placeDetail.payment} value={priceText} />
             <InfoTile icon={Clock3} label={copy.common.walk} value={`${place.walking_minutes}${copy.common.minutes}`} />
             <InfoTile icon={Route} label={localizedHoursLabel} value={place.opening_hours ? opening.text : copy.common.notRegistered} />
           </div>
@@ -244,6 +252,14 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
         </div>
       </section>
+
+      {locale === "zh" ? (
+        <PlaceChinaDecisionPanel
+          place={place}
+          openingText={place.opening_hours ? opening.text : copy.common.notRegistered}
+          priceText={priceText}
+        />
+      ) : null}
 
       <section className="mt-6 space-y-3">
         <SectionTitle title={copy.placeDetail.menu} />

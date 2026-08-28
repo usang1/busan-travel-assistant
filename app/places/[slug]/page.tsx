@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
+import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
@@ -26,6 +27,7 @@ import { TagChip } from "@/components/TagChip";
 import { absoluteUrl, siteConfig } from "@/config/site";
 import { demoPlaces } from "@/data/demo-places";
 import { formatOpeningStatus } from "@/lib/location";
+import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { categoryLabels } from "@/types/database";
 
@@ -44,10 +46,12 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: PlaceDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
   const { place } = await getPlaceBySlug(slug);
+  const chinaSummary = buildChinaPlaceSummary(place?.china_info);
+  const featureText = chinaSummary.tags.slice(0, 3).join("、");
 
   const title = place ? `${place.name_zh}｜${place.name_ko}` : "地点详情";
   const description = place
-    ? `${place.name_zh}：${place.short_description_zh} 查看价格、营业时间、推荐菜单和怎么去。`
+    ? `${place.name_zh}：釜山${categoryLabels[place.category].zh}，${featureText ? `${featureText}。` : ""}${chinaSummary.summary}`
     : "釜山广安里地点详情。";
 
   return {
@@ -83,6 +87,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
     place.card_payment ? "可以刷卡" : null,
   ].filter((label): label is string => Boolean(label));
   const opening = formatOpeningStatus(place.opening_hours, "zh");
+  const priceText = formatPriceRange(place);
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -170,7 +175,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
-            <InfoTile icon={WalletCards} label="价格" value={formatPriceRange(place)} />
+            <InfoTile icon={WalletCards} label="价格" value={priceText} />
             <InfoTile icon={Clock3} label="距离" value={`步行 ${place.walking_minutes}分钟`} />
             <InfoTile icon={Route} label="营业" value={place.opening_hours ? opening.text : "未登记"} />
           </div>
@@ -193,6 +198,12 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           </div>
         </div>
       </section>
+
+      <PlaceChinaDecisionPanel
+        place={place}
+        openingText={place.opening_hours ? opening.text : "未登记"}
+        priceText={priceText}
+      />
 
       <section className="mt-6 space-y-3">
         <SectionTitle title="推荐菜单" subtitle="추천 메뉴" />
