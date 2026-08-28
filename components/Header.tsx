@@ -29,8 +29,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-slate-50/90 px-4 py-3 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
-        <Link href={withLocale("/", currentLocale)} className="flex min-w-0 items-center gap-2" aria-label={`${copy.siteName} ${copy.nav.home}`}>
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <Link href={withLocale("/", currentLocale)} className="flex min-w-0 flex-1 items-center gap-2" aria-label={`${copy.siteName} ${copy.nav.home}`}>
           <span className="grid size-9 place-items-center rounded-2xl bg-teal-700 text-white shadow-sm">
             <Sparkles size={18} aria-hidden="true" />
           </span>
@@ -39,7 +39,7 @@ export function Header() {
             <span className="block text-[11px] text-slate-500">Busan Travel Assistant</span>
           </span>
         </Link>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
           <div className="hidden items-center gap-1.5 rounded-full bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 sm:flex">
             <MapPin size={15} className="text-teal-700" aria-hidden="true" />
             {copy.region}
@@ -65,23 +65,23 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => void signOut()}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
                 aria-label={copy.auth.logout}
                 title={copy.auth.logout}
               >
                 <LogOut size={16} aria-hidden="true" />
-                <span className="hidden sm:inline">{copy.auth.logout}</span>
+                <span className="whitespace-nowrap">{copy.auth.logout}</span>
               </button>
             </>
           ) : (
             <Link
               href={`${withLocale("/login", currentLocale)}?next=${encodeURIComponent(`${pathname}${querySuffix}`)}`}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
               aria-label={copy.auth.login}
               title={copy.auth.login}
             >
               <LogIn size={16} aria-hidden="true" />
-              <span className="hidden sm:inline">{copy.auth.login}</span>
+              <span className="whitespace-nowrap">{copy.auth.login}</span>
             </Link>
           )}
           <Link
