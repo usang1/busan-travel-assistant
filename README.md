@@ -87,6 +87,33 @@ supabase/seed.sql
 
 현재 기존 장소 테이블의 관리자 쓰기 권한은 MVP용 임시 정책에서 `profiles.role = 'admin'` 기반 RLS로 강화되고 있습니다. `place_china_info`는 활성 장소에 대한 공개 읽기와 관리자 전용 생성/수정을 사용합니다. 실제 공개 전 관리자 계정의 profile role을 설정해야 합니다.
 
+## 중국인 특화 장소 운영
+
+중국인 특화 정보는 `place_china_info`에 저장하며 기존 `places` 테이블은 유지합니다. 관리자 화면에서는 자연어 문장을 매번 쓰는 대신 구조화 입력을 먼저 채웁니다.
+
+주요 필드:
+
+- `chinese_taste_score`: 중국인 추천도 1~5
+- `spicy_level`, `greasy_level`, `smell_level`, `portion_level`, `ordering_difficulty`: 맛/양/주문 난이도 1~5
+- `waiting_level`: `none`, `short`, `moderate`, `long`, `extreme`, `varies`, `unknown`
+- `chinese_menu`, `foreign_card`, `alipay`, `wechat_pay`, `solo_friendly`, `luggage_friendly`, `toilet_available`, `reservation_required`: `yes` / `no` / `unknown`
+- `minimum_order_policy`: `none`, `two_plus`, `three_plus`, `other`, `unknown`
+- `xiaohongshu_popular`, `photo_recommended`, `tourism_recommended`: 중국인 관광 목적 태그용 tri-state
+- `manual_summary_override`, `manual_warning_override`: 자동 문장을 덮어쓰거나 우선 노출할 때만 입력
+
+별점 의미:
+
+- 매운맛: 1 전혀 안 매움, 2 거의 안 매움, 3 보통, 4 매움, 5 매우 매움
+- 느끼함: 1 매우 담백, 2 담백한 편, 3 보통, 4 느끼한 편, 5 매우 느끼함
+- 향/잡내: 1 거의 없음, 2 약함, 3 조금 느껴짐, 4 강함, 5 매우 강함
+- 주문 난이도: 1 매우 쉬움, 2 쉬움, 3 보통, 4 어려움, 5 외국인이 주문하기 매우 어려움
+
+`unknown`은 확인 필요 상태입니다. 확인하지 않은 정보를 `false`로 저장하지 않습니다. 사용자 화면에서는 해외카드, 중국어 메뉴, 혼밥, 웨이팅 같은 핵심 정보는 `暂未确认`으로 보여주고, 부가 unknown은 `更多信息暂未确认`에 접어 둡니다.
+
+자동 중국어 문장은 `lib/place-china/format.ts`의 deterministic formatter가 생성합니다. 외부 AI API를 호출하지 않으며 같은 입력은 항상 같은 문장을 만듭니다. `manual_summary_override`가 있으면 자동 summary 대신 사용하고, `manual_warning_override`가 있으면 자동 warning 앞에 추가합니다.
+
+중국인 전용 검색/지도 필터는 `lib/place-china/discovery.ts`에서 관리합니다. 현재 지원 필터는 `中文菜单`, `海外信用卡`, `支付宝`, `微信支付`, `一个人OK`, `行李箱OK`, `少排队`, `不辣`, `地铁步行5分钟以内`, `小红书热门`, `晚上营业`입니다. 비오는 날처럼 현재 DB 필드로 판단할 수 없는 조건은 아직 구현하지 않습니다.
+
 ## 로컬 실행
 
 ```bash
@@ -101,8 +128,11 @@ npm run build
 1. `/admin`으로 이동합니다.
 2. 장소 수, 카테고리별 장소, 추천 장소, PRO 사진스팟, 최근 수정 장소를 확인합니다.
 3. 장소 추가/수정 폼에서 기본정보, 위치, 가격, 운영시간, 시설, 중국인 관광객용 안내, 추천 주문, 사진 URL, 메뉴를 입력합니다.
-4. 활성/비활성, 추천 장소 여부를 설정합니다.
-5. 저장하면 `/places`, 홈 추천, 상세 페이지에 바로 반영됩니다.
+4. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
+5. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
+6. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
+7. 활성/비활성, 추천 장소 여부를 설정합니다.
+8. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
 
 Supabase 환경 변수가 없으면 관리자 CRUD는 브라우저 localStorage 기반 Demo 모드로 동작합니다.
 

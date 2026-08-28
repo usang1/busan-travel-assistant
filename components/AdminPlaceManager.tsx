@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Check, Eye, Pencil, Plus, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
+import { Check, Eye, Pencil, Plus, RotateCcw, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
 import {
@@ -537,6 +537,18 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }));
   }
 
+  function resetChinaInfoToUnknown() {
+    setForm((current) => ({
+      ...current,
+      china_info: {
+        ...createEmptyChinaInfo(),
+        manual_summary_override: current.china_info.manual_summary_override,
+        manual_warning_override: current.china_info.manual_warning_override,
+      },
+    }));
+    setStatus("중국인 특화 구조화 정보를 모두 확인 필요 상태로 되돌렸습니다.");
+  }
+
   async function savePlace(nextForm = form) {
     const payload = toPayload(nextForm);
 
@@ -714,15 +726,25 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               현재 데이터 소스: {source === "supabase" ? "Supabase" : "Demo fallback"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void savePlace()}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Save size={17} aria-hidden="true" />
-            {saving ? "저장 중" : "저장"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={resetChinaInfoToUnknown}
+              className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-200"
+            >
+              <RotateCcw size={17} aria-hidden="true" />
+              중국 특화 확인 필요
+            </button>
+            <button
+              type="button"
+              onClick={() => void savePlace()}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Save size={17} aria-hidden="true" />
+              {saving ? "저장 중" : "저장"}
+            </button>
+          </div>
         </div>
 
         {status ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{status}</p> : null}

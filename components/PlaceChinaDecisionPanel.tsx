@@ -52,6 +52,7 @@ export function PlaceChinaDecisionPanel({ place, openingText, priceText }: Place
   const tasteRatings = chinaSummary.ratings.filter((rating) => rating.key !== "chinese_taste_score");
   const walkMinutes = info?.subway_walk_minutes ?? place.walking_minutes;
   const minimumOrder = minimumOrderLabel(info?.minimum_order_policy, info?.minimum_order_note);
+  const supplementalUnknownFacts = chinaSummary.unknownFacts.filter((fact) => !isCoreUnknownFact(fact));
 
   return (
     <section className="mt-6 space-y-4">
@@ -140,17 +141,17 @@ export function PlaceChinaDecisionPanel({ place, openingText, priceText }: Place
           </ul>
         </div>
 
-        {chinaSummary.unknownFacts.length ? (
-          <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm font-black text-slate-900">暂未确认</p>
+        {supplementalUnknownFacts.length ? (
+          <details className="mt-4 rounded-2xl bg-slate-50 p-4">
+            <summary className="cursor-pointer text-sm font-black text-slate-900">更多信息暂未确认</summary>
             <div className="mt-2 flex flex-wrap gap-2">
-              {chinaSummary.unknownFacts.slice(0, 8).map((fact) => (
+              {supplementalUnknownFacts.slice(0, 6).map((fact) => (
                 <span key={fact} className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
                   {fact}
                 </span>
               ))}
             </div>
-          </div>
+          </details>
         ) : null}
       </div>
     </section>
@@ -264,4 +265,8 @@ function minimumOrderTone(value: ChinaMinimumOrderPolicy | null | undefined): Fa
   if (!value || value === "unknown") return "unknown";
   if (value === "none") return "yes";
   return "no";
+}
+
+function isCoreUnknownFact(fact: string) {
+  return fact.includes("海外信用卡") || fact.includes("中文菜单") || fact.includes("一个人用餐") || fact.includes("等位情况");
 }
