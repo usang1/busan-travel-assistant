@@ -64,12 +64,23 @@ begin
   end if;
 
   if not exists (select 1 from pg_type where typname = 'china_waiting_level') then
-    create type public.china_waiting_level as enum ('unknown', 'none', 'short', 'moderate', 'long', 'extreme');
+    create type public.china_waiting_level as enum ('unknown', 'none', 'short', 'moderate', 'long', 'extreme', 'varies');
   end if;
 
   if not exists (select 1 from pg_type where typname = 'place_verification_status') then
     create type public.place_verification_status as enum ('unverified', 'pending', 'verified', 'needs_review');
   end if;
+
+  if not exists (select 1 from pg_type where typname = 'china_minimum_order_policy') then
+    create type public.china_minimum_order_policy as enum ('unknown', 'none', 'two_plus', 'three_plus', 'other');
+  end if;
+end $$;
+
+do $$
+begin
+  alter type public.china_waiting_level add value if not exists 'varies';
+exception
+  when duplicate_object then null;
 end $$;
 
 do $$
@@ -357,6 +368,8 @@ create table if not exists public.place_china_info (
   portion_level smallint,
   ordering_difficulty smallint,
   waiting_level public.china_waiting_level not null default 'unknown',
+  waiting_minutes_min smallint,
+  waiting_minutes_max smallint,
   chinese_menu public.place_fact_tristate not null default 'unknown',
   foreign_card public.place_fact_tristate not null default 'unknown',
   alipay public.place_fact_tristate not null default 'unknown',
@@ -366,7 +379,11 @@ create table if not exists public.place_china_info (
   toilet_available public.place_fact_tristate not null default 'unknown',
   reservation_required public.place_fact_tristate not null default 'unknown',
   minimum_order_people smallint,
+  minimum_order_policy public.china_minimum_order_policy not null default 'unknown',
+  minimum_order_note text,
   xiaohongshu_popular public.place_fact_tristate not null default 'unknown',
+  photo_recommended public.place_fact_tristate not null default 'unknown',
+  tourism_recommended public.place_fact_tristate not null default 'unknown',
   subway_walk_minutes smallint,
   manual_summary_override text,
   manual_warning_override text,
@@ -381,8 +398,35 @@ create table if not exists public.place_china_info (
   constraint place_china_info_portion_level_check check (portion_level is null or portion_level between 1 and 5),
   constraint place_china_info_ordering_difficulty_check check (ordering_difficulty is null or ordering_difficulty between 1 and 5),
   constraint place_china_info_minimum_order_people_check check (minimum_order_people is null or minimum_order_people between 1 and 10),
-  constraint place_china_info_subway_walk_minutes_check check (subway_walk_minutes is null or subway_walk_minutes >= 0)
+  constraint place_china_info_subway_walk_minutes_check check (subway_walk_minutes is null or subway_walk_minutes >= 0),
+  constraint place_china_info_waiting_minutes_min_check check (waiting_minutes_min is null or waiting_minutes_min >= 0),
+  constraint place_china_info_waiting_minutes_max_check check (waiting_minutes_max is null or waiting_minutes_max >= 0),
+  constraint place_china_info_waiting_minutes_range_check check (
+    waiting_minutes_min is null
+    or waiting_minutes_max is null
+    or waiting_minutes_max >= waiting_minutes_min
+  )
 );
+
+alter table public.place_china_info
+  add column if not exists waiting_minutes_min smallint,
+  add column if not exists waiting_minutes_max smallint,
+  add column if not exists minimum_order_policy public.china_minimum_order_policy not null default 'unknown',
+  add column if not exists minimum_order_note text,
+  add column if not exists photo_recommended public.place_fact_tristate not null default 'unknown',
+  add column if not exists tourism_recommended public.place_fact_tristate not null default 'unknown';
+
+alter table public.place_china_info
+  drop constraint if exists place_china_info_waiting_minutes_min_check,
+  add constraint place_china_info_waiting_minutes_min_check check (waiting_minutes_min is null or waiting_minutes_min >= 0),
+  drop constraint if exists place_china_info_waiting_minutes_max_check,
+  add constraint place_china_info_waiting_minutes_max_check check (waiting_minutes_max is null or waiting_minutes_max >= 0),
+  drop constraint if exists place_china_info_waiting_minutes_range_check,
+  add constraint place_china_info_waiting_minutes_range_check check (
+    waiting_minutes_min is null
+    or waiting_minutes_max is null
+    or waiting_minutes_max >= waiting_minutes_min
+  );
 
 create or replace function public.is_admin()
 returns boolean
@@ -828,6 +872,8 @@ comment on type public.china_waiting_level is
   'Structured waiting intensity for China-focused place presentation.';
 comment on type public.place_verification_status is
   'Reusable verification workflow state for structured place facts.';
+comment on type public.china_minimum_order_policy is
+  'Structured minimum order policy for China-focused admin input.';
 comment on table public.place_translations is
   'Locale-specific place content. Legacy name_zh/name_ko columns remain for compatibility until all readers migrate.';
 comment on table public.place_sources is
@@ -844,6 +890,18 @@ comment on column public.place_china_info.chinese_taste_score is
   'How strongly the place is recommended for Chinese travelers, 1 to 5. Null means unreviewed.';
 comment on column public.place_china_info.minimum_order_people is
   'Minimum required party size for ordering. Null means unknown, 1 means no multi-person minimum.';
+comment on column public.place_china_info.waiting_minutes_min is
+  'Lower bound of expected waiting minutes. Null means unknown or not applicable.';
+comment on column public.place_china_info.waiting_minutes_max is
+  'Upper bound of expected waiting minutes. Null means unknown, variable, or open-ended.';
+comment on column public.place_china_info.minimum_order_policy is
+  'Structured minimum order policy for display. unknown must not be treated as no limit.';
+comment on column public.place_china_info.minimum_order_note is
+  'Optional admin note for other minimum order policies.';
+comment on column public.place_china_info.photo_recommended is
+  'Whether the place is recommended specifically for taking photos.';
+comment on column public.place_china_info.tourism_recommended is
+  'Whether the place is recommended for general sightseeing.';
 comment on column public.place_china_info.manual_summary_override is
   'Optional admin-written Chinese summary override. Prefer generated copy from structured fields when null.';
 comment on column public.place_china_info.manual_warning_override is

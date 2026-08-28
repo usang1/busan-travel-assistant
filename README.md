@@ -63,6 +63,7 @@ supabase/migrations/005_place_submission_admin_workflow.sql
 supabase/migrations/006_security_baseline_hardening.sql
 supabase/migrations/007_allow_anonymous_place_submissions.sql
 supabase/migrations/008_china_specific_place_info.sql
+supabase/migrations/009_china_admin_editor_fields.sql
 supabase/seed.sql
 ```
 

@@ -14,7 +14,9 @@ export type PlaceSourceProvider = "NAVER" | "KAKAO" | "GOOGLE" | "MANUAL";
 
 export type PlaceFactTristate = "yes" | "no" | "unknown";
 
-export type ChinaWaitingLevel = "unknown" | "none" | "short" | "moderate" | "long" | "extreme";
+export type ChinaWaitingLevel = "unknown" | "none" | "short" | "moderate" | "long" | "extreme" | "varies";
+
+export type ChinaMinimumOrderPolicy = "unknown" | "none" | "two_plus" | "three_plus" | "other";
 
 export type PlaceVerificationStatus = "unverified" | "pending" | "verified" | "needs_review";
 
@@ -97,6 +99,8 @@ export type PlaceChinaInfoRecord = {
   portion_level: number | null;
   ordering_difficulty: number | null;
   waiting_level: ChinaWaitingLevel;
+  waiting_minutes_min: number | null;
+  waiting_minutes_max: number | null;
   chinese_menu: PlaceFactTristate;
   foreign_card: PlaceFactTristate;
   alipay: PlaceFactTristate;
@@ -106,7 +110,11 @@ export type PlaceChinaInfoRecord = {
   toilet_available: PlaceFactTristate;
   reservation_required: PlaceFactTristate;
   minimum_order_people: number | null;
+  minimum_order_policy: ChinaMinimumOrderPolicy;
+  minimum_order_note?: string | null;
   xiaohongshu_popular: PlaceFactTristate;
+  photo_recommended: PlaceFactTristate;
+  tourism_recommended: PlaceFactTristate;
   subway_walk_minutes: number | null;
   manual_summary_override?: string | null;
   manual_warning_override?: string | null;
@@ -181,9 +189,10 @@ export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at">
     source_url?: string | null;
     external_id?: string | null;
   };
+  china_info?: PlaceChinaInfoPayload | null;
 };
 
-export type PlaceChinaInfoPayload = Omit<PlaceChinaInfoRecord, "id" | "created_at" | "updated_at">;
+export type PlaceChinaInfoPayload = Omit<PlaceChinaInfoRecord, "id" | "place_id" | "created_at" | "updated_at">;
 
 export type SubmissionStatus = "pending" | "reviewing" | "approved" | "rejected" | "duplicate";
 

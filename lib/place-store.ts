@@ -23,7 +23,7 @@ type SupabasePlaceRow = PlaceRecord & {
   place_menu_items?: PlaceMenuItem[] | null;
 };
 
-type PlaceWriteRow = Omit<PlacePayload, "tags" | "menu_items">;
+type PlaceWriteRow = Omit<PlacePayload, "tags" | "menu_items" | "china_info">;
 const placeSelectWithChinaInfo = "*, place_china_info(*), place_translations(*), place_tags(tags(*)), place_menu_items(*)";
 const placeSelectWithTranslations = "*, place_translations(*), place_tags(tags(*)), place_menu_items(*)";
 const legacyPlaceSelect = "*, place_tags(tags(*)), place_menu_items(*)";
@@ -293,11 +293,12 @@ export async function getPlaceBySlug(
 }
 
 function toPlaceWriteRow(payload: PlacePayload): PlaceWriteRow {
-  const { tags: _tags, menu_items: _menuItems, translations: _translations, source: _source, ...place } = payload;
+  const { tags: _tags, menu_items: _menuItems, translations: _translations, source: _source, china_info: _chinaInfo, ...place } = payload;
   void _tags;
   void _menuItems;
   void _translations;
   void _source;
+  void _chinaInfo;
 
   return place;
 }
@@ -452,6 +453,22 @@ async function syncSource(placeId: string, payload: PlacePayload, client?: Supab
   }
 }
 
+async function syncChinaInfo(placeId: string, payload: PlacePayload, client?: SupabaseClient) {
+  const resolvedClient = resolveClient(client);
+
+  if (!resolvedClient || !payload.china_info) {
+    return;
+  }
+
+  const { error } = await resolvedClient
+    .from("place_china_info")
+    .upsert({ place_id: placeId, ...payload.china_info }, { onConflict: "place_id" });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function createPlace(payload: PlacePayload, client?: SupabaseClient): Promise<PlaceWithRelations> {
   const resolvedClient = resolveClient(client);
 
@@ -470,6 +487,7 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   await syncMenuItems(id, payload.menu_items, resolvedClient);
   await syncTranslations(id, payload, resolvedClient);
   await syncSource(id, payload, resolvedClient);
+  await syncChinaInfo(id, payload, resolvedClient);
 
   const result = await getPlaceBySlug(payload.slug, { activeOnly: false }, resolvedClient);
 
@@ -497,6 +515,7 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   await syncMenuItems(id, payload.menu_items, resolvedClient);
   await syncTranslations(id, payload, resolvedClient);
   await syncSource(id, payload, resolvedClient);
+  await syncChinaInfo(id, payload, resolvedClient);
 
   const result = await getPlaceBySlug(payload.slug, { activeOnly: false }, resolvedClient);
 
