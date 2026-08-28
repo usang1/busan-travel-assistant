@@ -197,7 +197,7 @@ export const ui = {
       notes: "其他参考",
       optional: "选填",
       submit: "提交",
-      submitted: "已提交。可以在我的页面查看审核状态。",
+      submitted: "已提交。管理员审核后会反映到服务中。",
       empty: "还没有提交地点。",
       status: {
         pending: "待审核",
@@ -323,7 +323,7 @@ export const ui = {
       notes: "Other notes",
       optional: "Optional",
       submit: "Submit",
-      submitted: "Submitted. You can check the status on My Page.",
+      submitted: "Submitted. Admins will review it before publishing.",
       empty: "No place submissions yet.",
       status: {
         pending: "Pending",
@@ -449,7 +449,7 @@ export const ui = {
       notes: "その他メモ",
       optional: "任意",
       submit: "送信",
-      submitted: "送信しました。マイページで審査状況を確認できます。",
+      submitted: "送信しました。管理者が確認してから掲載します。",
       empty: "投稿したスポットはまだありません。",
       status: {
         pending: "審査待ち",
@@ -575,7 +575,7 @@ export const ui = {
       notes: "기타 참고사항",
       optional: "선택",
       submit: "접수",
-      submitted: "제보가 접수되었습니다. 마이페이지에서 검수 상태를 확인할 수 있습니다.",
+      submitted: "제보가 접수되었습니다. 관리자가 검수 후 반영합니다.",
       empty: "아직 제보한 장소가 없습니다.",
       status: {
         pending: "검토 대기",

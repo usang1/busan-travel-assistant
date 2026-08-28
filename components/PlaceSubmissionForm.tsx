@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ExternalLink, Send } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
 import { useAuth } from "@/components/AuthProvider";
 import { parseMapUrl } from "@/lib/map-url";
 import { recordPlaceEvent } from "@/lib/place-events";
@@ -37,7 +36,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
     event.preventDefault();
     const client = getSupabaseClient();
 
-    if (!client || !user) {
+    if (!client) {
       return;
     }
 
@@ -52,7 +51,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
     ].filter(Boolean).join("\n\n");
 
     const { error } = await client.from("place_submissions").insert({
-      user_id: user.id,
+      user_id: user?.id ?? null,
       locale: currentLocale,
       name: name.trim() || null,
       category: category || null,
@@ -75,7 +74,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
     await recordPlaceEvent({
       eventType: "submission_created",
       locale: currentLocale,
-      userId: user.id,
+      userId: user?.id ?? null,
       metadata: { provider: parsed.provider },
     });
 
@@ -90,14 +89,6 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
     setStatus(copy.submissions.submitted);
   }
 
-  if (loading) {
-    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.common.loading}</div>;
-  }
-
-  if (!user) {
-    return <AuthRequiredPanel title={copy.submissions.title} description={copy.submissions.loginDescription} locale={currentLocale} />;
-  }
-
   return (
     <section className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div className="flex items-start justify-between gap-3">
@@ -105,9 +96,11 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
           <h2 className="text-xl font-black text-slate-950">{copy.submissions.title}</h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">{copy.submissions.description}</p>
         </div>
-        <Link href={withLocale("/submissions", currentLocale)} className="shrink-0 text-sm font-black text-teal-700">
-          {copy.submissions.myTitle}
-        </Link>
+        {user ? (
+          <Link href={withLocale("/submissions", currentLocale)} className="shrink-0 text-sm font-black text-teal-700">
+            {copy.submissions.myTitle}
+          </Link>
+        ) : null}
       </div>
 
       <form className="mt-5 space-y-4" onSubmit={submit}>
@@ -204,7 +197,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || loading}
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition active:scale-95 disabled:opacity-60"
         >
           <Send size={17} aria-hidden="true" />
