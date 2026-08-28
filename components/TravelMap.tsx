@@ -115,12 +115,12 @@ declare global {
 }
 
 const markerColor: Record<MapMarker["category"], string> = {
-  restaurant: "bg-rose-600",
-  cafe: "bg-amber-600",
-  bar: "bg-violet-600",
-  attraction: "bg-sky-600",
-  shopping: "bg-fuchsia-600",
-  photo_spot: "bg-cyan-600",
+  restaurant: "bg-teal-700",
+  cafe: "bg-teal-700",
+  bar: "bg-teal-700",
+  attraction: "bg-teal-700",
+  shopping: "bg-teal-700",
+  photo_spot: "bg-teal-700",
   luggage: "bg-slate-800",
 };
 
@@ -989,7 +989,16 @@ function openNaverInfoWindow(
       `<strong style="display:block;font-size:14px;line-height:1.35;">${escapeHtml(marker.title)}</strong>`,
       marker.subtitle ? `<span style="display:block;margin-top:3px;font-size:12px;line-height:1.35;color:#64748b;">${escapeHtml(marker.subtitle)}</span>` : "",
       `<span style="display:block;margin-top:8px;font-size:12px;line-height:1.35;color:#475569;">${escapeHtml(marker.meta)}</span>`,
-      `<a href="${escapeHtml(marker.href)}" style="display:inline-flex;margin-top:10px;font-size:12px;font-weight:800;color:#047857;text-decoration:none;">상세 보기</a>`,
+      marker.price || marker.recommendation
+        ? `<span style="display:block;margin-top:6px;font-size:12px;font-weight:700;color:#0f172a;">${escapeHtml([marker.price, marker.recommendation ? `推荐度 ${marker.recommendation}` : ""].filter(Boolean).join(" · "))}</span>`
+        : "",
+      marker.tags?.length
+        ? `<span style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">${marker.tags
+            .slice(0, 4)
+            .map((tag) => `<span style="border-radius:999px;background:#f1f5f9;padding:3px 7px;font-size:11px;font-weight:700;color:#334155;">${escapeHtml(tag)}</span>`)
+            .join("")}</span>`
+        : "",
+      `<a href="${escapeHtml(marker.href)}" style="display:inline-flex;margin-top:10px;font-size:12px;font-weight:800;color:#047857;text-decoration:none;">详情</a>`,
       "</div>",
     ].join(""),
     borderWidth: 0,
@@ -1029,12 +1038,12 @@ function naverUserMarkerHtml() {
 
 function naverMarkerColor(category: MapMarker["category"]) {
   return {
-    restaurant: "#e11d48",
-    cafe: "#d97706",
-    bar: "#7c3aed",
-    attraction: "#0284c7",
-    shopping: "#c026d3",
-    photo_spot: "#0891b2",
+    restaurant: "#0f766e",
+    cafe: "#0f766e",
+    bar: "#0f766e",
+    attraction: "#0f766e",
+    shopping: "#0f766e",
+    photo_spot: "#0f766e",
     luggage: "#1e293b",
   }[category];
 }

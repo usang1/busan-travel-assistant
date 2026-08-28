@@ -5,6 +5,7 @@ import { DirectionsButton } from "@/components/DirectionsButton";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
 import { formatDistance, formatOpeningStatus, type Coordinates } from "@/lib/location";
+import { getChinaDiscoveryTags, getChinaRecommendationLabel } from "@/lib/place-china/discovery";
 import { formatPriceRange } from "@/lib/place-store";
 import { defaultLocale, getLocalizedTag, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
@@ -22,6 +23,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const copy = ui[locale];
   const placeHref = withLocale(`/places/${place.slug}`, locale);
   const opening = formatOpeningStatus(place.opening_hours, locale);
+  const chinaTags = locale === "zh" ? getChinaDiscoveryTags(place, locale, 4) : [];
   const coordinates: Coordinates | null =
     typeof place.latitude === "number" && typeof place.longitude === "number"
       ? { latitude: place.latitude, longitude: place.longitude }
@@ -77,12 +79,18 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           {distanceMeters !== null ? <span className="font-semibold text-teal-700">{formatDistance(distanceMeters)}</span> : null}
         </div>
         {place.opening_hours ? (
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             <TagChip tone={opening.tone}>{opening.text}</TagChip>
+            {locale === "zh" ? <TagChip tone="amber">推荐度 {getChinaRecommendationLabel(place)}</TagChip> : null}
           </div>
         ) : null}
         <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{content.description}</p>
         <div className="mt-3 flex flex-wrap gap-2">
+          {chinaTags.map((tag) => (
+            <TagChip key={tag} tone="blue">
+              {tag}
+            </TagChip>
+          ))}
           {place.tags.slice(0, 3).map((tag) => (
             <TagChip key={tag.slug} tone={place.is_active ? "green" : "amber"}>
               {getLocalizedTag(tag, locale)}

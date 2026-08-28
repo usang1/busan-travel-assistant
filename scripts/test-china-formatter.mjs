@@ -3,27 +3,34 @@ import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 import ts from "typescript";
 
-const source = readFileSync(new URL("../lib/place-china/format.ts", import.meta.url), "utf8");
-const { outputText } = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2022,
-    verbatimModuleSyntax: false,
-  },
-});
+function loadTsModule(path, aliases = {}) {
+  const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      verbatimModuleSyntax: false,
+    },
+  });
+  const module = { exports: {} };
+  const exports = module.exports;
+  const require = (specifier) => {
+    if (specifier in aliases) {
+      return aliases[specifier];
+    }
 
-const module = { exports: {} };
-const exports = module.exports;
-const require = (specifier) => {
-  throw new Error(`Unexpected runtime import in formatter test: ${specifier}`);
-};
+    throw new Error(`Unexpected runtime import in test for ${path}: ${specifier}`);
+  };
 
-new Script(outputText, { filename: "lib/place-china/format.ts" }).runInNewContext({
-  module,
-  exports,
-  require,
-  console,
-});
+  new Script(outputText, { filename: path }).runInNewContext({
+    module,
+    exports,
+    require,
+    console,
+  });
+
+  return module.exports;
+}
 
 const {
   buildChinaPlaceSummary,
@@ -32,7 +39,7 @@ const {
   formatWarnings,
   tristateLabel,
   waitingLabel,
-} = module.exports;
+} = loadTsModule("lib/place-china/format.ts");
 
 const baseInfo = {
   chinese_taste_score: 4,
@@ -141,4 +148,108 @@ const missingPaymentSummary = formatPaymentSummary({ ...baseInfo, foreign_card: 
 assert.match(missingPaymentSummary, /海外信用卡/);
 assert.match(missingPaymentSummary, /暂未确认/);
 
-console.log("China place formatter tests passed.");
+const discovery = loadTsModule("lib/place-china/discovery.ts", {
+  "@/lib/location": {
+    getOpeningStatus: () => "unknown",
+  },
+  "@/lib/place-china/format": {
+    buildChinaPlaceSummary,
+  },
+});
+
+const {
+  filterPlacesForChineseTraveler,
+  getChinaDiscoveryTags,
+  getChinaRecommendationLabel,
+  sortPlacesForChineseTraveler,
+} = discovery;
+
+const makePlace = (id, chinaInfo, priceMax = 12000, openingHours = "10:00-22:00") => ({
+  id,
+  slug: id,
+  name_zh: id,
+  name_ko: id,
+  category: "restaurant",
+  address_ko: "부산 수영구 광안동",
+  address_zh: "釜山 水营区",
+  short_description_zh: "",
+  short_description_ko: "",
+  latitude: 35.15,
+  longitude: 129.11,
+  nearest_station: "광안역",
+  nearest_exit: "3번 출구",
+  walking_minutes: 5,
+  price_min: 9000,
+  price_max: priceMax,
+  opening_hours: openingHours,
+  waiting_info_zh: "",
+  waiting_info_ko: "",
+  solo_friendly: false,
+  luggage_friendly: false,
+  chinese_menu: false,
+  card_payment: false,
+  recommended_order_zh: "",
+  recommended_order_ko: "",
+  tips_zh: "",
+  tips_ko: "",
+  thumbnail_url: "",
+  is_featured: false,
+  is_active: true,
+  created_at: "",
+  updated_at: "",
+  tags: [],
+  menu_items: [],
+  china_info: chinaInfo,
+  save_count: 0,
+});
+
+const easyPlace = makePlace("easy", {
+  ...baseInfo,
+  chinese_taste_score: 5,
+  spicy_level: 1,
+  waiting_level: "short",
+  foreign_card: "yes",
+  solo_friendly: "yes",
+  luggage_friendly: "yes",
+  subway_walk_minutes: 4,
+});
+const strictPlace = makePlace(
+  "strict",
+  {
+    ...baseInfo,
+    chinese_taste_score: 2,
+    spicy_level: 5,
+    waiting_level: "long",
+    foreign_card: "no",
+    solo_friendly: "no",
+    luggage_friendly: "no",
+    xiaohongshu_popular: "unknown",
+    subway_walk_minutes: 9,
+  },
+  28000,
+  "11:00-20:00",
+);
+const unknownPlace = makePlace("unknown", {
+  ...baseInfo,
+  chinese_taste_score: null,
+  spicy_level: null,
+  waiting_level: "unknown",
+  foreign_card: "unknown",
+  solo_friendly: "unknown",
+  luggage_friendly: "unknown",
+  xiaohongshu_popular: "unknown",
+});
+const discoveryPlaces = [strictPlace, unknownPlace, easyPlace];
+
+assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["foreignCard"]).map((place) => place.id), ["easy"]);
+assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["solo", "nonSpicy"]).map((place) => place.id), ["easy"]);
+assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["lowWait"]).map((place) => place.id), ["easy"]);
+assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["openNight"]).map((place) => place.id), ["unknown", "easy"]);
+assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["foreignCard"], "low").map((place) => place.id), []);
+assert.equal(getChinaRecommendationLabel(easyPlace), "5/5");
+assert.equal(getChinaRecommendationLabel(unknownPlace), "暂未确认");
+assert.ok(getChinaDiscoveryTags(easyPlace, "zh", 4).includes("不辣"));
+assert.deepEqual(sortPlacesForChineseTraveler(discoveryPlaces.map((place, index) => ({ place, distance: index })), "chinaRecommended")[0].place.id, "easy");
+assert.deepEqual(sortPlacesForChineseTraveler(discoveryPlaces.map((place, index) => ({ place, distance: index })), "lowWait")[0].place.id, "easy");
+
+console.log("China place formatter and discovery tests passed.");

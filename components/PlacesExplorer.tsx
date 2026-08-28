@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LocateFixed, Search, SlidersHorizontal } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { PlaceCard } from "@/components/PlaceCard";
 import { TagChip } from "@/components/TagChip";
@@ -9,9 +10,20 @@ import {
   calculateDistanceMeters,
   formatDistance,
   formatOpeningStatus,
-  getOpeningStatus,
   type Coordinates,
 } from "@/lib/location";
+import {
+  chinaDiscoveryFilters,
+  chinaPriceBuckets,
+  chinaQuickFilters,
+  countActiveChinaFilters,
+  filterPlacesForChineseTraveler,
+  getEnabledChinaFilters,
+  sortPlacesForChineseTraveler,
+  type ChinaDiscoveryFilter,
+  type ChinaDiscoverySort,
+  type ChinaPriceBucket,
+} from "@/lib/place-china/discovery";
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
 import { categoryLabels, type PlaceCategory, type PlaceWithRelations } from "@/types/database";
@@ -22,9 +34,7 @@ type PlacesExplorerProps = {
   locale?: Locale;
 };
 
-type ExtraFilter = "openNow" | "solo" | "cardPayment";
-type SortMode = "recommended" | "saved" | "distance";
-type PriceBucket = "all" | "free" | "under10000" | "under20000" | "over20000";
+type SortMode = ChinaDiscoverySort;
 
 const categoryFilters: Array<{ value: PlaceCategory | "all" }> = [
   { value: "all" },
@@ -34,48 +44,61 @@ const categoryFilters: Array<{ value: PlaceCategory | "all" }> = [
   { value: "shopping" },
 ];
 
-const extraFilters: Array<{ key: ExtraFilter; label: Record<Locale, string>; enabled: (places: PlaceWithRelations[]) => boolean }> = [
-  {
-    key: "openNow",
-    label: { zh: "营业中", en: "Open now", ja: "営業中", ko: "영업중" },
-    enabled: (places) => places.some((place) => Boolean(place.opening_hours)),
-  },
-  {
-    key: "solo",
-    label: { zh: "一个人也可以", en: "Solo friendly", ja: "一人でもOK", ko: "혼밥 가능" },
-    enabled: (places) => places.some((place) => place.solo_friendly),
-  },
-  {
-    key: "cardPayment",
-    label: { zh: "可以刷卡", en: "Card accepted", ja: "カード可", ko: "카드결제" },
-    enabled: (places) => places.some((place) => place.card_payment),
-  },
-];
-
-const priceBuckets: Array<{ value: PriceBucket; label: Record<Locale, string>; match: (place: PlaceWithRelations) => boolean }> = [
-  { value: "all", label: { zh: "全部价格", en: "Any price", ja: "すべて", ko: "전체 가격" }, match: () => true },
-  { value: "free", label: { zh: "免费", en: "Free", ja: "無料", ko: "무료" }, match: (place) => place.price_min === 0 && place.price_max === 0 },
-  { value: "under10000", label: { zh: "₩10,000 以下", en: "Under ₩10,000", ja: "₩10,000以下", ko: "1만원 이하" }, match: (place) => maxKnownPrice(place) !== null && (maxKnownPrice(place) ?? 0) <= 10000 },
-  { value: "under20000", label: { zh: "₩20,000 以下", en: "Under ₩20,000", ja: "₩20,000以下", ko: "2만원 이하" }, match: (place) => maxKnownPrice(place) !== null && (maxKnownPrice(place) ?? 0) <= 20000 },
-  { value: "over20000", label: { zh: "₩20,000+", en: "₩20,000+", ja: "₩20,000+", ko: "2만원 이상" }, match: (place) => maxKnownPrice(place) !== null && (maxKnownPrice(place) ?? 0) > 20000 },
-];
-
 export function PlacesExplorer({ places, initialCategory, locale = defaultLocale }: PlacesExplorerProps) {
-  const [query, setQuery] = useState("");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [category, setCategory] = useState<PlaceCategory | "all">(
-    categoryFilters.some((filter) => filter.value === initialCategory) ? (initialCategory as PlaceCategory) : "all",
+    getInitialCategory(searchParams, initialCategory),
   );
-  const [region, setRegion] = useState("all");
-  const [priceBucket, setPriceBucket] = useState<PriceBucket>("all");
-  const [activeExtras, setActiveExtras] = useState<ExtraFilter[]>([]);
-  const [sortMode, setSortMode] = useState<SortMode>("recommended");
+  const [region, setRegion] = useState(() => searchParams.get("region") ?? "all");
+  const [priceBucket, setPriceBucket] = useState<ChinaPriceBucket>(() => readPriceBucket(searchParams));
+  const [activeChinaFilters, setActiveChinaFilters] = useState<ChinaDiscoveryFilter[]>(() => readChinaFilters(searchParams));
+  const [sortMode, setSortMode] = useState<SortMode>(() => readSortMode(searchParams));
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
   const copy = ui[locale];
   const explorerCopy = placesExplorerCopy[locale];
-  const availableExtras = useMemo(() => extraFilters.filter((filter) => filter.enabled(places)), [places]);
-  const availablePriceBuckets = useMemo(() => priceBuckets.filter((bucket) => bucket.value === "all" || places.some(bucket.match)), [places]);
+  const showChinaFilters = locale === "zh";
+  const availableChinaFilters = useMemo(() => (showChinaFilters ? getEnabledChinaFilters(places) : []), [places, showChinaFilters]);
+  const availableQuickFilters = useMemo(
+    () => availableChinaFilters.filter((filter) => chinaQuickFilters.includes(filter.key)),
+    [availableChinaFilters],
+  );
+  const detailedChinaFilters = useMemo(
+    () => availableChinaFilters.filter((filter) => !chinaQuickFilters.includes(filter.key)),
+    [availableChinaFilters],
+  );
+  const activeFilterCount = countActiveChinaFilters(showChinaFilters ? activeChinaFilters : [], priceBucket);
   const regions = useMemo(() => buildRegions(places), [places]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+
+    if (query.trim()) nextParams.set("q", query.trim());
+    if (category !== "all") nextParams.set("category", category);
+    if (region !== "all") nextParams.set("region", region);
+    if (priceBucket !== "all") nextParams.set("price", priceBucket);
+    if (sortMode !== "chinaRecommended") nextParams.set("sort", sortMode);
+
+    if (showChinaFilters) {
+      activeChinaFilters.forEach((filterKey) => {
+        const filter = chinaDiscoveryFilters.find((item) => item.key === filterKey);
+
+        if (filter) {
+          nextParams.set(filter.queryKey, "true");
+        }
+      });
+    }
+
+    const nextQuery = nextParams.toString();
+    const currentQuery = searchParams.toString();
+
+    if (nextQuery !== currentQuery) {
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    }
+  }, [activeChinaFilters, category, pathname, priceBucket, query, region, router, searchParams, showChinaFilters, sortMode]);
 
   const enrichedPlaces = useMemo(() => {
     return places.map((place) => ({
@@ -88,44 +111,26 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
 
   const filteredPlaces = useMemo(() => {
     const lowered = query.trim().toLowerCase();
-    const price = availablePriceBuckets.find((bucket) => bucket.value === priceBucket) ?? priceBuckets[0];
+    const chinaFilteredPlaces = new Set(
+      filterPlacesForChineseTraveler(
+        enrichedPlaces.map((item) => item.place),
+        showChinaFilters ? activeChinaFilters : [],
+        priceBucket,
+      ).map((place) => place.id),
+    );
 
-    return enrichedPlaces
+    const filtered = enrichedPlaces
       .filter(({ place }) => {
         const categoryMatch = category === "all" || place.category === category;
         const regionMatch = region === "all" || getRegionKey(place) === region;
-        const priceMatch = price.match(place);
         const searchMatch = lowered.length === 0 || buildSearchText(place, locale).includes(lowered);
-        const extraMatch = activeExtras.every((filter) => {
-          if (filter === "openNow") {
-            return getOpeningStatus(place.opening_hours) === "open" || getOpeningStatus(place.opening_hours) === "closing_soon";
-          }
+        const chinaMatch = chinaFilteredPlaces.has(place.id);
 
-          if (filter === "solo") {
-            return place.solo_friendly;
-          }
-
-          return place.card_payment;
-        });
-
-        return categoryMatch && regionMatch && priceMatch && searchMatch && extraMatch;
-      })
-      .sort((a, b) => {
-        if (sortMode === "saved") {
-          return (b.place.save_count ?? 0) - (a.place.save_count ?? 0);
-        }
-
-        if (sortMode === "distance") {
-          return (a.distance ?? Number.MAX_SAFE_INTEGER) - (b.distance ?? Number.MAX_SAFE_INTEGER);
-        }
-
-        if (a.place.is_featured !== b.place.is_featured) {
-          return a.place.is_featured ? -1 : 1;
-        }
-
-        return (b.place.save_count ?? 0) - (a.place.save_count ?? 0);
+        return categoryMatch && regionMatch && searchMatch && chinaMatch;
       });
-  }, [activeExtras, availablePriceBuckets, category, enrichedPlaces, locale, priceBucket, query, region, sortMode]);
+
+    return sortPlacesForChineseTraveler(filtered, sortMode);
+  }, [activeChinaFilters, category, enrichedPlaces, locale, priceBucket, query, region, showChinaFilters, sortMode]);
 
   const popularPlaces = useMemo(() => {
     return [...places]
@@ -134,10 +139,19 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       .slice(0, 4);
   }, [places]);
 
-  function toggleExtra(filter: ExtraFilter) {
-    setActiveExtras((current) =>
+  function toggleChinaFilter(filter: ChinaDiscoveryFilter) {
+    setActiveChinaFilters((current) =>
       current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter],
     );
+  }
+
+  function clearFilters() {
+    setQuery("");
+    setCategory("all");
+    setRegion("all");
+    setPriceBucket("all");
+    setActiveChinaFilters([]);
+    setSortMode("chinaRecommended");
   }
 
   function requestLocation() {
@@ -209,8 +223,8 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.price}</span>
-            <select value={priceBucket} onChange={(event) => setPriceBucket(event.target.value as PriceBucket)} className={selectClass}>
-              {availablePriceBuckets.map((bucket) => (
+            <select value={priceBucket} onChange={(event) => setPriceBucket(event.target.value as ChinaPriceBucket)} className={selectClass}>
+              {chinaPriceBuckets.map((bucket) => (
                 <option key={bucket.value} value={bucket.value}>{bucket.label[locale]}</option>
               ))}
             </select>
@@ -218,27 +232,65 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           <label className="block">
             <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.sort}</span>
             <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} className={selectClass}>
-              <option value="recommended">{explorerCopy.recommendedSort}</option>
+              <option value="chinaRecommended">{explorerCopy.recommendedSort}</option>
               <option value="saved">{explorerCopy.savedSort}</option>
               <option value="distance" disabled={!userLocation}>{explorerCopy.distanceSort}</option>
+              <option value="lowWait">{explorerCopy.lowWaitSort}</option>
             </select>
           </label>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {availableExtras.map((filter) => {
-            const active = activeExtras.includes(filter.key);
+        {showChinaFilters && availableQuickFilters.length ? (
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-black text-slate-500">{explorerCopy.quickFilters}</p>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
+                {explorerCopy.activeFilters} {activeFilterCount}
+              </span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {availableQuickFilters.map((filter) => {
+                const active = activeChinaFilters.includes(filter.key);
 
-            return (
-              <button key={filter.key} type="button" onClick={() => toggleExtra(filter.key)} className="active:scale-95">
-                <TagChip tone={active ? "green" : "default"}>{filter.label[locale]}</TagChip>
-              </button>
-            );
-          })}
+                return (
+                  <button key={filter.key} type="button" onClick={() => toggleChinaFilter(filter.key)} className="shrink-0 active:scale-95">
+                    <TagChip tone={active ? "green" : "default"}>{filter.compactLabel[locale]}</TagChip>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {showChinaFilters && detailedChinaFilters.length ? (
+          <details className="rounded-2xl bg-slate-50 p-3">
+            <summary className="cursor-pointer text-sm font-black text-slate-800">
+              {explorerCopy.moreFilters}
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {detailedChinaFilters.map((filter) => {
+                const active = activeChinaFilters.includes(filter.key);
+
+                return (
+                  <button key={filter.key} type="button" onClick={() => toggleChinaFilter(filter.key)} className="active:scale-95">
+                    <TagChip tone={active ? "green" : "default"}>{filter.label[locale]}</TagChip>
+                  </button>
+                );
+              })}
+            </div>
+          </details>
+        ) : null}
+
+        <div className="flex flex-wrap gap-2">
           <button type="button" onClick={requestLocation} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-black text-blue-700 ring-1 ring-blue-100">
             <LocateFixed size={14} aria-hidden="true" />
             {explorerCopy.distanceSort}
           </button>
+          {activeFilterCount > 0 || query || category !== "all" || region !== "all" ? (
+            <button type="button" onClick={clearFilters} className="rounded-full bg-slate-950 px-3 py-1.5 text-sm font-black text-white">
+              {explorerCopy.clearFilters}
+            </button>
+          ) : null}
         </div>
 
         {locationMessage ? <p className="text-xs font-semibold text-slate-500">{locationMessage}</p> : null}
@@ -268,7 +320,15 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
         </div>
       ) : (
         <div className="mt-5">
-          <EmptyState title={copy.places.emptyTitle} description={copy.places.emptyDescription} />
+          <EmptyState
+            title={copy.places.emptyTitle}
+            description={explorerCopy.reduceFilters}
+            action={
+              <button type="button" onClick={clearFilters} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">
+                {explorerCopy.clearFilters}
+              </button>
+            }
+          />
         </div>
       )}
 
@@ -287,6 +347,12 @@ const placesExplorerCopy: Record<Locale, {
   recommendedSort: string;
   savedSort: string;
   distanceSort: string;
+  lowWaitSort: string;
+  quickFilters: string;
+  moreFilters: string;
+  activeFilters: string;
+  clearFilters: string;
+  reduceFilters: string;
   popular: string;
   savedBased: string;
   locationUnsupported: string;
@@ -302,6 +368,12 @@ const placesExplorerCopy: Record<Locale, {
     recommendedSort: "推荐顺序",
     savedSort: "收藏顺序",
     distanceSort: "距离顺序",
+    lowWaitSort: "少排队优先",
+    quickFilters: "快速场景",
+    moreFilters: "更多中国游客筛选",
+    activeFilters: "已选",
+    clearFilters: "全部清除",
+    reduceFilters: "条件稍微减少一点，可以找到更多适合的地点。",
     popular: "热门地点",
     savedBased: "按收藏数",
     locationUnsupported: "此浏览器无法使用当前位置。",
@@ -317,6 +389,12 @@ const placesExplorerCopy: Record<Locale, {
     recommendedSort: "Recommended",
     savedSort: "Most saved",
     distanceSort: "Distance",
+    lowWaitSort: "Short wait",
+    quickFilters: "Quick filters",
+    moreFilters: "More traveler filters",
+    activeFilters: "Active",
+    clearFilters: "Reset filters",
+    reduceFilters: "Try removing a few filters to see more places.",
     popular: "Popular places",
     savedBased: "Based on saves",
     locationUnsupported: "Current location is unavailable in this browser.",
@@ -332,6 +410,12 @@ const placesExplorerCopy: Record<Locale, {
     recommendedSort: "おすすめ順",
     savedSort: "保存順",
     distanceSort: "距離順",
+    lowWaitSort: "待ち時間が短い順",
+    quickFilters: "クイック条件",
+    moreFilters: "旅行者向け条件",
+    activeFilters: "選択中",
+    clearFilters: "リセット",
+    reduceFilters: "条件を少し減らすと、より多くのスポットが見つかります。",
     popular: "人気スポット",
     savedBased: "保存数基準",
     locationUnsupported: "このブラウザでは現在地を使用できません。",
@@ -347,6 +431,12 @@ const placesExplorerCopy: Record<Locale, {
     recommendedSort: "추천순",
     savedSort: "저장순",
     distanceSort: "거리순",
+    lowWaitSort: "대기 적은 순",
+    quickFilters: "빠른 상황 필터",
+    moreFilters: "여행자 상세 필터",
+    activeFilters: "적용",
+    clearFilters: "전체 초기화",
+    reduceFilters: "조건을 조금 줄이면 더 많은 장소를 찾을 수 있어요.",
     popular: "인기 장소",
     savedBased: "저장 수 기반",
     locationUnsupported: "이 브라우저에서는 현재 위치를 사용할 수 없습니다.",
@@ -414,14 +504,6 @@ function getRegionKey(place: PlaceWithRelations) {
   return dongMatch?.[1] ?? guMatch?.[1] ?? place.nearest_station ?? "unknown";
 }
 
-function maxKnownPrice(place: PlaceWithRelations) {
-  if (place.price_max !== null) {
-    return place.price_max;
-  }
-
-  return place.price_min;
-}
-
 function filterClass(active: boolean) {
   return cn(
     "shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
@@ -430,3 +512,27 @@ function filterClass(active: boolean) {
 }
 
 const selectClass = "h-11 w-full rounded-2xl bg-slate-50 px-3 text-sm font-bold text-slate-800 outline-none ring-1 ring-slate-200";
+
+function getInitialCategory(searchParams: URLSearchParams, initialCategory?: string) {
+  const categoryParam = searchParams.get("category") ?? initialCategory;
+
+  return categoryFilters.some((filter) => filter.value === categoryParam) ? (categoryParam as PlaceCategory) : "all";
+}
+
+function readChinaFilters(searchParams: URLSearchParams): ChinaDiscoveryFilter[] {
+  return chinaDiscoveryFilters
+    .filter((filter) => searchParams.get(filter.queryKey) === "true")
+    .map((filter) => filter.key);
+}
+
+function readPriceBucket(searchParams: URLSearchParams): ChinaPriceBucket {
+  const value = searchParams.get("price");
+
+  return chinaPriceBuckets.some((bucket) => bucket.value === value) ? (value as ChinaPriceBucket) : "all";
+}
+
+function readSortMode(searchParams: URLSearchParams): SortMode {
+  const value = searchParams.get("sort");
+
+  return value === "saved" || value === "distance" || value === "lowWait" ? value : "chinaRecommended";
+}

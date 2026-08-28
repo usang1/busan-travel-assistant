@@ -11,6 +11,9 @@ export type MapMarker = {
   imageUrl: string;
   meta: string;
   saveCount?: number;
+  price?: string;
+  recommendation?: string;
+  tags?: string[];
 };
 
 export type MapBounds = {
