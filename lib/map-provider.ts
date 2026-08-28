@@ -20,7 +20,7 @@ export type MapBounds = {
   maxLng: number;
 };
 
-export type MapProviderId = "kakao" | "fallback";
+export type MapProviderId = "naver" | "fallback";
 
 export type TravelMapProvider = {
   id: MapProviderId;
@@ -29,9 +29,9 @@ export type TravelMapProvider = {
 };
 
 export const mapProviders: Record<MapProviderId, TravelMapProvider> = {
-  kakao: {
-    id: "kakao",
-    label: "Kakao Maps",
+  naver: {
+    id: "naver",
+    label: "Naver Maps",
     requiresApiKey: true,
   },
   fallback: {
@@ -42,8 +42,8 @@ export const mapProviders: Record<MapProviderId, TravelMapProvider> = {
 };
 
 export function getPreferredMapProvider(): TravelMapProvider {
-  if (process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY) {
-    return mapProviders.kakao;
+  if (process.env.NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID || process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID) {
+    return mapProviders.naver;
   }
 
   return mapProviders.fallback;

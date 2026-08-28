@@ -20,7 +20,7 @@
 - 사진스팟 목록/상세, FREE/PRO 잠금
 - 한국인에게 보여주기 번역 카드
 - 짐보관 리스트
-- 위치 기반 주변 추천과 지도 fallback
+- 위치 기반 주변 추천과 네이버 지도 연동
 - DB 기반 rule engine 여행 일정 생성
 - Mock 결제로 PRO 권한 활성화
 - localStorage 저장/공유 기능
@@ -42,12 +42,12 @@ npm run dev
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_KAKAO_MAP_APP_KEY=
+NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
-- `NEXT_PUBLIC_KAKAO_MAP_APP_KEY`: Kakao 지도 키입니다. 없으면 지도 대신 리스트 fallback이 표시됩니다.
+- `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
 
 ## Supabase 설정

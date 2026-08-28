@@ -61,6 +61,59 @@ type Cluster = {
   category: MapMarker["category"];
 };
 
+type NaverScriptStatus = "loading" | "ready" | "error";
+
+type NaverLatLng = {
+  lat: () => number;
+  lng: () => number;
+};
+
+type NaverLatLngBounds = {
+  getSW: () => NaverLatLng;
+  getNE: () => NaverLatLng;
+};
+
+type NaverMapInstance = {
+  setCenter: (position: NaverLatLng) => void;
+  setZoom: (zoom: number) => void;
+  getZoom: () => number;
+  getBounds: () => NaverLatLngBounds;
+  fitBounds: (bounds: NaverLatLngBounds) => void;
+};
+
+type NaverMarkerInstance = {
+  setMap: (map: NaverMapInstance | null) => void;
+};
+
+type NaverInfoWindowInstance = {
+  open: (map: NaverMapInstance, marker: NaverMarkerInstance) => void;
+  close: () => void;
+};
+
+type NaverEventListener = unknown;
+
+type NaverMapsNamespace = {
+  Map: new (element: HTMLElement, options: Record<string, unknown>) => NaverMapInstance;
+  LatLng: new (latitude: number, longitude: number) => NaverLatLng;
+  LatLngBounds: new (southWest: NaverLatLng, northEast: NaverLatLng) => NaverLatLngBounds;
+  Marker: new (options: Record<string, unknown>) => NaverMarkerInstance;
+  InfoWindow: new (options: Record<string, unknown>) => NaverInfoWindowInstance;
+  Point: new (x: number, y: number) => unknown;
+  Event: {
+    addListener: (target: unknown, eventName: string, listener: () => void) => NaverEventListener;
+    removeListener: (listener: NaverEventListener) => void;
+    trigger: (target: unknown, eventName: string) => void;
+  };
+};
+
+declare global {
+  interface Window {
+    naver?: {
+      maps?: NaverMapsNamespace;
+    };
+  }
+}
+
 const markerColor: Record<MapMarker["category"], string> = {
   restaurant: "bg-rose-600",
   cafe: "bg-amber-600",
@@ -79,6 +132,9 @@ const minLatitudeSpan = 0.028;
 const minLongitudeSpan = 0.038;
 const boundsPaddingRatio = 0.32;
 const clusterDistance = 5.6;
+const naverMapNcpKeyId = process.env.NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID ?? process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "";
+
+let naverMapsPromise: Promise<NaverMapsNamespace> | null = null;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -108,7 +164,271 @@ function keepViewInBounds(view: MapView): MapView {
   };
 }
 
-export function TravelMap({
+export function TravelMap(props: TravelMapProps) {
+  if (props.provider.id === "naver" && naverMapNcpKeyId) {
+    return <NaverTravelMap {...props} ncpKeyId={naverMapNcpKeyId} />;
+  }
+
+  return <FallbackTravelMap {...props} />;
+}
+
+function NaverTravelMap({
+  center,
+  markers,
+  userLocation,
+  provider,
+  locale = defaultLocale,
+  selectedId,
+  focusRequest,
+  className,
+  searchAreaVisible = false,
+  onSearchArea,
+  onSelectMarker,
+  onViewportSettled,
+  ncpKeyId,
+}: TravelMapProps & { ncpKeyId: string }) {
+  const [scriptStatus, setScriptStatus] = useState<NaverScriptStatus>("loading");
+  const [maps, setMaps] = useState<NaverMapsNamespace | null>(null);
+  const mapElementRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<NaverMapInstance | null>(null);
+  const markerRefs = useRef(new Map<string, NaverMarkerInstance>());
+  const userMarkerRef = useRef<NaverMarkerInstance | null>(null);
+  const infoWindowRef = useRef<NaverInfoWindowInstance | null>(null);
+  const idleListenerRef = useRef<NaverEventListener | null>(null);
+  const viewportSourceRef = useRef<"user" | "program">("program");
+  const onViewportSettledRef = useRef(onViewportSettled);
+  const { user } = useAuth();
+
+  onViewportSettledRef.current = onViewportSettled;
+
+  useEffect(() => {
+    let active = true;
+
+    setScriptStatus("loading");
+    loadNaverMaps(ncpKeyId)
+      .then((loadedMaps) => {
+        if (!active) {
+          return;
+        }
+
+        setMaps(loadedMaps);
+        setScriptStatus("ready");
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setScriptStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [ncpKeyId]);
+
+  useEffect(() => {
+    if (!maps || !mapElementRef.current || mapInstanceRef.current) {
+      return;
+    }
+
+    const map = new maps.Map(mapElementRef.current, {
+      center: toNaverLatLng(maps, center),
+      zoom: 15,
+      minZoom: 10,
+      maxZoom: 19,
+      scaleControl: false,
+      logoControl: true,
+      mapDataControl: false,
+      zoomControl: true,
+    });
+
+    mapInstanceRef.current = map;
+    viewportSourceRef.current = "program";
+    idleListenerRef.current = maps.Event.addListener(map, "idle", () => {
+      const bounds = getNaverBounds(map);
+
+      if (!bounds) {
+        return;
+      }
+
+      onViewportSettledRef.current?.(bounds, viewportSourceRef.current);
+      viewportSourceRef.current = "user";
+    });
+
+    window.setTimeout(() => {
+      maps.Event.trigger(map, "resize");
+      fitNaverMapToContent(maps, map, center, markers, userLocation);
+    }, 0);
+
+    return () => {
+      if (idleListenerRef.current) {
+        maps.Event.removeListener(idleListenerRef.current);
+        idleListenerRef.current = null;
+      }
+
+      markerRefs.current.forEach((marker) => marker.setMap(null));
+      markerRefs.current.clear();
+      userMarkerRef.current?.setMap(null);
+      userMarkerRef.current = null;
+      closeNaverInfoWindow(infoWindowRef.current);
+      infoWindowRef.current = null;
+      mapInstanceRef.current = null;
+    };
+  }, [maps]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+
+    if (!maps || !map) {
+      return;
+    }
+
+    viewportSourceRef.current = "program";
+    fitNaverMapToContent(maps, map, center, markers, userLocation);
+  }, [center, maps, markers, userLocation]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+
+    if (!maps || !map) {
+      return;
+    }
+
+    markerRefs.current.forEach((marker) => marker.setMap(null));
+    markerRefs.current.clear();
+    closeNaverInfoWindow(infoWindowRef.current);
+    infoWindowRef.current = null;
+
+    markers.forEach((marker) => {
+      const markerInstance = new maps.Marker({
+        map,
+        position: toNaverLatLng(maps, marker.position),
+        title: marker.title,
+        icon: {
+          content: naverMarkerHtml(marker, selectedId === marker.id),
+          anchor: new maps.Point(18, 44),
+        },
+      });
+
+      maps.Event.addListener(markerInstance, "click", () => {
+        onSelectMarker?.(marker.id);
+        closeNaverInfoWindow(infoWindowRef.current);
+        infoWindowRef.current = openNaverInfoWindow(maps, map, markerInstance, marker);
+        viewportSourceRef.current = "program";
+        map.setCenter(toNaverLatLng(maps, marker.position));
+        map.setZoom(Math.max(map.getZoom(), 16));
+
+        void recordPlaceEvent({
+          eventType: "marker_click",
+          locale,
+          placeId: marker.id,
+          userId: user?.id,
+          metadata: { provider: provider.id },
+        });
+      });
+
+      markerRefs.current.set(marker.id, markerInstance);
+    });
+
+    const selectedMarker = selectedId ? markers.find((marker) => marker.id === selectedId) : null;
+    const selectedMarkerInstance = selectedId ? markerRefs.current.get(selectedId) : null;
+
+    if (selectedMarker && selectedMarkerInstance) {
+      closeNaverInfoWindow(infoWindowRef.current);
+      infoWindowRef.current = openNaverInfoWindow(maps, map, selectedMarkerInstance, selectedMarker);
+    }
+  }, [locale, maps, markers, onSelectMarker, provider.id, selectedId, user?.id]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+
+    if (!maps || !map) {
+      return;
+    }
+
+    userMarkerRef.current?.setMap(null);
+    userMarkerRef.current = null;
+
+    if (!userLocation) {
+      return;
+    }
+
+    userMarkerRef.current = new maps.Marker({
+      map,
+      position: toNaverLatLng(maps, userLocation),
+      title: "현재 위치",
+      icon: {
+        content: naverUserMarkerHtml(),
+        anchor: new maps.Point(16, 16),
+      },
+    });
+  }, [maps, userLocation]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+
+    if (!maps || !map || !focusRequest) {
+      return;
+    }
+
+    const target = markers.find((marker) => marker.id === focusRequest.id);
+    const markerInstance = markerRefs.current.get(focusRequest.id);
+
+    if (!target) {
+      return;
+    }
+
+    viewportSourceRef.current = "program";
+    map.setCenter(toNaverLatLng(maps, target.position));
+    map.setZoom(Math.max(map.getZoom(), 16));
+
+    if (markerInstance) {
+      closeNaverInfoWindow(infoWindowRef.current);
+      infoWindowRef.current = openNaverInfoWindow(maps, map, markerInstance, target);
+    }
+  }, [focusRequest, maps, markers]);
+
+  if (scriptStatus === "error") {
+    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} focusRequest={focusRequest} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onViewportSettled={onViewportSettled} />;
+  }
+
+  return (
+    <section className={cn("relative overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200", className)}>
+      <div ref={mapElementRef} className="relative h-full min-h-[420px] overflow-hidden bg-[#e9f2ef]" />
+
+      <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-2xl bg-white/95 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 backdrop-blur">
+        {provider.label} · {markers.length}
+      </div>
+
+      {searchAreaVisible ? (
+        <button
+          type="button"
+          onClick={() => {
+            const map = mapInstanceRef.current;
+            const bounds = map ? getNaverBounds(map) : null;
+
+            if (bounds) {
+              onSearchArea?.(bounds);
+            }
+          }}
+          className="absolute left-1/2 top-3 z-40 inline-flex h-10 -translate-x-1/2 items-center justify-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-black text-white shadow-lg transition active:scale-95"
+        >
+          <Search size={16} aria-hidden="true" />
+          이 지역에서 검색
+        </button>
+      ) : null}
+
+      {scriptStatus === "loading" ? (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-white/70 text-sm font-bold text-slate-600 backdrop-blur-sm">
+          지도 로딩 중
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function FallbackTravelMap({
   center,
   markers,
   userLocation,
@@ -563,6 +883,171 @@ export function TravelMap({
       </div>
     </section>
   );
+}
+
+function loadNaverMaps(ncpKeyId: string): Promise<NaverMapsNamespace> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Naver Maps can only load in the browser."));
+  }
+
+  if (window.naver?.maps) {
+    return Promise.resolve(window.naver.maps);
+  }
+
+  if (naverMapsPromise) {
+    return naverMapsPromise;
+  }
+
+  naverMapsPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>("script[data-naver-maps-sdk='true']");
+
+    if (existingScript) {
+      existingScript.addEventListener("load", () => {
+        if (window.naver?.maps) {
+          resolve(window.naver.maps);
+          return;
+        }
+
+        reject(new Error("Naver Maps SDK loaded without maps namespace."));
+      });
+      existingScript.addEventListener("error", () => reject(new Error("Failed to load Naver Maps SDK.")));
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(ncpKeyId)}`;
+    script.async = true;
+    script.dataset.naverMapsSdk = "true";
+    script.addEventListener("load", () => {
+      if (window.naver?.maps) {
+        resolve(window.naver.maps);
+        return;
+      }
+
+      reject(new Error("Naver Maps SDK loaded without maps namespace."));
+    });
+    script.addEventListener("error", () => reject(new Error("Failed to load Naver Maps SDK.")));
+    document.head.appendChild(script);
+  });
+
+  return naverMapsPromise;
+}
+
+function toNaverLatLng(maps: NaverMapsNamespace, position: Coordinates) {
+  return new maps.LatLng(position.latitude, position.longitude);
+}
+
+function fitNaverMapToContent(
+  maps: NaverMapsNamespace,
+  map: NaverMapInstance,
+  center: Coordinates,
+  markers: MapMarker[],
+  userLocation?: Coordinates | null,
+) {
+  const positions = [
+    center,
+    ...markers.map((marker) => marker.position),
+    ...(userLocation ? [userLocation] : []),
+  ];
+
+  if (positions.length <= 1) {
+    map.setCenter(toNaverLatLng(maps, center));
+    map.setZoom(15);
+    return;
+  }
+
+  const latitudes = positions.map((position) => position.latitude);
+  const longitudes = positions.map((position) => position.longitude);
+  const bounds = new maps.LatLngBounds(
+    new maps.LatLng(Math.min(...latitudes), Math.min(...longitudes)),
+    new maps.LatLng(Math.max(...latitudes), Math.max(...longitudes)),
+  );
+
+  map.fitBounds(bounds);
+}
+
+function getNaverBounds(map: NaverMapInstance): MapBounds | null {
+  const bounds = map.getBounds();
+  const southWest = bounds.getSW();
+  const northEast = bounds.getNE();
+
+  return {
+    minLat: southWest.lat(),
+    maxLat: northEast.lat(),
+    minLng: southWest.lng(),
+    maxLng: northEast.lng(),
+  };
+}
+
+function openNaverInfoWindow(
+  maps: NaverMapsNamespace,
+  map: NaverMapInstance,
+  markerInstance: NaverMarkerInstance,
+  marker: MapMarker,
+): NaverInfoWindowInstance {
+  const infoWindow = new maps.InfoWindow({
+    content: [
+      '<div style="min-width:190px;padding:12px 13px;font-family:system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#0f172a;">',
+      `<strong style="display:block;font-size:14px;line-height:1.35;">${escapeHtml(marker.title)}</strong>`,
+      marker.subtitle ? `<span style="display:block;margin-top:3px;font-size:12px;line-height:1.35;color:#64748b;">${escapeHtml(marker.subtitle)}</span>` : "",
+      `<span style="display:block;margin-top:8px;font-size:12px;line-height:1.35;color:#475569;">${escapeHtml(marker.meta)}</span>`,
+      `<a href="${escapeHtml(marker.href)}" style="display:inline-flex;margin-top:10px;font-size:12px;font-weight:800;color:#047857;text-decoration:none;">상세 보기</a>`,
+      "</div>",
+    ].join(""),
+    borderWidth: 0,
+    disableAnchor: false,
+    backgroundColor: "white",
+  });
+
+  infoWindow.open(map, markerInstance);
+  return infoWindow;
+}
+
+function closeNaverInfoWindow(infoWindow: NaverInfoWindowInstance | null) {
+  infoWindow?.close();
+}
+
+function naverMarkerHtml(marker: MapMarker, active: boolean) {
+  const color = naverMarkerColor(marker.category);
+  const ring = active ? "#0f172a" : "rgba(255,255,255,0.92)";
+
+  return [
+    `<div title="${escapeHtml(marker.title)}" style="position:relative;width:36px;height:44px;transform:translateY(-2px);">`,
+    `<div style="display:grid;place-items:center;width:36px;height:36px;border-radius:999px;background:${color};color:white;box-shadow:0 12px 28px rgba(15,23,42,0.28);border:4px solid ${ring};">`,
+    '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>',
+    "</div>",
+    active ? `<div style="position:absolute;left:50%;top:40px;max-width:150px;transform:translateX(-50%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:999px;background:#0f172a;padding:4px 10px;font-size:12px;font-weight:800;color:white;box-shadow:0 10px 24px rgba(15,23,42,0.22);">${escapeHtml(marker.title)}</div>` : "",
+    "</div>",
+  ].join("");
+}
+
+function naverUserMarkerHtml() {
+  return [
+    '<div style="display:grid;place-items:center;width:32px;height:32px;border-radius:999px;background:#2563eb;color:white;box-shadow:0 10px 24px rgba(37,99,235,0.32);border:4px solid #dbeafe;">',
+    '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 7 19-7-4-7 4 7-19z"/></svg>',
+    "</div>",
+  ].join("");
+}
+
+function naverMarkerColor(category: MapMarker["category"]) {
+  return {
+    restaurant: "#e11d48",
+    cafe: "#d97706",
+    bar: "#7c3aed",
+    attraction: "#0284c7",
+    shopping: "#c026d3",
+    photo_spot: "#0891b2",
+    luggage: "#1e293b",
+  }[category];
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function toWorldPoint(position: Coordinates, bounds: MapBounds): WorldPoint {
