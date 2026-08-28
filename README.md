@@ -58,6 +58,11 @@ Supabase SQL editor 또는 CLI에서 아래 순서로 실행합니다.
 supabase/migrations/001_places_schema.sql
 supabase/migrations/002_photo_spots.sql
 supabase/migrations/003_multilingual_place_architecture.sql
+supabase/migrations/004_auth_saves_and_action_events.sql
+supabase/migrations/005_place_submission_admin_workflow.sql
+supabase/migrations/006_security_baseline_hardening.sql
+supabase/migrations/007_allow_anonymous_place_submissions.sql
+supabase/migrations/008_china_specific_place_info.sql
 supabase/seed.sql
 ```
 
@@ -75,10 +80,11 @@ supabase/seed.sql
 - `place_submissions`: 사용자 장소 제보
 - `place_events`: 장소별 이벤트
 - `place_corrections`: 장소 정보 수정 요청
+- `place_china_info`: 중국인 자유여행객용 구조화 장소 정보. 점수형 항목은 1~5 또는 `null`, 확인형 항목은 `yes` / `no` / `unknown`으로 저장해 미확인 정보를 false처럼 취급하지 않습니다.
 
 기존 `places.name_zh/name_ko` 계열 컬럼은 호환을 위해 유지합니다. `003_multilingual_place_architecture.sql`은 기존 중국어/한국어 데이터를 `place_translations`로 backfill하며, 새 기능은 점진적으로 번역 테이블을 우선 사용하도록 확장할 수 있습니다.
 
-현재 기존 장소 테이블의 관리자 쓰기 권한은 MVP용 임시 정책입니다. 새 확장 테이블은 Supabase Auth와 `profiles.role = 'admin'` 기반 RLS를 준비했습니다. 실제 공개 전 관리자 계정의 profile role을 설정해야 합니다.
+현재 기존 장소 테이블의 관리자 쓰기 권한은 MVP용 임시 정책에서 `profiles.role = 'admin'` 기반 RLS로 강화되고 있습니다. `place_china_info`는 활성 장소에 대한 공개 읽기와 관리자 전용 생성/수정을 사용합니다. 실제 공개 전 관리자 계정의 profile role을 설정해야 합니다.
 
 ## 로컬 실행
 

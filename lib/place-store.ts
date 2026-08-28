@@ -3,6 +3,7 @@ import { demoPlaces } from "@/data/demo-places";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type {
+  PlaceChinaInfoRecord,
   PlaceTranslationRecord,
   PlaceListResult,
   PlaceMenuItem,
@@ -14,6 +15,7 @@ import type {
 import type { Locale } from "@/lib/i18n";
 
 type SupabasePlaceRow = PlaceRecord & {
+  place_china_info?: PlaceChinaInfoRecord | PlaceChinaInfoRecord[] | null;
   place_translations?: PlaceTranslationRecord[] | null;
   place_tags?: Array<{
     tags: TagRecord | null;
@@ -22,6 +24,9 @@ type SupabasePlaceRow = PlaceRecord & {
 };
 
 type PlaceWriteRow = Omit<PlacePayload, "tags" | "menu_items">;
+const placeSelectWithChinaInfo = "*, place_china_info(*), place_translations(*), place_tags(tags(*)), place_menu_items(*)";
+const placeSelectWithTranslations = "*, place_translations(*), place_tags(tags(*)), place_menu_items(*)";
+const legacyPlaceSelect = "*, place_tags(tags(*)), place_menu_items(*)";
 
 const priceLabels: Record<Locale, { free: string; unknown: string }> = {
   zh: { free: "免费", unknown: "价格未登记" },
@@ -91,9 +96,13 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
       .filter((tag): tag is TagRecord => Boolean(tag)) ?? [];
 
   const menuItems = [...(row.place_menu_items ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+  const chinaInfo = Array.isArray(row.place_china_info)
+    ? (row.place_china_info[0] ?? null)
+    : (row.place_china_info ?? null);
 
   return {
     ...row,
+    china_info: chinaInfo,
     tags,
     menu_items: menuItems,
     translations: normalizePlaceTranslations(row),
@@ -126,7 +135,7 @@ export async function getPlaces(
 
   let query = resolvedClient
     .from("places")
-    .select("*, place_translations(*), place_tags(tags(*)), place_menu_items(*)")
+    .select(placeSelectWithChinaInfo)
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false });
 
@@ -141,9 +150,32 @@ export async function getPlaces(
   const { data, error } = await query;
 
   if (error || !data) {
+    let compatibleQuery = resolvedClient
+      .from("places")
+      .select(placeSelectWithTranslations)
+      .order("is_featured", { ascending: false })
+      .order("updated_at", { ascending: false });
+
+    if (options.activeOnly ?? true) {
+      compatibleQuery = compatibleQuery.eq("is_active", true);
+    }
+
+    if (options.featuredOnly) {
+      compatibleQuery = compatibleQuery.eq("is_featured", true);
+    }
+
+    const compatibleResult = await compatibleQuery;
+
+    if (!compatibleResult.error && compatibleResult.data) {
+      return {
+        places: await addSaveCounts((compatibleResult.data as SupabasePlaceRow[]).map(mapPlace)),
+        source: "supabase",
+      };
+    }
+
     let legacyQuery = resolvedClient
       .from("places")
-      .select("*, place_tags(tags(*)), place_menu_items(*)")
+      .select(legacyPlaceSelect)
       .order("is_featured", { ascending: false })
       .order("updated_at", { ascending: false });
 
@@ -158,7 +190,7 @@ export async function getPlaces(
     const legacyResult = await legacyQuery;
 
     if (legacyResult.error || !legacyResult.data) {
-      return withDemoFallback(legacyResult.error?.message ?? error?.message ?? "Supabase 데이터를 불러오지 못했습니다.");
+      return withDemoFallback(legacyResult.error?.message ?? compatibleResult.error?.message ?? error?.message ?? "Supabase 데이터를 불러오지 못했습니다.");
     }
 
     return {
@@ -190,7 +222,7 @@ export async function getPlaceBySlug(
 
   let query = resolvedClient
     .from("places")
-    .select("*, place_translations(*), place_tags(tags(*)), place_menu_items(*)")
+    .select(placeSelectWithChinaInfo)
     .eq("slug", slug);
 
   if (options.activeOnly ?? true) {
@@ -200,9 +232,30 @@ export async function getPlaceBySlug(
   const { data, error } = await query.single();
 
   if (error || !data) {
+    let compatibleQuery = resolvedClient
+      .from("places")
+      .select(placeSelectWithTranslations)
+      .eq("slug", slug);
+
+    if (options.activeOnly ?? true) {
+      compatibleQuery = compatibleQuery.eq("is_active", true);
+    }
+
+    const compatibleResult = await compatibleQuery.single();
+
+    if (!compatibleResult.error && compatibleResult.data) {
+      const place = mapPlace(compatibleResult.data as SupabasePlaceRow);
+      const counts = await getPlaceSaveCounts([place.id]);
+
+      return {
+        place: { ...place, save_count: counts.get(place.id) ?? 0 },
+        source: "supabase",
+      };
+    }
+
     let legacyQuery = resolvedClient
       .from("places")
-      .select("*, place_tags(tags(*)), place_menu_items(*)")
+      .select(legacyPlaceSelect)
       .eq("slug", slug);
 
     if (options.activeOnly ?? true) {
@@ -226,7 +279,7 @@ export async function getPlaceBySlug(
     return {
       place: demoPlace ? { ...demoPlace, save_count: 0 } : null,
       source: "demo",
-      error: legacyResult.error?.message ?? error?.message ?? "장소를 찾지 못했습니다.",
+      error: legacyResult.error?.message ?? compatibleResult.error?.message ?? error?.message ?? "장소를 찾지 못했습니다.",
     };
   }
 

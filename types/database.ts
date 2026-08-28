@@ -12,6 +12,12 @@ export type PlaceCategory = (typeof placeCategories)[number];
 
 export type PlaceSourceProvider = "NAVER" | "KAKAO" | "GOOGLE" | "MANUAL";
 
+export type PlaceFactTristate = "yes" | "no" | "unknown";
+
+export type ChinaWaitingLevel = "unknown" | "none" | "short" | "moderate" | "long" | "extreme";
+
+export type PlaceVerificationStatus = "unverified" | "pending" | "verified" | "needs_review";
+
 export type PlaceRecord = {
   id: string;
   slug: string;
@@ -81,10 +87,40 @@ export type PlaceMenuItem = {
   sort_order: number;
 };
 
+export type PlaceChinaInfoRecord = {
+  id: string;
+  place_id: string;
+  chinese_taste_score: number | null;
+  spicy_level: number | null;
+  greasy_level: number | null;
+  smell_level: number | null;
+  portion_level: number | null;
+  ordering_difficulty: number | null;
+  waiting_level: ChinaWaitingLevel;
+  chinese_menu: PlaceFactTristate;
+  foreign_card: PlaceFactTristate;
+  alipay: PlaceFactTristate;
+  wechat_pay: PlaceFactTristate;
+  solo_friendly: PlaceFactTristate;
+  luggage_friendly: PlaceFactTristate;
+  toilet_available: PlaceFactTristate;
+  reservation_required: PlaceFactTristate;
+  minimum_order_people: number | null;
+  xiaohongshu_popular: PlaceFactTristate;
+  subway_walk_minutes: number | null;
+  manual_summary_override?: string | null;
+  manual_warning_override?: string | null;
+  verification_status: PlaceVerificationStatus;
+  verified_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PlaceWithRelations = PlaceRecord & {
   tags: TagRecord[];
   menu_items: PlaceMenuItem[];
   translations?: PlaceTranslationRecord[];
+  china_info?: PlaceChinaInfoRecord | null;
   save_count?: number;
 };
 
@@ -146,6 +182,8 @@ export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at">
     external_id?: string | null;
   };
 };
+
+export type PlaceChinaInfoPayload = Omit<PlaceChinaInfoRecord, "id" | "created_at" | "updated_at">;
 
 export type SubmissionStatus = "pending" | "reviewing" | "approved" | "rejected" | "duplicate";
 

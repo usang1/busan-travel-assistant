@@ -58,6 +58,18 @@ begin
       'correction_submitted'
     );
   end if;
+
+  if not exists (select 1 from pg_type where typname = 'place_fact_tristate') then
+    create type public.place_fact_tristate as enum ('yes', 'no', 'unknown');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'china_waiting_level') then
+    create type public.china_waiting_level as enum ('unknown', 'none', 'short', 'moderate', 'long', 'extreme');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'place_verification_status') then
+    create type public.place_verification_status as enum ('unverified', 'pending', 'verified', 'needs_review');
+  end if;
 end $$;
 
 do $$
@@ -335,6 +347,43 @@ create table if not exists public.place_action_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.place_china_info (
+  id uuid primary key default gen_random_uuid(),
+  place_id uuid not null unique references public.places(id) on delete cascade,
+  chinese_taste_score smallint,
+  spicy_level smallint,
+  greasy_level smallint,
+  smell_level smallint,
+  portion_level smallint,
+  ordering_difficulty smallint,
+  waiting_level public.china_waiting_level not null default 'unknown',
+  chinese_menu public.place_fact_tristate not null default 'unknown',
+  foreign_card public.place_fact_tristate not null default 'unknown',
+  alipay public.place_fact_tristate not null default 'unknown',
+  wechat_pay public.place_fact_tristate not null default 'unknown',
+  solo_friendly public.place_fact_tristate not null default 'unknown',
+  luggage_friendly public.place_fact_tristate not null default 'unknown',
+  toilet_available public.place_fact_tristate not null default 'unknown',
+  reservation_required public.place_fact_tristate not null default 'unknown',
+  minimum_order_people smallint,
+  xiaohongshu_popular public.place_fact_tristate not null default 'unknown',
+  subway_walk_minutes smallint,
+  manual_summary_override text,
+  manual_warning_override text,
+  verification_status public.place_verification_status not null default 'unverified',
+  verified_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint place_china_info_chinese_taste_score_check check (chinese_taste_score is null or chinese_taste_score between 1 and 5),
+  constraint place_china_info_spicy_level_check check (spicy_level is null or spicy_level between 1 and 5),
+  constraint place_china_info_greasy_level_check check (greasy_level is null or greasy_level between 1 and 5),
+  constraint place_china_info_smell_level_check check (smell_level is null or smell_level between 1 and 5),
+  constraint place_china_info_portion_level_check check (portion_level is null or portion_level between 1 and 5),
+  constraint place_china_info_ordering_difficulty_check check (ordering_difficulty is null or ordering_difficulty between 1 and 5),
+  constraint place_china_info_minimum_order_people_check check (minimum_order_people is null or minimum_order_people between 1 and 10),
+  constraint place_china_info_subway_walk_minutes_check check (subway_walk_minutes is null or subway_walk_minutes >= 0)
+);
+
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -445,6 +494,11 @@ create index if not exists place_action_events_place_created_idx on public.place
 create index if not exists place_action_events_user_created_idx on public.place_action_events(user_id, created_at desc)
 where user_id is not null;
 create index if not exists place_action_events_type_created_idx on public.place_action_events(event_type, created_at desc);
+create index if not exists place_china_info_place_idx on public.place_china_info(place_id);
+create index if not exists place_china_info_scores_idx
+on public.place_china_info(chinese_taste_score, ordering_difficulty, waiting_level);
+create index if not exists place_china_info_verification_idx
+on public.place_china_info(verification_status, verified_at desc);
 
 -- ==========================================
 -- 4. RLS
@@ -463,6 +517,7 @@ alter table public.place_submissions enable row level security;
 alter table public.place_events enable row level security;
 alter table public.place_corrections enable row level security;
 alter table public.place_action_events enable row level security;
+alter table public.place_china_info enable row level security;
 
 -- ==========================================
 -- 5. POLICIES
@@ -588,6 +643,23 @@ on public.place_sources for all
 using (public.is_admin())
 with check (public.is_admin());
 
+drop policy if exists "Public can read active place China info" on public.place_china_info;
+drop policy if exists "Admins can manage place China info" on public.place_china_info;
+create policy "Public can read active place China info"
+on public.place_china_info for select
+using (
+  exists (
+    select 1
+    from public.places
+    where places.id = place_china_info.place_id
+      and places.is_active = true
+  )
+);
+create policy "Admins can manage place China info"
+on public.place_china_info for all
+using (public.is_admin())
+with check (public.is_admin());
+
 drop policy if exists "Users can manage own place saves" on public.place_saves;
 drop policy if exists "Users can read own place saves" on public.place_saves;
 drop policy if exists "Users can create own place saves" on public.place_saves;
@@ -675,6 +747,7 @@ grant select on public.place_tags to anon, authenticated;
 grant select on public.place_menu_items to anon, authenticated;
 grant select on public.photo_spots to anon, authenticated;
 grant select on public.place_translations to anon, authenticated;
+grant select on public.place_china_info to anon, authenticated;
 grant insert on public.place_submissions to anon;
 grant insert on public.place_action_events to anon, authenticated;
 
@@ -690,6 +763,7 @@ grant all on public.place_saves to authenticated;
 grant all on public.place_submissions to authenticated;
 grant all on public.place_events to authenticated;
 grant all on public.place_corrections to authenticated;
+grant all on public.place_china_info to authenticated;
 grant select, insert on public.place_action_events to authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
 grant execute on function public.get_place_save_counts(uuid[]) to anon, authenticated;
@@ -738,18 +812,39 @@ create trigger place_corrections_set_updated_at
 before update on public.place_corrections
 for each row execute function public.set_updated_at();
 
+drop trigger if exists place_china_info_set_updated_at on public.place_china_info;
+create trigger place_china_info_set_updated_at
+before update on public.place_china_info
+for each row execute function public.set_updated_at();
+
 drop trigger if exists on_auth_user_created_create_profile on auth.users;
 create trigger on_auth_user_created_create_profile
 after insert on auth.users
 for each row execute function public.handle_new_user_profile();
 
+comment on type public.place_fact_tristate is
+  'Reusable yes/no/unknown fact state. unknown means not verified and must not be treated as false.';
+comment on type public.china_waiting_level is
+  'Structured waiting intensity for China-focused place presentation.';
+comment on type public.place_verification_status is
+  'Reusable verification workflow state for structured place facts.';
 comment on table public.place_translations is
   'Locale-specific place content. Legacy name_zh/name_ko columns remain for compatibility until all readers migrate.';
 comment on table public.place_sources is
   'Admin-only source references for NAVER, KAKAO, GOOGLE, or MANUAL entries. This table does not imply unofficial crawling.';
 comment on table public.place_action_events is
   'Append-only behavior log for place interactions. Core product actions must not fail if logging fails.';
+comment on table public.place_china_info is
+  'China-focused structured place facts for Chinese independent travelers. Kept separate from places for backward compatibility and future audience-specific expansion.';
 comment on column public.place_submissions.source_url is
   'Original Naver/Kakao/Google map URL supplied by the user. Do not scrape unsupported data from it.';
 comment on column public.place_submissions.recommendation_reason is
   'User-written recommendation reason for admin review.';
+comment on column public.place_china_info.chinese_taste_score is
+  'How strongly the place is recommended for Chinese travelers, 1 to 5. Null means unreviewed.';
+comment on column public.place_china_info.minimum_order_people is
+  'Minimum required party size for ordering. Null means unknown, 1 means no multi-person minimum.';
+comment on column public.place_china_info.manual_summary_override is
+  'Optional admin-written Chinese summary override. Prefer generated copy from structured fields when null.';
+comment on column public.place_china_info.manual_warning_override is
+  'Optional admin-written Chinese warning override. Prefer generated copy from structured fields when null.';
