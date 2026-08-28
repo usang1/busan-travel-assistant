@@ -1185,12 +1185,29 @@ function ChinaPreview({ summary }: { summary: ReturnType<typeof buildChinaPlaceS
 
       <div className="mt-4 rounded-2xl bg-amber-300/12 p-3 ring-1 ring-amber-200/20">
         <p className="text-xs font-bold text-amber-100">去之前先看</p>
-        <ul className="mt-2 space-y-1 text-sm leading-6 text-amber-50">
-          {summary.warnings.map((warning) => (
-            <li key={warning}>- {warning}</li>
-          ))}
-        </ul>
+        {summary.warnings.length ? (
+          <ul className="mt-2 space-y-1 text-sm leading-6 text-amber-50">
+            {summary.warnings.map((warning) => (
+              <li key={warning}>- {warning}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm leading-6 text-amber-50">暂无特别提醒</p>
+        )}
       </div>
+
+      {summary.unknownFacts.length ? (
+        <div className="mt-4 rounded-2xl bg-white/10 p-3">
+          <p className="text-xs font-bold text-slate-300">暂未确认</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {summary.unknownFacts.slice(0, 8).map((fact) => (
+              <TagChip key={fact} tone="blue">
+                {fact}
+              </TagChip>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

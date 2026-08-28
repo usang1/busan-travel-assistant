@@ -6,7 +6,8 @@
     "dev": "node node_modules/next/dist/bin/next dev",
     "build": "node node_modules/next/dist/bin/next build",
     "lint": "node node_modules/eslint/bin/eslint.js app components data lib types",
-    "typecheck": "node node_modules/typescript/bin/tsc --noEmit"
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "test": "node scripts/test-china-formatter.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
