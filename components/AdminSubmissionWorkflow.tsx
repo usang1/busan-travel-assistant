@@ -294,8 +294,17 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
           longitude?: number;
           externalId?: string;
         };
+        summary?: {
+          description_zh?: string;
+          description_ko?: string;
+          tips_zh?: string;
+          tips_ko?: string;
+        } | null;
+        summaryError?: string;
+        aiConfigured?: boolean;
       };
       const { analysis } = body;
+      const summary = body.summary ?? null;
       const title = analysis.title?.trim() ?? "";
 
       setForm((current) => ({
@@ -308,14 +317,25 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         slug: current.slug || slugify(title),
         latitude: typeof analysis.latitude === "number" ? analysis.latitude.toFixed(7) : current.latitude,
         longitude: typeof analysis.longitude === "number" ? analysis.longitude.toFixed(7) : current.longitude,
+        description_zh: current.description_zh || summary?.description_zh || "",
+        description_ko: current.description_ko || summary?.description_ko || "",
+        tips_zh: current.tips_zh || summary?.tips_zh || "",
+        tips_ko: current.tips_ko || summary?.tips_ko || "",
       }));
 
       const filled = [
         title ? "장소명" : "",
         typeof analysis.latitude === "number" && typeof analysis.longitude === "number" ? "좌표" : "",
         analysis.externalId ? "네이버 ID" : "",
+        summary ? "AI 설명" : "",
       ].filter(Boolean);
-      setStatus(filled.length ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.` : "provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.");
+      const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 설명 초안은 생성하지 않았습니다.";
+      const aiErrorNotice = body.summaryError ? ` AI 설명 생성 실패: ${body.summaryError}` : "";
+      setStatus(
+        filled.length
+          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${aiNotice}${aiErrorNotice}`
+          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${aiNotice}${aiErrorNotice}`,
+      );
     } catch (error) {
       setForm((current) => ({
         ...current,
@@ -583,7 +603,7 @@ function PublishFormView({
         <CheckField label="카드 가능" checked={form.card_payment} onChange={(checked) => onFieldChange("card_payment", checked)} />
         <CheckField label="즉시 공개" checked={form.is_active} onChange={(checked) => onFieldChange("is_active", checked)} />
       </div>
-      <p className="mt-4 text-xs leading-5 text-slate-500">네이버 지도 짧은 링크는 가능한 경우 장소명, 좌표, 지도 장소 ID를 자동으로 채웁니다. 자동 분석 결과가 애매하면 관리자가 직접 수정할 수 있습니다.</p>
+      <p className="mt-4 text-xs leading-5 text-slate-500">네이버 지도 짧은 링크는 가능한 경우 장소명, 좌표, 지도 장소 ID를 자동으로 채웁니다. OpenAI API 키가 설정되어 있으면 중국어/한국어 설명 초안도 비어 있는 입력란에 채웁니다.</p>
     </section>
   );
 }
