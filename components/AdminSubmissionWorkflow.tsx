@@ -21,6 +21,7 @@ type PayloadTranslation = NonNullable<PlacePayload["translations"]>[number];
 type PublishForm = {
   source_url: string;
   provider: PlaceSourceProvider;
+  source_external_id: string;
   slug: string;
   category: PlaceCategory;
   name_zh: string;
@@ -94,6 +95,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
   return {
     source_url: parsed.normalizedUrl,
     provider: parsed.provider,
+    source_external_id: "",
     slug: slugify(baseName),
     category: submission?.category ?? "restaurant",
     name_zh: baseName,
@@ -191,6 +193,7 @@ function buildPayload(form: PublishForm): PlacePayload {
       ? {
           provider: form.provider,
           source_url: form.source_url,
+          external_id: form.source_external_id || null,
         }
       : undefined,
   };
@@ -203,6 +206,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   const [form, setForm] = useState<PublishForm>(() => emptyForm(null));
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const visibleSubmissions = useMemo(
     () => submissions.filter((submission) => submission.status === activeStatus),
@@ -253,13 +257,75 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function parseSourceUrl() {
+  async function parseSourceUrl() {
     const parsed = parseMapUrl(form.source_url);
-    setForm((current) => ({
-      ...current,
-      source_url: parsed.normalizedUrl,
-      provider: parsed.provider,
-    }));
+
+    if (!parsed.normalizedUrl) {
+      setForm((current) => ({
+        ...current,
+        source_url: "",
+        provider: "MANUAL",
+        source_external_id: "",
+      }));
+      setStatus("지도 링크를 먼저 입력해 주세요.");
+      return;
+    }
+
+    setAnalyzing(true);
+    setStatus("지도 링크를 분석하는 중입니다.");
+
+    try {
+      const response = await adminFetch("/api/admin/map-link", {
+        method: "POST",
+        body: JSON.stringify({ url: parsed.normalizedUrl }),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json()) as { message?: string };
+        throw new Error(body.message ?? "지도 링크 분석 실패");
+      }
+
+      const body = (await response.json()) as {
+        analysis: {
+          provider: PlaceSourceProvider;
+          normalizedUrl: string;
+          title?: string;
+          latitude?: number;
+          longitude?: number;
+          externalId?: string;
+        };
+      };
+      const { analysis } = body;
+      const title = analysis.title?.trim() ?? "";
+
+      setForm((current) => ({
+        ...current,
+        source_url: analysis.normalizedUrl,
+        provider: analysis.provider,
+        source_external_id: analysis.externalId ?? current.source_external_id,
+        name_ko: current.name_ko || title,
+        name_zh: current.name_zh || title,
+        slug: current.slug || slugify(title),
+        latitude: typeof analysis.latitude === "number" ? analysis.latitude.toFixed(7) : current.latitude,
+        longitude: typeof analysis.longitude === "number" ? analysis.longitude.toFixed(7) : current.longitude,
+      }));
+
+      const filled = [
+        title ? "장소명" : "",
+        typeof analysis.latitude === "number" && typeof analysis.longitude === "number" ? "좌표" : "",
+        analysis.externalId ? "네이버 ID" : "",
+      ].filter(Boolean);
+      setStatus(filled.length ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.` : "provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.");
+    } catch (error) {
+      setForm((current) => ({
+        ...current,
+        source_url: parsed.normalizedUrl,
+        provider: parsed.provider,
+      }));
+      setStatus(error instanceof Error ? error.message : "지도 링크 분석 중 오류가 발생했습니다.");
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   async function updateSubmissionStatus(nextStatus: SubmissionStatus) {
@@ -422,8 +488,9 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             saving={saving}
             selected={selected}
             onFieldChange={updateField}
-            onParseSourceUrl={parseSourceUrl}
+            onParseSourceUrl={() => void parseSourceUrl()}
             onPublish={() => void publishPlace()}
+            analyzing={analyzing}
           />
         </div>
       </div>
@@ -438,6 +505,7 @@ function PublishFormView({
   onFieldChange,
   onParseSourceUrl,
   onPublish,
+  analyzing,
 }: {
   form: PublishForm;
   saving: boolean;
@@ -445,6 +513,7 @@ function PublishFormView({
   onFieldChange: <Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) => void;
   onParseSourceUrl: () => void;
   onPublish: () => void;
+  analyzing: boolean;
 }) {
   return (
     <section className="rounded-[24px] bg-white p-4 ring-1 ring-slate-200">
@@ -460,8 +529,8 @@ function PublishFormView({
         <Field label="지도 링크/source">
           <div className="flex gap-2">
             <input value={form.source_url} onChange={(event) => onFieldChange("source_url", event.target.value)} className={inputClass} />
-            <button type="button" onClick={onParseSourceUrl} className="shrink-0 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white">
-              분석
+            <button type="button" onClick={onParseSourceUrl} disabled={analyzing} className="shrink-0 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">
+              {analyzing ? "분석 중" : "분석"}
             </button>
           </div>
         </Field>
@@ -472,7 +541,8 @@ function PublishFormView({
             ))}
           </select>
         </Field>
-        <Field label="Slug"><input value={form.slug} onChange={(event) => onFieldChange("slug", slugify(event.target.value))} className={inputClass} /></Field>
+        <Field label="지도 장소 ID"><input value={form.source_external_id} onChange={(event) => onFieldChange("source_external_id", event.target.value)} className={inputClass} /></Field>
+        <Field label="URL 주소명"><input value={form.slug} onChange={(event) => onFieldChange("slug", slugify(event.target.value))} className={inputClass} /></Field>
         <Field label="카테고리">
           <select value={form.category} onChange={(event) => onFieldChange("category", event.target.value as PlaceCategory)} className={inputClass}>
             {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
@@ -513,7 +583,7 @@ function PublishFormView({
         <CheckField label="카드 가능" checked={form.card_payment} onChange={(checked) => onFieldChange("card_payment", checked)} />
         <CheckField label="즉시 공개" checked={form.is_active} onChange={(checked) => onFieldChange("is_active", checked)} />
       </div>
-      <p className="mt-4 text-xs leading-5 text-slate-500">지도 링크는 provider 식별과 source 저장에만 사용합니다. 지원하지 않는 장소 데이터는 자동 생성하지 않습니다.</p>
+      <p className="mt-4 text-xs leading-5 text-slate-500">네이버 지도 짧은 링크는 가능한 경우 장소명, 좌표, 지도 장소 ID를 자동으로 채웁니다. 자동 분석 결과가 애매하면 관리자가 직접 수정할 수 있습니다.</p>
     </section>
   );
 }

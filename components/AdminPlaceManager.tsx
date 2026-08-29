@@ -792,7 +792,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-7">
             <FormSection title="1. 기본 장소 정보">
-              <Field label="Slug">
+              <Field label="URL 주소명">
                 <input value={form.slug} onChange={(event) => updateField("slug", slugify(event.target.value))} className={inputClass} />
               </Field>
               <Field label="카테고리">

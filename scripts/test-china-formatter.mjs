@@ -27,6 +27,7 @@ function loadTsModule(path, aliases = {}) {
     exports,
     require,
     console,
+    URL,
   });
 
   return module.exports;
@@ -156,6 +157,21 @@ const discovery = loadTsModule("lib/place-china/discovery.ts", {
     buildChinaPlaceSummary,
   },
 });
+
+const mapUrl = loadTsModule("lib/map-url.ts");
+const { analyzeMapLink } = loadTsModule("lib/map-link-analysis.ts", {
+  "@/lib/map-url": mapUrl,
+});
+
+const naverLinkAnalysis = analyzeMapLink("https://naver.me/x9VaDLM8", [
+  "https://map.naver.com/?pinId=1435915485&appMenu=location&app=Y&menu=location&lat=35.1671242&title=%EC%A7%84%EC%86%A1%EC%88%AF%EB%B6%88%20%EC%88%98%EC%98%81%EC%A0%90&pinType=site&lng=129.1170388&version=2",
+  "https://map.naver.com/p/entry/place/1435915485",
+]);
+assert.equal(naverLinkAnalysis.provider, "NAVER");
+assert.equal(naverLinkAnalysis.title, "진송숯불 수영점");
+assert.equal(naverLinkAnalysis.latitude, 35.1671242);
+assert.equal(naverLinkAnalysis.longitude, 129.1170388);
+assert.equal(naverLinkAnalysis.externalId, "1435915485");
 
 const {
   filterPlacesForChineseTraveler,
