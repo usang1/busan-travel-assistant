@@ -35,6 +35,7 @@ type OpenAIResponse = {
 };
 
 const openAiApiKey = process.env.OPENAI_API_KEY;
+const adminAiApiEnabled = process.env.ADMIN_AI_API_ENABLED === "true";
 const openAiModel = process.env.OPENAI_SUMMARY_MODEL || "gpt-5-mini";
 const translationFieldKeys = [
   "name_ko",
@@ -56,7 +57,7 @@ const translationFieldKeys = [
 ] as const;
 
 export function canGeneratePlaceSummary() {
-  return Boolean(openAiApiKey);
+  return Boolean(openAiApiKey && adminAiApiEnabled);
 }
 
 export async function generatePlaceSummaryDraft(analysis: MapLinkAnalysisResult): Promise<PlaceSummaryDraft | null> {

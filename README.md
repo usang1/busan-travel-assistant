@@ -45,16 +45,20 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 OPENAI_API_KEY=
+ADMIN_AI_API_ENABLED=false
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
-- `OPENAI_API_KEY`: 관리자 지도 링크 분석에서 설명 초안을 생성할 때만 서버에서 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
+- `OPENAI_API_KEY`: 실제 AI 연결 단계에서만 서버에서 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
+- `ADMIN_AI_API_ENABLED`: 실제 AI API 호출 안전장치입니다. 이번 기반 단계에서는 `false`로 두고, 향후 AI 연결 단계에서 `true`로 바꿉니다.
 
 관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
 
-관리자 지도 링크 분석은 서버에서 `OPENAI_API_KEY`가 있을 때 OpenAI Responses API로 중국어/한국어 설명 초안을 생성합니다. 키가 없으면 장소명, 좌표, 지도 장소 ID만 분석하고 설명란은 비워 둡니다. 관리자 `AI 번역` 버튼도 같은 키를 사용해 한국어/중국어/영어 이름, 설명, 여행 팁, 주소 입력란의 빈칸을 채웁니다.
+관리자 AI 초안 생성 흐름은 먼저 지도 링크/관리자 폼에서 얻은 사실 데이터와 AI 생성 후보를 분리합니다. 이번 단계의 `/api/admin/place-ai-generation` route는 관리자 인증과 요청/응답 구조만 준비하며 외부 AI API를 호출하지 않습니다. 기존 AI 호출 경로도 `OPENAI_API_KEY`와 `ADMIN_AI_API_ENABLED=true`가 함께 설정된 경우에만 실행됩니다.
+
+AI 생성 기반 설계와 관리자 적용 흐름은 `docs/ai-place-content-generation.md`에 정리되어 있습니다.
 
 ## Supabase 설정
 
@@ -70,6 +74,7 @@ supabase/migrations/006_security_baseline_hardening.sql
 supabase/migrations/007_allow_anonymous_place_submissions.sql
 supabase/migrations/008_china_specific_place_info.sql
 supabase/migrations/009_china_admin_editor_fields.sql
+supabase/migrations/010_place_ai_generation_drafts.sql
 supabase/seed.sql
 ```
 
@@ -88,6 +93,7 @@ supabase/seed.sql
 - `place_events`: 장소별 이벤트
 - `place_corrections`: 장소 정보 수정 요청
 - `place_china_info`: 중국인 자유여행객용 구조화 장소 정보. 점수형 항목은 1~5 또는 `null`, 확인형 항목은 `yes` / `no` / `unknown`으로 저장해 미확인 정보를 false처럼 취급하지 않습니다.
+- `place_ai_generation_drafts`: 관리자 전용 AI 생성 초안. `source_data`에는 사실 데이터만, `generated_content`에는 관리자가 검토할 생성 후보만 저장합니다.
 
 기존 `places.name_zh/name_ko` 계열 컬럼은 호환을 위해 유지합니다. `003_multilingual_place_architecture.sql`은 기존 중국어/한국어 데이터를 `place_translations`로 backfill하며, 새 기능은 점진적으로 번역 테이블을 우선 사용하도록 확장할 수 있습니다.
 
@@ -134,14 +140,16 @@ npm run build
 1. `/admin`으로 이동합니다.
 2. 장소 수, 카테고리별 장소, 추천 장소, PRO 사진스팟, 최근 수정 장소를 확인합니다.
 3. 장소 추가/수정 폼에서 기본정보, 위치, 가격, 운영시간, 시설, 중국인 관광객용 안내, 추천 주문, 사진 URL, 메뉴를 입력합니다.
-4. 제보 기반 등록에서는 네이버 지도 링크를 넣고 `분석`을 누르면 장소명, 좌표, 지도 장소 ID를 채웁니다. `OPENAI_API_KEY`가 있으면 중국어/한국어 설명 초안과 여행 팁도 비어 있는 입력란에 채웁니다.
-5. 직접 등록 화면에서는 한국어 주소를 입력한 뒤 `주소로 좌표 찾기`를 누르면 네이버 주소 검색 결과의 위도/경도가 자동 입력됩니다. 결과가 애매하면 위도/경도를 직접 보정할 수 있습니다.
-6. `AI 번역` 또는 `AI 번역 채우기`를 누르면 한국어/중국어/영어 관련 빈 입력란만 자동 번역합니다. 이미 입력된 값은 덮어쓰지 않습니다.
-7. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
-8. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
-9. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
-10. 활성/비활성, 추천 장소 여부를 설정합니다.
-11. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
+4. 제보 기반 등록에서는 네이버 지도 링크를 넣고 `분석`을 누르면 장소명, 좌표, 지도 장소 ID를 채웁니다.
+5. 직접 등록/수정 화면에서는 지도 링크, provider, 지도 장소 ID를 입력할 수 있습니다.
+6. `AI 여행정보 생성`은 이번 단계에서 외부 API를 호출하지 않고, 향후 생성 결과를 검토/적용할 패널만 표시합니다. 생성 후보가 있어도 `적용`을 눌러 폼에 반영하고 다시 `저장`해야 DB에 들어갑니다.
+7. 직접 등록 화면에서는 한국어 주소를 입력한 뒤 `주소로 좌표 찾기`를 누르면 네이버 주소 검색 결과의 위도/경도가 자동 입력됩니다. 결과가 애매하면 위도/경도를 직접 보정할 수 있습니다.
+8. `AI 번역` 또는 `AI 번역 채우기`는 `ADMIN_AI_API_ENABLED=true`가 설정된 실제 연결 단계에서만 동작합니다. 이미 입력된 값은 덮어쓰지 않습니다.
+9. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
+10. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
+11. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
+12. 활성/비활성, 추천 장소 여부를 설정합니다.
+13. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
 
 Supabase 환경 변수가 없으면 관리자 CRUD는 브라우저 localStorage 기반 Demo 모드로 동작합니다.
 

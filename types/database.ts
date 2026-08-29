@@ -143,6 +143,23 @@ export type PlaceSourceRecord = {
   updated_at: string;
 };
 
+export type PlaceAiGenerationDraftStatus = "draft" | "applied" | "discarded" | "failed";
+
+export type PlaceAiGenerationDraftRecord = {
+  id: string;
+  place_id: string | null;
+  provider: PlaceSourceProvider;
+  source_url?: string | null;
+  source_external_id?: string | null;
+  source_data: Record<string, unknown>;
+  generated_content: Record<string, unknown>;
+  status: PlaceAiGenerationDraftStatus;
+  created_by?: string | null;
+  applied_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PlaceSaveRecord = {
   id: string;
   user_id: string;

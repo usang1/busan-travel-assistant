@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, Languages, Plus, RefreshCw, Send, XCircle } from "lucide-react";
+import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
+import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { categoryLabels, placeCategories, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type SubmissionStatus } from "@/types/database";
+import type { PlaceAiGeneratedContent, PlaceAiGenerationResponse } from "@/types/place-ai";
 
 type AdminSubmissionWorkflowProps = {
   accessToken: string;
@@ -277,6 +280,22 @@ function applyTranslationsToPublishForm(form: PublishForm, translations: Partial
   return { nextForm, filledCount };
 }
 
+function applyGeneratedContentToPublishForm(form: PublishForm, content: PlaceAiGeneratedContent): PublishForm {
+  const tipText = [...content.traveler_tips, ...content.cautions].filter(Boolean).join(" ");
+
+  return {
+    ...form,
+    description_ko: content.description_ko || form.description_ko,
+    description_zh: content.description_zh || form.description_zh,
+    description_en: content.description_en || form.description_en,
+    description_ja: content.description_ja || form.description_ja,
+    tips_ko: tipText || form.tips_ko,
+    tips_zh: tipText || form.tips_zh,
+    tips_en: tipText || form.tips_en,
+    tips_ja: tipText || form.tips_ja,
+  };
+}
+
 export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSubmissionWorkflowProps) {
   const [submissions, setSubmissions] = useState<PlaceSubmissionRecord[]>([]);
   const [activeStatus, setActiveStatus] = useState<SubmissionStatus>("pending");
@@ -287,6 +306,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   const [analyzing, setAnalyzing] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
+  const [aiDraft, setAiDraft] = useState<PlaceAiGenerationResponse | null>(null);
 
   const visibleSubmissions = useMemo(
     () => submissions.filter((submission) => submission.status === activeStatus),
@@ -324,12 +345,14 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   function selectSubmission(submission: PlaceSubmissionRecord) {
     setSelected(submission);
     setForm(emptyForm(submission));
+    setAiDraft(null);
     setStatus("");
   }
 
   function startDirectCreate() {
     setSelected(null);
     setForm(emptyForm(null));
+    setAiDraft(null);
     setStatus("제보 없이 직접 장소를 등록합니다. 지도 링크를 넣으면 provider만 식별합니다.");
   }
 
@@ -389,6 +412,58 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     } finally {
       setGeocoding(false);
     }
+  }
+
+  async function prepareAiDraft() {
+    const payload = buildPayload(form);
+
+    if (!payload.name_ko && !payload.name_zh) {
+      setStatus("AI 생성 준비에는 장소명이 필요합니다.");
+      return;
+    }
+
+    setGeneratingAiDraft(true);
+    setStatus("AI 생성 요청 구조를 준비하는 중입니다.");
+
+    try {
+      const response = await adminFetch("/api/admin/place-ai-generation", {
+        method: "POST",
+        body: JSON.stringify({
+          source_data: buildPlaceSourceData(payload),
+          locale_targets: ["ko", "zh", "en", "ja"],
+          existing_content: {
+            description_ko: form.description_ko,
+            description_zh: form.description_zh,
+            description_en: form.description_en,
+            description_ja: form.description_ja,
+            traveler_tips: [form.tips_ko, form.tips_zh, form.tips_en, form.tips_ja].filter(Boolean),
+          },
+        }),
+      });
+      const body = (await response.json()) as PlaceAiGenerationResponse | { message?: string };
+
+      if (!response.ok) {
+        throw new Error("message" in body ? body.message : "AI 생성 준비에 실패했습니다.");
+      }
+
+      setAiDraft(body as PlaceAiGenerationResponse);
+      setStatus((body as PlaceAiGenerationResponse).message);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "AI 생성 준비 중 오류가 발생했습니다.");
+    } finally {
+      setGeneratingAiDraft(false);
+    }
+  }
+
+  function applyAiDraft() {
+    if (!aiDraft || !hasPlaceAiGeneratedContent(aiDraft.generated_content)) {
+      setStatus("적용할 AI 생성 결과가 없습니다. 이번 단계에서는 실제 AI API를 호출하지 않습니다.");
+      return;
+    }
+
+    const content = aiDraft.generated_content;
+    setForm((current) => applyGeneratedContentToPublishForm(current, content));
+    setStatus("AI 생성 결과를 입력 폼에 적용했습니다. DB 저장은 장소 등록 버튼을 눌러야 반영됩니다.");
   }
 
   async function parseSourceUrl() {
@@ -463,7 +538,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         analysis.externalId ? "네이버 ID" : "",
         summary ? "AI 설명" : "",
       ].filter(Boolean);
-      const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 설명 초안은 생성하지 않았습니다.";
+      const aiNotice = body.aiConfigured ? "" : " AI 설명 생성은 이번 단계에서 비활성화되어 있습니다.";
       const aiErrorNotice = body.summaryError ? ` AI 설명 생성 실패: ${body.summaryError}` : "";
       setStatus(
         filled.length
@@ -703,7 +778,11 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             analyzing={analyzing}
             geocoding={geocoding}
             translating={translating}
+            aiDraft={aiDraft}
+            generatingAiDraft={generatingAiDraft}
             onGeocode={() => void fillCoordinatesFromAddress()}
+            onPrepareAiDraft={() => void prepareAiDraft()}
+            onApplyAiDraft={applyAiDraft}
             onTranslate={() => void translateTextFields()}
           />
         </div>
@@ -722,7 +801,11 @@ function PublishFormView({
   analyzing,
   geocoding,
   translating,
+  aiDraft,
+  generatingAiDraft,
   onGeocode,
+  onPrepareAiDraft,
+  onApplyAiDraft,
   onTranslate,
 }: {
   form: PublishForm;
@@ -734,7 +817,11 @@ function PublishFormView({
   analyzing: boolean;
   geocoding: boolean;
   translating: boolean;
+  aiDraft: PlaceAiGenerationResponse | null;
+  generatingAiDraft: boolean;
   onGeocode: () => void;
+  onPrepareAiDraft: () => void;
+  onApplyAiDraft: () => void;
   onTranslate: () => void;
 }) {
   return (
@@ -769,6 +856,15 @@ function PublishFormView({
             ))}
           </select>
         </Field>
+        <div className="md:col-span-2">
+          <AdminAiDraftPanel
+            draft={aiDraft}
+            generating={generatingAiDraft}
+            canApply={hasPlaceAiGeneratedContent(aiDraft?.generated_content)}
+            onGenerate={onPrepareAiDraft}
+            onApply={onApplyAiDraft}
+          />
+        </div>
         <Field label="지도 장소 ID"><input value={form.source_external_id} onChange={(event) => onFieldChange("source_external_id", event.target.value)} className={inputClass} /></Field>
         <Field label="URL 주소명"><input value={form.slug} onChange={(event) => onFieldChange("slug", slugify(event.target.value))} className={inputClass} /></Field>
         <Field label="카테고리">

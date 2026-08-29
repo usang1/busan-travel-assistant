@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     await requireAdmin(request);
 
     if (!canGeneratePlaceSummary()) {
-      throw translateError("Vercel 환경변수에 OPENAI_API_KEY를 등록해야 AI 번역을 사용할 수 있습니다.");
+      throw translateError("AI 번역은 아직 비활성화되어 있습니다. 실제 연결 단계에서 OPENAI_API_KEY와 ADMIN_AI_API_ENABLED=true를 등록하세요.");
     }
 
     const body = (await request.json()) as { fields?: Partial<AdminTranslationFields> };

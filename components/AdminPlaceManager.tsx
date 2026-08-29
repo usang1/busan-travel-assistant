@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Check, Eye, Languages, Pencil, Plus, RotateCcw, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
+import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
@@ -13,6 +14,7 @@ import {
   waitingLabel,
   type ChinaRatingKey,
 } from "@/lib/place-china/format";
+import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import {
   categoryLabels,
@@ -23,8 +25,10 @@ import {
   type PlaceChinaInfoPayload,
   type PlaceFactTristate,
   type PlacePayload,
+  type PlaceSourceProvider,
   type PlaceWithRelations,
 } from "@/types/database";
+import type { PlaceAiGeneratedContent, PlaceAiGenerationResponse } from "@/types/place-ai";
 
 type AdminPlaceManagerProps = {
   initialPlaces: PlaceWithRelations[];
@@ -45,6 +49,9 @@ type MenuDraft = {
 
 type FormState = {
   id?: string;
+  source_url: string;
+  source_provider: PlaceSourceProvider;
+  source_external_id: string;
   slug: string;
   name_zh: string;
   name_en: string;
@@ -216,6 +223,9 @@ function createEmptyChinaInfo(): ChinaInfoForm {
 
 function createEmptyForm(): FormState {
   return {
+    source_url: "",
+    source_provider: "NAVER",
+    source_external_id: "",
     slug: "",
     name_zh: "",
     name_en: "",
@@ -267,6 +277,9 @@ function toForm(place: PlaceWithRelations): FormState {
 
   return {
     id: place.id,
+    source_url: "",
+    source_provider: "MANUAL",
+    source_external_id: "",
     slug: place.slug,
     name_zh: place.name_zh,
     name_en: en?.name ?? "",
@@ -446,7 +459,33 @@ function toPayload(form: FormState): PlacePayload {
           }
         : null,
     ].filter((translation): translation is NonNullable<PlacePayload["translations"]>[number] => Boolean(translation)),
+    source: form.source_url.trim()
+      ? {
+          provider: form.source_provider,
+          source_url: form.source_url.trim(),
+          external_id: form.source_external_id.trim() || null,
+        }
+      : undefined,
     china_info: chinaInfo,
+  };
+}
+
+function applyGeneratedContentToForm(form: FormState, content: PlaceAiGeneratedContent): FormState {
+  const nextForm = {
+    ...form,
+    short_description_ko: content.description_ko || form.short_description_ko,
+    short_description_zh: content.description_zh || form.short_description_zh,
+    short_description_en: content.description_en || form.short_description_en,
+    short_description_ja: content.description_ja || form.short_description_ja,
+  };
+  const tipText = [...content.traveler_tips, ...content.cautions].filter(Boolean).join(" ");
+
+  return {
+    ...nextForm,
+    tips_ko: content.description_ko || tipText || form.tips_ko,
+    tips_zh: content.description_zh || tipText || form.tips_zh,
+    tips_en: content.description_en || tipText || form.tips_en,
+    tips_ja: content.description_ja || tipText || form.tips_ja,
   };
 }
 
@@ -541,6 +580,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
+  const [aiDraft, setAiDraft] = useState<PlaceAiGenerationResponse | null>(null);
   const [status, setStatus] = useState(error ?? "");
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info)), [form.china_info]);
 
@@ -579,6 +620,59 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
   function updateField<Key extends keyof FormState>(key: Key, value: FormState[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function prepareAiDraft() {
+    const payload = toPayload(form);
+
+    if (!payload.name_ko && !payload.name_zh) {
+      setStatus("AI 생성 준비에는 장소명이 필요합니다.");
+      return;
+    }
+
+    setGeneratingAiDraft(true);
+    setStatus("AI 생성 요청 구조를 준비하는 중입니다.");
+
+    try {
+      const response = await fetch("/api/admin/place-ai-generation", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          source_data: buildPlaceSourceData(payload),
+          locale_targets: ["ko", "zh", "en", "ja"],
+          existing_content: {
+            description_ko: form.short_description_ko,
+            description_zh: form.short_description_zh,
+            description_en: form.short_description_en,
+            description_ja: form.short_description_ja,
+            traveler_tips: [form.tips_ko, form.tips_zh, form.tips_en, form.tips_ja].filter(Boolean),
+          },
+        }),
+      });
+      const body = (await response.json()) as PlaceAiGenerationResponse | { message?: string };
+
+      if (!response.ok) {
+        throw new Error("message" in body ? body.message : "AI 생성 준비에 실패했습니다.");
+      }
+
+      setAiDraft(body as PlaceAiGenerationResponse);
+      setStatus((body as PlaceAiGenerationResponse).message);
+    } catch (draftError) {
+      setStatus(draftError instanceof Error ? draftError.message : "AI 생성 준비 중 오류가 발생했습니다.");
+    } finally {
+      setGeneratingAiDraft(false);
+    }
+  }
+
+  function applyAiDraft() {
+    if (!aiDraft || !hasPlaceAiGeneratedContent(aiDraft.generated_content)) {
+      setStatus("적용할 AI 생성 결과가 없습니다. 이번 단계에서는 실제 AI API를 호출하지 않습니다.");
+      return;
+    }
+
+    const content = aiDraft.generated_content;
+    setForm((current) => applyGeneratedContentToForm(current, content));
+    setStatus("AI 생성 결과를 입력 폼에 적용했습니다. DB 저장은 저장 버튼을 눌러야 반영됩니다.");
   }
 
   function updateChinaField<Key extends keyof ChinaInfoForm>(key: Key, value: ChinaInfoForm[Key]) {
@@ -863,7 +957,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         </div>
         <button
           type="button"
-          onClick={() => setForm(createEmptyForm())}
+          onClick={() => {
+            setForm(createEmptyForm());
+            setAiDraft(null);
+          }}
           className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-95"
         >
           <Plus size={17} aria-hidden="true" />
@@ -879,7 +976,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           {visiblePlaces.length > 0 ? (
             visiblePlaces.map((place) => (
               <div key={place.id} className="rounded-[20px] p-3 transition hover:bg-slate-50">
-                <button type="button" onClick={() => setForm(toForm(place))} className="block w-full text-left">
+                <button type="button" onClick={() => {
+                  setForm(toForm(place));
+                  setAiDraft(null);
+                }} className="block w-full text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-950">{place.name_ko}</p>
@@ -891,7 +991,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </div>
                 </button>
                 <div className="mt-3 flex gap-2">
-                  <IconButton label="수정" onClick={() => setForm(toForm(place))} icon={Pencil} />
+                  <IconButton label="수정" onClick={() => {
+                    setForm(toForm(place));
+                    setAiDraft(null);
+                  }} icon={Pencil} />
                   <IconButton label="활성 토글" onClick={() => void togglePlace(place, "is_active")} icon={place.is_active ? Check : X} />
                   <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
                   <IconButton label="비공개" onClick={() => void deleteSelected(place)} icon={Trash2} danger />
@@ -947,6 +1050,30 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-7">
             <FormSection title="1. 기본 장소 정보">
+              <Field label="지도 링크/source">
+                <input value={form.source_url} onChange={(event) => updateField("source_url", event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Provider">
+                <select value={form.source_provider} onChange={(event) => updateField("source_provider", event.target.value as PlaceSourceProvider)} className={inputClass}>
+                  {(["NAVER", "KAKAO", "GOOGLE", "MANUAL"] as const).map((provider) => (
+                    <option key={provider} value={provider}>
+                      {provider}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="지도 장소 ID">
+                <input value={form.source_external_id} onChange={(event) => updateField("source_external_id", event.target.value)} className={inputClass} />
+              </Field>
+              <div className="sm:col-span-2">
+                <AdminAiDraftPanel
+                  draft={aiDraft}
+                  generating={generatingAiDraft}
+                  canApply={hasPlaceAiGeneratedContent(aiDraft?.generated_content)}
+                  onGenerate={() => void prepareAiDraft()}
+                  onApply={applyAiDraft}
+                />
+              </div>
               <Field label="URL 주소명">
                 <input value={form.slug} onChange={(event) => updateField("slug", slugify(event.target.value))} className={inputClass} />
               </Field>
