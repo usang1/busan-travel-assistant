@@ -12,6 +12,7 @@ import {
   waitingLabel,
   type ChinaRatingKey,
 } from "@/lib/place-china/format";
+import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import {
   categoryLabels,
   placeCategories,
@@ -459,6 +460,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [form, setForm] = useState<FormState>(() => (initialPlaces[0] ? toForm(initialPlaces[0]) : createEmptyForm()));
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
   const [status, setStatus] = useState(error ?? "");
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info)), [form.china_info]);
 
@@ -547,6 +549,44 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       },
     }));
     setStatus("중국인 특화 구조화 정보를 모두 확인 필요 상태로 되돌렸습니다.");
+  }
+
+  async function fillCoordinatesFromAddress() {
+    const address = [form.address_ko, form.address_zh, form.name_ko, form.name_zh].find((value) => value.trim())?.trim();
+
+    if (!address) {
+      setStatus("좌표를 찾으려면 주소 또는 장소명을 먼저 입력해 주세요.");
+      return;
+    }
+
+    if (!canUseNaverGeocoder()) {
+      setStatus("네이버 지도 키가 없어 주소 자동 변환을 사용할 수 없습니다.");
+      return;
+    }
+
+    setGeocoding(true);
+    setStatus("네이버 지도에서 주소 좌표를 찾는 중입니다.");
+
+    try {
+      const [result] = await geocodeKoreanAddress(address);
+
+      if (!result) {
+        setStatus("주소 검색 결과가 없습니다.");
+        return;
+      }
+
+      setForm((current) => ({
+        ...current,
+        latitude: result.latitude.toFixed(7),
+        longitude: result.longitude.toFixed(7),
+        address_ko: current.address_ko || result.roadAddress || result.jibunAddress || result.address,
+      }));
+      setStatus(`좌표를 입력했습니다: ${result.latitude.toFixed(7)}, ${result.longitude.toFixed(7)}`);
+    } catch (geocodeError) {
+      setStatus(geocodeError instanceof Error ? geocodeError.message : "주소 좌표 변환에 실패했습니다.");
+    } finally {
+      setGeocoding(false);
+    }
   }
 
   async function savePlace(nextForm = form) {
@@ -803,6 +843,22 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="중국어 주소">
                 <input value={form.address_zh} onChange={(event) => updateField("address_zh", event.target.value)} className={inputClass} />
               </Field>
+              <div className="rounded-2xl bg-teal-50 p-3 sm:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-teal-950">주소 자동 좌표 변환</p>
+                    <p className="mt-1 text-xs font-semibold text-teal-700">한국어 주소를 우선 사용하고, 결과 좌표를 위도/경도에 채웁니다.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void fillCoordinatesFromAddress()}
+                    disabled={geocoding}
+                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {geocoding ? "검색 중" : "주소로 좌표 찾기"}
+                  </button>
+                </div>
+              </div>
               <Field label="위도">
                 <input value={form.latitude} onChange={(event) => updateField("latitude", event.target.value)} className={inputClass} inputMode="decimal" />
               </Field>

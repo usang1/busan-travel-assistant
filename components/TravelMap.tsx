@@ -913,7 +913,7 @@ function loadNaverMaps(ncpKeyId: string): Promise<NaverMapsNamespace> {
     }
 
     const script = document.createElement("script");
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(ncpKeyId)}`;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(ncpKeyId)}&submodules=geocoder`;
     script.async = true;
     script.dataset.naverMapsSdk = "true";
     script.addEventListener("load", () => {

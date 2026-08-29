@@ -47,8 +47,10 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
-- `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
+- `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
+
+관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
 
 ## Supabase 설정
 
@@ -128,11 +130,12 @@ npm run build
 1. `/admin`으로 이동합니다.
 2. 장소 수, 카테고리별 장소, 추천 장소, PRO 사진스팟, 최근 수정 장소를 확인합니다.
 3. 장소 추가/수정 폼에서 기본정보, 위치, 가격, 운영시간, 시설, 중국인 관광객용 안내, 추천 주문, 사진 URL, 메뉴를 입력합니다.
-4. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
-5. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
-6. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
-7. 활성/비활성, 추천 장소 여부를 설정합니다.
-8. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
+4. 한국어 주소를 입력한 뒤 `주소로 좌표 찾기`를 누르면 네이버 주소 검색 결과의 위도/경도가 자동 입력됩니다. 결과가 애매하면 위도/경도를 직접 보정할 수 있습니다.
+5. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
+6. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
+7. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
+8. 활성/비활성, 추천 장소 여부를 설정합니다.
+9. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
 
 Supabase 환경 변수가 없으면 관리자 CRUD는 브라우저 localStorage 기반 Demo 모드로 동작합니다.
 
