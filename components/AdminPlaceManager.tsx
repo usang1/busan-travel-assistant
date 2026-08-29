@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Check, Eye, Pencil, Plus, RotateCcw, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
+import { Check, Eye, Languages, Pencil, Plus, RotateCcw, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
 import {
@@ -111,6 +111,25 @@ type TriStateConfig = {
   >;
   label: string;
   help: string;
+};
+
+type AdminTranslationFields = {
+  name_ko: string;
+  name_zh: string;
+  name_en: string;
+  short_description_ko: string;
+  short_description_zh: string;
+  short_description_en: string;
+  description_ko: string;
+  description_zh: string;
+  description_en: string;
+  tips_ko: string;
+  tips_zh: string;
+  tips_en: string;
+  recommended_order_ko: string;
+  recommended_order_zh: string;
+  address_ko: string;
+  address_zh: string;
 };
 
 const localStorageKey = "busan-travel-assistant-admin-places";
@@ -455,12 +474,64 @@ function localPlaceFromPayload(payload: PlacePayload, id?: string): PlaceWithRel
   };
 }
 
+function buildTranslationFieldsFromForm(form: FormState): AdminTranslationFields {
+  return {
+    name_ko: form.name_ko,
+    name_zh: form.name_zh,
+    name_en: form.name_en,
+    short_description_ko: form.short_description_ko,
+    short_description_zh: form.short_description_zh,
+    short_description_en: form.short_description_en,
+    description_ko: form.short_description_ko,
+    description_zh: form.short_description_zh,
+    description_en: form.short_description_en,
+    tips_ko: form.tips_ko,
+    tips_zh: form.tips_zh,
+    tips_en: form.tips_en,
+    recommended_order_ko: form.recommended_order_ko,
+    recommended_order_zh: form.recommended_order_zh,
+    address_ko: form.address_ko,
+    address_zh: form.address_zh,
+  };
+}
+
+function applyTranslationsToForm(form: FormState, translations: Partial<AdminTranslationFields>) {
+  let filledCount = 0;
+  const fill = (current: string, translated?: string) => {
+    if (current.trim() || !translated?.trim()) {
+      return current;
+    }
+
+    filledCount += 1;
+    return translated.trim();
+  };
+  const nextForm: FormState = {
+    ...form,
+    name_ko: fill(form.name_ko, translations.name_ko),
+    name_zh: fill(form.name_zh, translations.name_zh),
+    name_en: fill(form.name_en, translations.name_en),
+    short_description_ko: fill(form.short_description_ko, translations.short_description_ko || translations.description_ko),
+    short_description_zh: fill(form.short_description_zh, translations.short_description_zh || translations.description_zh),
+    short_description_en: fill(form.short_description_en, translations.short_description_en || translations.description_en),
+    tips_ko: fill(form.tips_ko, translations.tips_ko),
+    tips_zh: fill(form.tips_zh, translations.tips_zh),
+    tips_en: fill(form.tips_en, translations.tips_en),
+    recommended_order_ko: fill(form.recommended_order_ko, translations.recommended_order_ko),
+    recommended_order_zh: fill(form.recommended_order_zh, translations.recommended_order_zh),
+    address_ko: fill(form.address_ko, translations.address_ko),
+    address_zh: fill(form.address_zh, translations.address_zh),
+  };
+
+  return { nextForm, filledCount };
+}
+
 export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfigured, adminAccessToken }: AdminPlaceManagerProps) {
   const [places, setPlaces] = useState(initialPlaces);
   const [form, setForm] = useState<FormState>(() => (initialPlaces[0] ? toForm(initialPlaces[0]) : createEmptyForm()));
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [status, setStatus] = useState(error ?? "");
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info)), [form.china_info]);
 
@@ -586,6 +657,39 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       setStatus(geocodeError instanceof Error ? geocodeError.message : "주소 좌표 변환에 실패했습니다.");
     } finally {
       setGeocoding(false);
+    }
+  }
+
+  async function translateTextFields() {
+    const fields = buildTranslationFieldsFromForm(form);
+
+    if (!Object.values(fields).some((value) => value.trim())) {
+      setStatus("번역할 한국어/중국어/영어 텍스트를 먼저 입력해 주세요.");
+      return;
+    }
+
+    setTranslating(true);
+    setStatus("OpenAI API로 비어 있는 번역 칸을 채우는 중입니다.");
+
+    try {
+      const response = await fetch("/api/admin/translate-place", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ fields }),
+      });
+      const body = (await response.json()) as { translations?: Partial<AdminTranslationFields>; message?: string };
+
+      if (!response.ok) {
+        throw new Error(body.message ?? "AI 번역에 실패했습니다.");
+      }
+
+      const { nextForm, filledCount } = applyTranslationsToForm(form, body.translations ?? {});
+      setForm(nextForm);
+      setStatus(filledCount > 0 ? `AI 번역으로 빈칸 ${filledCount}개를 채웠습니다.` : "이미 입력된 값은 유지했습니다. 채울 빈칸이 없습니다.");
+    } catch (translationError) {
+      setStatus(translationError instanceof Error ? translationError.message : "AI 번역 중 오류가 발생했습니다.");
+    } finally {
+      setTranslating(false);
     }
   }
 
@@ -774,6 +878,15 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             >
               <RotateCcw size={17} aria-hidden="true" />
               중국 특화 확인 필요
+            </button>
+            <button
+              type="button"
+              onClick={() => void translateTextFields()}
+              disabled={translating || saving}
+              className="inline-flex items-center gap-2 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Languages size={17} aria-hidden="true" />
+              {translating ? "번역 중" : "AI 번역 채우기"}
             </button>
             <button
               type="button"

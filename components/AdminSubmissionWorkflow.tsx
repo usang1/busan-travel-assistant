@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ExternalLink, Plus, RefreshCw, Send, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, Languages, Plus, RefreshCw, Send, XCircle } from "lucide-react";
 import { parseMapUrl } from "@/lib/map-url";
 import { categoryLabels, placeCategories, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type SubmissionStatus } from "@/types/database";
 
@@ -55,6 +55,25 @@ type PublishForm = {
   chinese_menu: boolean;
   card_payment: boolean;
   is_active: boolean;
+};
+
+type AdminTranslationFields = {
+  name_ko: string;
+  name_zh: string;
+  name_en: string;
+  short_description_ko: string;
+  short_description_zh: string;
+  short_description_en: string;
+  description_ko: string;
+  description_zh: string;
+  description_en: string;
+  tips_ko: string;
+  tips_zh: string;
+  tips_en: string;
+  recommended_order_ko: string;
+  recommended_order_zh: string;
+  address_ko: string;
+  address_zh: string;
 };
 
 const defaultImage = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
@@ -199,6 +218,55 @@ function buildPayload(form: PublishForm): PlacePayload {
   };
 }
 
+function buildTranslationFieldsFromPublishForm(form: PublishForm): AdminTranslationFields {
+  return {
+    name_ko: form.name_ko,
+    name_zh: form.name_zh,
+    name_en: form.name_en,
+    short_description_ko: form.description_ko,
+    short_description_zh: form.description_zh,
+    short_description_en: form.description_en,
+    description_ko: form.description_ko,
+    description_zh: form.description_zh,
+    description_en: form.description_en,
+    tips_ko: form.tips_ko,
+    tips_zh: form.tips_zh,
+    tips_en: form.tips_en,
+    recommended_order_ko: "",
+    recommended_order_zh: "",
+    address_ko: form.address_ko,
+    address_zh: form.address_zh,
+  };
+}
+
+function applyTranslationsToPublishForm(form: PublishForm, translations: Partial<AdminTranslationFields>) {
+  let filledCount = 0;
+  const fill = (current: string, translated?: string) => {
+    if (current.trim() || !translated?.trim()) {
+      return current;
+    }
+
+    filledCount += 1;
+    return translated.trim();
+  };
+  const nextForm: PublishForm = {
+    ...form,
+    name_ko: fill(form.name_ko, translations.name_ko),
+    name_zh: fill(form.name_zh, translations.name_zh),
+    name_en: fill(form.name_en, translations.name_en),
+    description_ko: fill(form.description_ko, translations.description_ko || translations.short_description_ko),
+    description_zh: fill(form.description_zh, translations.description_zh || translations.short_description_zh),
+    description_en: fill(form.description_en, translations.description_en || translations.short_description_en),
+    tips_ko: fill(form.tips_ko, translations.tips_ko),
+    tips_zh: fill(form.tips_zh, translations.tips_zh),
+    tips_en: fill(form.tips_en, translations.tips_en),
+    address_ko: fill(form.address_ko, translations.address_ko),
+    address_zh: fill(form.address_zh, translations.address_zh),
+  };
+
+  return { nextForm, filledCount };
+}
+
 export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSubmissionWorkflowProps) {
   const [submissions, setSubmissions] = useState<PlaceSubmissionRecord[]>([]);
   const [activeStatus, setActiveStatus] = useState<SubmissionStatus>("pending");
@@ -207,6 +275,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [translating, setTranslating] = useState(false);
 
   const visibleSubmissions = useMemo(
     () => submissions.filter((submission) => submission.status === activeStatus),
@@ -345,6 +414,38 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       setStatus(error instanceof Error ? error.message : "지도 링크 분석 중 오류가 발생했습니다.");
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function translateTextFields() {
+    const fields = buildTranslationFieldsFromPublishForm(form);
+
+    if (!Object.values(fields).some((value) => value.trim())) {
+      setStatus("번역할 한국어/중국어/영어 텍스트를 먼저 입력해 주세요.");
+      return;
+    }
+
+    setTranslating(true);
+    setStatus("OpenAI API로 비어 있는 번역 칸을 채우는 중입니다.");
+
+    try {
+      const response = await adminFetch("/api/admin/translate-place", {
+        method: "POST",
+        body: JSON.stringify({ fields }),
+      });
+      const body = (await response.json()) as { translations?: Partial<AdminTranslationFields>; message?: string };
+
+      if (!response.ok) {
+        throw new Error(body.message ?? "AI 번역에 실패했습니다.");
+      }
+
+      const { nextForm, filledCount } = applyTranslationsToPublishForm(form, body.translations ?? {});
+      setForm(nextForm);
+      setStatus(filledCount > 0 ? `AI 번역으로 빈칸 ${filledCount}개를 채웠습니다.` : "이미 입력된 값은 유지했습니다. 채울 빈칸이 없습니다.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "AI 번역 중 오류가 발생했습니다.");
+    } finally {
+      setTranslating(false);
     }
   }
 
@@ -511,6 +612,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             onParseSourceUrl={() => void parseSourceUrl()}
             onPublish={() => void publishPlace()}
             analyzing={analyzing}
+            translating={translating}
+            onTranslate={() => void translateTextFields()}
           />
         </div>
       </div>
@@ -526,6 +629,8 @@ function PublishFormView({
   onParseSourceUrl,
   onPublish,
   analyzing,
+  translating,
+  onTranslate,
 }: {
   form: PublishForm;
   saving: boolean;
@@ -534,15 +639,23 @@ function PublishFormView({
   onParseSourceUrl: () => void;
   onPublish: () => void;
   analyzing: boolean;
+  translating: boolean;
+  onTranslate: () => void;
 }) {
   return (
     <section className="rounded-[24px] bg-white p-4 ring-1 ring-slate-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-black text-slate-950">{selected ? "제보 기반 최종 장소 등록" : "관리자 직접 장소 등록"}</h3>
-        <button type="button" onClick={onPublish} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white disabled:opacity-60">
-          <Send size={16} aria-hidden="true" />
-          {saving ? "저장 중" : "장소 등록"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={onTranslate} disabled={translating || saving} className="inline-flex h-10 items-center gap-2 rounded-full bg-blue-50 px-4 text-sm font-black text-blue-800 ring-1 ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60">
+            <Languages size={16} aria-hidden="true" />
+            {translating ? "번역 중" : "AI 번역"}
+          </button>
+          <button type="button" onClick={onPublish} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white disabled:opacity-60">
+            <Send size={16} aria-hidden="true" />
+            {saving ? "저장 중" : "장소 등록"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">

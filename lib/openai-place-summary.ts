@@ -7,6 +7,25 @@ export type PlaceSummaryDraft = {
   tips_ko: string;
 };
 
+export type AdminTranslationFields = {
+  name_ko: string;
+  name_zh: string;
+  name_en: string;
+  short_description_ko: string;
+  short_description_zh: string;
+  short_description_en: string;
+  description_ko: string;
+  description_zh: string;
+  description_en: string;
+  tips_ko: string;
+  tips_zh: string;
+  tips_en: string;
+  recommended_order_ko: string;
+  recommended_order_zh: string;
+  address_ko: string;
+  address_zh: string;
+};
+
 type OpenAIResponse = {
   output_text?: unknown;
   output?: unknown;
@@ -17,6 +36,24 @@ type OpenAIResponse = {
 
 const openAiApiKey = process.env.OPENAI_API_KEY;
 const openAiModel = process.env.OPENAI_SUMMARY_MODEL || "gpt-5-mini";
+const translationFieldKeys = [
+  "name_ko",
+  "name_zh",
+  "name_en",
+  "short_description_ko",
+  "short_description_zh",
+  "short_description_en",
+  "description_ko",
+  "description_zh",
+  "description_en",
+  "tips_ko",
+  "tips_zh",
+  "tips_en",
+  "recommended_order_ko",
+  "recommended_order_zh",
+  "address_ko",
+  "address_zh",
+] as const;
 
 export function canGeneratePlaceSummary() {
   return Boolean(openAiApiKey);
@@ -77,6 +114,56 @@ export async function generatePlaceSummaryDraft(analysis: MapLinkAnalysisResult)
   return parsePlaceSummaryDraft(body);
 }
 
+export async function generateAdminPlaceTranslations(fields: Partial<AdminTranslationFields>): Promise<AdminTranslationFields | null> {
+  if (!openAiApiKey) {
+    return null;
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${openAiApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: openAiModel,
+      input: [
+        {
+          role: "system",
+          content:
+            "You translate admin place fields for a Busan travel app. Preserve proper nouns, do not add facts, and return valid JSON only.",
+        },
+        {
+          role: "user",
+          content: buildAdminTranslationPrompt(fields),
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "admin_place_translations",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: Object.fromEntries(translationFieldKeys.map((key) => [key, { type: "string" }])),
+            required: [...translationFieldKeys],
+          },
+        },
+      },
+      max_output_tokens: 1800,
+    }),
+  });
+
+  const body = (await response.json().catch(() => ({}))) as OpenAIResponse;
+
+  if (!response.ok) {
+    throw new Error(body.error?.message || "OpenAI 번역에 실패했습니다.");
+  }
+
+  return parseAdminTranslationFields(body);
+}
+
 export function buildPlaceSummaryPrompt(analysis: MapLinkAnalysisResult) {
   const facts = [
     `지도 provider: ${analysis.provider}`,
@@ -106,6 +193,27 @@ export function buildPlaceSummaryPrompt(analysis: MapLinkAnalysisResult) {
   ].join("\n");
 }
 
+export function buildAdminTranslationPrompt(fields: Partial<AdminTranslationFields>) {
+  const normalized = Object.fromEntries(translationFieldKeys.map((key) => [key, sanitizeText(fields[key])]));
+
+  return [
+    "아래 관리자 입력값을 바탕으로 한국어/중국어 간체/영어 필드를 번역해라.",
+    "같은 의미의 sibling field가 비어 있으면 채우고, 이미 값이 있는 필드도 같은 의미로 정리해서 반환해라.",
+    "제공되지 않은 사실을 추가하지 말고, 장소명/주소 같은 고유명사는 자연스럽게 보존해라.",
+    "일본어는 만들지 않는다.",
+    "",
+    JSON.stringify(normalized, null, 2),
+    "",
+    "필드 규칙:",
+    "- name_*: 장소명만 번역 또는 음역. 홍보 문구 추가 금지.",
+    "- short_description_* / description_*: 같은 의미의 짧은 설명.",
+    "- tips_*: 같은 의미의 여행 팁.",
+    "- recommended_order_*: 추천 주문 문장. 근거가 없으면 빈 문자열.",
+    "- address_*: 주소. 번역이 불확실하면 원문 지명은 유지.",
+    "- 어떤 그룹에도 원문이 없으면 해당 그룹의 모든 target은 빈 문자열.",
+  ].join("\n");
+}
+
 function parsePlaceSummaryDraft(response: OpenAIResponse): PlaceSummaryDraft {
   const directText = typeof response.output_text === "string" ? response.output_text : "";
   const text = directText || findOutputText(response.output);
@@ -122,6 +230,23 @@ function parsePlaceSummaryDraft(response: OpenAIResponse): PlaceSummaryDraft {
     tips_zh: sanitizeText(parsed.tips_zh),
     tips_ko: sanitizeText(parsed.tips_ko),
   };
+}
+
+function parseAdminTranslationFields(response: OpenAIResponse): AdminTranslationFields {
+  const parsed = JSON.parse(extractResponseText(response)) as Partial<AdminTranslationFields>;
+
+  return Object.fromEntries(translationFieldKeys.map((key) => [key, sanitizeText(parsed[key])])) as AdminTranslationFields;
+}
+
+function extractResponseText(response: OpenAIResponse) {
+  const directText = typeof response.output_text === "string" ? response.output_text : "";
+  const text = directText || findOutputText(response.output);
+
+  if (!text) {
+    throw new Error("OpenAI 응답에서 텍스트를 찾지 못했습니다.");
+  }
+
+  return text;
 }
 
 function findOutputText(output: unknown): string {

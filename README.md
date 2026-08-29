@@ -54,7 +54,7 @@ OPENAI_API_KEY=
 
 관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
 
-관리자 지도 링크 분석은 서버에서 `OPENAI_API_KEY`가 있을 때 OpenAI Responses API로 중국어/한국어 설명 초안을 생성합니다. 키가 없으면 장소명, 좌표, 지도 장소 ID만 분석하고 설명란은 비워 둡니다.
+관리자 지도 링크 분석은 서버에서 `OPENAI_API_KEY`가 있을 때 OpenAI Responses API로 중국어/한국어 설명 초안을 생성합니다. 키가 없으면 장소명, 좌표, 지도 장소 ID만 분석하고 설명란은 비워 둡니다. 관리자 `AI 번역` 버튼도 같은 키를 사용해 한국어/중국어/영어 이름, 설명, 여행 팁, 주소 입력란의 빈칸을 채웁니다.
 
 ## Supabase 설정
 
@@ -136,11 +136,12 @@ npm run build
 3. 장소 추가/수정 폼에서 기본정보, 위치, 가격, 운영시간, 시설, 중국인 관광객용 안내, 추천 주문, 사진 URL, 메뉴를 입력합니다.
 4. 제보 기반 등록에서는 네이버 지도 링크를 넣고 `분석`을 누르면 장소명, 좌표, 지도 장소 ID를 채웁니다. `OPENAI_API_KEY`가 있으면 중국어/한국어 설명 초안과 여행 팁도 비어 있는 입력란에 채웁니다.
 5. 직접 등록 화면에서는 한국어 주소를 입력한 뒤 `주소로 좌표 찾기`를 누르면 네이버 주소 검색 결과의 위도/경도가 자동 입력됩니다. 결과가 애매하면 위도/경도를 직접 보정할 수 있습니다.
-6. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
-7. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
-8. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
-9. 활성/비활성, 추천 장소 여부를 설정합니다.
-10. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
+6. `AI 번역` 또는 `AI 번역 채우기`를 누르면 한국어/중국어/영어 관련 빈 입력란만 자동 번역합니다. 이미 입력된 값은 덮어쓰지 않습니다.
+7. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
+8. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
+9. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
+10. 활성/비활성, 추천 장소 여부를 설정합니다.
+11. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
 
 Supabase 환경 변수가 없으면 관리자 CRUD는 브라우저 localStorage 기반 Demo 모드로 동작합니다.
 

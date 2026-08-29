@@ -163,7 +163,7 @@ const mapUrl = loadTsModule("lib/map-url.ts");
 const { analyzeMapLink } = loadTsModule("lib/map-link-analysis.ts", {
   "@/lib/map-url": mapUrl,
 });
-const { buildPlaceSummaryPrompt } = loadTsModule("lib/openai-place-summary.ts");
+const { buildAdminTranslationPrompt, buildPlaceSummaryPrompt } = loadTsModule("lib/openai-place-summary.ts");
 
 const naverLinkAnalysis = analyzeMapLink("https://naver.me/x9VaDLM8", [
   "https://map.naver.com/?pinId=1435915485&appMenu=location&app=Y&menu=location&lat=35.1671242&title=%EC%A7%84%EC%86%A1%EC%88%AF%EB%B6%88%20%EC%88%98%EC%98%81%EC%A0%90&pinType=site&lng=129.1170388&version=2",
@@ -177,6 +177,15 @@ assert.equal(naverLinkAnalysis.externalId, "1435915485");
 const summaryPrompt = buildPlaceSummaryPrompt(naverLinkAnalysis);
 assert.match(summaryPrompt, /진송숯불 수영점/);
 assert.match(summaryPrompt, /맛, 가격, 영업시간, 웨이팅, 결제, 메뉴, 리뷰 수는 제공되지 않으면 쓰지 말 것/);
+const translationPrompt = buildAdminTranslationPrompt({
+  name_ko: "진송숯불 수영점",
+  name_zh: "",
+  name_en: "",
+  description_ko: "수영역 근처 숯불구이 식당",
+});
+assert.match(translationPrompt, /한국어\/중국어 간체\/영어/);
+assert.match(translationPrompt, /일본어는 만들지 않는다/);
+assert.match(translationPrompt, /진송숯불 수영점/);
 
 const {
   filterPlacesForChineseTraveler,
