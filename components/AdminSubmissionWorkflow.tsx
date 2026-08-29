@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, Languages, Plus, RefreshCw, Send, XCircle } from "lucide-react";
+import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { parseMapUrl } from "@/lib/map-url";
-import { categoryLabels, placeCategories, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type SubmissionStatus } from "@/types/database";
+import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
+import { categoryLabels, placeCategories, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type SubmissionStatus } from "@/types/database";
 
 type AdminSubmissionWorkflowProps = {
   accessToken: string;
@@ -104,6 +106,14 @@ function nullableNumber(value: string) {
 
   const number = Number(trimmed);
   return Number.isFinite(number) ? number : null;
+}
+
+function hasCoordinateInput(form: Pick<PublishForm, "latitude" | "longitude">) {
+  return nullableNumber(form.latitude) !== null && nullableNumber(form.longitude) !== null;
+}
+
+function geocodeQueryFromPublishForm(form: Pick<PublishForm, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
+  return [form.address_ko, form.address_zh, form.name_ko, form.name_zh].find((value) => value.trim())?.trim() ?? "";
 }
 
 function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
@@ -275,6 +285,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
   const [translating, setTranslating] = useState(false);
 
   const visibleSubmissions = useMemo(
@@ -324,6 +335,60 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
   function updateField<Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function resolveCoordinatesForPublishForm(currentForm: PublishForm) {
+    const address = geocodeQueryFromPublishForm(currentForm);
+
+    if (!address || !canUseNaverGeocoder()) {
+      return currentForm;
+    }
+
+    const [result] = await geocodeKoreanAddress(address);
+
+    if (!result) {
+      return currentForm;
+    }
+
+    return {
+      ...currentForm,
+      latitude: result.latitude.toFixed(7),
+      longitude: result.longitude.toFixed(7),
+      address_ko: currentForm.address_ko || result.roadAddress || result.jibunAddress || result.address,
+    };
+  }
+
+  async function fillCoordinatesFromAddress() {
+    const address = geocodeQueryFromPublishForm(form);
+
+    if (!address) {
+      setStatus("좌표를 찾으려면 주소 또는 장소명을 먼저 입력해 주세요.");
+      return;
+    }
+
+    if (!canUseNaverGeocoder()) {
+      setStatus("네이버 지도 키가 없어 주소 자동 변환을 사용할 수 없습니다.");
+      return;
+    }
+
+    setGeocoding(true);
+    setStatus("네이버 지도에서 주소 좌표를 찾는 중입니다.");
+
+    try {
+      const nextForm = await resolveCoordinatesForPublishForm(form);
+
+      if (!hasCoordinateInput(nextForm)) {
+        setStatus("주소 검색 결과가 없습니다.");
+        return;
+      }
+
+      setForm(nextForm);
+      setStatus(`좌표를 입력했습니다: ${nextForm.latitude}, ${nextForm.longitude}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "주소 좌표 변환에 실패했습니다.");
+    } finally {
+      setGeocoding(false);
+    }
   }
 
   async function parseSourceUrl() {
@@ -479,9 +544,15 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   }
 
   async function publishPlace() {
-    const payload = buildPayload(form);
+    let formToPublish = form;
 
-    if (!payload.slug || !payload.name_zh || !payload.name_ko || !payload.short_description_zh || !payload.short_description_ko) {
+    if (
+      !(formToPublish.slug || slugify(formToPublish.name_ko || formToPublish.name_zh)) ||
+      !formToPublish.name_zh ||
+      !formToPublish.name_ko ||
+      !formToPublish.description_zh ||
+      !formToPublish.description_ko
+    ) {
       setStatus("slug, 중국어/한국어 이름과 설명은 필수입니다.");
       return;
     }
@@ -490,6 +561,21 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     setStatus("");
 
     try {
+      if (!hasCoordinateInput(formToPublish) && geocodeQueryFromPublishForm(formToPublish) && canUseNaverGeocoder()) {
+        setGeocoding(true);
+        setStatus("좌표가 비어 있어 주소로 자동 검색하는 중입니다.");
+
+        try {
+          formToPublish = await resolveCoordinatesForPublishForm(formToPublish);
+          setForm(formToPublish);
+        } catch (error) {
+          setStatus(error instanceof Error ? `좌표 자동 변환 실패: ${error.message}` : "좌표 자동 변환에 실패했습니다.");
+        } finally {
+          setGeocoding(false);
+        }
+      }
+
+      const payload = buildPayload(formToPublish);
       const endpoint = selected ? `/api/admin/submissions/${selected.id}/approve` : "/api/admin/places";
       const response = await adminFetch(endpoint, {
         method: "POST",
@@ -501,12 +587,15 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         throw new Error(body.message ?? "장소 등록 실패");
       }
 
+      const body = (await response.json()) as { place?: PlaceWithRelations };
       await loadSubmissions();
       await onPlaceCreated();
-      setStatus(selected ? "장소 등록과 제보 승인이 완료되었습니다." : "장소를 직접 등록했습니다.");
+      const visibilityNotice = body.place ? ` ${buildAdminPlaceVisibilityNotice(body.place)}` : "";
+      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${visibilityNotice}` : `장소를 직접 등록했습니다.${visibilityNotice}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "장소 등록 중 오류가 발생했습니다.");
     } finally {
+      setGeocoding(false);
       setSaving(false);
     }
   }
@@ -612,7 +701,9 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             onParseSourceUrl={() => void parseSourceUrl()}
             onPublish={() => void publishPlace()}
             analyzing={analyzing}
+            geocoding={geocoding}
             translating={translating}
+            onGeocode={() => void fillCoordinatesFromAddress()}
             onTranslate={() => void translateTextFields()}
           />
         </div>
@@ -629,7 +720,9 @@ function PublishFormView({
   onParseSourceUrl,
   onPublish,
   analyzing,
+  geocoding,
   translating,
+  onGeocode,
   onTranslate,
 }: {
   form: PublishForm;
@@ -639,7 +732,9 @@ function PublishFormView({
   onParseSourceUrl: () => void;
   onPublish: () => void;
   analyzing: boolean;
+  geocoding: boolean;
   translating: boolean;
+  onGeocode: () => void;
   onTranslate: () => void;
 }) {
   return (
@@ -651,9 +746,9 @@ function PublishFormView({
             <Languages size={16} aria-hidden="true" />
             {translating ? "번역 중" : "AI 번역"}
           </button>
-          <button type="button" onClick={onPublish} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white disabled:opacity-60">
+          <button type="button" onClick={onPublish} disabled={saving || geocoding} className="inline-flex h-10 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white disabled:opacity-60">
             <Send size={16} aria-hidden="true" />
-            {saving ? "저장 중" : "장소 등록"}
+            {saving ? "저장 중" : geocoding ? "좌표 검색 중" : "장소 등록"}
           </button>
         </div>
       </div>
@@ -691,6 +786,22 @@ function PublishFormView({
         <Field label="일본어 설명"><textarea value={form.description_ja} onChange={(event) => onFieldChange("description_ja", event.target.value)} className={textareaClass} /></Field>
         <Field label="한국어 주소"><input value={form.address_ko} onChange={(event) => onFieldChange("address_ko", event.target.value)} className={inputClass} /></Field>
         <Field label="중국어 주소"><input value={form.address_zh} onChange={(event) => onFieldChange("address_zh", event.target.value)} className={inputClass} /></Field>
+        <div className="rounded-2xl bg-teal-50 p-3 md:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-teal-950">주소 자동 좌표 변환</p>
+              <p className="mt-1 text-xs font-semibold text-teal-700">좌표가 없으면 지도에 핀이 표시되지 않습니다. 저장 전에도 자동으로 한 번 검색합니다.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onGeocode}
+              disabled={geocoding || saving}
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {geocoding ? "검색 중" : "주소로 좌표 찾기"}
+            </button>
+          </div>
+        </div>
         <Field label="Latitude"><input value={form.latitude} onChange={(event) => onFieldChange("latitude", event.target.value)} inputMode="decimal" className={inputClass} /></Field>
         <Field label="Longitude"><input value={form.longitude} onChange={(event) => onFieldChange("longitude", event.target.value)} inputMode="decimal" className={inputClass} /></Field>
         <Field label="전화"><input value={form.phone} onChange={(event) => onFieldChange("phone", event.target.value)} className={inputClass} /></Field>

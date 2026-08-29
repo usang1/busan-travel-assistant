@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Check, Eye, Languages, Pencil, Plus, RotateCcw, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
+import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import {
   buildChinaPlaceSummary,
   ratingHelp,
@@ -329,6 +330,14 @@ function nullableNumber(value: string) {
   return Number.isFinite(number) ? number : null;
 }
 
+function hasCoordinateInput(form: Pick<FormState, "latitude" | "longitude">) {
+  return nullableNumber(form.latitude) !== null && nullableNumber(form.longitude) !== null;
+}
+
+function geocodeQueryFromForm(form: Pick<FormState, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
+  return [form.address_ko, form.address_zh, form.name_ko, form.name_zh].find((value) => value.trim())?.trim() ?? "";
+}
+
 function nullableInteger(value: string) {
   const number = nullableNumber(value);
   return number === null ? null : Math.max(0, Math.round(number));
@@ -622,8 +631,29 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setStatus("중국인 특화 구조화 정보를 모두 확인 필요 상태로 되돌렸습니다.");
   }
 
+  async function resolveCoordinatesForForm(currentForm: FormState) {
+    const address = geocodeQueryFromForm(currentForm);
+
+    if (!address || !canUseNaverGeocoder()) {
+      return currentForm;
+    }
+
+    const [result] = await geocodeKoreanAddress(address);
+
+    if (!result) {
+      return currentForm;
+    }
+
+    return {
+      ...currentForm,
+      latitude: result.latitude.toFixed(7),
+      longitude: result.longitude.toFixed(7),
+      address_ko: currentForm.address_ko || result.roadAddress || result.jibunAddress || result.address,
+    };
+  }
+
   async function fillCoordinatesFromAddress() {
-    const address = [form.address_ko, form.address_zh, form.name_ko, form.name_zh].find((value) => value.trim())?.trim();
+    const address = geocodeQueryFromForm(form);
 
     if (!address) {
       setStatus("좌표를 찾으려면 주소 또는 장소명을 먼저 입력해 주세요.");
@@ -639,20 +669,15 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setStatus("네이버 지도에서 주소 좌표를 찾는 중입니다.");
 
     try {
-      const [result] = await geocodeKoreanAddress(address);
+      const nextForm = await resolveCoordinatesForForm(form);
 
-      if (!result) {
+      if (!hasCoordinateInput(nextForm)) {
         setStatus("주소 검색 결과가 없습니다.");
         return;
       }
 
-      setForm((current) => ({
-        ...current,
-        latitude: result.latitude.toFixed(7),
-        longitude: result.longitude.toFixed(7),
-        address_ko: current.address_ko || result.roadAddress || result.jibunAddress || result.address,
-      }));
-      setStatus(`좌표를 입력했습니다: ${result.latitude.toFixed(7)}, ${result.longitude.toFixed(7)}`);
+      setForm(nextForm);
+      setStatus(`좌표를 입력했습니다: ${nextForm.latitude}, ${nextForm.longitude}`);
     } catch (geocodeError) {
       setStatus(geocodeError instanceof Error ? geocodeError.message : "주소 좌표 변환에 실패했습니다.");
     } finally {
@@ -694,9 +719,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   async function savePlace(nextForm = form) {
-    const payload = toPayload(nextForm);
+    let formToSave = nextForm;
 
-    if (!payload.name_zh || !payload.name_ko || !payload.slug) {
+    if (!formToSave.name_zh || !formToSave.name_ko || !(formToSave.slug || slugify(formToSave.name_ko || formToSave.name_zh))) {
       setStatus("중국어 이름, 한국어 이름, slug는 필수입니다.");
       return;
     }
@@ -705,6 +730,22 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setStatus("");
 
     try {
+      if (!hasCoordinateInput(formToSave) && geocodeQueryFromForm(formToSave) && canUseNaverGeocoder()) {
+        setGeocoding(true);
+        setStatus("좌표가 비어 있어 주소로 자동 검색하는 중입니다.");
+
+        try {
+          formToSave = await resolveCoordinatesForForm(formToSave);
+          setForm(formToSave);
+        } catch (geocodeError) {
+          setStatus(geocodeError instanceof Error ? `좌표 자동 변환 실패: ${geocodeError.message}` : "좌표 자동 변환에 실패했습니다.");
+        } finally {
+          setGeocoding(false);
+        }
+      }
+
+      const payload = toPayload(formToSave);
+
       if (!supabaseConfigured) {
         const localPlace = localPlaceFromPayload(payload, nextForm.id);
         const nextPlaces = nextForm.id
@@ -712,12 +753,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           : [localPlace, ...places];
         persistLocal(nextPlaces);
         setForm(toForm(localPlace));
-        setStatus("Supabase 미설정 상태라 브라우저 demo 저장소에 저장했습니다.");
+        setStatus(`Supabase 미설정 상태라 브라우저 demo 저장소에 저장했습니다. ${buildAdminPlaceVisibilityNotice(localPlace)}`);
         return;
       }
 
-      const response = await fetch(nextForm.id ? `/api/admin/places/${nextForm.id}` : "/api/admin/places", {
-        method: nextForm.id ? "PUT" : "POST",
+      const response = await fetch(formToSave.id ? `/api/admin/places/${formToSave.id}` : "/api/admin/places", {
+        method: formToSave.id ? "PUT" : "POST",
         headers: adminHeaders(),
         body: JSON.stringify(payload),
       });
@@ -730,13 +771,14 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       const body = (await response.json()) as { place: PlaceWithRelations };
       const savedPlace = body.place;
       setPlaces((current) =>
-        nextForm.id ? current.map((place) => (place.id === savedPlace.id ? savedPlace : place)) : [savedPlace, ...current],
+        formToSave.id ? current.map((place) => (place.id === savedPlace.id ? savedPlace : place)) : [savedPlace, ...current],
       );
       setForm(toForm(savedPlace));
-      setStatus("저장했습니다. 중국인 특화 구조화 정보도 함께 반영됩니다.");
+      setStatus(`저장했습니다. 중국인 특화 구조화 정보도 함께 반영됩니다. ${buildAdminPlaceVisibilityNotice(savedPlace)}`);
     } catch (saveError) {
       setStatus(saveError instanceof Error ? saveError.message : "저장 중 오류가 발생했습니다.");
     } finally {
+      setGeocoding(false);
       setSaving(false);
     }
   }
@@ -891,11 +933,11 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             <button
               type="button"
               onClick={() => void savePlace()}
-              disabled={saving}
+              disabled={saving || geocoding}
               className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Save size={17} aria-hidden="true" />
-              {saving ? "저장 중" : "저장"}
+              {saving ? "저장 중" : geocoding ? "좌표 검색 중" : "저장"}
             </button>
           </div>
         </div>
