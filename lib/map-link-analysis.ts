@@ -1,163 +1,78 @@
-import { parseMapUrl, type MapProvider } from "@/lib/map-url";
+import { parseMapUrl, type CoordinateConfidence, type CoordinateSource, type MapProvider, type ParsedMapUrl } from "@/lib/map-url";
+import type { PlaceSourceProvider } from "@/types/database";
 
 export type MapLinkAnalysisResult = {
   provider: MapProvider;
+  sourceProvider: PlaceSourceProvider;
   normalizedUrl: string;
+  originalUrl: string;
   resolvedUrl?: string;
   title?: string;
   latitude?: number;
   longitude?: number;
+  placeId?: string;
   externalId?: string;
+  coordinateSource: CoordinateSource;
+  confidence: CoordinateConfidence;
+  failureReason?: string;
 };
 
 export function analyzeMapLink(input: string, resolvedUrls: string[] = []): MapLinkAnalysisResult {
-  const parsed = parseMapUrl(input);
-  const urls = [parsed.normalizedUrl, ...resolvedUrls].filter(Boolean);
-  const result: MapLinkAnalysisResult = {
-    provider: parsed.provider,
-    normalizedUrl: parsed.normalizedUrl,
+  const parsedUrls = [parseMapUrl(input), ...resolvedUrls.map((url) => parseMapUrl(url))];
+  const primary = parsedUrls[0];
+  const providerFacts = selectProviderFacts(parsedUrls);
+  const coordinates = resolveCoordinates(parsedUrls);
+
+  return {
+    provider: providerFacts.provider,
+    sourceProvider: providerFacts.sourceProvider,
+    normalizedUrl: primary.normalizedUrl,
+    originalUrl: input,
     resolvedUrl: resolvedUrls.at(-1),
+    title: firstText(parsedUrls.map((parsed) => parsed.title)),
+    latitude: coordinates?.latitude,
+    longitude: coordinates?.longitude,
+    placeId: providerFacts.placeId,
+    externalId: providerFacts.placeId,
+    coordinateSource: coordinates?.coordinateSource ?? "none",
+    confidence: coordinates?.confidence ?? providerFacts.confidence,
+    failureReason: coordinates ? undefined : providerFacts.failureReason ?? "no_coordinates",
   };
-
-  for (const urlValue of urls) {
-    applyUrlFacts(result, urlValue);
-  }
-
-  return result;
 }
 
-function applyUrlFacts(result: MapLinkAnalysisResult, urlValue: string) {
-  let url: URL;
+export function resolveCoordinates(parsedUrls: ParsedMapUrl[]) {
+  const candidates = parsedUrls.filter(
+    (parsed): parsed is ParsedMapUrl & { latitude: number; longitude: number } =>
+      typeof parsed.latitude === "number" && typeof parsed.longitude === "number",
+  );
 
-  try {
-    url = new URL(urlValue);
-  } catch {
-    return;
-  }
-
-  const provider = parseMapUrl(url.toString()).provider;
-  if (provider !== "MANUAL") {
-    result.provider = provider;
-  }
-
-  const coordinates = coordinatesFromUrl(url);
-
-  if (coordinates) {
-    result.latitude = coordinates.latitude;
-    result.longitude = coordinates.longitude;
-  }
-
-  const title = textParam(url, ["title", "name", "placeName", "query"]);
-  if (title) {
-    result.title = title;
-  }
-
-  const pinId = textParam(url, ["pinId", "placeId"]);
-  if (pinId) {
-    result.externalId = pinId;
-  }
-
-  const naverPlaceId = url.pathname.match(/\/(?:entry\/place|place)\/(\d+)/)?.[1];
-  if (naverPlaceId) {
-    result.externalId = naverPlaceId;
-  }
-}
-
-function coordinatesFromUrl(url: URL) {
-  const directLat = numberParam(url, ["lat", "latitude", "y"]);
-  const directLng = numberParam(url, ["lng", "lon", "longitude", "x"]);
-
-  if (directLat !== null && directLng !== null) {
-    return normalizeCoordinatePair(directLat, directLng);
-  }
-
-  for (const name of ["query", "q", "ll", "center", "destination", "daddr", "saddr"]) {
-    const pair = coordinatesFromText(url.searchParams.get(name) ?? "");
-
-    if (pair) {
-      return pair;
-    }
-  }
-
-  const naverCenter = coordinatesFromText(url.searchParams.get("c") ?? "", "lngLat");
-
-  if (naverCenter) {
-    return naverCenter;
-  }
-
-  return coordinatesFromText(decodeURIComponent(url.toString()));
-}
-
-function coordinatesFromText(value: string, preferredOrder: "auto" | "latLng" | "lngLat" = "auto") {
-  const text = value.trim();
-
-  if (!text) {
+  if (candidates.length === 0) {
     return null;
   }
 
-  const bangPair = text.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
-  if (bangPair) {
-    return normalizeCoordinatePair(Number(bangPair[1]), Number(bangPair[2]), "latLng");
-  }
-
-  const atPair = text.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
-  if (atPair) {
-    return normalizeCoordinatePair(Number(atPair[1]), Number(atPair[2]), "latLng");
-  }
-
-  const plainPair = text.match(/(?:^|[=:/?&,\s])(-?\d{1,3}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)(?:$|[,&/\s])/);
-  if (plainPair) {
-    return normalizeCoordinatePair(Number(plainPair[1]), Number(plainPair[2]), preferredOrder);
-  }
-
-  return null;
+  return [...candidates].sort((a, b) => confidenceScore(b.confidence) - confidenceScore(a.confidence))[0];
 }
 
-function normalizeCoordinatePair(first: number, second: number, preferredOrder: "auto" | "latLng" | "lngLat" = "auto") {
-  if (preferredOrder === "lngLat") {
-    return validCoordinates(second, first) ? { latitude: second, longitude: first } : null;
-  }
+function selectProviderFacts(parsedUrls: ParsedMapUrl[]) {
+  const parsed = parsedUrls.find((item) => item.provider !== "unknown") ?? parsedUrls[0];
+  const placeId = firstText(parsedUrls.map((item) => item.placeId));
 
-  if (preferredOrder === "latLng") {
-    return validCoordinates(first, second) ? { latitude: first, longitude: second } : null;
-  }
-
-  if (validCoordinates(first, second) && Math.abs(first) <= 90 && Math.abs(second) > 90) {
-    return { latitude: first, longitude: second };
-  }
-
-  if (validCoordinates(second, first) && Math.abs(first) > 90 && Math.abs(second) <= 90) {
-    return { latitude: second, longitude: first };
-  }
-
-  return validCoordinates(first, second) ? { latitude: first, longitude: second } : null;
+  return {
+    provider: parsed.provider,
+    sourceProvider: parsed.sourceProvider,
+    placeId,
+    confidence: placeId ? "medium" as const : parsed.confidence,
+    failureReason: parsed.failureReason,
+  };
 }
 
-function validCoordinates(latitude: number, longitude: number) {
-  return Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
+function confidenceScore(confidence: CoordinateConfidence) {
+  if (confidence === "high") return 3;
+  if (confidence === "medium") return 2;
+  if (confidence === "low") return 1;
+  return 0;
 }
 
-function numberParam(url: URL, names: string[]) {
-  for (const name of names) {
-    const value = url.searchParams.get(name);
-    const number = value ? Number(value) : Number.NaN;
-
-    if (Number.isFinite(number)) {
-      return number;
-    }
-  }
-
-  return null;
-}
-
-function textParam(url: URL, names: string[]) {
-  for (const name of names) {
-    const value = url.searchParams.get(name)?.trim();
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return "";
+function firstText(values: Array<string | undefined>) {
+  return values.find((value) => value?.trim())?.trim();
 }

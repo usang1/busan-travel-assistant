@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
 import { resolveMapUrl } from "@/lib/map-url-resolver";
-import { canGeneratePlaceSummary, generatePlaceSummaryDraft } from "@/lib/openai-place-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -16,25 +15,8 @@ export async function POST(request: Request) {
     }
 
     const resolution = await resolveMapUrl(inputUrl);
-    const analysis = resolution.analysis;
-    let summary: Awaited<ReturnType<typeof generatePlaceSummaryDraft>> = null;
-    let summaryError = "";
 
-    if (canGeneratePlaceSummary()) {
-      try {
-        summary = await generatePlaceSummaryDraft(analysis);
-      } catch (error) {
-        summaryError = error instanceof Error ? error.message : "OpenAI 설명 생성에 실패했습니다.";
-      }
-    }
-
-    return NextResponse.json({
-      ...resolution,
-      analysis,
-      summary,
-      summaryError,
-      aiConfigured: canGeneratePlaceSummary(),
-    });
+    return NextResponse.json(resolution);
   } catch (error) {
     const response = adminErrorResponse(error);
 

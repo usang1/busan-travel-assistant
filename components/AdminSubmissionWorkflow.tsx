@@ -6,7 +6,7 @@ import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
-import { parseMapUrl } from "@/lib/map-url";
+import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
@@ -121,7 +121,7 @@ function nullableNumber(value: string) {
 }
 
 function hasCoordinateInput(form: Pick<PublishForm, "latitude" | "longitude">) {
-  return nullableNumber(form.latitude) !== null && nullableNumber(form.longitude) !== null;
+  return normalizeLatitude(form.latitude) !== null && normalizeLongitude(form.longitude) !== null;
 }
 
 function geocodeQueriesFromPublishForm(form: Pick<PublishForm, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
@@ -165,36 +165,27 @@ function getMapLinkState(value: string) {
     };
   }
 
-  try {
-    new URL(trimmed);
-    const parsed = parseMapUrl(trimmed);
+  const parsed = parseMapUrl(trimmed);
 
-    if (parsed.provider === "MANUAL") {
-      return {
-        provider: "MANUAL" as PlaceSourceProvider,
-        normalizedUrl: parsed.normalizedUrl,
-        label: "지원하지 않는 링크",
-        valid: false,
-        message: "네이버지도, 카카오맵, Google Maps 링크만 지원합니다.",
-      };
-    }
-
-    return {
-      provider: parsed.provider,
-      normalizedUrl: parsed.normalizedUrl,
-      label: mapProviderLabels[parsed.provider],
-      valid: true,
-      message: "",
-    };
-  } catch {
+  if (parsed.provider === "unknown") {
     return {
       provider: "MANUAL" as PlaceSourceProvider,
-      normalizedUrl: trimmed,
-      label: "올바르지 않은 링크",
+      normalizedUrl: parsed.normalizedUrl,
+      label: parsed.failureReason === "invalid_url" ? "올바르지 않은 링크" : "지원하지 않는 링크",
       valid: false,
-      message: "올바른 지도 링크를 입력해 주세요.",
+      message: parsed.failureReason === "invalid_url"
+        ? "올바른 지도 링크를 입력해 주세요."
+        : "네이버지도, 카카오맵, Google Maps 링크만 지원합니다.",
     };
   }
+
+  return {
+    provider: parsed.sourceProvider,
+    normalizedUrl: parsed.normalizedUrl,
+    label: mapProviderLabels[parsed.sourceProvider],
+    valid: true,
+    message: "",
+  };
 }
 
 function hasEnoughAiSourceFacts(form: PublishForm) {
@@ -220,7 +211,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
 
   return {
     source_url: parsed.normalizedUrl,
-    provider: parsed.provider,
+    provider: parsed.sourceProvider,
     source_external_id: "",
     slug: slugify(baseName),
     category: submission?.category ?? "restaurant",
@@ -284,8 +275,8 @@ function buildPayload(form: PublishForm): PlacePayload {
     short_description_ko: form.description_ko,
     address_ko: form.address_ko,
     address_zh: form.address_zh,
-    latitude: nullableNumber(form.latitude),
-    longitude: nullableNumber(form.longitude),
+    latitude: normalizeLatitude(form.latitude),
+    longitude: normalizeLongitude(form.longitude),
     nearest_station: form.nearest_station,
     nearest_exit: form.nearest_exit,
     walking_minutes: Number(form.walking_minutes) || 0,
@@ -613,12 +604,18 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
       const body = (await response.json()) as {
         analysis: {
-          provider: PlaceSourceProvider;
+          provider: string;
+          sourceProvider: PlaceSourceProvider;
           normalizedUrl: string;
+          resolvedUrl?: string;
           title?: string;
           latitude?: number;
           longitude?: number;
+          placeId?: string;
           externalId?: string;
+          coordinateSource?: string;
+          confidence?: string;
+          failureReason?: string;
         };
         summary?: {
           description_zh?: string;
@@ -632,17 +629,19 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       const { analysis } = body;
       const summary = body.summary ?? null;
       const title = analysis.title?.trim() ?? "";
+      const externalId = analysis.externalId ?? analysis.placeId;
+      const hasResolvedCoordinates = normalizeLatitude(analysis.latitude) !== null && normalizeLongitude(analysis.longitude) !== null;
 
       setForm((current) => ({
         ...current,
         source_url: analysis.normalizedUrl,
-        provider: analysis.provider,
-        source_external_id: analysis.externalId ?? current.source_external_id,
+        provider: analysis.sourceProvider,
+        source_external_id: externalId ?? current.source_external_id,
         name_ko: current.name_ko || title,
         name_zh: current.name_zh || title,
         slug: current.slug || slugify(title),
-        latitude: typeof analysis.latitude === "number" ? analysis.latitude.toFixed(7) : current.latitude,
-        longitude: typeof analysis.longitude === "number" ? analysis.longitude.toFixed(7) : current.longitude,
+        latitude: hasResolvedCoordinates ? analysis.latitude!.toFixed(7) : current.latitude,
+        longitude: hasResolvedCoordinates ? analysis.longitude!.toFixed(7) : current.longitude,
         description_zh: current.description_zh || summary?.description_zh || "",
         description_ko: current.description_ko || summary?.description_ko || "",
         tips_zh: current.tips_zh || summary?.tips_zh || "",
@@ -651,24 +650,38 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
       const filled = [
         title ? "장소명" : "",
-        typeof analysis.latitude === "number" && typeof analysis.longitude === "number" ? "좌표" : "",
-        analysis.externalId ? "네이버 ID" : "",
+        hasResolvedCoordinates ? "좌표" : "",
+        externalId ? "지도 장소 ID" : "",
         summary ? "AI 설명" : "",
       ].filter(Boolean);
       const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 설명 초안은 생성하지 않았습니다.";
       const aiErrorNotice = body.summaryError ? ` AI 설명 생성 실패: ${body.summaryError}` : "";
+      const coordinateNotice = hasResolvedCoordinates
+        ? ""
+        : " 이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.";
       setStatus(
         filled.length
-          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${aiNotice}${aiErrorNotice}`
-          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${aiNotice}${aiErrorNotice}`,
+          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${aiNotice}${aiErrorNotice}`
+          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${aiNotice}${aiErrorNotice}`,
       );
     } catch (error) {
+      const localAnalysis = analyzeMapLink(parsed.normalizedUrl);
+      const hasLocalCoordinates = normalizeLatitude(localAnalysis.latitude) !== null && normalizeLongitude(localAnalysis.longitude) !== null;
       setForm((current) => ({
         ...current,
         source_url: parsed.normalizedUrl,
-        provider: parsed.provider,
+        provider: parsed.sourceProvider,
+        source_external_id: localAnalysis.externalId ?? current.source_external_id,
+        latitude: hasLocalCoordinates ? localAnalysis.latitude!.toFixed(7) : current.latitude,
+        longitude: hasLocalCoordinates ? localAnalysis.longitude!.toFixed(7) : current.longitude,
       }));
-      setStatus(error instanceof Error ? error.message : "지도 링크 분석 중 오류가 발생했습니다.");
+      setStatus(
+        hasLocalCoordinates
+          ? "서버 분석은 실패했지만 URL에 포함된 좌표를 입력했습니다."
+          : error instanceof Error
+            ? error.message
+            : "이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.",
+      );
     } finally {
       setAnalyzing(false);
     }
@@ -783,6 +796,9 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       }
 
       const payload = buildPayload(formToPublish);
+      const coordinateNotice = hasCoordinateInput(formToPublish)
+        ? ""
+        : " 좌표는 자동으로 가져오지 못했습니다. 지도 표시가 필요하면 직접 입력하거나 다른 공유 링크로 다시 분석해 주세요.";
       const endpoint = selected ? `/api/admin/submissions/${selected.id}/approve` : "/api/admin/places";
       const response = await adminFetch(endpoint, {
         method: "POST",
@@ -798,7 +814,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       await loadSubmissions();
       await onPlaceCreated();
       const visibilityNotice = body.place ? ` ${buildAdminPlaceVisibilityNotice(body.place)}` : "";
-      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${visibilityNotice}` : `장소를 직접 등록했습니다.${visibilityNotice}`);
+      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${visibilityNotice}${coordinateNotice}` : `장소를 직접 등록했습니다.${visibilityNotice}${coordinateNotice}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "장소 등록 중 오류가 발생했습니다.");
     } finally {
@@ -975,7 +991,7 @@ function PublishFormView({
     const facts = analyzePlaceMapSource(value);
 
     onFieldChange("source_url", value);
-    onFieldChange("provider", parsed.provider);
+    onFieldChange("provider", parsed.sourceProvider);
 
     if (facts.external_id) {
       onFieldChange("source_external_id", facts.external_id);

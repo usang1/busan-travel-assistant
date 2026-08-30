@@ -55,7 +55,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
       locale: currentLocale,
       name: name.trim() || null,
       category: category || null,
-      provider: parsed.provider,
+      provider: parsed.sourceProvider,
       source_url: parsed.normalizedUrl || null,
       address_text: locationText.trim() || null,
       location_text: locationText.trim() || null,
@@ -75,7 +75,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
       eventType: "submission_created",
       locale: currentLocale,
       userId: user?.id ?? null,
-      metadata: { provider: parsed.provider },
+      metadata: { provider: parsed.sourceProvider },
     });
 
     setMapUrl("");

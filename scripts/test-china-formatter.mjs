@@ -164,6 +164,10 @@ const mapUrl = loadTsModule("lib/map-url.ts");
 const { analyzeMapLink } = loadTsModule("lib/map-link-analysis.ts", {
   "@/lib/map-url": mapUrl,
 });
+const mapUrlResolver = loadTsModule("lib/map-url-resolver.ts", {
+  "@/lib/map-link-analysis": { analyzeMapLink },
+  "@/lib/map-url": mapUrl,
+});
 const mapSource = loadTsModule("lib/place-ai/map-source.ts", {
   "@/lib/map-url": mapUrl,
 });
@@ -189,17 +193,90 @@ const naverLinkAnalysis = analyzeMapLink("https://naver.me/x9VaDLM8", [
   "https://map.naver.com/?pinId=1435915485&appMenu=location&app=Y&menu=location&lat=35.1671242&title=%EC%A7%84%EC%86%A1%EC%88%AF%EB%B6%88%20%EC%88%98%EC%98%81%EC%A0%90&pinType=site&lng=129.1170388&version=2",
   "https://map.naver.com/p/entry/place/1435915485",
 ]);
-assert.equal(naverLinkAnalysis.provider, "NAVER");
+assert.equal(naverLinkAnalysis.provider, "naver");
+assert.equal(naverLinkAnalysis.sourceProvider, "NAVER");
 assert.equal(naverLinkAnalysis.title, "진송숯불 수영점");
 assert.equal(naverLinkAnalysis.latitude, 35.1671242);
 assert.equal(naverLinkAnalysis.longitude, 129.1170388);
 assert.equal(naverLinkAnalysis.externalId, "1435915485");
+assert.equal(naverLinkAnalysis.coordinateSource, "query");
+assert.equal(naverLinkAnalysis.confidence, "high");
 const naverCenterAnalysis = analyzeMapLink("https://map.naver.com/p/search/test?c=129.1170388,35.1671242,15,0,0,0,dh");
 assert.equal(naverCenterAnalysis.latitude, 35.1671242);
 assert.equal(naverCenterAnalysis.longitude, 129.1170388);
+assert.equal(naverCenterAnalysis.coordinateSource, "naver-center");
+const naverPlaceAnalysis = analyzeMapLink("https://place.naver.com/restaurant/1435915485/home");
+assert.equal(naverPlaceAnalysis.provider, "naver");
+assert.equal(naverPlaceAnalysis.placeId, "1435915485");
+assert.equal(naverPlaceAnalysis.failureReason, "no_coordinates");
+const naverSwappedAnalysis = analyzeMapLink("https://map.naver.com/p/search/test?c=129.1170388,35.1671242,15z");
+assert.equal(naverSwappedAnalysis.latitude, 35.1671242);
+assert.equal(naverSwappedAnalysis.longitude, 129.1170388);
+const kakaoPlaceAnalysis = analyzeMapLink("https://place.map.kakao.com/12345");
+assert.equal(kakaoPlaceAnalysis.provider, "kakao");
+assert.equal(kakaoPlaceAnalysis.placeId, "12345");
+const kakaoLinkAnalysis = analyzeMapLink("https://map.kakao.com/link/map/%EA%B4%91%EC%95%88%EB%A6%AC,35.1532,129.1186");
+assert.equal(kakaoLinkAnalysis.latitude, 35.1532);
+assert.equal(kakaoLinkAnalysis.longitude, 129.1186);
+assert.equal(kakaoLinkAnalysis.coordinateSource, "kakao-link");
 const googlePathAnalysis = analyzeMapLink("https://www.google.com/maps/place/test/@35.1671242,129.1170388,17z/data=!3d35.1671242!4d129.1170388");
+assert.equal(googlePathAnalysis.provider, "google");
 assert.equal(googlePathAnalysis.latitude, 35.1671242);
 assert.equal(googlePathAnalysis.longitude, 129.1170388);
+assert.equal(googlePathAnalysis.coordinateSource, "google-at-path");
+const googleDataAnalysis = analyzeMapLink("https://www.google.com/maps/place/test/data=!3d35.1671242!4d129.1170388");
+assert.equal(googleDataAnalysis.latitude, 35.1671242);
+assert.equal(googleDataAnalysis.longitude, 129.1170388);
+assert.equal(googleDataAnalysis.coordinateSource, "google-data");
+const googleShortAnalysis = analyzeMapLink("https://maps.app.goo.gl/abc");
+assert.equal(googleShortAnalysis.provider, "google");
+assert.equal(googleShortAnalysis.failureReason, "no_coordinates");
+assert.equal(mapUrl.parseMapUrl("not a url").provider, "unknown");
+assert.equal(mapUrl.parseMapUrl("https://example.com/maps/@35.1,129.1").provider, "unknown");
+assert.equal(mapUrl.parseMapUrl("https://map.naver.com/p/entry/place/1435915485").failureReason, "no_coordinates");
+
+const googleResolved = await mapUrlResolver.resolveMapUrl("https://maps.app.goo.gl/abc", async (url) => ({
+  status: url.toString().includes("maps.app.goo.gl") ? 302 : 200,
+  headers: {
+    get: (name) =>
+      name.toLowerCase() === "location" && url.toString().includes("maps.app.goo.gl")
+        ? "https://www.google.com/maps/place/test/@35.1671242,129.1170388,17z"
+        : "",
+  },
+  bodyUsed: false,
+  text: async () => "",
+}));
+assert.equal(googleResolved.provider, "google");
+assert.equal(googleResolved.resolvedUrl, "https://www.google.com/maps/place/test/@35.1671242,129.1170388,17z");
+assert.equal(googleResolved.latitude, 35.1671242);
+assert.equal(googleResolved.longitude, 129.1170388);
+
+const naverResolved = await mapUrlResolver.resolveMapUrl("https://naver.me/x9VaDLM8", async (url) => ({
+  status: url.toString().includes("naver.me") ? 302 : 200,
+  headers: {
+    get: (name) =>
+      name.toLowerCase() === "location" && url.toString().includes("naver.me")
+        ? "https://map.naver.com/?pinId=1435915485&lat=35.1671242&lng=129.1170388"
+        : "",
+  },
+  bodyUsed: false,
+  text: async () => "",
+}));
+assert.equal(naverResolved.provider, "naver");
+assert.equal(naverResolved.placeId, "1435915485");
+assert.equal(naverResolved.latitude, 35.1671242);
+assert.equal(naverResolved.longitude, 129.1170388);
+
+await assert.rejects(
+  () =>
+    mapUrlResolver.resolveMapUrl("https://example.com/maps/@35.1,129.1", async () => ({
+      status: 200,
+      headers: { get: () => "" },
+      bodyUsed: false,
+      text: async () => "",
+    })),
+  /네이버\/카카오\/구글 지도 링크/,
+);
 const summaryPrompt = buildPlaceSummaryPrompt(naverLinkAnalysis);
 assert.match(summaryPrompt, /진송숯불 수영점/);
 assert.match(summaryPrompt, /맛, 가격, 영업시간, 웨이팅, 결제, 메뉴, 리뷰 수는 제공되지 않으면 쓰지 말 것/);

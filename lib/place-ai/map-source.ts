@@ -24,9 +24,9 @@ export function analyzePlaceMapSource(value: string): PlaceMapLinkFacts {
 }
 
 function toMapSourceType(provider: ReturnType<typeof parseMapUrl>["provider"]): PlaceMapSourceType {
-  if (provider === "NAVER") return "naver";
-  if (provider === "KAKAO") return "kakao";
-  if (provider === "GOOGLE") return "google";
+  if (provider === "naver") return "naver";
+  if (provider === "kakao") return "kakao";
+  if (provider === "google") return "google";
   return "unknown";
 }
 
