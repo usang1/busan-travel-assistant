@@ -70,6 +70,7 @@ OPENAI_PLACE_MODEL=
 
 AI 생성 기반 설계와 관리자 적용 흐름은 `docs/ai-place-content-generation.md`에 정리되어 있습니다.
 지도 링크 provider 구조와 수동 설정은 `docs/map-place-providers.md`에 정리되어 있습니다.
+Provider 사실정보의 form/DB 매핑과 중복 탐지는 `docs/place-metadata-enrichment.md`에 정리되어 있습니다.
 
 ## Supabase 설정
 
@@ -86,6 +87,9 @@ supabase/migrations/007_allow_anonymous_place_submissions.sql
 supabase/migrations/008_china_specific_place_info.sql
 supabase/migrations/009_china_admin_editor_fields.sql
 supabase/migrations/010_place_ai_generation_drafts.sql
+supabase/migrations/011_place_visibility_listing_flow.sql
+supabase/migrations/012_place_publication_defaults.sql
+supabase/migrations/013_place_source_metadata.sql
 supabase/seed.sql
 ```
 

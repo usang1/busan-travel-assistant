@@ -255,6 +255,7 @@ create table if not exists public.place_sources (
   external_id text,
   source_url text,
   last_synced_at timestamptz,
+  raw_metadata jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

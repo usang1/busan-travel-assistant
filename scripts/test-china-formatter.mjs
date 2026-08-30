@@ -175,6 +175,7 @@ const mapUrlResolver = loadTsModule("lib/map-url-resolver.ts", {
   "@/lib/map-url": mapUrl,
   "@/lib/place-providers/detect": providerDetection,
   "@/lib/place-providers/normalize": providerNormalize,
+  "@/lib/place-providers/nearest-station": { resolveNearestStation: async () => null },
   "@/lib/place-providers/registry": {
     getPlaceProvider: (provider) => ({ id: provider, lookup: async () => null }),
   },

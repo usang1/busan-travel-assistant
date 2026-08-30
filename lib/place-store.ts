@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { demoPlaces } from "@/data/demo-places";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
 import { archivedPlaceStatus, normalizePlacePublicationForWrite } from "@/lib/place-publishing";
+import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type {
   PlaceChinaInfoRecord,
@@ -562,20 +563,59 @@ async function syncSource(placeId: string, payload: PlacePayload, client?: Supab
     provider: payload.source.provider,
     external_id: payload.source.external_id || null,
     source_url: payload.source.source_url,
+    raw_metadata: payload.source.raw_metadata ?? null,
+    last_synced_at: payload.source.last_synced_at ?? null,
   };
-  const { data: existing } = await resolvedClient
+  let existingQuery = resolvedClient
     .from("place_sources")
     .select("id")
     .eq("place_id", placeId)
-    .eq("provider", payload.source.provider)
-    .eq("source_url", payload.source.source_url)
-    .maybeSingle();
-  const { error } = existing
+    .eq("provider", payload.source.provider);
+  existingQuery = payload.source.external_id
+    ? existingQuery.eq("external_id", payload.source.external_id)
+    : existingQuery.eq("source_url", payload.source.source_url);
+  const { data: existing } = await existingQuery.maybeSingle();
+  let { error } = existing
     ? await resolvedClient.from("place_sources").update(sourceRow).eq("id", existing.id)
     : await resolvedClient.from("place_sources").insert(sourceRow);
 
+  if (error && isMissingSourceMetadataColumnError(error)) {
+    const legacySourceRow = {
+      place_id: sourceRow.place_id,
+      provider: sourceRow.provider,
+      external_id: sourceRow.external_id,
+      source_url: sourceRow.source_url,
+    };
+    const retry = existing
+      ? await resolvedClient.from("place_sources").update(legacySourceRow).eq("id", existing.id)
+      : await resolvedClient.from("place_sources").insert(legacySourceRow);
+    error = retry.error;
+  }
+
   if (error) {
     throw new Error(error.message);
+  }
+}
+
+function isMissingSourceMetadataColumnError(error: { code?: string; message?: string }) {
+  const message = error.message ?? "";
+  return error.code === "PGRST204" || message.includes("raw_metadata");
+}
+
+async function assertNoExactSourceDuplicate(payload: PlacePayload, client: SupabaseClient, excludePlaceId?: string) {
+  const source = payload.source;
+  if (!source?.external_id || source.provider === "MANUAL") return;
+
+  const { data, error } = await client
+    .from("place_sources")
+    .select("place_id")
+    .eq("provider", source.provider)
+    .eq("external_id", source.external_id)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (data?.place_id && data.place_id !== excludePlaceId) {
+    throw Object.assign(new Error("같은 provider 장소 ID로 등록된 장소가 이미 있습니다."), { status: 409, expose: true });
   }
 }
 
@@ -628,6 +668,9 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
     throw new Error("Supabase is not configured.");
   }
 
+  validatePlacePayloadForSave(payload);
+  await assertNoExactSourceDuplicate(payload, resolvedClient);
+
   const { data, error } = await resolvedClient.from("places").insert(toPlaceWriteRow(payload)).select("id").single();
 
   if (error || !data) {
@@ -656,6 +699,9 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   if (!resolvedClient) {
     throw new Error("Supabase is not configured.");
   }
+
+  validatePlacePayloadForSave(payload);
+  await assertNoExactSourceDuplicate(payload, resolvedClient, id);
 
   const { error } = await resolvedClient.from("places").update(toPlaceWriteRow(payload)).eq("id", id);
 

@@ -140,6 +140,7 @@ export type PlaceSourceRecord = {
   external_id?: string | null;
   source_url?: string | null;
   last_synced_at?: string | null;
+  raw_metadata?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
@@ -206,6 +207,8 @@ export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at">
     provider: PlaceSourceProvider;
     source_url?: string | null;
     external_id?: string | null;
+    raw_metadata?: Record<string, unknown> | null;
+    last_synced_at?: string | null;
   };
   china_info?: PlaceChinaInfoPayload | null;
 };

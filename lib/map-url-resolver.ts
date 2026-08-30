@@ -3,6 +3,7 @@ import { normalizeMapUrl, parseMapUrl, toPlaceSourceProvider } from "@/lib/map-u
 import { isSupportedPlaceUrl } from "@/lib/place-providers/detect";
 import { mergeNormalizedPlace } from "@/lib/place-providers/normalize";
 import { getPlaceProvider } from "@/lib/place-providers/registry";
+import { resolveNearestStation } from "@/lib/place-providers/nearest-station";
 import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
 
 const maxRedirects = 5;
@@ -42,7 +43,19 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     lookupError = error instanceof Error ? error.message : "지도 provider 상세 조회에 실패했습니다.";
   }
 
-  const normalizedPlace = mergeNormalizedPlace(basePlace, providerDetails);
+  let normalizedPlace = mergeNormalizedPlace(basePlace, providerDetails);
+
+  if (normalizedPlace.latitude !== undefined && normalizedPlace.longitude !== undefined) {
+    const station = await resolveNearestStation(normalizedPlace.latitude, normalizedPlace.longitude, fetcher).catch(() => null);
+    if (station) {
+      normalizedPlace = {
+        ...normalizedPlace,
+        nearestStation: station.name,
+        nearestStationDistanceMeters: station.distanceMeters,
+        nearestStationWalkingMinutes: station.walkingMinutes,
+      };
+    }
+  }
   const analysis = {
     ...urlAnalysis,
     provider: normalizedPlace.provider,

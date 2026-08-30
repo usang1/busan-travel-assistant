@@ -5,11 +5,14 @@ import { CheckCircle2, ExternalLink, Languages, Plus, RefreshCw, Send, XCircle }
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
+import { buildPlaceSourcePayload, enrichPlaceForm, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
+import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
+import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { categoryLabels, placeCategories, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type SubmissionStatus } from "@/types/database";
 import type { PlaceAiGeneratedContent, PlaceAiGenerationResponse } from "@/types/place-ai";
@@ -32,7 +35,7 @@ type PublishForm = {
   provider: PlaceSourceProvider;
   source_external_id: string;
   slug: string;
-  category: PlaceCategory;
+  category: PlaceCategory | "";
   name_zh: string;
   name_en: string;
   name_ja: string;
@@ -56,6 +59,11 @@ type PublishForm = {
   tips_ja: string;
   tips_ko: string;
   thumbnail_url: string;
+  provider_rating: string;
+  provider_review_count: string;
+  provider_amenities: string;
+  source_metadata: Record<string, unknown> | null;
+  source_fetched_at: string;
   nearest_station: string;
   nearest_exit: string;
   walking_minutes: string;
@@ -122,7 +130,7 @@ function nullableNumber(value: string) {
 }
 
 function hasCoordinateInput(form: Pick<PublishForm, "latitude" | "longitude">) {
-  return normalizeLatitude(form.latitude) !== null && normalizeLongitude(form.longitude) !== null;
+  return hasValidFormCoordinates(form);
 }
 
 function geocodeQueriesFromPublishForm(form: Pick<PublishForm, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
@@ -215,7 +223,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     provider: parsed.sourceProvider,
     source_external_id: "",
     slug: slugify(baseName),
-    category: submission?.category ?? "restaurant",
+    category: submission?.category ?? "",
     name_zh: baseName,
     name_en: "",
     name_ja: "",
@@ -238,10 +246,15 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     tips_en: "",
     tips_ja: "",
     tips_ko: reason,
-    thumbnail_url: defaultImage,
-    nearest_station: "광안역",
+    thumbnail_url: "",
+    provider_rating: "",
+    provider_review_count: "",
+    provider_amenities: "",
+    source_metadata: null,
+    source_fetched_at: "",
+    nearest_station: "",
     nearest_exit: "",
-    walking_minutes: "8",
+    walking_minutes: "",
     solo_friendly: false,
     luggage_friendly: false,
     chinese_menu: false,
@@ -251,6 +264,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
 }
 
 function buildPayload(form: PublishForm): PlacePayload {
+  const category = form.category as PlaceCategory;
   const zh: TranslationDraft = {
     name: form.name_zh,
     description: form.description_zh,
@@ -266,7 +280,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     slug: form.slug || slugify(form.name_ko || form.name_zh),
     name_zh: form.name_zh || form.name_ko,
     name_ko: form.name_ko || form.name_zh,
-    category: form.category,
+    category,
     address: form.address_ko,
     phone: form.phone || null,
     website: form.website || null,
@@ -298,7 +312,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     is_featured: false,
     is_active: form.is_active,
     tags: [
-      { label_zh: categoryLabels[form.category].zh, label_ko: categoryLabels[form.category].ko, slug: form.category },
+      { label_zh: categoryLabels[category].zh, label_ko: categoryLabels[category].ko, slug: category },
     ],
     menu_items: [],
     translations: [
@@ -307,14 +321,12 @@ function buildPayload(form: PublishForm): PlacePayload {
       form.name_ja ? { locale: "ja" as const, name: form.name_ja, description: form.description_ja, travel_tip: form.tips_ja } : null,
       { locale: "ko", ...ko },
     ].filter((translation): translation is PayloadTranslation => Boolean(translation)),
-    source: form.source_url
-      ? {
-          provider: form.provider,
-          source_url: form.source_url,
-          external_id: form.source_external_id || null,
-        }
-      : undefined,
+    source: buildPlaceSourcePayload(form),
   };
+}
+
+function applyProviderFactsToPublishForm(form: PublishForm, place: NormalizedPlace): PublishForm {
+  return enrichPlaceForm(form, place);
 }
 
 function buildTranslationFieldsFromPublishForm(form: PublishForm): AdminTranslationFields {
@@ -502,6 +514,11 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   }
 
   async function prepareAiDraft() {
+    if (!form.category) {
+      setStatus("AI 설명을 생성하려면 카테고리를 먼저 선택해 주세요.");
+      return;
+    }
+
     const mapLinkState = getMapLinkState(form.source_url);
 
     if (form.source_url.trim() && !mapLinkState.valid) {
@@ -641,27 +658,25 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         ? normalizedPlace.openingHours.join("\n")
         : normalizedPlace?.openingHours ?? "";
 
-      setForm((current) => ({
-        ...current,
-        source_url: analysis.normalizedUrl,
-        provider: analysis.sourceProvider,
-        source_external_id: externalId ?? current.source_external_id,
-        name_ko: current.name_ko || title,
-        name_zh: current.name_zh || title,
-        slug: current.slug || slugify(title),
-        address_ko: current.address_ko || normalizedPlace?.roadAddressKo || normalizedPlace?.addressKo || normalizedPlace?.formattedAddress || "",
-        latitude: hasResolvedCoordinates ? latitude!.toFixed(7) : current.latitude,
-        longitude: hasResolvedCoordinates ? longitude!.toFixed(7) : current.longitude,
-        phone: current.phone || normalizedPlace?.phone || "",
-        website: current.website || normalizedPlace?.website || "",
-        opening_hours: current.opening_hours || openingHours,
-        price_level: current.price_level || (normalizedPlace?.priceLevel !== undefined ? String(normalizedPlace.priceLevel) : ""),
-        thumbnail_url: current.thumbnail_url || normalizedPlace?.imageUrl || "",
-        description_zh: current.description_zh || summary?.description_zh || "",
-        description_ko: current.description_ko || summary?.description_ko || "",
-        tips_zh: current.tips_zh || summary?.tips_zh || "",
-        tips_ko: current.tips_ko || summary?.tips_ko || "",
-      }));
+      setForm((current) => {
+        const enriched = normalizedPlace ? applyProviderFactsToPublishForm(current, normalizedPlace) : current;
+        return {
+          ...enriched,
+          source_url: analysis.normalizedUrl,
+          provider: analysis.sourceProvider,
+          source_external_id: externalId ?? enriched.source_external_id,
+          name_ko: enriched.name_ko || title,
+          name_zh: enriched.name_zh || title,
+          slug: enriched.slug || slugify(title),
+          latitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? latitude!.toFixed(7) : enriched.latitude,
+          longitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? longitude!.toFixed(7) : enriched.longitude,
+          opening_hours: enriched.opening_hours || openingHours,
+          description_zh: enriched.description_zh || summary?.description_zh || "",
+          description_ko: enriched.description_ko || summary?.description_ko || "",
+          tips_zh: enriched.tips_zh || summary?.tips_zh || "",
+          tips_ko: enriched.tips_ko || summary?.tips_ko || "",
+        };
+      });
 
       const filled = [
         title ? "장소명" : "",
@@ -770,12 +785,10 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
     if (
       !(formToPublish.slug || slugify(formToPublish.name_ko || formToPublish.name_zh)) ||
-      !formToPublish.name_zh ||
-      !formToPublish.name_ko ||
-      !formToPublish.description_zh ||
-      !formToPublish.description_ko
+      (!formToPublish.name_zh && !formToPublish.name_ko) ||
+      !formToPublish.category
     ) {
-      setStatus("slug, 중국어/한국어 이름과 설명은 필수입니다.");
+      setStatus("장소명, 카테고리, slug는 필수입니다.");
       return;
     }
 
@@ -813,9 +826,27 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       }
 
       const payload = buildPayload(formToPublish);
-      const coordinateNotice = hasCoordinateInput(formToPublish)
-        ? ""
-        : " 좌표는 자동으로 가져오지 못했습니다. 지도 표시가 필요하면 직접 입력하거나 다른 공유 링크로 다시 분석해 주세요.";
+      validatePlacePayloadForSave(payload);
+      const placesResponse = await adminFetch("/api/admin/places");
+      if (!placesResponse.ok) {
+        throw new Error("중복 장소 확인을 위해 기존 장소를 불러오지 못했습니다.");
+      }
+      const placesBody = (await placesResponse.json()) as { places?: PlaceWithRelations[] };
+      const duplicateMatches = findPlaceDuplicateMatches(payload, placesBody.places ?? []);
+      const exactDuplicate = duplicateMatches.find((match) => match.level === "exact");
+      if (exactDuplicate) {
+        setStatus(`이미 등록된 provider 장소 ID입니다: ${exactDuplicate.placeName}`);
+        return;
+      }
+      const possibleDuplicate = duplicateMatches.find((match) => match.level === "possible");
+      if (possibleDuplicate) {
+        const detail = possibleDuplicate.distanceMeters !== undefined ? ` (${possibleDuplicate.distanceMeters}m 이내)` : "";
+        const confirmed = window.confirm(`중복 가능성이 있는 장소가 있습니다: ${possibleDuplicate.placeName}${detail}\n자동 병합하지 않습니다. 그래도 새 장소로 저장할까요?`);
+        if (!confirmed) {
+          setStatus("중복 가능성을 확인한 뒤 기존 장소를 수정하거나 다시 저장해 주세요.");
+          return;
+        }
+      }
       const endpoint = selected ? `/api/admin/submissions/${selected.id}/approve` : "/api/admin/places";
       const response = await adminFetch(endpoint, {
         method: "POST",
@@ -831,7 +862,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       await loadSubmissions();
       await onPlaceCreated();
       const visibilityNotice = body.place ? ` ${buildAdminPlaceVisibilityNotice(body.place)}` : "";
-      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${visibilityNotice}${coordinateNotice}` : `장소를 직접 등록했습니다.${visibilityNotice}${coordinateNotice}`);
+      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${visibilityNotice}` : `장소를 직접 등록했습니다.${visibilityNotice}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "장소 등록 중 오류가 발생했습니다.");
     } finally {
@@ -1092,6 +1123,7 @@ function PublishFormView({
         <Field label="URL 주소명"><input value={form.slug} onChange={(event) => onFieldChange("slug", slugify(event.target.value))} className={inputClass} /></Field>
         <Field label="카테고리">
           <select value={form.category} onChange={(event) => onFieldChange("category", event.target.value as PlaceCategory)} className={inputClass}>
+            <option value="">선택 필요</option>
             {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
           </select>
         </Field>
@@ -1133,6 +1165,9 @@ function PublishFormView({
         <Field label="출구"><input value={form.nearest_exit} onChange={(event) => onFieldChange("nearest_exit", event.target.value)} className={inputClass} /></Field>
         <Field label="도보 시간"><input value={form.walking_minutes} onChange={(event) => onFieldChange("walking_minutes", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
         <Field label="대표 이미지"><input value={form.thumbnail_url} onChange={(event) => onFieldChange("thumbnail_url", event.target.value)} className={inputClass} /></Field>
+        <Field label="Provider 평점"><input value={form.provider_rating} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} /></Field>
+        <Field label="Provider 리뷰 수"><input value={form.provider_review_count} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} /></Field>
+        <Field label="Provider 편의정보"><input value={form.provider_amenities} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} /></Field>
         <Field label="중국어 여행 팁"><textarea value={form.tips_zh} onChange={(event) => onFieldChange("tips_zh", event.target.value)} className={textareaClass} /></Field>
         <Field label="한국어 여행 팁"><textarea value={form.tips_ko} onChange={(event) => onFieldChange("tips_ko", event.target.value)} className={textareaClass} /></Field>
         <Field label="영어 여행 팁"><textarea value={form.tips_en} onChange={(event) => onFieldChange("tips_en", event.target.value)} className={textareaClass} /></Field>

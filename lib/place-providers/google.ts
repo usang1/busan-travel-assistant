@@ -13,11 +13,16 @@ const placeFields = [
   "rating",
   "userRatingCount",
   "priceLevel",
+  "priceRange",
   "primaryType",
   "primaryTypeDisplayName",
   "types",
   "googleMapsUri",
   "photos",
+  "parkingOptions",
+  "reservable",
+  "takeout",
+  "restroom",
 ].join(",");
 
 export const googleMapsProvider: PlaceProvider = {
@@ -97,6 +102,7 @@ function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> | null {
   const typeDisplayName = asRecord(place.primaryTypeDisplayName);
   const location = asRecord(place.location);
   const openingHours = asRecord(place.regularOpeningHours);
+  const priceRange = asRecord(place.priceRange);
   const weekdayDescriptions = Array.isArray(openingHours?.weekdayDescriptions)
     ? openingHours.weekdayDescriptions.filter((item): item is string => typeof item === "string")
     : undefined;
@@ -115,6 +121,9 @@ function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> | null {
     rating: finiteNumber(place.rating),
     reviewCount: finiteNumber(place.userRatingCount),
     priceLevel: normalizeGooglePriceLevel(place.priceLevel),
+    priceMin: normalizeKrwMoney(priceRange?.startPrice),
+    priceMax: normalizeKrwMoney(priceRange?.endPrice),
+    amenities: normalizeGoogleAmenities(place),
     raw: place,
   };
 }
@@ -141,8 +150,31 @@ function normalizeGooglePriceLevel(value: unknown) {
   return typeof value === "string" ? levels[value] : undefined;
 }
 
+function normalizeKrwMoney(value: unknown) {
+  const money = asRecord(value);
+  if (!money || money.currencyCode !== "KRW") return undefined;
+  const units = finiteNumber(money.units);
+  const nanos = finiteNumber(money.nanos) ?? 0;
+  return units === undefined ? undefined : Math.max(0, Math.round(units + nanos / 1_000_000_000));
+}
+
 function stringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined;
+}
+
+function normalizeGoogleAmenities(place: Record<string, unknown>) {
+  const parkingOptions = asRecord(place.parkingOptions);
+  const parking = parkingOptions
+    ? Object.values(parkingOptions).some((value) => value === true)
+    : undefined;
+
+  const amenities = {
+    parking,
+    reservable: typeof place.reservable === "boolean" ? place.reservable : undefined,
+    takeout: typeof place.takeout === "boolean" ? place.takeout : undefined,
+    restroom: typeof place.restroom === "boolean" ? place.restroom : undefined,
+  };
+  return Object.values(amenities).some((value) => value !== undefined) ? amenities : undefined;
 }
 
 function providerError(message: string, providerStatus: number) {

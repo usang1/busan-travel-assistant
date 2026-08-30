@@ -22,6 +22,17 @@ export type NormalizedPlace = {
   rating?: number;
   reviewCount?: number;
   priceLevel?: number;
+  priceMin?: number;
+  priceMax?: number;
+  amenities?: {
+    parking?: boolean;
+    reservable?: boolean;
+    takeout?: boolean;
+    restroom?: boolean;
+  };
+  nearestStation?: string;
+  nearestStationDistanceMeters?: number;
+  nearestStationWalkingMinutes?: number;
   raw?: unknown;
 };
 

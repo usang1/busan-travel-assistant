@@ -71,7 +71,6 @@ function normalizeNaverItem(item: NaverLocalItem, parsedPlaceId?: string): Parti
     formattedAddress: text(item.roadAddress) ?? text(item.address),
     ...coordinates,
     phone: text(item.telephone),
-    website: link,
     raw: item,
   };
 }
