@@ -20,6 +20,7 @@ import {
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { isPublicPlace } from "@/lib/place-publishing";
+import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import {
   categoryLabels,
@@ -236,7 +237,7 @@ function createEmptyChinaInfo(): ChinaInfoForm {
 function createEmptyForm(): FormState {
   return {
     source_url: "",
-    source_provider: "NAVER",
+    source_provider: "MANUAL",
     source_external_id: "",
     slug: "",
     name_zh: "",
@@ -957,6 +958,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           confidence?: string;
           failureReason?: string;
         };
+        normalizedPlace?: NormalizedPlace;
+        lookupError?: string;
         summary?: {
           description_zh?: string;
           description_ko?: string;
@@ -967,10 +970,16 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         aiConfigured?: boolean;
       };
       const { analysis } = body;
+      const normalizedPlace = body.normalizedPlace;
       const summary = body.summary ?? null;
-      const title = analysis.title?.trim() ?? "";
-      const externalId = analysis.externalId ?? analysis.placeId;
-      const hasResolvedCoordinates = normalizeLatitude(analysis.latitude) !== null && normalizeLongitude(analysis.longitude) !== null;
+      const title = normalizedPlace?.name?.trim() ?? analysis.title?.trim() ?? "";
+      const externalId = normalizedPlace?.providerPlaceId ?? analysis.externalId ?? analysis.placeId;
+      const latitude = normalizedPlace?.latitude ?? analysis.latitude;
+      const longitude = normalizedPlace?.longitude ?? analysis.longitude;
+      const hasResolvedCoordinates = normalizeLatitude(latitude) !== null && normalizeLongitude(longitude) !== null;
+      const openingHours = Array.isArray(normalizedPlace?.openingHours)
+        ? normalizedPlace.openingHours.join("\n")
+        : normalizedPlace?.openingHours ?? "";
 
       setForm((current) => ({
         ...current,
@@ -980,8 +989,11 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         name_ko: current.name_ko || title,
         name_zh: current.name_zh || title,
         slug: current.slug || slugify(title),
-        latitude: hasResolvedCoordinates ? analysis.latitude!.toFixed(7) : current.latitude,
-        longitude: hasResolvedCoordinates ? analysis.longitude!.toFixed(7) : current.longitude,
+        address_ko: current.address_ko || normalizedPlace?.roadAddressKo || normalizedPlace?.addressKo || normalizedPlace?.formattedAddress || "",
+        latitude: hasResolvedCoordinates ? latitude!.toFixed(7) : current.latitude,
+        longitude: hasResolvedCoordinates ? longitude!.toFixed(7) : current.longitude,
+        opening_hours: current.opening_hours || openingHours,
+        thumbnail_url: current.thumbnail_url || normalizedPlace?.imageUrl || "",
         short_description_zh: current.short_description_zh || summary?.description_zh || "",
         short_description_ko: current.short_description_ko || summary?.description_ko || "",
         tips_zh: current.tips_zh || summary?.tips_zh || "",
@@ -992,17 +1004,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         title ? "장소명" : "",
         hasResolvedCoordinates ? "좌표" : "",
         externalId ? "지도 장소 ID" : "",
+        normalizedPlace?.formattedAddress || normalizedPlace?.addressKo ? "주소" : "",
         summary ? "AI 설명" : "",
       ].filter(Boolean);
       const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 설명 초안은 생성하지 않았습니다.";
       const aiErrorNotice = body.summaryError ? ` AI 설명 생성 실패: ${body.summaryError}` : "";
+      const lookupNotice = body.lookupError ? ` Provider 상세 조회 실패: ${body.lookupError}` : "";
       const coordinateNotice = hasResolvedCoordinates
         ? ""
         : " 이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.";
       setStatus(
         filled.length
-          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${aiNotice}${aiErrorNotice}`
-          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${aiNotice}${aiErrorNotice}`,
+          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${lookupNotice}${aiNotice}${aiErrorNotice}`
+          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${lookupNotice}${aiNotice}${aiErrorNotice}`,
       );
     } catch (parseError) {
       const localAnalysis = analyzeMapLink(parsed.normalizedUrl);
@@ -1388,13 +1402,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 {form.source_url.trim() && !mapLinkState.valid ? <p className="mt-2 text-xs font-bold text-rose-700">{mapLinkState.message}</p> : null}
               </div>
               <Field label="Provider">
-                <select value={form.source_provider} onChange={(event) => updateField("source_provider", event.target.value as PlaceSourceProvider)} className={inputClass}>
-                  {(["NAVER", "KAKAO", "GOOGLE", "MANUAL"] as const).map((provider) => (
-                    <option key={provider} value={provider}>
-                      {provider}
-                    </option>
-                  ))}
-                </select>
+                <input value={form.source_provider} readOnly aria-readonly="true" className={`${inputClass} bg-slate-50 text-slate-600`} />
               </Field>
               <Field label="지도 장소 ID">
                 <input value={form.source_external_id} onChange={(event) => updateField("source_external_id", event.target.value)} className={inputClass} />

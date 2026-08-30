@@ -15,8 +15,8 @@ export function analyzePlaceMapSource(value: string): PlaceMapLinkFacts {
 
     return {
       source_type: sourceType,
-      normalized_url: url.toString(),
-      external_id: extractMapExternalId(url, sourceType),
+      normalized_url: parsed.normalizedUrl,
+      external_id: parsed.placeId ?? null,
     };
   } catch {
     return { source_type: "unknown", normalized_url: trimmed.slice(0, 500), external_id: null };
@@ -28,21 +28,4 @@ function toMapSourceType(provider: ReturnType<typeof parseMapUrl>["provider"]): 
   if (provider === "kakao") return "kakao";
   if (provider === "google") return "google";
   return "unknown";
-}
-
-function extractMapExternalId(url: URL, sourceType: PlaceMapSourceType) {
-  if (sourceType === "naver") {
-    const pathnameId = url.pathname.match(/\/(?:entry\/place|place)\/(\d+)/)?.[1];
-    return pathnameId ?? url.searchParams.get("placeId") ?? url.searchParams.get("pinId");
-  }
-
-  if (sourceType === "kakao") {
-    return url.pathname.match(/\/(\d+)(?:$|[/?#])/)?.[1] ?? url.searchParams.get("itemId");
-  }
-
-  if (sourceType === "google") {
-    return url.searchParams.get("cid") ?? url.searchParams.get("ftid") ?? null;
-  }
-
-  return null;
 }

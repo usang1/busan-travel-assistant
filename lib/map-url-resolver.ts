@@ -1,5 +1,9 @@
 import { analyzeMapLink } from "@/lib/map-link-analysis";
-import { isResolvableMapHost, normalizeMapUrl, parseMapUrl } from "@/lib/map-url";
+import { normalizeMapUrl, parseMapUrl, toPlaceSourceProvider } from "@/lib/map-url";
+import { isSupportedPlaceUrl } from "@/lib/place-providers/detect";
+import { mergeNormalizedPlace } from "@/lib/place-providers/normalize";
+import { getPlaceProvider } from "@/lib/place-providers/registry";
+import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
 
 const maxRedirects = 5;
 
@@ -11,7 +15,61 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
   const originalUrl = normalizeMapUrl(inputUrl);
   const initialUrl = parseResolvableUrl(originalUrl);
   const resolvedUrls = await resolveMapRedirects(initialUrl, fetcher);
-  const analysis = analyzeMapLink(originalUrl, resolvedUrls);
+  const parsedUrls = [parseMapUrl(originalUrl), ...resolvedUrls.map((url) => parseMapUrl(url))];
+  const urlAnalysis = analyzeMapLink(originalUrl, resolvedUrls);
+  const provider = urlAnalysis.provider as SupportedPlaceProvider;
+  const finalResolvedUrl = resolvedUrls.at(-1) ?? originalUrl;
+  const basePlace: NormalizedPlace = {
+    provider,
+    providerPlaceId: urlAnalysis.placeId,
+    sourceUrl: originalUrl,
+    finalResolvedUrl,
+    name: urlAnalysis.title,
+    latitude: urlAnalysis.latitude,
+    longitude: urlAnalysis.longitude,
+  };
+  let lookupError = "";
+  let providerDetails: Partial<NormalizedPlace> | null = null;
+
+  try {
+    providerDetails = await getPlaceProvider(provider).lookup({
+      sourceUrl: originalUrl,
+      finalResolvedUrl,
+      parsedUrls,
+      fetcher,
+    });
+  } catch (error) {
+    lookupError = error instanceof Error ? error.message : "지도 provider 상세 조회에 실패했습니다.";
+  }
+
+  const normalizedPlace = mergeNormalizedPlace(basePlace, providerDetails);
+  const analysis = {
+    ...urlAnalysis,
+    provider: normalizedPlace.provider,
+    sourceProvider: toPlaceSourceProvider(normalizedPlace.provider),
+    resolvedUrl: normalizedPlace.finalResolvedUrl,
+    title: normalizedPlace.name,
+    latitude: normalizedPlace.latitude,
+    longitude: normalizedPlace.longitude,
+    placeId: normalizedPlace.providerPlaceId,
+    externalId: normalizedPlace.providerPlaceId,
+    coordinateSource:
+      normalizedPlace.latitude !== undefined &&
+      normalizedPlace.longitude !== undefined &&
+      urlAnalysis.coordinateSource === "none"
+        ? "provider-lookup" as const
+        : urlAnalysis.coordinateSource,
+    confidence:
+      normalizedPlace.latitude !== undefined &&
+      normalizedPlace.longitude !== undefined &&
+      urlAnalysis.coordinateSource === "none"
+        ? "high" as const
+        : urlAnalysis.confidence,
+    failureReason:
+      normalizedPlace.latitude !== undefined && normalizedPlace.longitude !== undefined
+        ? undefined
+        : urlAnalysis.failureReason,
+  };
 
   debugMapResolution({
     provider: analysis.provider,
@@ -40,6 +98,8 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     coordinateSource: analysis.coordinateSource,
     confidence: analysis.confidence,
     failureReason: analysis.failureReason,
+    lookupError,
+    normalizedPlace,
     analysis,
   };
 }
@@ -59,9 +119,14 @@ async function resolveMapRedirects(initialUrl: URL, fetcher: Fetcher) {
     }
 
     const discoveredUrls = response ? await discoverMapUrls(currentUrl, response, fetcher) : [];
-    for (const discoveredUrl of discoveredUrls) {
-      urls.push(discoveredUrl.toString());
+    const discoveredUrl = discoveredUrls[0];
+
+    if (discoveredUrl && discoveredUrl.toString() !== currentUrl.toString()) {
+      currentUrl = discoveredUrl;
+      urls.push(currentUrl.toString());
+      continue;
     }
+
     break;
   }
 
@@ -75,7 +140,12 @@ async function fetchRedirect(url: URL, fetcher: Fetcher) {
     cache: "no-store",
   }).catch(() => null);
 
-  if (head && head.status !== 405) {
+  if (
+    head &&
+    head.status >= 300 &&
+    head.status < 400 &&
+    Boolean(head.headers.get("location"))
+  ) {
     return head;
   }
 
@@ -99,7 +169,7 @@ async function discoverMapUrls(url: URL, response: Response, fetcher: Fetcher) {
   let html = "";
 
   if (contentType.includes("text/html")) {
-    html = await response.text();
+    html = (await response.text()).slice(0, 1_000_000);
   } else if (response.bodyUsed) {
     return [];
   } else {
@@ -116,7 +186,7 @@ async function discoverMapUrls(url: URL, response: Response, fetcher: Fetcher) {
       return [];
     }
 
-    html = await getResponse.text();
+    html = (await getResponse.text()).slice(0, 1_000_000);
   }
 
   const discovered = new Map<string, URL>();
@@ -161,7 +231,7 @@ function parseResolvableUrl(value: string) {
     throw mapResolveError("지원하지 않는 지도 링크입니다.");
   }
 
-  if (!isResolvableMapHost(url.hostname)) {
+  if (!isSupportedPlaceUrl(url)) {
     throw mapResolveError("네이버/카카오/구글 지도 링크만 분석할 수 있습니다.");
   }
 

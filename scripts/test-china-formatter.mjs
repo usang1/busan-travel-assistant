@@ -160,13 +160,24 @@ const discovery = loadTsModule("lib/place-china/discovery.ts", {
   },
 });
 
-const mapUrl = loadTsModule("lib/map-url.ts");
+const providerDetection = loadTsModule("lib/place-providers/detect.ts");
+const mapUrl = loadTsModule("lib/map-url.ts", {
+  "@/lib/place-providers/detect": providerDetection,
+});
+const providerNormalize = loadTsModule("lib/place-providers/normalize.ts", {
+  "@/lib/map-url": mapUrl,
+});
 const { analyzeMapLink } = loadTsModule("lib/map-link-analysis.ts", {
   "@/lib/map-url": mapUrl,
 });
 const mapUrlResolver = loadTsModule("lib/map-url-resolver.ts", {
   "@/lib/map-link-analysis": { analyzeMapLink },
   "@/lib/map-url": mapUrl,
+  "@/lib/place-providers/detect": providerDetection,
+  "@/lib/place-providers/normalize": providerNormalize,
+  "@/lib/place-providers/registry": {
+    getPlaceProvider: (provider) => ({ id: provider, lookup: async () => null }),
+  },
 });
 const mapSource = loadTsModule("lib/place-ai/map-source.ts", {
   "@/lib/map-url": mapUrl,

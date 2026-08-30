@@ -1,6 +1,8 @@
 import type { PlaceSourceProvider } from "@/types/database";
+import { detectPlaceProvider, isAllowedPlaceHost } from "@/lib/place-providers/detect";
+import type { DetectedPlaceProvider } from "@/lib/place-providers/types";
 
-export type MapProvider = "naver" | "kakao" | "google" | "unknown";
+export type MapProvider = DetectedPlaceProvider;
 export type CoordinateConfidence = "high" | "medium" | "low" | "none";
 export type CoordinateSource =
   | "query"
@@ -8,6 +10,7 @@ export type CoordinateSource =
   | "google-at-path"
   | "google-data"
   | "kakao-link"
+  | "provider-lookup"
   | "text"
   | "none";
 
@@ -33,19 +36,6 @@ type CoordinateMatch = {
 
 type CoordinateOrder = "auto" | "latLng" | "lngLat";
 
-const mapHostRoots: Record<MapProvider, string[]> = {
-  naver: ["naver.com", "naver.me"],
-  kakao: ["kakao.com", "kakao.co.kr"],
-  google: ["google.com", "goo.gl"],
-  unknown: [],
-};
-
-export const resolvableMapHostRoots = [
-  ...mapHostRoots.naver,
-  ...mapHostRoots.kakao,
-  ...mapHostRoots.google,
-];
-
 export function parseMapUrl(value: string): ParsedMapUrl {
   const normalizedUrl = normalizeMapUrl(value);
 
@@ -64,7 +54,7 @@ export function parseMapUrl(value: string): ParsedMapUrl {
     };
   }
 
-  const provider = detectMapProvider(url.hostname);
+  const provider = detectPlaceProvider(url);
   const placeId = extractPlaceId(url, provider);
   const coordinates = provider === "unknown" ? null : extractCoordinates(url, provider);
   const title = extractTitle(url, coordinates);
@@ -102,15 +92,7 @@ export function normalizeMapUrl(value: string) {
 }
 
 export function detectMapProvider(hostname: string): MapProvider {
-  const host = hostname.toLowerCase();
-
-  for (const provider of ["naver", "kakao", "google"] as const) {
-    if (mapHostRoots[provider].some((root) => isHostInDomain(host, root))) {
-      return provider;
-    }
-  }
-
-  return "unknown";
+  return detectPlaceProvider(`https://${hostname}/maps`);
 }
 
 export function toPlaceSourceProvider(provider: MapProvider): PlaceSourceProvider {
@@ -131,8 +113,7 @@ export function normalizeLongitude(value: unknown) {
 }
 
 export function isResolvableMapHost(hostname: string) {
-  const host = hostname.toLowerCase();
-  return resolvableMapHostRoots.some((root) => isHostInDomain(host, root));
+  return isAllowedPlaceHost(hostname);
 }
 
 function emptyParsedMapUrl(normalizedUrl: string): ParsedMapUrl {
@@ -144,10 +125,6 @@ function emptyParsedMapUrl(normalizedUrl: string): ParsedMapUrl {
     confidence: "none",
     failureReason: normalizedUrl ? "unsupported_domain" : "empty_url",
   };
-}
-
-function isHostInDomain(host: string, root: string) {
-  return host === root || host.endsWith(`.${root}`);
 }
 
 function extractCoordinates(url: URL, provider: MapProvider): CoordinateMatch | null {
@@ -298,7 +275,11 @@ function normalizeCoordinatePair(
 }
 
 function validCoordinates(latitude: number, longitude: number) {
-  return normalizeLatitude(latitude) !== null && normalizeLongitude(longitude) !== null;
+  return (
+    normalizeLatitude(latitude) !== null &&
+    normalizeLongitude(longitude) !== null &&
+    !(latitude === 0 && longitude === 0)
+  );
 }
 
 function isKoreaCoordinate(latitude: number, longitude: number) {
@@ -348,6 +329,16 @@ function extractTitle(url: URL, coordinates: CoordinateMatch | null) {
     return /^\d+$/.test(pathTitle) ? "" : pathTitle;
   }
 
+  if (url.hostname.endsWith("naver.com")) {
+    const searchTitle = decodePathSegment(url.pathname.match(/\/p\/search\/([^/]+)/)?.[1]);
+    if (searchTitle) return searchTitle;
+  }
+
+  if (url.hostname.endsWith("kakao.com")) {
+    const linkTitle = decodePathSegment(url.pathname.match(/\/link\/(?:map|to)\/([^,/?#]+)/)?.[1]);
+    if (linkTitle) return linkTitle;
+  }
+
   return "";
 }
 
@@ -378,8 +369,29 @@ function extractPlaceId(url: URL, provider: MapProvider) {
   }
 
   if (provider === "google") {
-    return url.searchParams.get("cid") ?? url.searchParams.get("ftid") ?? url.searchParams.get("query_place_id");
+    return (
+      url.searchParams.get("query_place_id") ??
+      url.searchParams.get("place_id") ??
+      extractGooglePlaceIdFromData(url) ??
+      url.searchParams.get("cid") ??
+      url.searchParams.get("ftid")
+    );
   }
 
   return null;
+}
+
+function extractGooglePlaceIdFromData(url: URL) {
+  const decoded = decodeURIComponent(`${url.pathname}${url.search}${url.hash}`);
+  return decoded.match(/!1s(ChI[A-Za-z0-9_-]+)/)?.[1] ?? decoded.match(/(?:place_id:|place\/)(ChI[A-Za-z0-9_-]+)/)?.[1] ?? null;
+}
+
+function decodePathSegment(value?: string) {
+  if (!value) return "";
+
+  try {
+    return decodeURIComponent(value).replaceAll("+", " ").trim();
+  } catch {
+    return value.replaceAll("+", " ").trim();
+  }
 }
