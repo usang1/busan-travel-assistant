@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { demoPlaces } from "@/data/demo-places";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
+import { archivedPlaceStatus, normalizePlacePublicationForWrite } from "@/lib/place-publishing";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type {
   PlaceChinaInfoRecord,
@@ -425,10 +426,7 @@ function toPlaceWriteRow(payload: PlacePayload): PlaceWriteRow {
   void _source;
   void _chinaInfo;
 
-  return {
-    ...place,
-    status: place.status ?? (place.is_active ? "ACTIVE" : "DRAFT"),
-  };
+  return normalizePlacePublicationForWrite(place);
 }
 
 function resolveClient(client?: SupabaseClient) {
@@ -703,7 +701,7 @@ export async function archivePlace(id: string, client?: SupabaseClient) {
 
   const { error } = await resolvedClient
     .from("places")
-    .update({ is_active: false, status: "ARCHIVED" })
+    .update({ is_active: false, status: archivedPlaceStatus })
     .eq("id", id);
 
   if (error) {

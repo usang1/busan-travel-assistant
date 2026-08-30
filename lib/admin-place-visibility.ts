@@ -1,14 +1,15 @@
 import type { PlaceRecord } from "@/types/database";
+import { isPublicPlace } from "@/lib/place-publishing";
 
-type PlaceVisibilityFields = Pick<PlaceRecord, "is_active" | "latitude" | "longitude">;
+type PlaceVisibilityFields = Pick<PlaceRecord, "is_active" | "status" | "latitude" | "longitude">;
 
 export function hasUsableMapCoordinates(place: Pick<PlaceRecord, "latitude" | "longitude">) {
   return typeof place.latitude === "number" && Number.isFinite(place.latitude) && typeof place.longitude === "number" && Number.isFinite(place.longitude);
 }
 
 export function buildAdminPlaceVisibilityNotice(place: PlaceVisibilityFields) {
-  if (!place.is_active) {
-    return "현재 비공개 상태라 사용자 목록과 지도에는 표시되지 않습니다. 공개하려면 활성/즉시 공개를 켠 뒤 다시 저장하세요.";
+  if (!isPublicPlace(place)) {
+    return "현재 비공개 상태라 사용자 목록과 지도에는 표시되지 않습니다. 공개하려면 즉시 공개를 켠 뒤 다시 저장하세요.";
   }
 
   if (!hasUsableMapCoordinates(place)) {

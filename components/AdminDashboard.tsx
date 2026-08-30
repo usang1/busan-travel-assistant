@@ -1,4 +1,5 @@
 import { Camera, Clock3, MapPinned, Star, Tags, type LucideIcon } from "lucide-react";
+import { isPublicPlace } from "@/lib/place-publishing";
 import { categoryLabels, type PhotoSpotRecord, type PlaceWithRelations } from "@/types/database";
 
 type AdminDashboardProps = {
@@ -7,7 +8,7 @@ type AdminDashboardProps = {
 };
 
 export function AdminDashboard({ places, photoSpots }: AdminDashboardProps) {
-  const activePlaces = places.filter((place) => place.is_active);
+  const activePlaces = places.filter(isPublicPlace);
   const featuredPlaces = places.filter((place) => place.is_featured);
   const proPhotoSpots = photoSpots.filter((spot) => spot.free_or_pro === "pro");
   const categoryCounts = places.reduce<Record<string, number>>((acc, place) => {
@@ -51,7 +52,7 @@ export function AdminDashboard({ places, photoSpots }: AdminDashboardProps) {
                     <p className="mt-1 truncate text-xs text-slate-500">{place.name_zh}</p>
                   </div>
                   <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-bold text-slate-600">
-                    {place.is_active ? "활성" : "비활성"}
+                    {isPublicPlace(place) ? "공개" : place.status ?? "DRAFT"}
                   </span>
                 </div>
                 <p className="mt-2 inline-flex items-center gap-1 text-xs text-slate-500">

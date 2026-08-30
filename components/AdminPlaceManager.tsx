@@ -19,6 +19,7 @@ import {
 } from "@/lib/place-china/format";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
+import { isPublicPlace } from "@/lib/place-publishing";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import {
   categoryLabels,
@@ -699,7 +700,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     [form.short_description_en, form.short_description_ja, form.short_description_ko, form.short_description_zh],
   );
 
-  const activeCount = useMemo(() => places.filter((place) => place.is_active).length, [places]);
+  const activeCount = useMemo(() => places.filter(isPublicPlace).length, [places]);
   const featuredCount = useMemo(() => places.filter((place) => place.is_featured).length, [places]);
   const visiblePlaces = useMemo(() => {
     const lowered = query.trim().toLowerCase();
@@ -1283,9 +1284,14 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                       <p className="truncate text-sm font-bold text-slate-950">{place.name_ko}</p>
                       <p className="mt-1 truncate text-xs text-slate-500">{place.name_zh}</p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
-                      {categoryLabels[place.category].ko}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                        {categoryLabels[place.category].ko}
+                      </span>
+                      <span className={["rounded-full px-2 py-1 text-[11px] font-black", isPublicPlace(place) ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-800"].join(" ")}>
+                        {isPublicPlace(place) ? "공개" : place.status ?? "DRAFT"}
+                      </span>
+                    </div>
                   </div>
                 </button>
                 <div className="mt-3 flex gap-2">
@@ -1507,7 +1513,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} />
               </Field>
               <CheckField label="추천 장소" checked={form.is_featured} onChange={(checked) => updateField("is_featured", checked)} />
-              <CheckField label="활성" checked={form.is_active} onChange={(checked) => updateField("is_active", checked)} />
+              <CheckField label="즉시 공개" checked={form.is_active} onChange={(checked) => updateField("is_active", checked)} />
             </FormSection>
 
             <FormSection title="2. 중국인 입맛 평가">
