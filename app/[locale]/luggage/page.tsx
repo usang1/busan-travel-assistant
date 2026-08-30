@@ -103,7 +103,7 @@ export default async function LocalizedLuggagePage({ params }: LocalizedLuggageP
   const locale = await getLocale(params);
   const luggageCopy = luggageLabels[locale];
   const phraseCopy = luggagePhrase[locale];
-  const { places, error } = await getPlaces({ activeOnly: true });
+  const { places, error } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-luggage" });
   const luggagePlaces = places.filter((place) => place.category === "luggage");
 
   return (

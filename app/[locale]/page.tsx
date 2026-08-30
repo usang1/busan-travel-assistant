@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
 export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
   const copy = ui[locale];
-  const { places, source, error } = await getPlaces({ activeOnly: true, featuredOnly: true });
+  const { places, source, error } = await getPlaces({ activeOnly: true, featuredOnly: true, locale, debugLabel: "localized-home-featured" });
   const recommended = places.slice(0, 4);
 
   return (

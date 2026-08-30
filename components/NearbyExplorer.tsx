@@ -45,6 +45,7 @@ import { categoryLabels, type PlaceCategory, type PlaceWithRelations } from "@/t
 type NearbyExplorerProps = {
   places: PlaceWithRelations[];
   locale?: Locale;
+  loadError?: string;
 };
 
 type OriginMode = "current" | "gwangalli";
@@ -80,7 +81,7 @@ function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
   );
 }
 
-export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplorerProps) {
+export function NearbyExplorer({ places, locale = defaultLocale, loadError }: NearbyExplorerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -225,6 +226,30 @@ export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplore
   }, [filteredItems, selectedId]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.info("[nearby:client-filter]", {
+      locale,
+      activeFilters: {
+        query: query.trim(),
+        category,
+        priceBucket,
+        chinaFilters: showChinaFilters ? activeChinaFilters : [],
+        sortMode,
+        appliedBounds: Boolean(appliedBounds),
+        originMode,
+      },
+      rawPlacesCount: places.length,
+      coordinateEligibleCount: baseItems.length,
+      finalFilteredCount: filteredItems.length,
+      loadError: loadError ?? null,
+    });
+  }, [activeChinaFilters, appliedBounds, baseItems.length, category, filteredItems.length, loadError, locale, originMode, places.length, priceBucket, query, showChinaFilters, sortMode]);
+
+  useEffect(() => {
     if (!selectedItem) {
       setSelectedId(null);
       return;
@@ -341,6 +366,8 @@ export function NearbyExplorer({ places, locale = defaultLocale }: NearbyExplore
       items={filteredItems}
       selectedId={selectedItem?.place.id ?? null}
       locale={locale}
+      rawPlacesCount={places.length}
+      loadError={loadError}
       cardRefs={cardRefs}
       onSelect={(id) => selectPlace(id, "card")}
       onClearFilters={clearFilters}
@@ -636,6 +663,8 @@ function PlaceResultList({
   items,
   selectedId,
   locale,
+  rawPlacesCount,
+  loadError,
   cardRefs,
   onSelect,
   onClearFilters,
@@ -643,6 +672,8 @@ function PlaceResultList({
   items: PlaceListItem[];
   selectedId: string | null;
   locale: Locale;
+  rawPlacesCount: number;
+  loadError?: string;
   cardRefs: MutableRefObject<Map<string, HTMLDivElement | null>>;
   onSelect: (id: string) => void;
   onClearFilters: () => void;
@@ -652,8 +683,8 @@ function PlaceResultList({
   if (items.length === 0) {
     return (
       <EmptyState
-        title={copy.emptyTitle}
-        description={copy.emptyDescription}
+        title={loadError ? copy.loadErrorTitle : copy.emptyTitle}
+        description={loadError ? copy.loadErrorDescription : rawPlacesCount === 0 ? copy.emptyDatabaseDescription : copy.emptyDescription}
         action={
           <button type="button" onClick={onClearFilters} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">
             {copy.clearFilters}
@@ -848,6 +879,9 @@ const nearbyCopy: Record<Locale, {
   clearArea: string;
   emptyTitle: string;
   emptyDescription: string;
+  emptyDatabaseDescription: string;
+  loadErrorTitle: string;
+  loadErrorDescription: string;
   detail: string;
   price: string;
   sort: string;
@@ -876,6 +910,9 @@ const nearbyCopy: Record<Locale, {
     clearArea: "取消区域搜索",
     emptyTitle: "附近没有符合条件的地点",
     emptyDescription: "条件稍微减少一点，可以找到更多适合的地点。",
+    emptyDatabaseDescription: "目前没有已公开且带坐标的地点。",
+    loadErrorTitle: "无法载入地点信息",
+    loadErrorDescription: "地点数据库查询失败。请稍后再试。",
     detail: "详情",
     price: "价格",
     sort: "排序",
@@ -904,6 +941,9 @@ const nearbyCopy: Record<Locale, {
     clearArea: "Clear area search",
     emptyTitle: "No nearby places match",
     emptyDescription: "Move the map or reduce filters and try again.",
+    emptyDatabaseDescription: "There are no published places with coordinates yet.",
+    loadErrorTitle: "Could not load places",
+    loadErrorDescription: "The place database query failed. Please try again later.",
     detail: "Details",
     price: "Price",
     sort: "Sort",
@@ -932,6 +972,9 @@ const nearbyCopy: Record<Locale, {
     clearArea: "エリア検索を解除",
     emptyTitle: "条件に合う近くのスポットがありません",
     emptyDescription: "地図を動かすか、フィルターを減らして再確認してください。",
+    emptyDatabaseDescription: "公開済みで座標のあるスポットがまだありません。",
+    loadErrorTitle: "スポット情報を読み込めません",
+    loadErrorDescription: "スポットデータベースの取得に失敗しました。時間をおいて再確認してください。",
     detail: "詳細",
     price: "価格",
     sort: "並び替え",
@@ -960,6 +1003,9 @@ const nearbyCopy: Record<Locale, {
     clearArea: "지역 검색 해제",
     emptyTitle: "주변에 조건에 맞는 장소가 없습니다",
     emptyDescription: "지도를 움직이거나 필터를 줄여 다시 확인해 주세요.",
+    emptyDatabaseDescription: "아직 공개됐고 좌표가 있는 장소가 없습니다.",
+    loadErrorTitle: "장소 정보를 불러오지 못했습니다",
+    loadErrorDescription: "장소 데이터베이스 조회에 실패했습니다. 잠시 후 다시 확인해 주세요.",
     detail: "상세",
     price: "가격대",
     sort: "정렬",

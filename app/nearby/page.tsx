@@ -17,12 +17,12 @@ export const metadata: Metadata = {
 };
 
 export default async function NearbyPage() {
-  const { places, error } = await getPlaces({ activeOnly: true });
+  const { places, error } = await getPlaces({ activeOnly: true, locale: "zh", debugLabel: "nearby" });
 
   return (
     <main className="safe-bottom mx-auto max-w-7xl px-4 pb-6 pt-5 lg:px-6">
       {error ? <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
-      <NearbyExplorer places={places} />
+      <NearbyExplorer places={places} loadError={error} />
     </main>
   );
 }

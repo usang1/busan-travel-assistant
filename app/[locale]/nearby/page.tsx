@@ -44,12 +44,12 @@ export async function generateMetadata({ params }: LocalizedNearbyPageProps): Pr
 
 export default async function LocalizedNearbyPage({ params }: LocalizedNearbyPageProps) {
   const locale = await getLocale(params);
-  const { places, error } = await getPlaces({ activeOnly: true });
+  const { places, error } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-nearby" });
 
   return (
     <main className="safe-bottom mx-auto max-w-7xl px-4 pb-6 pt-5 lg:px-6">
       {error ? <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
-      <NearbyExplorer places={places} locale={locale} />
+      <NearbyExplorer places={places} locale={locale} loadError={error} />
     </main>
   );
 }

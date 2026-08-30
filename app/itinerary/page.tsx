@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ItineraryPage() {
-  const { places, error } = await getPlaces({ activeOnly: true });
+  const { places, error } = await getPlaces({ activeOnly: true, locale: "zh", debugLabel: "itinerary" });
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">

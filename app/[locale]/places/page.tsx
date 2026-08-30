@@ -58,14 +58,14 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   const locale = await getLocale(params);
   const query = await searchParams;
   const copy = ui[locale];
-  const { places, source, error } = await getPlaces({ activeOnly: true });
+  const { places, source, error } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-places" });
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
       <SectionTitle title={copy.places.heading} subtitle={source === "demo" ? "Demo 데이터 표시 중" : "Supabase"} />
       {error ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
       <div className="mt-4">
-        <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} />
+        <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} loadError={error} />
       </div>
     </main>
   );

@@ -6,7 +6,7 @@ import type { PlacePayload } from "@/types/database";
 export async function GET(request: Request) {
   try {
     const { client } = await requireAdmin(request);
-    const result = await getPlaces({ activeOnly: false }, client);
+    const result = await getPlaces({ activeOnly: false, includeAdminRelations: true, debugLabel: "admin-places" }, client);
 
     return NextResponse.json(result);
   } catch (error) {

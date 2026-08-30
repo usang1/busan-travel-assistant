@@ -26,9 +26,11 @@ type SupabasePlaceRow = PlaceRecord & {
 };
 
 type PlaceWriteRow = Omit<PlacePayload, "tags" | "menu_items" | "china_info">;
-const placeSelectWithChinaInfo = "*, place_china_info(*), place_translations(*), place_sources(*), place_tags(tags(*)), place_menu_items(*)";
-const placeSelectWithTranslations = "*, place_translations(*), place_sources(*), place_tags(tags(*)), place_menu_items(*)";
-const legacyPlaceSelect = "*, place_tags(tags(*)), place_menu_items(*)";
+const publicPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_tags(tags(*)),place_menu_items(*)";
+const publicPlaceSelectWithTranslations: string = "*,place_translations(*),place_tags(tags(*)),place_menu_items(*)";
+const adminPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
+const adminPlaceSelectWithTranslations: string = "*,place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
+const legacyPlaceSelect: string = "*,place_tags(tags(*)),place_menu_items(*)";
 
 const priceLabels: Record<Locale, { free: string; unknown: string }> = {
   zh: { free: "免费", unknown: "价格未登记" },
@@ -92,6 +94,8 @@ export function formatPriceRange(place: Pick<PlaceRecord, "price_min" | "price_m
 }
 
 function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
+  const latitude = toNullableNumber(row.latitude);
+  const longitude = toNullableNumber(row.longitude);
   const tags =
     row.place_tags
       ?.map((item) => item.tags)
@@ -104,12 +108,35 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
 
   return {
     ...row,
+    latitude,
+    longitude,
     china_info: chinaInfo,
     tags,
     menu_items: menuItems,
     translations: normalizePlaceTranslations(row),
     sources: row.place_sources ?? [],
   };
+}
+
+function mapPlaceRows(rows: unknown): PlaceWithRelations[] {
+  return (rows as SupabasePlaceRow[]).map(mapPlace);
+}
+
+function mapPlaceRow(row: unknown): PlaceWithRelations {
+  return mapPlace(row as SupabasePlaceRow);
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
 }
 
 function withDemoFallback(error?: string): PlaceListResult {
@@ -120,6 +147,42 @@ function withDemoFallback(error?: string): PlaceListResult {
   };
 }
 
+function buildPlaceQueryDebug(options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean }) {
+  return {
+    activeOnly: options.activeOnly ?? true,
+    status: options.activeOnly ?? true ? "ACTIVE" : "any",
+    featuredOnly: Boolean(options.featuredOnly),
+    includeAdminRelations: Boolean(options.includeAdminRelations),
+  };
+}
+
+function debugPlaceList(
+  stage: string,
+  details: {
+    label?: string;
+    error?: string;
+    filters: ReturnType<typeof buildPlaceQueryDebug>;
+    locale?: Locale;
+    rawCount?: number;
+    finalCount?: number;
+  },
+) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  // eslint-disable-next-line no-console
+  console.info("[places:getPlaces]", {
+    stage,
+    label: details.label,
+    locale: details.locale ?? "unknown",
+    filters: details.filters,
+    error: details.error ?? null,
+    rawPlacesCount: details.rawCount ?? null,
+    finalFilteredCount: details.finalCount ?? null,
+  });
+}
+
 async function addSaveCounts(places: PlaceWithRelations[]) {
   const counts = await getPlaceSaveCounts(places.map((place) => place.id));
 
@@ -127,7 +190,7 @@ async function addSaveCounts(places: PlaceWithRelations[]) {
 }
 
 export async function getPlaces(
-  options: { activeOnly?: boolean; featuredOnly?: boolean } = {},
+  options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string } = {},
   client?: SupabaseClient,
 ): Promise<PlaceListResult> {
   const resolvedClient = resolveClient(client);
@@ -136,14 +199,18 @@ export async function getPlaces(
     return withDemoFallback("Supabase 환경 변수가 없어 demo 데이터를 사용합니다.");
   }
 
+  const activeFilters = buildPlaceQueryDebug(options);
+  const selectWithChinaInfo = options.includeAdminRelations ? adminPlaceSelectWithChinaInfo : publicPlaceSelectWithChinaInfo;
+  const selectWithTranslations = options.includeAdminRelations ? adminPlaceSelectWithTranslations : publicPlaceSelectWithTranslations;
   let query = resolvedClient
     .from("places")
-    .select(placeSelectWithChinaInfo)
+    .select(selectWithChinaInfo)
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false });
 
   if (options.activeOnly ?? true) {
     query = query.eq("is_active", true);
+    query = query.eq("status", "ACTIVE");
   }
 
   if (options.featuredOnly) {
@@ -153,14 +220,22 @@ export async function getPlaces(
   const { data, error } = await query;
 
   if (error || !data) {
+    debugPlaceList("primary", {
+      label: options.debugLabel,
+      error: error?.message,
+      filters: activeFilters,
+      locale: options.locale,
+    });
+
     let compatibleQuery = resolvedClient
       .from("places")
-      .select(placeSelectWithTranslations)
+      .select(selectWithTranslations)
       .order("is_featured", { ascending: false })
       .order("updated_at", { ascending: false });
 
     if (options.activeOnly ?? true) {
       compatibleQuery = compatibleQuery.eq("is_active", true);
+      compatibleQuery = compatibleQuery.eq("status", "ACTIVE");
     }
 
     if (options.featuredOnly) {
@@ -170,11 +245,27 @@ export async function getPlaces(
     const compatibleResult = await compatibleQuery;
 
     if (!compatibleResult.error && compatibleResult.data) {
+      const places = await addSaveCounts(mapPlaceRows(compatibleResult.data));
+      debugPlaceList("compatible", {
+        label: options.debugLabel,
+        filters: activeFilters,
+        locale: options.locale,
+        rawCount: compatibleResult.data.length,
+        finalCount: places.length,
+      });
+
       return {
-        places: await addSaveCounts((compatibleResult.data as SupabasePlaceRow[]).map(mapPlace)),
+        places,
         source: "supabase",
       };
     }
+
+    debugPlaceList("compatible", {
+      label: options.debugLabel,
+      error: compatibleResult.error?.message,
+      filters: activeFilters,
+      locale: options.locale,
+    });
 
     let legacyQuery = resolvedClient
       .from("places")
@@ -184,6 +275,7 @@ export async function getPlaces(
 
     if (options.activeOnly ?? true) {
       legacyQuery = legacyQuery.eq("is_active", true);
+      legacyQuery = legacyQuery.eq("status", "ACTIVE");
     }
 
     if (options.featuredOnly) {
@@ -193,24 +285,49 @@ export async function getPlaces(
     const legacyResult = await legacyQuery;
 
     if (legacyResult.error || !legacyResult.data) {
+      debugPlaceList("legacy", {
+        label: options.debugLabel,
+        error: legacyResult.error?.message,
+        filters: activeFilters,
+        locale: options.locale,
+      });
+
       return withDemoFallback(legacyResult.error?.message ?? compatibleResult.error?.message ?? error?.message ?? "Supabase 데이터를 불러오지 못했습니다.");
     }
 
+    const places = await addSaveCounts(mapPlaceRows(legacyResult.data));
+    debugPlaceList("legacy", {
+      label: options.debugLabel,
+      filters: activeFilters,
+      locale: options.locale,
+      rawCount: legacyResult.data.length,
+      finalCount: places.length,
+    });
+
     return {
-      places: await addSaveCounts((legacyResult.data as SupabasePlaceRow[]).map(mapPlace)),
+      places,
       source: "supabase",
     };
   }
 
+  const places = await addSaveCounts(mapPlaceRows(data));
+  debugPlaceList("primary", {
+    label: options.debugLabel,
+    filters: activeFilters,
+    locale: options.locale,
+    rawCount: data.length,
+    finalCount: places.length,
+  });
+
   return {
-    places: await addSaveCounts((data as SupabasePlaceRow[]).map(mapPlace)),
+    places,
     source: "supabase",
   };
 }
 
 export async function getPlaceBySlug(
   slug: string,
-  options: { activeOnly?: boolean } = {},
+  options: { activeOnly?: boolean; includeAdminRelations?: boolean } = {},
   client?: SupabaseClient,
 ): Promise<{ place: PlaceWithRelations | null; source: "supabase" | "demo"; error?: string }> {
   const resolvedClient = resolveClient(client);
@@ -223,13 +340,16 @@ export async function getPlaceBySlug(
     };
   }
 
+  const selectWithChinaInfo = options.includeAdminRelations ? adminPlaceSelectWithChinaInfo : publicPlaceSelectWithChinaInfo;
+  const selectWithTranslations = options.includeAdminRelations ? adminPlaceSelectWithTranslations : publicPlaceSelectWithTranslations;
   let query = resolvedClient
     .from("places")
-    .select(placeSelectWithChinaInfo)
+    .select(selectWithChinaInfo)
     .eq("slug", slug);
 
   if (options.activeOnly ?? true) {
     query = query.eq("is_active", true);
+    query = query.eq("status", "ACTIVE");
   }
 
   const { data, error } = await query.single();
@@ -237,17 +357,18 @@ export async function getPlaceBySlug(
   if (error || !data) {
     let compatibleQuery = resolvedClient
       .from("places")
-      .select(placeSelectWithTranslations)
+      .select(selectWithTranslations)
       .eq("slug", slug);
 
     if (options.activeOnly ?? true) {
       compatibleQuery = compatibleQuery.eq("is_active", true);
+      compatibleQuery = compatibleQuery.eq("status", "ACTIVE");
     }
 
     const compatibleResult = await compatibleQuery.single();
 
     if (!compatibleResult.error && compatibleResult.data) {
-      const place = mapPlace(compatibleResult.data as SupabasePlaceRow);
+      const place = mapPlaceRow(compatibleResult.data);
       const counts = await getPlaceSaveCounts([place.id]);
 
       return {
@@ -263,12 +384,13 @@ export async function getPlaceBySlug(
 
     if (options.activeOnly ?? true) {
       legacyQuery = legacyQuery.eq("is_active", true);
+      legacyQuery = legacyQuery.eq("status", "ACTIVE");
     }
 
     const legacyResult = await legacyQuery.single();
 
     if (!legacyResult.error && legacyResult.data) {
-      const place = mapPlace(legacyResult.data as SupabasePlaceRow);
+      const place = mapPlaceRow(legacyResult.data);
       const counts = await getPlaceSaveCounts([place.id]);
 
       return {
@@ -286,7 +408,7 @@ export async function getPlaceBySlug(
     };
   }
 
-  const place = mapPlace(data as SupabasePlaceRow);
+  const place = mapPlaceRow(data);
   const counts = await getPlaceSaveCounts([place.id]);
 
   return {
@@ -303,7 +425,10 @@ function toPlaceWriteRow(payload: PlacePayload): PlaceWriteRow {
   void _source;
   void _chinaInfo;
 
-  return place;
+  return {
+    ...place,
+    status: place.status ?? (place.is_active ? "ACTIVE" : "DRAFT"),
+  };
 }
 
 function resolveClient(client?: SupabaseClient) {
@@ -468,8 +593,34 @@ async function syncChinaInfo(placeId: string, payload: PlacePayload, client?: Su
     .upsert({ place_id: placeId, ...payload.china_info }, { onConflict: "place_id" });
 
   if (error) {
+    if (isMissingOptionalRelationError(error)) {
+      debugOptionalRelationSkip("place_china_info", error.message);
+      return;
+    }
+
     throw new Error(error.message);
   }
+}
+
+function isMissingOptionalRelationError(error: { code?: string; message?: string }) {
+  const message = error.message ?? "";
+
+  return (
+    error.code === "PGRST205" ||
+    error.code === "PGRST200" ||
+    error.code === "42P01" ||
+    message.includes("Could not find the table") ||
+    message.includes("Could not find a relationship")
+  );
+}
+
+function debugOptionalRelationSkip(relation: string, error: string) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  // eslint-disable-next-line no-console
+  console.warn("[places:optional-relation-skip]", { relation, error });
 }
 
 export async function createPlace(payload: PlacePayload, client?: SupabaseClient): Promise<PlaceWithRelations> {
@@ -492,7 +643,7 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   await syncSource(id, payload, resolvedClient);
   await syncChinaInfo(id, payload, resolvedClient);
 
-  const result = await getPlaceBySlug(payload.slug, { activeOnly: false }, resolvedClient);
+  const result = await getPlaceBySlug(payload.slug, { activeOnly: false, includeAdminRelations: true }, resolvedClient);
 
   if (!result.place) {
     throw new Error("저장한 장소를 다시 불러오지 못했습니다.");
@@ -520,7 +671,7 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   await syncSource(id, payload, resolvedClient);
   await syncChinaInfo(id, payload, resolvedClient);
 
-  const result = await getPlaceBySlug(payload.slug, { activeOnly: false }, resolvedClient);
+  const result = await getPlaceBySlug(payload.slug, { activeOnly: false, includeAdminRelations: true }, resolvedClient);
 
   if (!result.place) {
     throw new Error("수정한 장소를 다시 불러오지 못했습니다.");

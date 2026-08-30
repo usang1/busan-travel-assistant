@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const { places, source, error } = await getPlaces({ activeOnly: true, featuredOnly: true });
+  const { places, source, error } = await getPlaces({ activeOnly: true, featuredOnly: true, locale: "zh", debugLabel: "home-featured" });
   const recommended = places.slice(0, 4);
 
   return (

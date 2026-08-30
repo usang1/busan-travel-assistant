@@ -455,6 +455,7 @@ as $$
   join public.places on places.id = place_saves.place_id
   where place_saves.place_id = any(place_ids)
     and places.is_active = true
+    and places.status = 'ACTIVE'
   group by place_saves.place_id;
 $$;
 
@@ -572,7 +573,7 @@ drop policy if exists "MVP admin can manage places" on public.places;
 drop policy if exists "Admins can manage places" on public.places;
 create policy "Public can read active places"
 on public.places for select
-using (is_active = true);
+using (is_active = true and status = 'ACTIVE');
 create policy "Admins can manage places"
 on public.places for all
 using (public.is_admin())
@@ -601,6 +602,7 @@ using (
     from public.places
     where places.id = place_tags.place_id
       and places.is_active = true
+      and places.status = 'ACTIVE'
   )
 );
 create policy "Admins can manage place tags"
@@ -620,6 +622,7 @@ using (
     from public.places
     where places.id = place_menu_items.place_id
       and places.is_active = true
+      and places.status = 'ACTIVE'
   )
 );
 create policy "Admins can manage menu items"
@@ -669,6 +672,7 @@ using (
     from public.places
     where places.id = place_translations.place_id
       and places.is_active = true
+      and places.status = 'ACTIVE'
   )
 );
 create policy "Admins can manage place translations"
@@ -697,6 +701,7 @@ using (
     from public.places
     where places.id = place_china_info.place_id
       and places.is_active = true
+      and places.status = 'ACTIVE'
   )
 );
 create policy "Admins can manage place China info"
@@ -753,6 +758,7 @@ using (
     from public.places
     where places.id = place_events.place_id
       and places.is_active = true
+      and places.status = 'ACTIVE'
   )
 );
 create policy "Admins can manage place events"

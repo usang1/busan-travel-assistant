@@ -433,6 +433,7 @@ function toPayload(form: FormState): PlacePayload {
     name_zh: form.name_zh,
     name_ko: form.name_ko,
     category: form.category,
+    status: form.is_active ? "ACTIVE" : "DRAFT",
     short_description_zh: form.short_description_zh,
     short_description_ko: form.short_description_ko,
     address_ko: form.address_ko,

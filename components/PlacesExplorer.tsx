@@ -32,6 +32,7 @@ type PlacesExplorerProps = {
   places: PlaceWithRelations[];
   initialCategory?: string;
   locale?: Locale;
+  loadError?: string;
 };
 
 type SortMode = ChinaDiscoverySort;
@@ -47,7 +48,7 @@ const categoryFilters: Array<{ value: PlaceCategory | "all" }> = [
   { value: "luggage" },
 ];
 
-export function PlacesExplorer({ places, initialCategory, locale = defaultLocale }: PlacesExplorerProps) {
+export function PlacesExplorer({ places, initialCategory, locale = defaultLocale, loadError }: PlacesExplorerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -141,6 +142,28 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       .sort((a, b) => (b.save_count ?? 0) - (a.save_count ?? 0))
       .slice(0, 4);
   }, [places]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.info("[places:client-filter]", {
+      locale,
+      activeFilters: {
+        query: query.trim(),
+        category,
+        region,
+        priceBucket,
+        chinaFilters: showChinaFilters ? activeChinaFilters : [],
+        sortMode,
+      },
+      rawPlacesCount: places.length,
+      finalFilteredCount: filteredPlaces.length,
+      loadError: loadError ?? null,
+    });
+  }, [activeChinaFilters, category, filteredPlaces.length, loadError, locale, places.length, priceBucket, query, region, showChinaFilters, sortMode]);
 
   function toggleChinaFilter(filter: ChinaDiscoveryFilter) {
     setActiveChinaFilters((current) =>
@@ -324,8 +347,8 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       ) : (
         <div className="mt-5">
           <EmptyState
-            title={copy.places.emptyTitle}
-            description={explorerCopy.reduceFilters}
+            title={loadError ? explorerCopy.loadErrorTitle : copy.places.emptyTitle}
+            description={loadError ? explorerCopy.loadErrorDescription : places.length === 0 ? explorerCopy.emptyDatabaseDescription : explorerCopy.reduceFilters}
             action={
               <button type="button" onClick={clearFilters} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">
                 {explorerCopy.clearFilters}
@@ -356,6 +379,9 @@ const placesExplorerCopy: Record<Locale, {
   activeFilters: string;
   clearFilters: string;
   reduceFilters: string;
+  emptyDatabaseDescription: string;
+  loadErrorTitle: string;
+  loadErrorDescription: string;
   popular: string;
   savedBased: string;
   locationUnsupported: string;
@@ -377,6 +403,9 @@ const placesExplorerCopy: Record<Locale, {
     activeFilters: "已选",
     clearFilters: "全部清除",
     reduceFilters: "条件稍微减少一点，可以找到更多适合的地点。",
+    emptyDatabaseDescription: "目前没有已公开的地点。",
+    loadErrorTitle: "无法载入地点信息",
+    loadErrorDescription: "地点数据库查询失败。请稍后再试。",
     popular: "热门地点",
     savedBased: "按收藏数",
     locationUnsupported: "此浏览器无法使用当前位置。",
@@ -398,6 +427,9 @@ const placesExplorerCopy: Record<Locale, {
     activeFilters: "Active",
     clearFilters: "Reset filters",
     reduceFilters: "Try removing a few filters to see more places.",
+    emptyDatabaseDescription: "There are no published places yet.",
+    loadErrorTitle: "Could not load places",
+    loadErrorDescription: "The place database query failed. Please try again later.",
     popular: "Popular places",
     savedBased: "Based on saves",
     locationUnsupported: "Current location is unavailable in this browser.",
@@ -419,6 +451,9 @@ const placesExplorerCopy: Record<Locale, {
     activeFilters: "選択中",
     clearFilters: "リセット",
     reduceFilters: "条件を少し減らすと、より多くのスポットが見つかります。",
+    emptyDatabaseDescription: "公開済みスポットがまだありません。",
+    loadErrorTitle: "スポット情報を読み込めません",
+    loadErrorDescription: "スポットデータベースの取得に失敗しました。時間をおいて再確認してください。",
     popular: "人気スポット",
     savedBased: "保存数基準",
     locationUnsupported: "このブラウザでは現在地を使用できません。",
@@ -440,6 +475,9 @@ const placesExplorerCopy: Record<Locale, {
     activeFilters: "적용",
     clearFilters: "전체 초기화",
     reduceFilters: "조건을 조금 줄이면 더 많은 장소를 찾을 수 있어요.",
+    emptyDatabaseDescription: "아직 공개된 장소가 없습니다.",
+    loadErrorTitle: "장소 정보를 불러오지 못했습니다",
+    loadErrorDescription: "장소 데이터베이스 조회에 실패했습니다. 잠시 후 다시 확인해 주세요.",
     popular: "인기 장소",
     savedBased: "저장 수 기반",
     locationUnsupported: "이 브라우저에서는 현재 위치를 사용할 수 없습니다.",

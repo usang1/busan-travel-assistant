@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: LocalizedItineraryPageProps):
 
 export default async function LocalizedItineraryPage({ params }: LocalizedItineraryPageProps) {
   const locale = await getLocale(params);
-  const { places, error } = await getPlaces({ activeOnly: true });
+  const { places, error } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-itinerary" });
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">

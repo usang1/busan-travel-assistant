@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export default async function LuggagePage() {
-  const { places, error } = await getPlaces({ activeOnly: true });
+  const { places, error } = await getPlaces({ activeOnly: true, locale: "zh", debugLabel: "luggage" });
   const luggagePlaces = places.filter((place) => place.category === "luggage");
 
   return (
