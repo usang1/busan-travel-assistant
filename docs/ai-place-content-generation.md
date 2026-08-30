@@ -20,7 +20,7 @@ Factual/source data stays in existing place tables:
 Generated candidates are represented by `PlaceAiGeneratedContent` in `types/place-ai.ts`:
 
 - `description_ko`, `description_zh`, `description_en`, `description_ja`
-- `short_summary`
+- `short_summary_ko`, `short_summary_zh`, `short_summary_en`, `short_summary_ja`
 - `highlights`
 - `traveler_tips`
 - `recommended_for`
@@ -39,17 +39,17 @@ Public place fields are updated only after an admin applies draft content to the
 1. Admin enters or loads factual place data.
 2. Admin keeps map URL/provider/source ID in the source section.
 3. Admin clicks `AI 여행정보 생성`.
-4. The current foundation route validates the request and returns a prepared empty draft without calling an external AI API.
-5. In a future AI connection step, the same route can call a model and return `PlaceAiGeneratedContent`.
+4. The server route normalizes source facts and calls the OpenAI Responses API.
+5. The route returns schema-validated `PlaceAiGeneratedContent`.
 6. Admin reviews the generated fields in `AdminAiDraftPanel`.
 7. Admin clicks `적용` to copy draft content into the editable form.
 8. Admin clicks `저장` to persist final reviewed content through existing place write logic.
 
-## Future AI connection
+## AI connection
 
-Use `app/api/admin/place-ai-generation/route.ts` as the integration point. The route is already admin-protected and receives `PlaceAiGenerationRequest`.
+Use `app/api/admin/place-ai-generation/route.ts` or the alias `app/api/admin/places/generate-ai/route.ts` as the integration point. The route is already admin-protected and receives `PlaceAiGenerationRequest`.
 
-Recommended output mode for a later OpenAI integration is Structured Outputs with a JSON schema matching `PlaceAiGeneratedContent`, so the UI receives predictable fields and arrays. Keep source facts and generated copy separate, and do not invent facts that are not present in `source_data`.
+The OpenAI integration uses Structured Outputs with a JSON schema matching `PlaceAiGeneratedContent`, so the UI receives predictable fields and arrays. Keep source facts and generated copy separate, and do not invent facts that are not present in `source_data`.
 
 ## Migration
 

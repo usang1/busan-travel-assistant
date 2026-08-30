@@ -28,6 +28,7 @@ function loadTsModule(path, aliases = {}) {
     require,
     console,
     process: { env: {} },
+    Buffer,
     URL,
   });
 
@@ -163,6 +164,25 @@ const mapUrl = loadTsModule("lib/map-url.ts");
 const { analyzeMapLink } = loadTsModule("lib/map-link-analysis.ts", {
   "@/lib/map-url": mapUrl,
 });
+const mapSource = loadTsModule("lib/place-ai/map-source.ts", {
+  "@/lib/map-url": mapUrl,
+});
+const placeAiTypes = {};
+const databaseRuntime = {
+  placeCategories: ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"],
+};
+const contentDraft = loadTsModule("lib/place-ai/content-draft.ts", {
+  "@/types/place-ai": placeAiTypes,
+  "@/types/database": databaseRuntime,
+  "@/lib/place-ai/map-source": mapSource,
+});
+const generator = loadTsModule("lib/place-ai/generator.ts", {
+  openai: { default: class OpenAI {} },
+  "@/lib/place-ai/map-source": mapSource,
+  "@/lib/place-ai/content-draft": contentDraft,
+  "@/types/place-ai": placeAiTypes,
+  "@/types/database": databaseRuntime,
+});
 const { buildAdminTranslationPrompt, buildPlaceSummaryPrompt } = loadTsModule("lib/openai-place-summary.ts");
 
 const naverLinkAnalysis = analyzeMapLink("https://naver.me/x9VaDLM8", [
@@ -186,6 +206,63 @@ const translationPrompt = buildAdminTranslationPrompt({
 assert.match(translationPrompt, /한국어\/중국어 간체\/영어/);
 assert.match(translationPrompt, /일본어는 만들지 않는다/);
 assert.match(translationPrompt, /진송숯불 수영점/);
+assert.equal(mapSource.analyzePlaceMapSource("https://map.naver.com/p/entry/place/1435915485").source_type, "naver");
+assert.equal(mapSource.analyzePlaceMapSource("https://place.map.kakao.com/12345").external_id, "12345");
+assert.equal(mapSource.analyzePlaceMapSource("https://maps.google.com/?cid=999").source_type, "google");
+assert.equal(mapSource.analyzePlaceMapSource("not a url").source_type, "unknown");
+
+assert.throws(
+  () =>
+    generator.normalizePlaceAiGenerationRequest({
+      sourceData: {
+        name: "장소명만 있음",
+        category: "restaurant",
+      },
+    }),
+  /최소한의 장소 정보/,
+);
+
+await assert.rejects(
+  () =>
+    generator.generatePlaceAiContent({
+      source_data: contentDraft.buildPlaceSourceData({
+        slug: "sample",
+        name_zh: "样本餐厅",
+        name_ko: "샘플 식당",
+        category: "restaurant",
+        address_ko: "부산 수영구",
+        address_zh: "釜山 水营区",
+        latitude: 35.15,
+        longitude: 129.11,
+        nearest_station: "광안역",
+        nearest_exit: "",
+        walking_minutes: 5,
+        price_min: 10000,
+        price_max: 20000,
+        opening_hours: "10:00-22:00",
+        waiting_info_zh: "",
+        waiting_info_ko: "",
+        solo_friendly: true,
+        luggage_friendly: false,
+        chinese_menu: false,
+        card_payment: true,
+        recommended_order_zh: "",
+        recommended_order_ko: "",
+        tips_zh: "",
+        tips_ko: "",
+        short_description_zh: "",
+        short_description_ko: "",
+        thumbnail_url: "",
+        is_featured: false,
+        is_active: true,
+        status: "ACTIVE",
+        tags: [],
+        menu_items: [],
+      }),
+      locale_targets: ["ko", "zh", "en", "ja"],
+    }),
+  /OPENAI_API_KEY/,
+);
 
 const {
   filterPlacesForChineseTraveler,

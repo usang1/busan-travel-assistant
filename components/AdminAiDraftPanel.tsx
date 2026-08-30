@@ -20,7 +20,7 @@ export function AdminAiDraftPanel({ draft, generating, canApply, onGenerate, onA
         <div>
           <h4 className="text-sm font-black text-slate-950">AI 생성 결과 검토</h4>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            이번 단계에서는 외부 AI API를 호출하지 않고, 생성 결과를 검토 후 적용하는 흐름만 준비합니다.
+            서버에서 생성한 초안을 검토한 뒤 적용해야 입력 폼에 반영됩니다. 저장은 기존 저장 버튼으로 확정합니다.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -31,7 +31,7 @@ export function AdminAiDraftPanel({ draft, generating, canApply, onGenerate, onA
             className="inline-flex h-10 items-center gap-2 rounded-full bg-indigo-50 px-4 text-xs font-black text-indigo-800 ring-1 ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Sparkles size={15} aria-hidden="true" />
-            {generating ? "준비 중" : draft ? "다시 생성" : "AI 여행정보 생성"}
+            {generating ? "생성 중" : draft ? "다시 생성" : "AI 여행정보 생성"}
           </button>
           <button
             type="button"
@@ -52,7 +52,10 @@ export function AdminAiDraftPanel({ draft, generating, canApply, onGenerate, onA
           <DraftField label="중국어 설명" value={content?.description_zh} />
           <DraftField label="영어 설명" value={content?.description_en} />
           <DraftField label="일본어 설명" value={content?.description_ja} />
-          <DraftField label="한줄 요약" value={content?.short_summary} />
+          <DraftField label="한국어 한줄 요약" value={content?.short_summary_ko || content?.short_summary} />
+          <DraftField label="中文 一句话摘要" value={content?.short_summary_zh} />
+          <DraftField label="English summary" value={content?.short_summary_en} />
+          <DraftField label="日本語 要約" value={content?.short_summary_ja} />
           <DraftList label="추천 포인트" values={content?.highlights} />
           <DraftList label="여행자 TIP" values={content?.traveler_tips} />
           <DraftList label="추천 대상" values={content?.recommended_for} />

@@ -281,18 +281,19 @@ function applyTranslationsToPublishForm(form: PublishForm, translations: Partial
 }
 
 function applyGeneratedContentToPublishForm(form: PublishForm, content: PlaceAiGeneratedContent): PublishForm {
+  const fill = (current: string, generated: string) => current.trim() || generated;
   const tipText = [...content.traveler_tips, ...content.cautions].filter(Boolean).join(" ");
 
   return {
     ...form,
-    description_ko: content.description_ko || form.description_ko,
-    description_zh: content.description_zh || form.description_zh,
-    description_en: content.description_en || form.description_en,
-    description_ja: content.description_ja || form.description_ja,
-    tips_ko: tipText || form.tips_ko,
-    tips_zh: tipText || form.tips_zh,
-    tips_en: tipText || form.tips_en,
-    tips_ja: tipText || form.tips_ja,
+    description_ko: fill(form.description_ko, content.description_ko),
+    description_zh: fill(form.description_zh, content.description_zh),
+    description_en: fill(form.description_en, content.description_en),
+    description_ja: fill(form.description_ja, content.description_ja),
+    tips_ko: fill(form.tips_ko, content.description_ko || tipText),
+    tips_zh: fill(form.tips_zh, content.description_zh || tipText),
+    tips_en: fill(form.tips_en, content.description_en || tipText),
+    tips_ja: fill(form.tips_ja, content.description_ja || tipText),
   };
 }
 
@@ -423,7 +424,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     }
 
     setGeneratingAiDraft(true);
-    setStatus("AI 생성 요청 구조를 준비하는 중입니다.");
+    setStatus("여행자용 설명 생성 중입니다.");
 
     try {
       const response = await adminFetch("/api/admin/place-ai-generation", {
@@ -538,7 +539,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         analysis.externalId ? "네이버 ID" : "",
         summary ? "AI 설명" : "",
       ].filter(Boolean);
-      const aiNotice = body.aiConfigured ? "" : " AI 설명 생성은 이번 단계에서 비활성화되어 있습니다.";
+      const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 설명 초안은 생성하지 않았습니다.";
       const aiErrorNotice = body.summaryError ? ` AI 설명 생성 실패: ${body.summaryError}` : "";
       setStatus(
         filled.length

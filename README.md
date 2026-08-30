@@ -45,18 +45,19 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 OPENAI_API_KEY=
-ADMIN_AI_API_ENABLED=false
+OPENAI_PLACE_MODEL=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
-- `OPENAI_API_KEY`: 실제 AI 연결 단계에서만 서버에서 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
-- `ADMIN_AI_API_ENABLED`: 실제 AI API 호출 안전장치입니다. 이번 기반 단계에서는 `false`로 두고, 향후 AI 연결 단계에서 `true`로 바꿉니다.
+- `OPENAI_API_KEY`: 관리자 AI 장소 설명/번역 생성에 서버에서만 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
+- `OPENAI_PLACE_MODEL`: 관리자 장소 설명 생성 모델입니다. 비우면 코드 기본값 `gpt-5.6-luna`를 사용합니다.
 
 관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
 
-관리자 AI 초안 생성 흐름은 먼저 지도 링크/관리자 폼에서 얻은 사실 데이터와 AI 생성 후보를 분리합니다. 이번 단계의 `/api/admin/place-ai-generation` route는 관리자 인증과 요청/응답 구조만 준비하며 외부 AI API를 호출하지 않습니다. 기존 AI 호출 경로도 `OPENAI_API_KEY`와 `ADMIN_AI_API_ENABLED=true`가 함께 설정된 경우에만 실행됩니다.
+관리자 AI 초안 생성 흐름은 먼저 지도 링크/관리자 폼에서 얻은 사실 데이터와 AI 생성 후보를 분리합니다. `/api/admin/place-ai-generation` route는 관리자 인증 후 정규화된 `PlaceSourceData`만 OpenAI API로 보내고, Structured Outputs JSON으로 검수용 초안을 반환합니다.
+호환 엔드포인트로 `POST /api/admin/places/generate-ai`도 같은 로직을 사용합니다.
 
 AI 생성 기반 설계와 관리자 적용 흐름은 `docs/ai-place-content-generation.md`에 정리되어 있습니다.
 
@@ -142,9 +143,9 @@ npm run build
 3. 장소 추가/수정 폼에서 기본정보, 위치, 가격, 운영시간, 시설, 중국인 관광객용 안내, 추천 주문, 사진 URL, 메뉴를 입력합니다.
 4. 제보 기반 등록에서는 네이버 지도 링크를 넣고 `분석`을 누르면 장소명, 좌표, 지도 장소 ID를 채웁니다.
 5. 직접 등록/수정 화면에서는 지도 링크, provider, 지도 장소 ID를 입력할 수 있습니다.
-6. `AI 여행정보 생성`은 이번 단계에서 외부 API를 호출하지 않고, 향후 생성 결과를 검토/적용할 패널만 표시합니다. 생성 후보가 있어도 `적용`을 눌러 폼에 반영하고 다시 `저장`해야 DB에 들어갑니다.
+6. `AI 여행정보 생성`은 서버에서 OpenAI API를 호출해 한국어/중국어/영어/일본어 설명, 요약, 추천 포인트, 여행자 TIP, 주의사항 초안을 생성합니다. 생성 후보가 있어도 `적용`을 눌러 폼에 반영하고 다시 `저장`해야 DB에 들어갑니다.
 7. 직접 등록 화면에서는 한국어 주소를 입력한 뒤 `주소로 좌표 찾기`를 누르면 네이버 주소 검색 결과의 위도/경도가 자동 입력됩니다. 결과가 애매하면 위도/경도를 직접 보정할 수 있습니다.
-8. `AI 번역` 또는 `AI 번역 채우기`는 `ADMIN_AI_API_ENABLED=true`가 설정된 실제 연결 단계에서만 동작합니다. 이미 입력된 값은 덮어쓰지 않습니다.
+8. `AI 번역` 또는 `AI 번역 채우기`는 `OPENAI_API_KEY`가 설정된 경우에만 동작합니다. 이미 입력된 값은 덮어쓰지 않습니다.
 9. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
 10. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
 11. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.

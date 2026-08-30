@@ -1,5 +1,12 @@
-import type { PlaceAiGeneratedContent, PlaceAiGenerationRequest, PlaceAiGenerationResponse, PlaceSourceData } from "@/types/place-ai";
+import type {
+  PlaceAiGeneratedContent,
+  PlaceAiGenerationApiContent,
+  PlaceAiGenerationRequest,
+  PlaceAiGenerationResponse,
+  PlaceSourceData,
+} from "@/types/place-ai";
 import type { PlaceFactTristate, PlacePayload } from "@/types/database";
+import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 
 const emptyContent: PlaceAiGeneratedContent = {
   description_ko: "",
@@ -7,6 +14,10 @@ const emptyContent: PlaceAiGeneratedContent = {
   description_en: "",
   description_ja: "",
   short_summary: "",
+  short_summary_ko: "",
+  short_summary_zh: "",
+  short_summary_en: "",
+  short_summary_ja: "",
   highlights: [],
   traveler_tips: [],
   recommended_for: [],
@@ -34,6 +45,10 @@ export function hasPlaceAiGeneratedContent(content: Partial<PlaceAiGeneratedCont
     content.description_en,
     content.description_ja,
     content.short_summary,
+    content.short_summary_ko,
+    content.short_summary_zh,
+    content.short_summary_en,
+    content.short_summary_ja,
     ...(content.highlights ?? []),
     ...(content.traveler_tips ?? []),
     ...(content.recommended_for ?? []),
@@ -48,6 +63,10 @@ export function normalizePlaceAiGeneratedContent(content: Partial<PlaceAiGenerat
     description_en: normalizeText(content.description_en),
     description_ja: normalizeText(content.description_ja),
     short_summary: normalizeText(content.short_summary),
+    short_summary_ko: normalizeText(content.short_summary_ko),
+    short_summary_zh: normalizeText(content.short_summary_zh),
+    short_summary_en: normalizeText(content.short_summary_en),
+    short_summary_ja: normalizeText(content.short_summary_ja),
     highlights: normalizeTextArray(content.highlights),
     traveler_tips: normalizeTextArray(content.traveler_tips),
     recommended_for: normalizeTextArray(content.recommended_for),
@@ -87,15 +106,47 @@ export function buildPlaceSourceData(payload: PlacePayload): PlaceSourceData {
     solo_friendly: chinaInfo?.solo_friendly ?? booleanToTristate(payload.solo_friendly),
     waiting_info: payload.waiting_info_ko || payload.waiting_info_zh || chinaInfo?.waiting_level || "",
     source: payload.source?.source_url ? "map_link" : "admin_form",
+    map_link_facts: analyzePlaceMapSource(payload.source?.source_url ?? ""),
   };
 }
 
 export function buildPreparedAiGenerationResponse(request: PlaceAiGenerationRequest): PlaceAiGenerationResponse {
+  const generatedContent = normalizePlaceAiGeneratedContent(request.existing_content);
+  const apiContent = toPlaceAiGenerationApiContent(generatedContent);
+
   return {
-    status: "not_implemented",
+    status: "prepared",
     source_data: request.source_data,
-    generated_content: normalizePlaceAiGeneratedContent(request.existing_content),
-    message: "AI 생성 기반은 준비되어 있지만 이번 단계에서는 외부 AI API를 호출하지 않습니다.",
+    generated_content: generatedContent,
+    api_content: apiContent,
+    description: apiContent.description,
+    shortSummary: apiContent.shortSummary,
+    highlights: apiContent.highlights,
+    travelerTips: apiContent.travelerTips,
+    recommendedFor: apiContent.recommendedFor,
+    cautions: apiContent.cautions,
+    message: "AI 생성 요청 구조를 준비했습니다.",
+  };
+}
+
+export function toPlaceAiGenerationApiContent(content: PlaceAiGeneratedContent): PlaceAiGenerationApiContent {
+  return {
+    description: {
+      ko: content.description_ko,
+      zh: content.description_zh,
+      en: content.description_en,
+      ja: content.description_ja,
+    },
+    shortSummary: {
+      ko: content.short_summary_ko || content.short_summary,
+      zh: content.short_summary_zh || content.short_summary,
+      en: content.short_summary_en || content.short_summary,
+      ja: content.short_summary_ja || content.short_summary,
+    },
+    highlights: content.highlights,
+    travelerTips: content.traveler_tips,
+    recommendedFor: content.recommended_for,
+    cautions: content.cautions,
   };
 }
 

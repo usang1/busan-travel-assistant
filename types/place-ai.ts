@@ -1,5 +1,13 @@
 import type { PlaceCategory, PlaceFactTristate, PlaceSourceProvider } from "@/types/database";
 
+export type PlaceMapSourceType = "naver" | "kakao" | "google" | "unknown";
+
+export type PlaceMapLinkFacts = {
+  source_type: PlaceMapSourceType;
+  normalized_url: string;
+  external_id: string | null;
+};
+
 export type PlaceSourceData = {
   name: string;
   category: PlaceCategory;
@@ -29,6 +37,7 @@ export type PlaceSourceData = {
   solo_friendly: PlaceFactTristate;
   waiting_info: string;
   source: "admin_form" | "map_link";
+  map_link_facts?: PlaceMapLinkFacts;
 };
 
 export type PlaceAiGeneratedContent = {
@@ -37,9 +46,32 @@ export type PlaceAiGeneratedContent = {
   description_en: string;
   description_ja: string;
   short_summary: string;
+  short_summary_ko: string;
+  short_summary_zh: string;
+  short_summary_en: string;
+  short_summary_ja: string;
   highlights: string[];
   traveler_tips: string[];
   recommended_for: string[];
+  cautions: string[];
+};
+
+export type PlaceAiGenerationApiContent = {
+  description: {
+    ko: string;
+    zh: string;
+    en: string;
+    ja: string;
+  };
+  shortSummary: {
+    ko: string;
+    zh: string;
+    en: string;
+    ja: string;
+  };
+  highlights: string[];
+  travelerTips: string[];
+  recommendedFor: string[];
   cautions: string[];
 };
 
@@ -49,11 +81,19 @@ export type PlaceAiGenerationRequest = {
   existing_content?: Partial<PlaceAiGeneratedContent>;
 };
 
-export type PlaceAiGenerationStatus = "prepared" | "not_implemented" | "failed";
+export type PlaceAiGenerationStatus = "prepared" | "generated" | "failed";
 
 export type PlaceAiGenerationResponse = {
   status: PlaceAiGenerationStatus;
   source_data: PlaceSourceData;
   generated_content: PlaceAiGeneratedContent;
+  api_content: PlaceAiGenerationApiContent;
+  description: PlaceAiGenerationApiContent["description"];
+  shortSummary: PlaceAiGenerationApiContent["shortSummary"];
+  highlights: string[];
+  travelerTips: string[];
+  recommendedFor: string[];
+  cautions: string[];
+  model?: string;
   message: string;
 };

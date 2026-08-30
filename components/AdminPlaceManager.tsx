@@ -471,21 +471,22 @@ function toPayload(form: FormState): PlacePayload {
 }
 
 function applyGeneratedContentToForm(form: FormState, content: PlaceAiGeneratedContent): FormState {
+  const fill = (current: string, generated: string) => current.trim() || generated;
   const nextForm = {
     ...form,
-    short_description_ko: content.description_ko || form.short_description_ko,
-    short_description_zh: content.description_zh || form.short_description_zh,
-    short_description_en: content.description_en || form.short_description_en,
-    short_description_ja: content.description_ja || form.short_description_ja,
+    short_description_ko: fill(form.short_description_ko, content.description_ko),
+    short_description_zh: fill(form.short_description_zh, content.description_zh),
+    short_description_en: fill(form.short_description_en, content.description_en),
+    short_description_ja: fill(form.short_description_ja, content.description_ja),
   };
   const tipText = [...content.traveler_tips, ...content.cautions].filter(Boolean).join(" ");
 
   return {
     ...nextForm,
-    tips_ko: content.description_ko || tipText || form.tips_ko,
-    tips_zh: content.description_zh || tipText || form.tips_zh,
-    tips_en: content.description_en || tipText || form.tips_en,
-    tips_ja: content.description_ja || tipText || form.tips_ja,
+    tips_ko: fill(form.tips_ko, content.description_ko || tipText),
+    tips_zh: fill(form.tips_zh, content.description_zh || tipText),
+    tips_en: fill(form.tips_en, content.description_en || tipText),
+    tips_ja: fill(form.tips_ja, content.description_ja || tipText),
   };
 }
 
@@ -631,7 +632,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }
 
     setGeneratingAiDraft(true);
-    setStatus("AI 생성 요청 구조를 준비하는 중입니다.");
+    setStatus("여행자용 설명 생성 중입니다.");
 
     try {
       const response = await fetch("/api/admin/place-ai-generation", {
