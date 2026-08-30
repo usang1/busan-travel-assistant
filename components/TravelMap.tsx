@@ -193,9 +193,19 @@ function NaverTravelMap({
   const userMarkerRef = useRef<NaverMarkerInstance | null>(null);
   const infoWindowRef = useRef<NaverInfoWindowInstance | null>(null);
   const idleListenerRef = useRef<NaverEventListener | null>(null);
+  const lastFittedContentRef = useRef<string | null>(null);
   const viewportSourceRef = useRef<"user" | "program">("program");
   const onViewportSettledRef = useRef(onViewportSettled);
   const { user } = useAuth();
+  const contentSignature = useMemo(
+    () =>
+      JSON.stringify({
+        center,
+        userLocation: userLocation ?? null,
+        markers: markers.map((marker) => ({ id: marker.id, position: marker.position })),
+      }),
+    [center, markers, userLocation],
+  );
 
   onViewportSettledRef.current = onViewportSettled;
 
@@ -256,6 +266,7 @@ function NaverTravelMap({
 
     window.setTimeout(() => {
       maps.Event.trigger(map, "resize");
+      lastFittedContentRef.current = contentSignature;
       fitNaverMapToContent(maps, map, center, markers, userLocation);
     }, 0);
 
@@ -282,9 +293,14 @@ function NaverTravelMap({
       return;
     }
 
+    if (lastFittedContentRef.current === contentSignature) {
+      return;
+    }
+
+    lastFittedContentRef.current = contentSignature;
     viewportSourceRef.current = "program";
     fitNaverMapToContent(maps, map, center, markers, userLocation);
-  }, [center, maps, markers, userLocation]);
+  }, [center, contentSignature, maps, markers, userLocation]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
