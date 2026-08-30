@@ -9,6 +9,7 @@ import type {
   PlaceMenuItem,
   PlacePayload,
   PlaceRecord,
+  PlaceSourceRecord,
   PlaceWithRelations,
   TagRecord,
 } from "@/types/database";
@@ -17,6 +18,7 @@ import type { Locale } from "@/lib/i18n";
 type SupabasePlaceRow = PlaceRecord & {
   place_china_info?: PlaceChinaInfoRecord | PlaceChinaInfoRecord[] | null;
   place_translations?: PlaceTranslationRecord[] | null;
+  place_sources?: PlaceSourceRecord[] | null;
   place_tags?: Array<{
     tags: TagRecord | null;
   }> | null;
@@ -24,8 +26,8 @@ type SupabasePlaceRow = PlaceRecord & {
 };
 
 type PlaceWriteRow = Omit<PlacePayload, "tags" | "menu_items" | "china_info">;
-const placeSelectWithChinaInfo = "*, place_china_info(*), place_translations(*), place_tags(tags(*)), place_menu_items(*)";
-const placeSelectWithTranslations = "*, place_translations(*), place_tags(tags(*)), place_menu_items(*)";
+const placeSelectWithChinaInfo = "*, place_china_info(*), place_translations(*), place_sources(*), place_tags(tags(*)), place_menu_items(*)";
+const placeSelectWithTranslations = "*, place_translations(*), place_sources(*), place_tags(tags(*)), place_menu_items(*)";
 const legacyPlaceSelect = "*, place_tags(tags(*)), place_menu_items(*)";
 
 const priceLabels: Record<Locale, { free: string; unknown: string }> = {
@@ -106,6 +108,7 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
     tags,
     menu_items: menuItems,
     translations: normalizePlaceTranslations(row),
+    sources: row.place_sources ?? [],
   };
 }
 

@@ -128,6 +128,7 @@ export type PlaceWithRelations = PlaceRecord & {
   tags: TagRecord[];
   menu_items: PlaceMenuItem[];
   translations?: PlaceTranslationRecord[];
+  sources?: PlaceSourceRecord[];
   china_info?: PlaceChinaInfoRecord | null;
   save_count?: number;
 };

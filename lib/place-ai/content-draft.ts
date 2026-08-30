@@ -125,6 +125,7 @@ export function buildPreparedAiGenerationResponse(request: PlaceAiGenerationRequ
     travelerTips: apiContent.travelerTips,
     recommendedFor: apiContent.recommendedFor,
     cautions: apiContent.cautions,
+    content_version: "place-ai-v1",
     message: "AI 생성 요청 구조를 준비했습니다.",
   };
 }

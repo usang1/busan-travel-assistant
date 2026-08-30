@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Check, Eye, Languages, Pencil, Plus, RotateCcw, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
+import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
+import { parseMapUrl } from "@/lib/map-url";
 import {
   buildChinaPlaceSummary,
   ratingHelp,
@@ -15,6 +17,7 @@ import {
   type ChinaRatingKey,
 } from "@/lib/place-china/format";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
+import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import {
   categoryLabels,
@@ -188,6 +191,13 @@ const minimumOrderOptions: Array<{ value: ChinaMinimumOrderPolicy; label: string
   { value: "unknown", label: "확인 필요", people: "" },
 ];
 
+const mapProviderLabels: Record<PlaceSourceProvider, string> = {
+  NAVER: "네이버지도 링크",
+  KAKAO: "카카오맵 링크",
+  GOOGLE: "Google Maps 링크",
+  MANUAL: "수동 입력",
+};
+
 function createEmptyChinaInfo(): ChinaInfoForm {
   return {
     chinese_taste_score: null,
@@ -270,16 +280,21 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
+function getPrimarySource(place: PlaceWithRelations) {
+  return [...(place.sources ?? [])].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))[0] ?? null;
+}
+
 function toForm(place: PlaceWithRelations): FormState {
   const en = place.translations?.find((translation) => translation.locale === "en");
   const ja = place.translations?.find((translation) => translation.locale === "ja");
   const chinaInfo = { ...createEmptyChinaInfo(), ...(place.china_info ?? {}) };
+  const source = getPrimarySource(place);
 
   return {
     id: place.id,
-    source_url: "",
-    source_provider: "MANUAL",
-    source_external_id: "",
+    source_url: source?.source_url ?? "",
+    source_provider: source?.provider ?? "MANUAL",
+    source_external_id: source?.external_id ?? "",
     slug: place.slug,
     name_zh: place.name_zh,
     name_en: en?.name ?? "",
@@ -470,23 +485,15 @@ function toPayload(form: FormState): PlacePayload {
   };
 }
 
-function applyGeneratedContentToForm(form: FormState, content: PlaceAiGeneratedContent): FormState {
-  const fill = (current: string, generated: string) => current.trim() || generated;
-  const nextForm = {
-    ...form,
-    short_description_ko: fill(form.short_description_ko, content.description_ko),
-    short_description_zh: fill(form.short_description_zh, content.description_zh),
-    short_description_en: fill(form.short_description_en, content.description_en),
-    short_description_ja: fill(form.short_description_ja, content.description_ja),
-  };
-  const tipText = [...content.traveler_tips, ...content.cautions].filter(Boolean).join(" ");
+function applyGeneratedContentToForm(form: FormState, content: PlaceAiGeneratedContent, fields: AdminAiDraftApplyField[]): FormState {
+  const selected = new Set(fields);
 
   return {
-    ...nextForm,
-    tips_ko: fill(form.tips_ko, content.description_ko || tipText),
-    tips_zh: fill(form.tips_zh, content.description_zh || tipText),
-    tips_en: fill(form.tips_en, content.description_en || tipText),
-    tips_ja: fill(form.tips_ja, content.description_ja || tipText),
+    ...form,
+    short_description_ko: selected.has("description_ko") ? content.description_ko : form.short_description_ko,
+    short_description_zh: selected.has("description_zh") ? content.description_zh : form.short_description_zh,
+    short_description_en: selected.has("description_en") ? content.description_en : form.short_description_en,
+    short_description_ja: selected.has("description_ja") ? content.description_ja : form.short_description_ja,
   };
 }
 
@@ -515,6 +522,19 @@ function localPlaceFromPayload(payload: PlacePayload, id?: string): PlaceWithRel
       ...tag,
       id: `local-tag-${tag.slug}`,
     })),
+    sources: payload.source?.source_url
+      ? [
+          {
+            id: `local-source-${placeId}`,
+            place_id: placeId,
+            provider: payload.source.provider,
+            source_url: payload.source.source_url,
+            external_id: payload.source.external_id,
+            created_at: now,
+            updated_at: now,
+          },
+        ]
+      : [],
     menu_items: payload.menu_items.map((item, index) => ({
       ...item,
       id: `local-menu-${placeId}-${index}`,
@@ -574,6 +594,71 @@ function applyTranslationsToForm(form: FormState, translations: Partial<AdminTra
   return { nextForm, filledCount };
 }
 
+function getMapLinkState(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return {
+      provider: "MANUAL" as PlaceSourceProvider,
+      normalizedUrl: "",
+      label: "지도 링크 없음",
+      valid: true,
+      message: "",
+    };
+  }
+
+  try {
+    new URL(trimmed);
+    const parsed = parseMapUrl(trimmed);
+
+    if (parsed.provider === "MANUAL") {
+      return {
+        provider: "MANUAL" as PlaceSourceProvider,
+        normalizedUrl: parsed.normalizedUrl,
+        label: "지원하지 않는 링크",
+        valid: false,
+        message: "네이버지도, 카카오맵, Google Maps 링크만 지원합니다.",
+      };
+    }
+
+    return {
+      provider: parsed.provider,
+      normalizedUrl: parsed.normalizedUrl,
+      label: mapProviderLabels[parsed.provider],
+      valid: true,
+      message: "",
+    };
+  } catch {
+    return {
+      provider: "MANUAL" as PlaceSourceProvider,
+      normalizedUrl: trimmed,
+      label: "올바르지 않은 링크",
+      valid: false,
+      message: "올바른 지도 링크를 입력해 주세요.",
+    };
+  }
+}
+
+function hasEnoughAiSourceFacts(form: FormState) {
+  const hasPlaceName = Boolean(form.name_ko.trim() || form.name_zh.trim());
+  const hasMenu = form.menu_items.some((item) => item.name_ko.trim() || item.name_zh.trim() || item.description_zh.trim() || item.price.trim());
+  const hasFact =
+    form.source_url.trim() ||
+    form.address_ko.trim() ||
+    form.address_zh.trim() ||
+    form.nearest_station.trim() ||
+    form.opening_hours.trim() ||
+    form.price_min.trim() ||
+    form.price_max.trim() ||
+    hasMenu ||
+    form.china_info.toilet_available !== "unknown" ||
+    form.china_info.foreign_card !== "unknown" ||
+    form.china_info.solo_friendly !== "unknown" ||
+    form.china_info.waiting_level !== "unknown";
+
+  return hasPlaceName && hasFact;
+}
+
 export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfigured, adminAccessToken }: AdminPlaceManagerProps) {
   const [places, setPlaces] = useState(initialPlaces);
   const [form, setForm] = useState<FormState>(() => (initialPlaces[0] ? toForm(initialPlaces[0]) : createEmptyForm()));
@@ -585,6 +670,16 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [aiDraft, setAiDraft] = useState<PlaceAiGenerationResponse | null>(null);
   const [status, setStatus] = useState(error ?? "");
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info)), [form.china_info]);
+  const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
+  const aiCurrentContent = useMemo(
+    () => ({
+      description_ko: form.short_description_ko,
+      description_zh: form.short_description_zh,
+      description_en: form.short_description_en,
+      description_ja: form.short_description_ja,
+    }),
+    [form.short_description_en, form.short_description_ja, form.short_description_ko, form.short_description_zh],
+  );
 
   const activeCount = useMemo(() => places.filter((place) => place.is_active).length, [places]);
   const featuredCount = useMemo(() => places.filter((place) => place.is_featured).length, [places]);
@@ -623,16 +718,52 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function updateSourceUrl(value: string) {
+    const parsed = parseMapUrl(value);
+    const facts = analyzePlaceMapSource(value);
+
+    setForm((current) => ({
+      ...current,
+      source_url: value,
+      source_provider: parsed.provider,
+      source_external_id: facts.external_id ?? current.source_external_id,
+    }));
+  }
+
+  function normalizeSourceUrl() {
+    const nextMapLinkState = getMapLinkState(form.source_url);
+
+    if (!nextMapLinkState.valid || !nextMapLinkState.normalizedUrl) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      source_url: nextMapLinkState.normalizedUrl,
+      source_provider: nextMapLinkState.provider,
+    }));
+  }
+
   async function prepareAiDraft() {
+    if (form.source_url.trim() && !mapLinkState.valid) {
+      setStatus(mapLinkState.message);
+      return;
+    }
+
+    if (!hasEnoughAiSourceFacts(form)) {
+      setStatus("AI 설명을 생성하려면 장소명과 최소한의 장소 정보가 필요합니다.");
+      return;
+    }
+
     const payload = toPayload(form);
 
     if (!payload.name_ko && !payload.name_zh) {
-      setStatus("AI 생성 준비에는 장소명이 필요합니다.");
+      setStatus("AI 설명을 생성하려면 장소명과 최소한의 장소 정보가 필요합니다.");
       return;
     }
 
     setGeneratingAiDraft(true);
-    setStatus("여행자용 설명 생성 중입니다.");
+    setStatus("여행자용 설명 생성 중...");
 
     try {
       const response = await fetch("/api/admin/place-ai-generation", {
@@ -653,27 +784,37 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       const body = (await response.json()) as PlaceAiGenerationResponse | { message?: string };
 
       if (!response.ok) {
-        throw new Error("message" in body ? body.message : "AI 생성 준비에 실패했습니다.");
+        throw new Error("message" in body ? body.message : "AI 설명 생성에 실패했습니다. 직접 작성하거나 다시 시도해주세요.");
       }
 
       setAiDraft(body as PlaceAiGenerationResponse);
       setStatus((body as PlaceAiGenerationResponse).message);
     } catch (draftError) {
-      setStatus(draftError instanceof Error ? draftError.message : "AI 생성 준비 중 오류가 발생했습니다.");
+      const message = draftError instanceof Error ? draftError.message : "";
+      setStatus(
+        message.includes("최소한의 장소 정보") || message.includes("장소명")
+          ? message
+          : "AI 설명 생성에 실패했습니다. 직접 작성하거나 다시 시도해주세요.",
+      );
     } finally {
       setGeneratingAiDraft(false);
     }
   }
 
-  function applyAiDraft() {
+  function applyAiDraft(fields: AdminAiDraftApplyField[]) {
     if (!aiDraft || !hasPlaceAiGeneratedContent(aiDraft.generated_content)) {
-      setStatus("적용할 AI 생성 결과가 없습니다. 이번 단계에서는 실제 AI API를 호출하지 않습니다.");
+      setStatus("적용할 AI 생성 결과가 없습니다.");
+      return;
+    }
+
+    if (fields.length === 0) {
+      setStatus("현재 폼에 적용할 AI 설명 필드를 선택해 주세요.");
       return;
     }
 
     const content = aiDraft.generated_content;
-    setForm((current) => applyGeneratedContentToForm(current, content));
-    setStatus("AI 생성 결과를 입력 폼에 적용했습니다. DB 저장은 저장 버튼을 눌러야 반영됩니다.");
+    setForm((current) => applyGeneratedContentToForm(current, content, fields));
+    setStatus(`AI 생성 결과 ${fields.length}개 필드를 현재 폼에 적용했습니다. DB 저장은 저장 버튼을 눌러야 반영됩니다.`);
   }
 
   function updateChinaField<Key extends keyof ChinaInfoForm>(key: Key, value: ChinaInfoForm[Key]) {
@@ -819,6 +960,21 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     if (!formToSave.name_zh || !formToSave.name_ko || !(formToSave.slug || slugify(formToSave.name_ko || formToSave.name_zh))) {
       setStatus("중국어 이름, 한국어 이름, slug는 필수입니다.");
       return;
+    }
+
+    const saveMapLinkState = getMapLinkState(formToSave.source_url);
+    if (formToSave.source_url.trim() && !saveMapLinkState.valid) {
+      setStatus(saveMapLinkState.message);
+      return;
+    }
+
+    if (saveMapLinkState.normalizedUrl && formToSave.source_url !== saveMapLinkState.normalizedUrl) {
+      formToSave = {
+        ...formToSave,
+        source_url: saveMapLinkState.normalizedUrl,
+        source_provider: saveMapLinkState.provider,
+      };
+      setForm(formToSave);
     }
 
     setSaving(true);
@@ -1051,9 +1207,29 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-7">
             <FormSection title="1. 기본 장소 정보">
-              <Field label="지도 링크/source">
-                <input value={form.source_url} onChange={(event) => updateField("source_url", event.target.value)} className={inputClass} />
-              </Field>
+              <div className="sm:col-span-2">
+                <Field label="지도 링크">
+                  <input
+                    value={form.source_url}
+                    onChange={(event) => updateSourceUrl(event.target.value)}
+                    onBlur={normalizeSourceUrl}
+                    placeholder="네이버지도, 카카오맵, Google Maps 링크"
+                    className={[inputClass, form.source_url.trim() && !mapLinkState.valid ? "border-rose-300 focus:border-rose-500 focus:ring-rose-100" : ""].join(" ")}
+                  />
+                </Field>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold">
+                  <span
+                    className={[
+                      "rounded-full px-2.5 py-1 ring-1",
+                      mapLinkState.valid ? "bg-teal-50 text-teal-800 ring-teal-100" : "bg-rose-50 text-rose-700 ring-rose-100",
+                    ].join(" ")}
+                  >
+                    {mapLinkState.label}
+                  </span>
+                  <span className="text-slate-400">지원 예: 네이버지도, 카카오맵, Google Maps</span>
+                </div>
+                {form.source_url.trim() && !mapLinkState.valid ? <p className="mt-2 text-xs font-bold text-rose-700">{mapLinkState.message}</p> : null}
+              </div>
               <Field label="Provider">
                 <select value={form.source_provider} onChange={(event) => updateField("source_provider", event.target.value as PlaceSourceProvider)} className={inputClass}>
                   {(["NAVER", "KAKAO", "GOOGLE", "MANUAL"] as const).map((provider) => (
@@ -1071,8 +1247,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   draft={aiDraft}
                   generating={generatingAiDraft}
                   canApply={hasPlaceAiGeneratedContent(aiDraft?.generated_content)}
+                  currentContent={aiCurrentContent}
                   onGenerate={() => void prepareAiDraft()}
                   onApply={applyAiDraft}
+                  onCancel={() => setAiDraft(null)}
                 />
               </div>
               <Field label="URL 주소명">

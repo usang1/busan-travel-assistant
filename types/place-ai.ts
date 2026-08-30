@@ -95,5 +95,7 @@ export type PlaceAiGenerationResponse = {
   recommendedFor: string[];
   cautions: string[];
   model?: string;
+  generated_at?: string;
+  content_version?: string;
   message: string;
 };

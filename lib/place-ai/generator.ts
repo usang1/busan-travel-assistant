@@ -9,6 +9,7 @@ const maxRequestBytes = 24_000;
 const maxSourceJsonLength = 9_000;
 const requestTimeoutMs = 25_000;
 const maxOutputTokens = 1_200;
+const contentVersion = "place-ai-v1";
 
 export type PlaceAiGenerationErrorCode =
   | "missing_api_key"
@@ -130,6 +131,8 @@ export async function generatePlaceAiContent(request: PlaceAiGenerationRequest):
       recommendedFor: apiContent.recommendedFor,
       cautions: apiContent.cautions,
       model,
+      generated_at: new Date().toISOString(),
+      content_version: contentVersion,
       message: "AI 여행정보 초안을 생성했습니다. 내용을 검토한 뒤 적용하세요.",
     };
   } catch (error) {
