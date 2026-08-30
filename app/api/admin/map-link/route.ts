@@ -84,6 +84,11 @@ async function resolveMapRedirects(inputUrl: string) {
 
     const location = response.headers.get("location");
     if (!location || response.status < 300 || response.status >= 400) {
+      const discoveredUrls = await discoverMapUrls(currentUrl);
+      for (const discoveredUrl of discoveredUrls) {
+        assertAllowedMapHost(discoveredUrl);
+        urls.push(discoveredUrl.toString());
+      }
       break;
     }
 
@@ -93,6 +98,71 @@ async function resolveMapRedirects(inputUrl: string) {
   }
 
   return urls;
+}
+
+async function discoverMapUrls(url: URL) {
+  const response = await fetch(url, {
+    method: "GET",
+    redirect: "manual",
+    cache: "no-store",
+    headers: {
+      accept: "text/html,application/xhtml+xml",
+    },
+  }).catch(() => null);
+
+  if (!response) {
+    return [];
+  }
+
+  const location = response.headers.get("location");
+  if (location && response.status >= 300 && response.status < 400) {
+    return [new URL(location, url)];
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("text/html")) {
+    return [];
+  }
+
+  const html = await response.text();
+  const discovered = new Map<string, URL>();
+  const decodedHtml = decodeHtmlEntities(html);
+  const patterns = [
+    /https?:\\?\/\\?\/[^"'<>\\\s]+/g,
+    /url=([^"'<>\\\s]+)/gi,
+    /content=["'][^"']*url=([^"']+)["']/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of decodedHtml.matchAll(pattern)) {
+      const rawValue = match[1] ?? match[0];
+      const normalizedValue = rawValue.replaceAll("\\/", "/").trim();
+
+      try {
+        const discoveredUrl = new URL(decodeURIComponent(normalizedValue), url);
+        const host = discoveredUrl.hostname.toLowerCase();
+        const allowed = allowedHosts.some((allowedHost) => host === allowedHost || host.endsWith(`.${allowedHost}`));
+
+        if (allowed) {
+          discovered.set(discoveredUrl.toString(), discoveredUrl);
+        }
+      } catch {
+        // Ignore non-URL snippets found in arbitrary HTML.
+      }
+    }
+  }
+
+  return [...discovered.values()].slice(0, maxRedirects);
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replaceAll("&amp;", "&")
+    .replaceAll("&#38;", "&")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#34;", '"')
+    .replaceAll("&#39;", "'");
 }
 
 function assertAllowedMapHost(url: URL) {

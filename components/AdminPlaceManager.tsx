@@ -8,6 +8,7 @@ import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
+import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { parseMapUrl } from "@/lib/map-url";
 import {
   buildChinaPlaceSummary,
@@ -362,8 +363,32 @@ function hasCoordinateInput(form: Pick<FormState, "latitude" | "longitude">) {
   return nullableNumber(form.latitude) !== null && nullableNumber(form.longitude) !== null;
 }
 
+function geocodeQueriesFromForm(form: Pick<FormState, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
+  return Array.from(
+    new Set([form.address_ko, form.name_ko, form.address_zh, form.name_zh].map((value) => value.trim()).filter(Boolean)),
+  );
+}
+
 function geocodeQueryFromForm(form: Pick<FormState, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
-  return [form.address_ko, form.address_zh, form.name_ko, form.name_zh].find((value) => value.trim())?.trim() ?? "";
+  return geocodeQueriesFromForm(form)[0] ?? "";
+}
+
+function fillCoordinatesFromMapLink<Form extends Pick<FormState, "source_url" | "latitude" | "longitude">>(form: Form): Form {
+  if (hasCoordinateInput(form) || !form.source_url.trim()) {
+    return form;
+  }
+
+  const analysis = analyzeMapLink(form.source_url);
+
+  if (typeof analysis.latitude !== "number" || typeof analysis.longitude !== "number") {
+    return form;
+  }
+
+  return {
+    ...form,
+    latitude: analysis.latitude.toFixed(7),
+    longitude: analysis.longitude.toFixed(7),
+  };
 }
 
 function nullableInteger(value: string) {
@@ -664,6 +689,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [form, setForm] = useState<FormState>(() => (initialPlaces[0] ? toForm(initialPlaces[0]) : createEmptyForm()));
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
@@ -868,24 +894,126 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   async function resolveCoordinatesForForm(currentForm: FormState) {
-    const address = geocodeQueryFromForm(currentForm);
+    const formWithMapCoordinates = fillCoordinatesFromMapLink(currentForm);
 
-    if (!address || !canUseNaverGeocoder()) {
-      return currentForm;
+    if (hasCoordinateInput(formWithMapCoordinates) || !canUseNaverGeocoder()) {
+      return formWithMapCoordinates;
     }
 
-    const [result] = await geocodeKoreanAddress(address);
+    for (const address of geocodeQueriesFromForm(formWithMapCoordinates)) {
+      try {
+        const [result] = await geocodeKoreanAddress(address);
 
-    if (!result) {
-      return currentForm;
+        if (result) {
+          return {
+            ...formWithMapCoordinates,
+            latitude: result.latitude.toFixed(7),
+            longitude: result.longitude.toFixed(7),
+            address_ko: formWithMapCoordinates.address_ko || result.roadAddress || result.jibunAddress || result.address,
+          };
+        }
+      } catch {
+        // Try the next available address/name candidate before reporting no result.
+      }
     }
 
-    return {
-      ...currentForm,
-      latitude: result.latitude.toFixed(7),
-      longitude: result.longitude.toFixed(7),
-      address_ko: currentForm.address_ko || result.roadAddress || result.jibunAddress || result.address,
-    };
+    return formWithMapCoordinates;
+  }
+
+  async function parseSourceUrl() {
+    const parsed = parseMapUrl(form.source_url);
+
+    if (!parsed.normalizedUrl) {
+      setForm((current) => ({
+        ...current,
+        source_url: "",
+        source_provider: "MANUAL",
+        source_external_id: "",
+      }));
+      setStatus("지도 링크를 먼저 입력해 주세요.");
+      return;
+    }
+
+    setAnalyzing(true);
+    setStatus("지도 링크를 분석하는 중입니다.");
+
+    try {
+      const response = await fetch("/api/admin/map-link", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ url: parsed.normalizedUrl }),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json()) as { message?: string };
+        throw new Error(body.message ?? "지도 링크 분석 실패");
+      }
+
+      const body = (await response.json()) as {
+        analysis: {
+          provider: PlaceSourceProvider;
+          normalizedUrl: string;
+          title?: string;
+          latitude?: number;
+          longitude?: number;
+          externalId?: string;
+        };
+        summary?: {
+          description_zh?: string;
+          description_ko?: string;
+          tips_zh?: string;
+          tips_ko?: string;
+        } | null;
+        summaryError?: string;
+        aiConfigured?: boolean;
+      };
+      const { analysis } = body;
+      const summary = body.summary ?? null;
+      const title = analysis.title?.trim() ?? "";
+
+      setForm((current) => ({
+        ...current,
+        source_url: analysis.normalizedUrl,
+        source_provider: analysis.provider,
+        source_external_id: analysis.externalId ?? current.source_external_id,
+        name_ko: current.name_ko || title,
+        name_zh: current.name_zh || title,
+        slug: current.slug || slugify(title),
+        latitude: typeof analysis.latitude === "number" ? analysis.latitude.toFixed(7) : current.latitude,
+        longitude: typeof analysis.longitude === "number" ? analysis.longitude.toFixed(7) : current.longitude,
+        short_description_zh: current.short_description_zh || summary?.description_zh || "",
+        short_description_ko: current.short_description_ko || summary?.description_ko || "",
+        tips_zh: current.tips_zh || summary?.tips_zh || "",
+        tips_ko: current.tips_ko || summary?.tips_ko || "",
+      }));
+
+      const filled = [
+        title ? "장소명" : "",
+        typeof analysis.latitude === "number" && typeof analysis.longitude === "number" ? "좌표" : "",
+        analysis.externalId ? "지도 장소 ID" : "",
+        summary ? "AI 설명" : "",
+      ].filter(Boolean);
+      const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 설명 초안은 생성하지 않았습니다.";
+      const aiErrorNotice = body.summaryError ? ` AI 설명 생성 실패: ${body.summaryError}` : "";
+      setStatus(
+        filled.length
+          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${aiNotice}${aiErrorNotice}`
+          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${aiNotice}${aiErrorNotice}`,
+      );
+    } catch (parseError) {
+      const localAnalysis = analyzeMapLink(parsed.normalizedUrl);
+      setForm((current) => ({
+        ...current,
+        source_url: parsed.normalizedUrl,
+        source_provider: parsed.provider,
+        source_external_id: localAnalysis.externalId ?? current.source_external_id,
+        latitude: typeof localAnalysis.latitude === "number" ? localAnalysis.latitude.toFixed(7) : current.latitude,
+        longitude: typeof localAnalysis.longitude === "number" ? localAnalysis.longitude.toFixed(7) : current.longitude,
+      }));
+      setStatus(parseError instanceof Error ? parseError.message : "지도 링크 분석 중 오류가 발생했습니다.");
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   async function fillCoordinatesFromAddress() {
@@ -981,7 +1109,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setStatus("");
 
     try {
-      if (!hasCoordinateInput(formToSave) && geocodeQueryFromForm(formToSave) && canUseNaverGeocoder()) {
+      if (!hasCoordinateInput(formToSave) && (formToSave.source_url.trim() || geocodeQueryFromForm(formToSave))) {
         setGeocoding(true);
         setStatus("좌표가 비어 있어 주소로 자동 검색하는 중입니다.");
 
@@ -1209,13 +1337,23 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             <FormSection title="1. 기본 장소 정보">
               <div className="sm:col-span-2">
                 <Field label="지도 링크">
-                  <input
-                    value={form.source_url}
-                    onChange={(event) => updateSourceUrl(event.target.value)}
-                    onBlur={normalizeSourceUrl}
-                    placeholder="네이버지도, 카카오맵, Google Maps 링크"
-                    className={[inputClass, form.source_url.trim() && !mapLinkState.valid ? "border-rose-300 focus:border-rose-500 focus:ring-rose-100" : ""].join(" ")}
-                  />
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={form.source_url}
+                      onChange={(event) => updateSourceUrl(event.target.value)}
+                      onBlur={normalizeSourceUrl}
+                      placeholder="네이버지도, 카카오맵, Google Maps 링크"
+                      className={[inputClass, form.source_url.trim() && !mapLinkState.valid ? "border-rose-300 focus:border-rose-500 focus:ring-rose-100" : ""].join(" ")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void parseSourceUrl()}
+                      disabled={analyzing}
+                      className="shrink-0 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {analyzing ? "분석 중" : "분석"}
+                    </button>
+                  </div>
                 </Field>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold">
                   <span

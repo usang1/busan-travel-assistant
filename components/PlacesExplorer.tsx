@@ -40,8 +40,11 @@ const categoryFilters: Array<{ value: PlaceCategory | "all" }> = [
   { value: "all" },
   { value: "restaurant" },
   { value: "cafe" },
+  { value: "bar" },
   { value: "attraction" },
   { value: "shopping" },
+  { value: "photo_spot" },
+  { value: "luggage" },
 ];
 
 export function PlacesExplorer({ places, initialCategory, locale = defaultLocale }: PlacesExplorerProps) {

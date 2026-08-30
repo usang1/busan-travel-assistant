@@ -5,6 +5,7 @@ import { CheckCircle2, ExternalLink, Languages, Plus, RefreshCw, Send, XCircle }
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
+import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
@@ -123,8 +124,32 @@ function hasCoordinateInput(form: Pick<PublishForm, "latitude" | "longitude">) {
   return nullableNumber(form.latitude) !== null && nullableNumber(form.longitude) !== null;
 }
 
+function geocodeQueriesFromPublishForm(form: Pick<PublishForm, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
+  return Array.from(
+    new Set([form.address_ko, form.name_ko, form.address_zh, form.name_zh].map((value) => value.trim()).filter(Boolean)),
+  );
+}
+
 function geocodeQueryFromPublishForm(form: Pick<PublishForm, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
-  return [form.address_ko, form.address_zh, form.name_ko, form.name_zh].find((value) => value.trim())?.trim() ?? "";
+  return geocodeQueriesFromPublishForm(form)[0] ?? "";
+}
+
+function fillCoordinatesFromMapLink<Form extends Pick<PublishForm, "source_url" | "latitude" | "longitude">>(form: Form): Form {
+  if (hasCoordinateInput(form) || !form.source_url.trim()) {
+    return form;
+  }
+
+  const analysis = analyzeMapLink(form.source_url);
+
+  if (typeof analysis.latitude !== "number" || typeof analysis.longitude !== "number") {
+    return form;
+  }
+
+  return {
+    ...form,
+    latitude: analysis.latitude.toFixed(7),
+    longitude: analysis.longitude.toFixed(7),
+  };
 }
 
 function getMapLinkState(value: string) {
@@ -425,24 +450,30 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   }
 
   async function resolveCoordinatesForPublishForm(currentForm: PublishForm) {
-    const address = geocodeQueryFromPublishForm(currentForm);
+    const formWithMapCoordinates = fillCoordinatesFromMapLink(currentForm);
 
-    if (!address || !canUseNaverGeocoder()) {
-      return currentForm;
+    if (hasCoordinateInput(formWithMapCoordinates) || !canUseNaverGeocoder()) {
+      return formWithMapCoordinates;
     }
 
-    const [result] = await geocodeKoreanAddress(address);
+    for (const address of geocodeQueriesFromPublishForm(formWithMapCoordinates)) {
+      try {
+        const [result] = await geocodeKoreanAddress(address);
 
-    if (!result) {
-      return currentForm;
+        if (result) {
+          return {
+            ...formWithMapCoordinates,
+            latitude: result.latitude.toFixed(7),
+            longitude: result.longitude.toFixed(7),
+            address_ko: formWithMapCoordinates.address_ko || result.roadAddress || result.jibunAddress || result.address,
+          };
+        }
+      } catch {
+        // Try the next available address/name candidate before reporting no result.
+      }
     }
 
-    return {
-      ...currentForm,
-      latitude: result.latitude.toFixed(7),
-      longitude: result.longitude.toFixed(7),
-      address_ko: currentForm.address_ko || result.roadAddress || result.jibunAddress || result.address,
-    };
+    return formWithMapCoordinates;
   }
 
   async function fillCoordinatesFromAddress() {
@@ -737,7 +768,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     setStatus("");
 
     try {
-      if (!hasCoordinateInput(formToPublish) && geocodeQueryFromPublishForm(formToPublish) && canUseNaverGeocoder()) {
+      if (!hasCoordinateInput(formToPublish) && (formToPublish.source_url.trim() || geocodeQueryFromPublishForm(formToPublish))) {
         setGeocoding(true);
         setStatus("좌표가 비어 있어 주소로 자동 검색하는 중입니다.");
 

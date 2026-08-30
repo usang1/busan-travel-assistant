@@ -21,7 +21,7 @@ export const gwangalliCenter: Coordinates = {
   longitude: 129.1186,
 };
 
-export const mapCategories: PlaceCategory[] = ["restaurant", "cafe", "attraction", "shopping"];
+export const mapCategories: PlaceCategory[] = ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"];
 
 export function hasCoordinates(place: Pick<PlaceWithRelations, "latitude" | "longitude">): place is PlaceWithRelations & Coordinates {
   return typeof place.latitude === "number" && typeof place.longitude === "number";

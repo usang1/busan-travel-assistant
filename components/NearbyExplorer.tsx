@@ -60,8 +60,11 @@ const categoryOptions: Array<{ value: PlaceCategory | "all"; short: Record<Local
   { value: "all", short: { zh: "全部", en: "All", ja: "すべて", ko: "전체" } },
   { value: "restaurant", short: categoryLabels.restaurant },
   { value: "cafe", short: categoryLabels.cafe },
+  { value: "bar", short: categoryLabels.bar },
   { value: "attraction", short: categoryLabels.attraction },
   { value: "shopping", short: categoryLabels.shopping },
+  { value: "photo_spot", short: categoryLabels.photo_spot },
+  { value: "luggage", short: categoryLabels.luggage },
 ];
 
 function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
