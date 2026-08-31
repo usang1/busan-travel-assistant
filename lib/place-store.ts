@@ -403,6 +403,25 @@ export async function getPlaceBySlug(
       };
     }
 
+    // Keep detail pages consistent with the public list when a slug query is
+    // rejected by PostgREST because of schema or relation compatibility.
+    const listResult = await getPlaces(
+      {
+        activeOnly: options.activeOnly ?? true,
+        includeAdminRelations: options.includeAdminRelations,
+      },
+      resolvedClient,
+    );
+    const listedPlace = listResult.places.find((place) => place.slug === slug);
+
+    if (listedPlace) {
+      return {
+        place: listedPlace,
+        source: listResult.source,
+        error: listResult.error,
+      };
+    }
+
     const demoPlace = demoPlaces.find((place) => place.slug === slug) ?? null;
 
     return {
