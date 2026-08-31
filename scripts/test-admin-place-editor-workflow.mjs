@@ -38,6 +38,9 @@ const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.me
 assert.match(placeStoreSource, /isMissingAdminSummaryColumnError/, "place writes must detect a missing optional admin_summary migration");
 assert.match(placeStoreSource, /insert\(withoutAdminSummary\(placeRow\)\)/, "place creation must retry against the pre-migration schema");
 assert.match(placeStoreSource, /update\(withoutAdminSummary\(placeRow\)\)/, "place updates must retry against the pre-migration schema");
+assert.match(placeStoreSource, /query\.limit\(1\)\.maybeSingle\(\)/, "place detail lookup must tolerate duplicate or relation-expanded rows");
+assert.match(placeStoreSource, /compatibleQuery\.limit\(1\)\.maybeSingle\(\)/, "compatible place detail lookup must tolerate duplicate rows");
+assert.match(placeStoreSource, /legacyQuery\.limit\(1\)\.maybeSingle\(\)/, "legacy place detail lookup must tolerate duplicate rows");
 
 for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[slug]/page.tsx"]) {
   const detailSource = readFileSync(new URL(`../${detailFile}`, import.meta.url), "utf8");

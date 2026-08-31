@@ -356,7 +356,7 @@ export async function getPlaceBySlug(
     query = query.eq("status", "ACTIVE");
   }
 
-  const { data, error } = await query.single();
+  const { data, error } = await query.limit(1).maybeSingle();
 
   if (error || !data) {
     let compatibleQuery = resolvedClient
@@ -369,7 +369,7 @@ export async function getPlaceBySlug(
       compatibleQuery = compatibleQuery.eq("status", "ACTIVE");
     }
 
-    const compatibleResult = await compatibleQuery.single();
+    const compatibleResult = await compatibleQuery.limit(1).maybeSingle();
 
     if (!compatibleResult.error && compatibleResult.data) {
       const place = mapPlaceRow(compatibleResult.data);
@@ -391,7 +391,7 @@ export async function getPlaceBySlug(
       legacyQuery = legacyQuery.eq("status", "ACTIVE");
     }
 
-    const legacyResult = await legacyQuery.single();
+    const legacyResult = await legacyQuery.limit(1).maybeSingle();
 
     if (!legacyResult.error && legacyResult.data) {
       const place = mapPlaceRow(legacyResult.data);
