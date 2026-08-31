@@ -206,6 +206,28 @@ const { buildAdminTranslationPrompt, buildPlaceSummaryPrompt, parseAdminTranslat
   "@/lib/place-ai/locale-validation": localeValidation,
 });
 
+const koreanSourceData = contentDraft.buildPlaceSourceDataFromNormalizedPlace({
+  provider: "google",
+  providerPlaceId: "google-korean-content-test",
+  sourceUrl: "https://www.google.com/maps/place/test",
+  name: "광안리 카페",
+  category: "cafe",
+  formattedAddress: "대한민국 부산광역시 수영구 광안해변로 1",
+  latitude: 35.15,
+  longitude: 129.11,
+  openingHours: ["월요일: 10:00~22:00"],
+});
+assert.equal(koreanSourceData.category, "cafe");
+assert.equal(koreanSourceData.provider, "GOOGLE");
+assert.equal(koreanSourceData.address_ko, "");
+assert.equal(koreanSourceData.formatted_address, "대한민국 부산광역시 수영구 광안해변로 1");
+assert.equal(koreanSourceData.solo_friendly, "unknown");
+assert.equal(contentDraft.buildPlaceSourceDataFromNormalizedPlace({
+  provider: "google",
+  sourceUrl: "https://www.google.com/maps/place/test",
+  name: "이름만 있는 장소",
+}), null);
+
 const naverLinkAnalysis = analyzeMapLink("https://naver.me/x9VaDLM8", [
   "https://map.naver.com/?pinId=1435915485&appMenu=location&app=Y&menu=location&lat=35.1671242&title=%EC%A7%84%EC%86%A1%EC%88%AF%EB%B6%88%20%EC%88%98%EC%98%81%EC%A0%90&pinType=site&lng=129.1170388&version=2",
   "https://map.naver.com/p/entry/place/1435915485",

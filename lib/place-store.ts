@@ -554,7 +554,10 @@ async function syncTranslations(placeId: string, payload: PlacePayload, client?:
   }
 
   const rows = translations
-    .filter((translation) => translation.name.trim())
+    .filter((translation) =>
+      [translation.name, translation.description, translation.travel_tip, translation.address]
+        .some((value) => value.trim()),
+    )
     .map((translation) => ({
       place_id: placeId,
       locale: translation.locale,

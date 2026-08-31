@@ -5,8 +5,9 @@ import type {
   PlaceAiGenerationResponse,
   PlaceSourceData,
 } from "@/types/place-ai";
-import type { PlaceFactTristate, PlacePayload } from "@/types/database";
+import type { PlaceFactTristate, PlacePayload, PlaceCategory } from "@/types/database";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
+import type { NormalizedPlace } from "@/lib/place-providers/types";
 
 const emptyContent: PlaceAiGeneratedContent = {
   description_ko: "",
@@ -124,6 +125,75 @@ export function buildPlaceSourceData(payload: PlacePayload, options: { adminNote
     source: payload.source?.source_url ? "map_link" : "admin_form",
     map_link_facts: analyzePlaceMapSource(payload.source?.source_url ?? ""),
   };
+}
+
+export function buildPlaceSourceDataFromNormalizedPlace(place: NormalizedPlace): PlaceSourceData | null {
+  const category = normalizeProviderCategory(place.category, place.types);
+  const name = place.name?.trim() ?? "";
+
+  if (!category || !name) {
+    return null;
+  }
+
+  const openingHours = place.openingHours ?? place.currentOpeningHours;
+  const priceRange = place.priceRange ?? {
+    min: place.priceMin,
+    max: place.priceMax,
+  };
+
+  return {
+    name,
+    category,
+    address: place.addressKo ?? place.roadAddressKo ?? place.formattedAddress ?? "",
+    address_ko: place.addressKo ?? place.roadAddressKo ?? "",
+    formatted_address: place.formattedAddress ?? place.roadAddressKo ?? place.addressKo ?? "",
+    latitude: place.latitude ?? null,
+    longitude: place.longitude ?? null,
+    map_url: place.sourceUrl,
+    provider: toPlaceSourceProvider(place.provider),
+    source_external_id: place.providerPlaceId ?? null,
+    nearest_station: place.nearestStation ?? "",
+    opening_hours: Array.isArray(openingHours) ? openingHours.join("\n") : openingHours ?? "",
+    menu: [],
+    price: {
+      level: place.priceLevel ?? null,
+      min: priceRange?.min ?? null,
+      max: priceRange?.max ?? null,
+    },
+    parking: place.amenities?.parking === true ? "yes" : "unknown",
+    toilet: place.amenities?.restroom === true ? "yes" : "unknown",
+    card_payment: "unknown",
+    solo_friendly: "unknown",
+    waiting_info: "",
+    admin_notes: "",
+    provider_metadata: isRecord(place.raw) ? place.raw : null,
+    source: "map_link",
+    map_link_facts: analyzePlaceMapSource(place.sourceUrl),
+  };
+}
+
+function normalizeProviderCategory(category?: string, types: string[] = []): PlaceCategory | null {
+  const value = [category, ...types].filter(Boolean).join(" ").toLowerCase();
+  if (!value) return null;
+  if (value.includes("cafe") || value.includes("coffee") || value.includes("카페") || value.includes("커피")) return "cafe";
+  if (value.includes("bar") || value.includes("pub") || value.includes("술집") || value.includes("주점")) return "bar";
+  if (value.includes("restaurant") || value.includes("food") || value.includes("음식") || value.includes("식당")) return "restaurant";
+  if (value.includes("shopping") || value.includes("store") || value.includes("market") || value.includes("쇼핑") || value.includes("상점")) return "shopping";
+  if (value.includes("luggage") || value.includes("storage") || value.includes("locker") || value.includes("짐보관")) return "luggage";
+  if (value.includes("photo") || value.includes("사진") || value.includes("포토")) return "photo_spot";
+  if (value.includes("attraction") || value.includes("tourist") || value.includes("museum") || value.includes("park") || value.includes("beach") || value.includes("관광") || value.includes("명소")) return "attraction";
+  const knownCategory = ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"] as const;
+  return knownCategory.includes(category as (typeof knownCategory)[number]) ? category as PlaceCategory : null;
+}
+
+function toPlaceSourceProvider(provider: NormalizedPlace["provider"]): PlaceSourceData["provider"] {
+  if (provider === "google") return "GOOGLE";
+  if (provider === "naver") return "NAVER";
+  return "KAKAO";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function buildPreparedAiGenerationResponse(request: PlaceAiGenerationRequest): PlaceAiGenerationResponse {

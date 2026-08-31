@@ -823,12 +823,15 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         lookupError?: string;
         adminSummary?: { summaryKo?: string } | null;
         adminSummaryError?: string;
+        koreanContent?: { description?: string; travelTip?: string; failedFields?: string[]; message?: string } | null;
+        koreanContentError?: string;
         aiConfigured?: boolean;
         providerLookup?: { configured: boolean; enriched: boolean; message: string };
       };
       const { analysis } = body;
       const normalizedPlace = body.normalizedPlace;
       const adminSummary = body.adminSummary?.summaryKo?.trim() ?? "";
+      const koreanContent = body.koreanContent;
       const title = normalizedPlace?.name?.trim() ?? analysis.title?.trim() ?? "";
       const externalId = normalizedPlace?.providerPlaceId ?? analysis.externalId ?? analysis.placeId;
       const latitude = normalizedPlace?.latitude ?? analysis.latitude;
@@ -856,6 +859,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
           longitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? longitude!.toFixed(7) : enriched.longitude,
           opening_hours: enriched.opening_hours || openingHours,
           admin_summary: enriched.admin_summary || adminSummary,
+          description_ko: enriched.description_ko || koreanContent?.description?.trim() || "",
+          tips_ko: enriched.tips_ko || koreanContent?.travelTip?.trim() || "",
         };
       });
 
@@ -873,9 +878,11 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         normalizedPlace?.rating !== undefined ? "평점" : "",
         normalizedPlace?.reviewCount !== undefined ? "리뷰 수" : "",
         adminSummary ? "AI 장소 요약" : "",
+        koreanContent?.description || koreanContent?.travelTip ? "한국어 여행자 콘텐츠" : "",
       ].filter(Boolean);
       const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 AI 장소 요약은 생성하지 않았습니다.";
       const aiErrorNotice = body.adminSummaryError ? ` AI 장소 요약 생성 실패: ${body.adminSummaryError}` : "";
+      const koreanContentErrorNotice = body.koreanContentError ? ` 한국어 여행자 콘텐츠 생성 실패: ${body.koreanContentError}` : "";
       const lookupNotice = body.lookupError ? ` Provider 상세 조회 실패: ${body.lookupError}` : "";
       const providerConfigurationNotice = body.providerLookup?.message ? ` ${body.providerLookup.message}` : "";
       const coordinateNotice = hasResolvedCoordinates
@@ -883,8 +890,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         : " 이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.";
       setStatus(
         filled.length
-          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}`
-          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}`,
+          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}${koreanContentErrorNotice}`
+          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}${koreanContentErrorNotice}`,
       );
     } catch (error) {
       const localAnalysis = analyzeMapLink(parsed.normalizedUrl);

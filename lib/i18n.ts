@@ -612,6 +612,11 @@ export function getLocalizedValue(values: LocalizedValue, locale: Locale, fallba
     return preferred;
   }
 
+  // Never show another language on the Korean route when Korean content is missing.
+  if (locale === "ko") {
+    return "";
+  }
+
   const fallback = values[fallbackLocale]?.trim();
 
   if (fallback) {

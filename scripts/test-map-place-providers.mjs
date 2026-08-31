@@ -482,8 +482,12 @@ assert.doesNotMatch(submissionWorkflowSource, /admin_summary:\s*reason/);
 assert.match(submissionWorkflowSource, /recommendation_reason \|\| selected\.notes|selected\.recommendation_reason \|\| selected\.notes/);
 
 const mapLinkRouteSource = readFileSync(new URL("../app/api/admin/map-link/route.ts", import.meta.url), "utf8");
-assert.match(mapLinkRouteSource, /catch \(error\)[\s\S]*adminSummaryError/);
+assert.match(mapLinkRouteSource, /summaryResult\.reason[\s\S]*adminSummaryError/);
 assert.match(mapLinkRouteSource, /\.\.\.resolution,[\s\S]*adminSummary,[\s\S]*adminSummaryError/);
+assert.match(mapLinkRouteSource, /generatePlaceAiContent/);
+assert.match(mapLinkRouteSource, /locale_targets: \["ko"\]/);
+assert.match(mapLinkRouteSource, /koreanContentError/);
+assert.match(mapLinkRouteSource, /Promise\.allSettled\(\[summaryPromise, koreanContentPromise\]\)/);
 
 const adminSummarySource = readFileSync(new URL("../lib/place-ai/admin-summary.ts", import.meta.url), "utf8");
 const placeGeneratorSource = readFileSync(new URL("../lib/place-ai/generator.ts", import.meta.url), "utf8");
@@ -496,7 +500,11 @@ for (const editorFile of ["AdminPlaceManager.tsx", "AdminSubmissionWorkflow.tsx"
   const translationCalls = editorSource.match(/\/api\/admin\/translate-place/g) ?? [];
   assert.ok(translationCalls.length >= 2, `${editorFile} must translate names and addresses during full AI generation and on manual retry`);
   assert.doesNotMatch(editorSource, /name_zh:\s*enriched\.name_zh \|\| title/);
+  assert.match(editorSource, /koreanContent\?\.description/);
 }
+
+const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
+assert.match(placeStoreSource, /translation\.description, translation\.travel_tip, translation\.address/);
 
 const validPayload = {
   name_ko: "광안리",
