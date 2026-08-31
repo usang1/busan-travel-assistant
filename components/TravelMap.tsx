@@ -989,6 +989,9 @@ function openNaverInfoWindow(
       `<strong style="display:block;font-size:14px;line-height:1.35;">${escapeHtml(marker.title)}</strong>`,
       marker.subtitle ? `<span style="display:block;margin-top:3px;font-size:12px;line-height:1.35;color:#64748b;">${escapeHtml(marker.subtitle)}</span>` : "",
       `<span style="display:block;margin-top:8px;font-size:12px;line-height:1.35;color:#475569;">${escapeHtml(marker.meta)}</span>`,
+      marker.description
+        ? `<span style="display:-webkit-box;margin-top:7px;max-width:240px;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3;font-size:12px;line-height:1.5;color:#334155;">${escapeHtml(marker.description)}</span>`
+        : "",
       marker.price || marker.recommendation
         ? `<span style="display:block;margin-top:6px;font-size:12px;font-weight:700;color:#0f172a;">${escapeHtml([marker.price, marker.recommendation ? `推荐度 ${marker.recommendation}` : ""].filter(Boolean).join(" · "))}</span>`
         : "",
@@ -998,7 +1001,7 @@ function openNaverInfoWindow(
             .map((tag) => `<span style="border-radius:999px;background:#f1f5f9;padding:3px 7px;font-size:11px;font-weight:700;color:#334155;">${escapeHtml(tag)}</span>`)
             .join("")}</span>`
         : "",
-      `<a href="${escapeHtml(marker.href)}" style="display:inline-flex;margin-top:10px;font-size:12px;font-weight:800;color:#047857;text-decoration:none;">详情</a>`,
+      `<a href="${escapeHtml(marker.href)}" target="_self" style="display:inline-flex;min-height:36px;align-items:center;margin-top:10px;border-radius:10px;background:#047857;padding:0 12px;font-size:12px;font-weight:800;color:white;text-decoration:none;">${escapeHtml(marker.detailLabel || "상세")}</a>`,
       "</div>",
     ].join(""),
     borderWidth: 0,

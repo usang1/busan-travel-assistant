@@ -10,6 +10,11 @@ assert.match(travelMap, /disableAutoPan: true/);
 assert.doesNotMatch(travelMap, /contentSignature|lastFittedContentRef/);
 assert.doesNotMatch(travelMap, /focusRequest/);
 assert.doesNotMatch(nearbyExplorer, /focusRequest/);
+assert.match(nearbyExplorer, /description: content\.description/);
+assert.match(nearbyExplorer, /detailLabel: localizedCopy\.detail/);
+assert.match(nearbyExplorer, /<Link href=\{href\}[\s\S]*\{localizedCopy\.detail\}[\s\S]*<ArrowRight/);
+assert.match(travelMap, /marker\.description/);
+assert.match(travelMap, /href="\$\{escapeHtml\(marker\.href\)\}" target="_self"/);
 
 const markerClickHandler = travelMap.match(/addListener\(markerInstance, "click", \(\) => \{([\s\S]*?)\n\s*\}\);/)?.[1] ?? "";
 assert.ok(markerClickHandler, "Naver marker click handler must exist");

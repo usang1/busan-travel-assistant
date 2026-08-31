@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { MutableRefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronUp, LocateFixed, MapPinned, Navigation, Search } from "lucide-react";
+import { ArrowRight, ChevronUp, LocateFixed, MapPinned, Navigation, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { EmptyState } from "@/components/EmptyState";
@@ -212,13 +212,15 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
         href: withLocale(`/places/${place.slug}`, locale),
         imageUrl: place.thumbnail_url,
         meta: `${formatDistance(distance)} · ${copy.placeDetail.walkingApprox} ${walkingMinutes ?? place.walking_minutes}${copy.common.minutes}`,
+        description: content.description,
+        detailLabel: localizedCopy.detail,
         saveCount: place.save_count ?? 0,
         price: formatPriceRange(place, locale),
         recommendation: getChinaRecommendationLabel(place),
         tags: getChinaDiscoveryTags(place, locale, 4),
       };
     });
-  }, [copy.common.minutes, copy.placeDetail.walkingApprox, filteredItems, locale]);
+  }, [copy.common.minutes, copy.placeDetail.walkingApprox, filteredItems, locale, localizedCopy.detail]);
 
   const selectedItem = useMemo(() => {
     return filteredItems.find((item) => item.place.id === selectedId) ?? filteredItems[0] ?? null;
@@ -757,6 +759,7 @@ function PlaceListCard({
           ))}
         </div>
       ) : null}
+      {content.description ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{content.description}</p> : null}
       {locale === "zh" ? (
         <p className="mt-2 text-xs font-bold text-slate-500">
           {formatPriceRange(place, locale)} · 收藏 {place.save_count ?? 0}
@@ -830,29 +833,36 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
             ))}
           </div>
         ) : null}
-        <div className="mt-2 flex flex-wrap justify-end gap-2">
-          <DirectionsButton
-            placeId={place.id}
-            name={content.name}
-            address={content.address}
-            coordinates={coordinates}
-            locale={locale}
-            compact
-          />
-          <SaveButton
-            className={compact ? "px-2" : undefined}
-            initialSaveCount={place.save_count ?? 0}
-            locale={locale}
-            item={{
-              id: place.id,
-              type: "place",
-              titleZh: place.name_zh,
-              titleKo: place.name_ko,
-              href,
-              imageUrl: place.thumbnail_url,
-              meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance)}`,
-            }}
-          />
+        {content.description ? <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{content.description}</p> : null}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <Link href={href} className="inline-flex min-h-10 items-center gap-1 rounded-xl px-2 text-sm font-black text-teal-700 transition hover:bg-teal-50">
+            {localizedCopy.detail}
+            <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <DirectionsButton
+              placeId={place.id}
+              name={content.name}
+              address={content.address}
+              coordinates={coordinates}
+              locale={locale}
+              compact
+            />
+            <SaveButton
+              className={compact ? "px-2" : undefined}
+              initialSaveCount={place.save_count ?? 0}
+              locale={locale}
+              item={{
+                id: place.id,
+                type: "place",
+                titleZh: place.name_zh,
+                titleKo: place.name_ko,
+                href,
+                imageUrl: place.thumbnail_url,
+                meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance)}`,
+              }}
+            />
+          </div>
         </div>
       </div>
     </article>

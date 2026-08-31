@@ -10,7 +10,7 @@ const maxRequestBytes = 24_000;
 const maxSourceJsonLength = 9_000;
 const requestTimeoutMs = 25_000;
 const maxOutputTokens = 1_200;
-const contentVersion = "place-ai-v1";
+const contentVersion = "place-ai-v2";
 
 export type PlaceAiGenerationErrorCode =
   | "missing_api_key"
@@ -124,6 +124,7 @@ export async function generatePlaceAiContent(request: PlaceAiGenerationRequest):
       response.output_text,
       request.locale_targets,
       request.existing_content,
+      sourceData,
     );
     const apiContent = toPlaceAiGenerationApiContent(content);
 
@@ -248,7 +249,7 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
   return normalized;
 }
 
-function buildSystemPrompt() {
+export function buildSystemPrompt() {
   return [
     "You are a precise place information editor for foreign travelers visiting Busan.",
     "Use only the facts in sourceData. Do not browse, scrape, infer from the URL, or invent missing facts.",
@@ -258,10 +259,11 @@ function buildSystemPrompt() {
     "Avoid advertising exaggeration. Write practical travel copy.",
     "Generate Korean, Simplified Chinese, English, and Japanese. Do not mix languages.",
     "Chinese must be natural Simplified Chinese for mainland Chinese independent travelers.",
-    "If a fact is unknown, omit it from descriptions. If important, add a short caution such as information confirmation needed.",
+    "If a fact is unknown or an unchecked boolean, omit it completely. Never turn missing information into a warning or a negative claim.",
+    "Do not mention solo suitability or advise solo visitors to confirm conditions unless solo_friendly is explicitly yes or no in sourceData.",
     "Separate business-provided facts from travel-editor judgment. Make judgment modest and based only on provided facts.",
     "When present, use location convenience, price, menu, portion, greasiness, spiciness, smell, wait, solo dining, card payment, toilet, parking, and cautions.",
-    "Description: explain what the place is, its factual location, key verified characteristics, and suitable travelers in up to two short sentences.",
+    "Description: explain what the place is, its factual location, and key verified characteristics in up to two short sentences. Mention suitable travelers only when directly supported by sourceData.",
     "Travel tip: use only supported visit timing, transport, nearby route, waiting, photo, or usage facts. Return an empty string when no grounded tip exists.",
     "Keep road names, building numbers, prices, and proper nouns accurate. Do not translate or generate address fields in this response.",
     "Each locale must use its own language. A short Korean proper noun may remain when no established localized place name exists.",
@@ -283,6 +285,7 @@ export function parseAndValidateGeneratedContent(
   text: string,
   localeTargets: PlaceContentLocale[] = ["ko", "zh", "en", "ja"],
   existingContent: Partial<PlaceAiGeneratedContent> = {},
+  sourceData?: Pick<PlaceSourceData, "solo_friendly">,
 ) {
   if (!text.trim()) {
     throw new PlaceAiGenerationError("schema_validation_failed", "OpenAI 응답이 비어 있습니다.", 502);
@@ -314,8 +317,8 @@ export function parseAndValidateGeneratedContent(
       continue;
     }
 
-    const description = normalizeText(descriptions[locale], 800);
-    const travelTip = normalizeText(travelTips[locale], 800);
+    const description = removeUnsupportedSoloClaims(normalizeText(descriptions[locale], 800), locale, sourceData?.solo_friendly);
+    const travelTip = removeUnsupportedSoloClaims(normalizeText(travelTips[locale], 800), locale, sourceData?.solo_friendly);
     const failedFields: Array<"description" | "travel_tip"> = [];
     const descriptionValidation = validateLocaleText(description, locale);
     const travelTipValidation = travelTip ? validateLocaleText(travelTip, locale) : { valid: false };
@@ -330,6 +333,25 @@ export function parseAndValidateGeneratedContent(
   }
 
   return { content, localeResults };
+}
+
+function removeUnsupportedSoloClaims(text: string, locale: PlaceContentLocale, soloFriendly?: PlaceFactTristate) {
+  if (!text || soloFriendly === "yes" || soloFriendly === "no") {
+    return text;
+  }
+
+  const soloPattern = {
+    ko: /(혼자|혼밥|1인)/i,
+    zh: /(一个人|單人|单人|独自)/i,
+    en: /\b(solo|alone|single diner|single diners|one person)\b/i,
+    ja: /(一人|ひとり|単独)/i,
+  }[locale];
+
+  return text
+    .split(/(?<=[.!?。！？])\s*/u)
+    .filter((sentence) => !soloPattern.test(sentence))
+    .join(" ")
+    .trim();
 }
 
 function buildLocaleResult(locale: PlaceContentLocale, failedFields: Array<"description" | "travel_tip">): PlaceAiLocaleResult {

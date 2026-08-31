@@ -6,8 +6,10 @@ import {
   ArrowLeft,
   Clock3,
   CreditCard,
+  Globe2,
   MapPin,
   MessageSquareText,
+  Phone,
   Route,
   Soup,
   Users,
@@ -142,6 +144,13 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     ja: "ここで一番人気のメニューをおすすめしてもらえますか？",
     ko: "여기에서 가장 인기 있는 메뉴를 추천해주실 수 있나요?",
   }[locale];
+  const websiteHref = safeExternalUrl(place.website);
+  const factLabels = {
+    zh: { address: "地址", phone: "电话", website: "网站" },
+    en: { address: "Address", phone: "Phone", website: "Website" },
+    ja: { address: "住所", phone: "電話", website: "ウェブサイト" },
+    ko: { address: "주소", phone: "전화", website: "웹사이트" },
+  }[locale];
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -239,6 +248,12 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             <SectionTitle title={copy.placeDetail.recommendation} />
             <p className="mt-3 text-base leading-7 text-slate-700">{content.description}</p>
           </section>
+
+          <div className="mt-5 divide-y divide-slate-100 border-y border-slate-100">
+            {content.address ? <DetailFact icon={MapPin} label={factLabels.address} value={content.address} /> : null}
+            {place.phone ? <DetailFact icon={Phone} label={factLabels.phone} value={place.phone} href={`tel:${place.phone.replace(/[^\d+]/g, "")}`} /> : null}
+            {websiteHref ? <DetailFact icon={Globe2} label={factLabels.website} value={place.website ?? ""} href={websiteHref} external /> : null}
+          </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
             {place.tags.map((tag) => (
@@ -347,6 +362,50 @@ function InfoTile({ icon: Icon, label, value }: { icon: LucideIcon; label: strin
       <p className="break-words text-sm font-bold text-slate-950">{value}</p>
     </div>
   );
+}
+
+function DetailFact({
+  icon: Icon,
+  label,
+  value,
+  href,
+  external = false,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  href?: string;
+  external?: boolean;
+}) {
+  const content = <span className="break-all text-sm font-semibold text-slate-800">{value}</span>;
+
+  return (
+    <div className="grid grid-cols-[20px_72px_1fr] items-start gap-2 py-3">
+      <Icon size={17} className="mt-0.5 text-teal-700" aria-hidden="true" />
+      <span className="text-sm text-slate-500">{label}</span>
+      {href ? (
+        <a
+          href={href}
+          target={external ? "_blank" : undefined}
+          rel={external ? "noreferrer" : undefined}
+          className="min-w-0 text-teal-700 underline-offset-4 hover:underline"
+        >
+          {content}
+        </a>
+      ) : content}
+    </div>
+  );
+}
+
+function safeExternalUrl(value: string | null | undefined) {
+  if (!value?.trim()) return null;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function InfoPanel({

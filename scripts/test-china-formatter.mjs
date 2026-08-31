@@ -367,12 +367,37 @@ const sourceWithNoMemo = contentDraft.buildPlaceSourceData({
   short_description_zh: "", short_description_ko: "", thumbnail_url: "", is_featured: false, is_active: true, status: "ACTIVE", tags: [], menu_items: [],
 });
 assert.equal(sourceWithNoMemo.admin_notes, "");
+assert.equal(sourceWithNoMemo.solo_friendly, "unknown");
+assert.equal(sourceWithNoMemo.card_payment, "unknown");
+assert.match(generator.buildSystemPrompt(), /Never turn missing information into a warning or a negative claim/);
+assert.match(generator.buildSystemPrompt(), /Do not mention solo suitability/);
+
+const unsupportedSoloCopy = generator.parseAndValidateGeneratedContent(JSON.stringify({
+  description: {
+    ko: "광안리에 있는 음식점입니다. 혼자 방문하기에는 적합하지 않습니다.",
+    zh: "这是一家位于广安里的餐厅。一个人前往时需要提前确认。",
+    en: "This restaurant is in Gwangalli. Solo visitors should confirm conditions before visiting.",
+    ja: "広安里にある飲食店です。一人で訪れる場合は事前確認が必要です。",
+  },
+  travel_tip: {
+    ko: "영업시간은 방문 전에 확인하세요.",
+    zh: "到访前请确认营业时间。",
+    en: "Check the opening hours before visiting.",
+    ja: "訪問前に営業時間を確認してください。",
+  },
+}), ["ko", "zh", "en", "ja"], {}, { solo_friendly: "unknown" });
+assert.equal(unsupportedSoloCopy.content.description_ko, "광안리에 있는 음식점입니다.");
+assert.equal(unsupportedSoloCopy.content.description_en, "This restaurant is in Gwangalli.");
+
 const hypePrompt = generator.buildUserPrompt(JSON.stringify({ ...sourceWithNoMemo, admin_notes: "부산 느좋 카페 1등" }), ["ko", "zh", "en", "ja"]);
 assert.match(hypePrompt, /부산 느좋 카페 1등/);
 assert.equal(mapSource.analyzePlaceMapSource("https://map.naver.com/p/entry/place/1435915485").source_type, "naver");
 assert.equal(mapSource.analyzePlaceMapSource("https://place.map.kakao.com/12345").external_id, "12345");
 assert.equal(mapSource.analyzePlaceMapSource("https://maps.google.com/?cid=999").source_type, "google");
 assert.equal(mapSource.analyzePlaceMapSource("not a url").source_type, "unknown");
+
+const i18nSource = readFileSync(new URL("../lib/i18n.ts", import.meta.url), "utf8");
+assert.match(i18nSource, /if \(value\?\.trim\(\)\) acc\[translation\.locale\] = value;/, "empty translation rows must not hide saved legacy descriptions");
 
 assert.throws(
   () =>

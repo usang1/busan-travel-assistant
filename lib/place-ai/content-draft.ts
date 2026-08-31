@@ -184,10 +184,6 @@ function booleanToTristate(value: boolean | undefined): PlaceFactTristate {
     return "yes";
   }
 
-  if (value === false) {
-    return "no";
-  }
-
   return "unknown";
 }
 

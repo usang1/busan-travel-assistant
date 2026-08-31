@@ -10,6 +10,8 @@ export type MapMarker = {
   href: string;
   imageUrl: string;
   meta: string;
+  description?: string;
+  detailLabel?: string;
   saveCount?: number;
   price?: string;
   recommendation?: string;

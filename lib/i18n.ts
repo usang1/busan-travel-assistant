@@ -638,7 +638,7 @@ export function getLocalizedField(place: PlaceWithRelations, field: "name" | "de
   } satisfies Record<typeof field, LocalizedValue>;
   const translatedValues = place.translations?.reduce<LocalizedValue>((acc, translation) => {
     const value = field === "travelTip" ? translation.travel_tip : translation[field];
-    acc[translation.locale] = value;
+    if (value?.trim()) acc[translation.locale] = value;
     return acc;
   }, {}) ?? {};
 
