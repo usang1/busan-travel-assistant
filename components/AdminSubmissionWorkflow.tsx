@@ -1171,6 +1171,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             adminSummaryFailed={adminSummaryFailed}
             adminSummaryErrorMessage={adminSummaryErrorMessage}
             providerLookupNotice={providerLookupNotice}
+            status={status}
             onGeocode={() => void fillCoordinatesFromAddress()}
             onPrepareAiDraft={(locales) => void prepareAiDraft(locales)}
             onApplyAiDraft={applyAiDraft}
@@ -1200,6 +1201,7 @@ function PublishFormView({
   adminSummaryFailed,
   adminSummaryErrorMessage,
   providerLookupNotice,
+  status,
   onGeocode,
   onPrepareAiDraft,
   onApplyAiDraft,
@@ -1222,6 +1224,7 @@ function PublishFormView({
   adminSummaryFailed: boolean;
   adminSummaryErrorMessage: string;
   providerLookupNotice: string;
+  status: string;
   onGeocode: () => void;
   onPrepareAiDraft: (locales?: PlaceContentLocale[]) => void;
   onApplyAiDraft: (fields: AdminAiDraftApplyField[]) => void;
@@ -1474,6 +1477,8 @@ function PublishFormView({
           </div>
         </div>
       </details>
+
+      {status ? <p role="status" className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold leading-5 text-amber-800">{status}</p> : null}
 
       <button type="button" onClick={onPublish} disabled={saving || geocoding} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-60 sm:w-auto">
         <Send size={16} aria-hidden="true" />

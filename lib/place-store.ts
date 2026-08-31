@@ -432,6 +432,23 @@ function toPlaceWriteRow(payload: PlacePayload): PlaceWriteRow {
   return normalizePlacePublicationForWrite(place);
 }
 
+function withoutAdminSummary(row: PlaceWriteRow): Omit<PlaceWriteRow, "admin_summary"> {
+  const { admin_summary: _adminSummary, ...compatibleRow } = row;
+  void _adminSummary;
+
+  return compatibleRow;
+}
+
+function isMissingAdminSummaryColumnError(error: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() ?? "";
+
+  return Boolean(
+    error &&
+      message.includes("admin_summary") &&
+      (error.code === "PGRST204" || error.code === "42703" || message.includes("schema cache") || message.includes("column")),
+  );
+}
+
 function resolveClient(client?: SupabaseClient) {
   return client ?? getSupabaseClient();
 }
@@ -685,7 +702,14 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   validatePlacePayloadForSave(payload);
   await assertNoExactSourceDuplicate(payload, resolvedClient);
 
-  const { data, error } = await resolvedClient.from("places").insert(toPlaceWriteRow(payload)).select("id").single();
+  const placeRow = toPlaceWriteRow(payload);
+  let { data, error } = await resolvedClient.from("places").insert(placeRow).select("id").single();
+
+  if (isMissingAdminSummaryColumnError(error)) {
+    const compatibleResult = await resolvedClient.from("places").insert(withoutAdminSummary(placeRow)).select("id").single();
+    data = compatibleResult.data;
+    error = compatibleResult.error;
+  }
 
   if (error || !data) {
     throw new Error(error?.message ?? "장소 추가에 실패했습니다.");
@@ -717,7 +741,13 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   validatePlacePayloadForSave(payload);
   await assertNoExactSourceDuplicate(payload, resolvedClient, id);
 
-  const { error } = await resolvedClient.from("places").update(toPlaceWriteRow(payload)).eq("id", id);
+  const placeRow = toPlaceWriteRow(payload);
+  let { error } = await resolvedClient.from("places").update(placeRow).eq("id", id);
+
+  if (isMissingAdminSummaryColumnError(error)) {
+    const compatibleResult = await resolvedClient.from("places").update(withoutAdminSummary(placeRow)).eq("id", id);
+    error = compatibleResult.error;
+  }
 
   if (error) {
     throw new Error(error.message);
