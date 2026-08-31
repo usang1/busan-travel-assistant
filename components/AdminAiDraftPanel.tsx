@@ -1,26 +1,33 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, Sparkles, X } from "lucide-react";
-import type { PlaceAiGeneratedContent, PlaceAiGenerationResponse } from "@/types/place-ai";
+import { Check, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
+import { validateLocaleText } from "@/lib/place-ai/locale-validation";
+import type { PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
 
-export type AdminAiDraftApplyField = "description_ko" | "description_zh" | "description_en" | "description_ja";
+export type AdminAiDraftApplyField =
+  | "description_ko" | "description_zh" | "description_en" | "description_ja"
+  | "travel_tip_ko" | "travel_tip_zh" | "travel_tip_en" | "travel_tip_ja";
 
 type AdminAiDraftPanelProps = {
   draft: PlaceAiGenerationResponse | null;
   generating: boolean;
   canApply: boolean;
   currentContent: Record<AdminAiDraftApplyField, string>;
-  onGenerate: () => void;
+  onGenerate: (locales?: PlaceContentLocale[]) => void;
   onApply: (fields: AdminAiDraftApplyField[]) => void;
   onCancel: () => void;
 };
 
-const applyFields: Array<{ key: AdminAiDraftApplyField; label: string; localeLabel: string }> = [
-  { key: "description_ko", label: "한국어", localeLabel: "ko 필드" },
-  { key: "description_zh", label: "中文", localeLabel: "zh 필드" },
-  { key: "description_en", label: "English", localeLabel: "en 필드" },
-  { key: "description_ja", label: "日本語", localeLabel: "ja 필드" },
+const applyFields: Array<{ key: AdminAiDraftApplyField; label: string; localeLabel: string; locale: PlaceContentLocale; field: "description" | "travel_tip" }> = [
+  { key: "description_ko", label: "한국어 설명", localeLabel: "ko · description", locale: "ko", field: "description" },
+  { key: "travel_tip_ko", label: "한국어 여행 팁", localeLabel: "ko · travel_tip", locale: "ko", field: "travel_tip" },
+  { key: "description_zh", label: "中文说明", localeLabel: "zh · description", locale: "zh", field: "description" },
+  { key: "travel_tip_zh", label: "中文旅行提示", localeLabel: "zh · travel_tip", locale: "zh", field: "travel_tip" },
+  { key: "description_en", label: "English description", localeLabel: "en · description", locale: "en", field: "description" },
+  { key: "travel_tip_en", label: "English travel tip", localeLabel: "en · travel_tip", locale: "en", field: "travel_tip" },
+  { key: "description_ja", label: "日本語の説明", localeLabel: "ja · description", locale: "ja", field: "description" },
+  { key: "travel_tip_ja", label: "日本語の旅行ヒント", localeLabel: "ja · travel_tip", locale: "ja", field: "travel_tip" },
 ];
 
 export function AdminAiDraftPanel({
@@ -33,7 +40,14 @@ export function AdminAiDraftPanel({
   onCancel,
 }: AdminAiDraftPanelProps) {
   const content = draft?.generated_content ?? null;
-  const validation = useMemo(() => validateGeneratedContent(content), [content]);
+  const validation = useMemo(() => validateGeneratedContent(content, draft), [content, draft]);
+  const failedLocales = useMemo(
+    () => (["ko", "zh", "en", "ja"] as const).filter((locale) => {
+      const status = draft?.locale_results?.[locale]?.status;
+      return status === "failed" || status === "partial";
+    }),
+    [draft],
+  );
   const [selectedFields, setSelectedFields] = useState<AdminAiDraftApplyField[]>([]);
 
   useEffect(() => {
@@ -70,13 +84,24 @@ export function AdminAiDraftPanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={onGenerate}
+            onClick={() => onGenerate()}
             disabled={generating}
             className="inline-flex h-10 items-center gap-2 rounded-full bg-indigo-50 px-4 text-xs font-black text-indigo-800 ring-1 ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {generating ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Sparkles size={15} aria-hidden="true" />}
             {generating ? "생성 중" : draft ? "다시 생성" : "AI 여행정보 생성"}
           </button>
+          {draft && failedLocales.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => onGenerate(failedLocales)}
+              disabled={generating}
+              className="inline-flex h-10 items-center gap-2 rounded-full bg-amber-50 px-4 text-xs font-black text-amber-800 ring-1 ring-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw size={15} aria-hidden="true" />
+              실패 언어 다시 생성
+            </button>
+          ) : null}
           {draft ? (
             <button
               type="button"
@@ -139,11 +164,6 @@ export function AdminAiDraftPanel({
               />
             ))}
           </div>
-
-          <DraftList label="추천 포인트" values={content.highlights} />
-          <DraftList label="여행자 TIP" values={content.traveler_tips} />
-          <DraftList label="추천 대상" values={content.recommended_for} />
-          <DraftList label="주의사항" values={content.cautions} />
 
           <p className="rounded-xl bg-teal-50 px-3 py-2 text-xs font-bold text-teal-800 ring-1 ring-teal-100">
             적용 가능 필드 {applyableFields.length}개 중 {selectedFields.length}개 선택됨. 가격, 주소, 좌표, 영업시간, 메뉴 가격, 지도 링크는 AI가 변경하지 않습니다.
@@ -212,63 +232,10 @@ function DraftTextField({
   );
 }
 
-function DraftList({ label, values }: { label: string; values?: string[] }) {
-  const items = values?.filter((value) => value.trim()) ?? [];
-
-  return (
-    <div>
-      <p className="text-xs font-black text-slate-500">{label}</p>
-      <div className="mt-1 flex min-h-9 flex-wrap gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200">
-        {items.length ? (
-          items.map((value) => (
-            <span key={value} className="max-w-full break-words rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-              {value}
-            </span>
-          ))
-        ) : (
-          <span className="text-sm text-slate-400">생성 결과 없음</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function validateGeneratedContent(content: PlaceAiGeneratedContent | null) {
-  return {
-    description_ko: validateLocaleText(content?.description_ko ?? "", "ko"),
-    description_zh: validateLocaleText(content?.description_zh ?? "", "zh"),
-    description_en: validateLocaleText(content?.description_en ?? "", "en"),
-    description_ja: validateLocaleText(content?.description_ja ?? "", "ja"),
-  };
-}
-
-function validateLocaleText(value: string, locale: "ko" | "zh" | "en" | "ja") {
-  const text = value.trim();
-
-  if (!text) {
-    return { valid: false, warning: "생성된 문장이 없습니다." };
-  }
-
-  const hasHangul = /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text);
-  const hasHan = /[\u3400-\u9fff]/.test(text);
-  const hasKana = /[\u3040-\u30ff]/.test(text);
-  const hasLatin = /[A-Za-z]/.test(text);
-
-  if (locale === "ko" && !hasHangul) {
-    return { valid: false, warning: "한국어 설명에는 한글 문장이 필요합니다." };
-  }
-
-  if (locale === "zh" && (!hasHan || hasHangul || hasKana)) {
-    return { valid: false, warning: "중국어 간체 필드에 다른 언어가 섞인 것으로 보입니다." };
-  }
-
-  if (locale === "en" && (!hasLatin || hasHangul || hasHan || hasKana)) {
-    return { valid: false, warning: "영어 필드에 다른 언어가 섞인 것으로 보입니다." };
-  }
-
-  if (locale === "ja" && (!hasKana || hasHangul)) {
-    return { valid: false, warning: "일본어 필드에 일본어 문장이 필요합니다." };
-  }
-
-  return { valid: true, warning: "" };
+function validateGeneratedContent(content: PlaceAiGeneratedContent | null, draft: PlaceAiGenerationResponse | null) {
+  return Object.fromEntries(applyFields.map((field) => {
+    const localValidation = validateLocaleText(content?.[field.key] ?? "", field.locale);
+    const failedByServer = draft?.locale_results?.[field.locale]?.failed_fields.includes(field.field) ?? false;
+    return [field.key, failedByServer ? { valid: false, warning: draft?.locale_results?.[field.locale]?.message ?? localValidation.warning } : localValidation];
+  })) as Record<AdminAiDraftApplyField, ReturnType<typeof validateLocaleText>>;
 }

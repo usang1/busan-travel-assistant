@@ -90,13 +90,14 @@ supabase/migrations/010_place_ai_generation_drafts.sql
 supabase/migrations/011_place_visibility_listing_flow.sql
 supabase/migrations/012_place_publication_defaults.sql
 supabase/migrations/013_place_source_metadata.sql
+supabase/migrations/014_place_translation_addresses.sql
 supabase/seed.sql
 ```
 
 테이블:
 
 - `places`: 장소 기본 정보, 가격, 위치, 운영시간, 시설, 추천 문구
-- `place_translations`: 장소명, 설명, 여행 팁의 locale별 번역
+- `place_translations`: 장소명, 주소, 설명, 여행 팁의 locale별 번역
 - `place_sources`: NAVER/KAKAO/GOOGLE/MANUAL 공식 소스 연결용 참조
 - `tags`: 중국어/한국어 태그
 - `place_tags`: 장소-태그 관계

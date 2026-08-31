@@ -77,6 +77,7 @@ const databaseRuntime = {
 };
 const enrichment = loadTsModule("lib/admin-place-enrichment.ts", {
   "@/lib/place-providers/normalize": normalize,
+  "@/lib/place-ai/locale-validation": loadTsModule("lib/place-ai/locale-validation.ts"),
 });
 const location = loadTsModule("lib/location.ts");
 const duplicates = loadTsModule("lib/place-duplicates.ts", {
@@ -238,6 +239,9 @@ const emptyForm = {
   name_zh: "",
   category: "",
   address_ko: "",
+  address_zh: "",
+  address_en: "",
+  address_ja: "",
   latitude: "",
   longitude: "",
   phone: "",

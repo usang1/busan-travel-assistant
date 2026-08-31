@@ -243,6 +243,7 @@ create table if not exists public.place_translations (
   name text not null,
   description text not null default '',
   travel_tip text not null default '',
+  address text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (place_id, locale)
@@ -479,22 +480,24 @@ begin
 end;
 $$;
 
-insert into public.place_translations (place_id, locale, name, description, travel_tip)
-select id, 'zh'::public.app_locale, name_zh, short_description_zh, tips_zh
+insert into public.place_translations (place_id, locale, name, description, travel_tip, address)
+select id, 'zh'::public.app_locale, name_zh, short_description_zh, tips_zh, address_zh
 from public.places
 on conflict (place_id, locale) do update set
   name = excluded.name,
   description = excluded.description,
   travel_tip = excluded.travel_tip,
+  address = excluded.address,
   updated_at = now();
 
-insert into public.place_translations (place_id, locale, name, description, travel_tip)
-select id, 'ko'::public.app_locale, name_ko, short_description_ko, tips_ko
+insert into public.place_translations (place_id, locale, name, description, travel_tip, address)
+select id, 'ko'::public.app_locale, name_ko, short_description_ko, tips_ko, address_ko
 from public.places
 on conflict (place_id, locale) do update set
   name = excluded.name,
   description = excluded.description,
   travel_tip = excluded.travel_tip,
+  address = excluded.address,
   updated_at = now();
 
 -- ==========================================

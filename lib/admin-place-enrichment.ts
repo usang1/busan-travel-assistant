@@ -1,4 +1,5 @@
 import { normalizeCoordinates } from "@/lib/place-providers/normalize";
+import { sanitizeLocalizedAddress } from "@/lib/place-ai/locale-validation";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import type { PlaceCategory, PlacePayload, PlaceSourceProvider } from "@/types/database";
 
@@ -10,6 +11,9 @@ export type EnrichablePlaceForm = {
   name_zh: string;
   category: PlaceCategory | "";
   address_ko: string;
+  address_zh: string;
+  address_en: string;
+  address_ja: string;
   latitude: string;
   longitude: string;
   phone: string;
@@ -34,6 +38,8 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
   const openingHours = Array.isArray(place.openingHours) ? place.openingHours.join("\n") : place.openingHours;
   const sourceProvider = toSourceProvider(place.provider);
   const sameSource = isSameProviderSource(form, sourceProvider, place.providerPlaceId);
+  const addressKo = place.roadAddressKo ?? place.addressKo ?? "";
+  const providerAddressEn = sanitizeLocalizedAddress(place.formattedAddress, addressKo, "en");
 
   return {
     ...form,
@@ -43,7 +49,8 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
     name_ko: fillText(form.name_ko, place.name),
     name_zh: fillText(form.name_zh, place.name),
     category: form.category || providerCategory || "",
-    address_ko: fillText(form.address_ko, place.roadAddressKo ?? place.addressKo ?? place.formattedAddress),
+    address_ko: fillText(form.address_ko, addressKo || place.formattedAddress),
+    address_en: fillText(form.address_en, providerAddressEn),
     latitude: coordinates && !hasValidFormCoordinates(form) ? coordinates.latitude.toFixed(7) : form.latitude,
     longitude: coordinates && !hasValidFormCoordinates(form) ? coordinates.longitude.toFixed(7) : form.longitude,
     phone: fillText(form.phone, place.phone),

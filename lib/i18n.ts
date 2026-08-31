@@ -667,12 +667,18 @@ export function getPlaceContent(place: PlaceWithRelations, locale: Locale) {
   const name = getLocalizedField(place, "name", locale);
   const fallbackKoName = getLocalizedValue({ ko: place.name_ko }, "ko");
 
+  const translatedAddresses = place.translations?.reduce<LocalizedValue>((acc, translation) => {
+    if (translation.address?.trim()) acc[translation.locale] = translation.address;
+    return acc;
+  }, {}) ?? {};
+  const localizedAddresses = { zh: place.address_zh, ko: place.address_ko, ...translatedAddresses };
+
   return {
     name,
     secondaryName: locale === "ko" || name === fallbackKoName ? "" : fallbackKoName,
     description: getLocalizedField(place, "description", locale),
     travelTip: getLocalizedField(place, "travelTip", locale),
-    address: getLocalizedValue({ zh: place.address_zh, ko: place.address_ko }, locale),
+    address: localizedAddresses[locale]?.trim() || "",
     waitingInfo: getLocalizedValue({ zh: place.waiting_info_zh, ko: place.waiting_info_ko }, locale),
     recommendedOrder: getLocalizedValue({ zh: place.recommended_order_zh, ko: place.recommended_order_ko }, locale),
   };

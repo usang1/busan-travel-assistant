@@ -67,6 +67,7 @@ export type PlaceTranslationRecord = {
   name: string;
   description: string;
   travel_tip: string;
+  address: string;
   created_at: string;
   updated_at: string;
 };
@@ -202,7 +203,7 @@ export type PlaceActionEventType =
 export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at"> & {
   tags: Array<Pick<TagRecord, "label_zh" | "label_ko" | "slug">>;
   menu_items: Array<Omit<PlaceMenuItem, "id" | "place_id">>;
-  translations?: Array<Pick<PlaceTranslationRecord, "locale" | "name" | "description" | "travel_tip">>;
+  translations?: Array<Pick<PlaceTranslationRecord, "locale" | "name" | "description" | "travel_tip" | "address">>;
   source?: {
     provider: PlaceSourceProvider;
     source_url?: string | null;

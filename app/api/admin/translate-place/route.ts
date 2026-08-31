@@ -28,9 +28,9 @@ export async function POST(request: Request) {
       throw translateError("번역할 한국어/중국어/영어 텍스트를 먼저 입력해 주세요.");
     }
 
-    const translations = await generateAdminPlaceTranslations(fields);
+    const result = await generateAdminPlaceTranslations(fields);
 
-    return NextResponse.json({ translations });
+    return NextResponse.json(result);
   } catch (error) {
     const response = adminErrorResponse(error);
 

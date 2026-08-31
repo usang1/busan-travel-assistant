@@ -54,6 +54,7 @@ function normalizePlaceTranslations(row: SupabasePlaceRow): PlaceTranslationReco
       name: row.name_zh,
       description: row.short_description_zh,
       travel_tip: row.tips_zh,
+      address: row.address_zh,
       created_at: row.created_at,
       updated_at: row.updated_at,
     });
@@ -67,6 +68,7 @@ function normalizePlaceTranslations(row: SupabasePlaceRow): PlaceTranslationReco
       name: row.name_ko,
       description: row.short_description_ko,
       travel_tip: row.tips_ko,
+      address: row.address_ko,
       created_at: row.created_at,
       updated_at: row.updated_at,
     });
@@ -519,12 +521,14 @@ async function syncTranslations(placeId: string, payload: PlacePayload, client?:
           name: payload.name_zh,
           description: payload.short_description_zh,
           travel_tip: payload.tips_zh,
+          address: payload.address_zh,
         },
         {
           locale: "ko" as const,
           name: payload.name_ko,
           description: payload.short_description_ko,
           travel_tip: payload.tips_ko,
+          address: payload.address_ko,
         },
       ];
 
@@ -540,11 +544,21 @@ async function syncTranslations(placeId: string, payload: PlacePayload, client?:
       name: translation.name,
       description: translation.description,
       travel_tip: translation.travel_tip,
+      address: translation.address,
     }));
 
-  const { error } = await resolvedClient
+  let { error } = await resolvedClient
     .from("place_translations")
     .upsert(rows, { onConflict: "place_id,locale" });
+
+  if (error && (error.code === "PGRST204" || error.message.includes("address"))) {
+    const legacyRows = rows.map(({ address: _address, ...row }) => {
+      void _address;
+      return row;
+    });
+    const retry = await resolvedClient.from("place_translations").upsert(legacyRows, { onConflict: "place_id,locale" });
+    error = retry.error;
+  }
 
   if (error) {
     throw new Error(error.message);

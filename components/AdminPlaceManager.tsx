@@ -37,7 +37,7 @@ import {
   type PlaceSourceProvider,
   type PlaceWithRelations,
 } from "@/types/database";
-import type { PlaceAiGeneratedContent, PlaceAiGenerationResponse } from "@/types/place-ai";
+import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
 
 type AdminPlaceManagerProps = {
   initialPlaces: PlaceWithRelations[];
@@ -73,6 +73,9 @@ type FormState = {
   short_description_ko: string;
   address_ko: string;
   address_zh: string;
+  address_en: string;
+  address_ja: string;
+  admin_notes: string;
   latitude: string;
   longitude: string;
   phone: string;
@@ -136,25 +139,6 @@ type TriStateConfig = {
   >;
   label: string;
   help: string;
-};
-
-type AdminTranslationFields = {
-  name_ko: string;
-  name_zh: string;
-  name_en: string;
-  short_description_ko: string;
-  short_description_zh: string;
-  short_description_en: string;
-  description_ko: string;
-  description_zh: string;
-  description_en: string;
-  tips_ko: string;
-  tips_zh: string;
-  tips_en: string;
-  recommended_order_ko: string;
-  recommended_order_zh: string;
-  address_ko: string;
-  address_zh: string;
 };
 
 const localStorageKey = "busan-travel-assistant-admin-places";
@@ -262,6 +246,9 @@ function createEmptyForm(): FormState {
     short_description_ko: "",
     address_ko: "",
     address_zh: "",
+    address_en: "",
+    address_ja: "",
+    admin_notes: "",
     latitude: "",
     longitude: "",
     phone: "",
@@ -330,6 +317,9 @@ function toForm(place: PlaceWithRelations): FormState {
     short_description_ko: place.short_description_ko,
     address_ko: place.address_ko,
     address_zh: place.address_zh,
+    address_en: en?.address ?? "",
+    address_ja: ja?.address ?? "",
+    admin_notes: "",
     latitude: place.latitude?.toString() ?? "",
     longitude: place.longitude?.toString() ?? "",
     phone: place.phone ?? "",
@@ -512,30 +502,34 @@ function toPayload(form: FormState): PlacePayload {
     translations: [
       {
         locale: "zh",
-        name: form.name_zh,
+        name: form.name_zh || form.name_ko,
         description: form.short_description_zh,
         travel_tip: form.tips_zh,
+        address: form.address_zh,
       },
       {
         locale: "ko",
-        name: form.name_ko,
+        name: form.name_ko || form.name_zh,
         description: form.short_description_ko,
         travel_tip: form.tips_ko,
+        address: form.address_ko,
       },
-      form.name_en.trim()
+      form.name_en.trim() || form.short_description_en.trim() || form.tips_en.trim() || form.address_en.trim()
         ? {
             locale: "en" as const,
-            name: form.name_en,
+            name: form.name_en || form.name_ko || form.name_zh,
             description: form.short_description_en,
             travel_tip: form.tips_en,
+            address: form.address_en,
           }
         : null,
-      form.name_ja.trim()
+      form.name_ja.trim() || form.short_description_ja.trim() || form.tips_ja.trim() || form.address_ja.trim()
         ? {
             locale: "ja" as const,
-            name: form.name_ja,
+            name: form.name_ja || form.name_ko || form.name_zh,
             description: form.short_description_ja,
             travel_tip: form.tips_ja,
+            address: form.address_ja,
           }
         : null,
     ].filter((translation): translation is NonNullable<PlacePayload["translations"]>[number] => Boolean(translation)),
@@ -572,6 +566,10 @@ function applyGeneratedContentToForm(form: FormState, content: PlaceAiGeneratedC
     short_description_zh: selected.has("description_zh") ? content.description_zh : form.short_description_zh,
     short_description_en: selected.has("description_en") ? content.description_en : form.short_description_en,
     short_description_ja: selected.has("description_ja") ? content.description_ja : form.short_description_ja,
+    tips_ko: selected.has("travel_tip_ko") ? content.travel_tip_ko : form.tips_ko,
+    tips_zh: selected.has("travel_tip_zh") ? content.travel_tip_zh : form.tips_zh,
+    tips_en: selected.has("travel_tip_en") ? content.travel_tip_en : form.tips_en,
+    tips_ja: selected.has("travel_tip_ja") ? content.travel_tip_ja : form.tips_ja,
   };
 }
 
@@ -628,19 +626,25 @@ function buildTranslationFieldsFromForm(form: FormState): AdminTranslationFields
     name_ko: form.name_ko,
     name_zh: form.name_zh,
     name_en: form.name_en,
+    name_ja: form.name_ja,
     short_description_ko: form.short_description_ko,
     short_description_zh: form.short_description_zh,
     short_description_en: form.short_description_en,
+    short_description_ja: form.short_description_ja,
     description_ko: form.short_description_ko,
     description_zh: form.short_description_zh,
     description_en: form.short_description_en,
+    description_ja: form.short_description_ja,
     tips_ko: form.tips_ko,
     tips_zh: form.tips_zh,
     tips_en: form.tips_en,
+    tips_ja: form.tips_ja,
     recommended_order_ko: form.recommended_order_ko,
     recommended_order_zh: form.recommended_order_zh,
     address_ko: form.address_ko,
     address_zh: form.address_zh,
+    address_en: form.address_en,
+    address_ja: form.address_ja,
   };
 }
 
@@ -659,16 +663,21 @@ function applyTranslationsToForm(form: FormState, translations: Partial<AdminTra
     name_ko: fill(form.name_ko, translations.name_ko),
     name_zh: fill(form.name_zh, translations.name_zh),
     name_en: fill(form.name_en, translations.name_en),
+    name_ja: fill(form.name_ja, translations.name_ja),
     short_description_ko: fill(form.short_description_ko, translations.short_description_ko || translations.description_ko),
     short_description_zh: fill(form.short_description_zh, translations.short_description_zh || translations.description_zh),
     short_description_en: fill(form.short_description_en, translations.short_description_en || translations.description_en),
+    short_description_ja: fill(form.short_description_ja, translations.short_description_ja || translations.description_ja),
     tips_ko: fill(form.tips_ko, translations.tips_ko),
     tips_zh: fill(form.tips_zh, translations.tips_zh),
     tips_en: fill(form.tips_en, translations.tips_en),
+    tips_ja: fill(form.tips_ja, translations.tips_ja),
     recommended_order_ko: fill(form.recommended_order_ko, translations.recommended_order_ko),
     recommended_order_zh: fill(form.recommended_order_zh, translations.recommended_order_zh),
     address_ko: fill(form.address_ko, translations.address_ko),
     address_zh: fill(form.address_zh, translations.address_zh),
+    address_en: fill(form.address_en, translations.address_en),
+    address_ja: fill(form.address_ja, translations.address_ja),
   };
 
   return { nextForm, filledCount };
@@ -749,8 +758,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       description_zh: form.short_description_zh,
       description_en: form.short_description_en,
       description_ja: form.short_description_ja,
+      travel_tip_ko: form.tips_ko,
+      travel_tip_zh: form.tips_zh,
+      travel_tip_en: form.tips_en,
+      travel_tip_ja: form.tips_ja,
     }),
-    [form.short_description_en, form.short_description_ja, form.short_description_ko, form.short_description_zh],
+    [form.short_description_en, form.short_description_ja, form.short_description_ko, form.short_description_zh, form.tips_en, form.tips_ja, form.tips_ko, form.tips_zh],
   );
 
   const activeCount = useMemo(() => places.filter(isPublicPlace).length, [places]);
@@ -816,7 +829,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }));
   }
 
-  async function prepareAiDraft() {
+  async function prepareAiDraft(localeTargets: PlaceContentLocale[] = ["ko", "zh", "en", "ja"]) {
     if (!form.category) {
       setStatus("AI 설명을 생성하려면 카테고리를 먼저 선택해 주세요.");
       return;
@@ -842,20 +855,27 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setGeneratingAiDraft(true);
     setStatus("여행자용 설명 생성 중...");
 
+    const existingContent = localeTargets.length < 4 && aiDraft
+      ? aiDraft.generated_content
+      : {
+          description_ko: form.short_description_ko,
+          description_zh: form.short_description_zh,
+          description_en: form.short_description_en,
+          description_ja: form.short_description_ja,
+          travel_tip_ko: form.tips_ko,
+          travel_tip_zh: form.tips_zh,
+          travel_tip_en: form.tips_en,
+          travel_tip_ja: form.tips_ja,
+        };
+
     try {
       const response = await fetch("/api/admin/place-ai-generation", {
         method: "POST",
         headers: adminHeaders(),
         body: JSON.stringify({
-          source_data: buildPlaceSourceData(payload),
-          locale_targets: ["ko", "zh", "en", "ja"],
-          existing_content: {
-            description_ko: form.short_description_ko,
-            description_zh: form.short_description_zh,
-            description_en: form.short_description_en,
-            description_ja: form.short_description_ja,
-            traveler_tips: [form.tips_ko, form.tips_zh, form.tips_en, form.tips_ja].filter(Boolean),
-          },
+          source_data: buildPlaceSourceData(payload, { adminNotes: form.admin_notes, formattedAddress: form.address_en }),
+          locale_targets: localeTargets,
+          existing_content: existingContent,
         }),
       });
       const body = (await response.json()) as PlaceAiGenerationResponse | { message?: string };
@@ -1149,7 +1169,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         headers: adminHeaders(),
         body: JSON.stringify({ fields }),
       });
-      const body = (await response.json()) as { translations?: Partial<AdminTranslationFields>; message?: string };
+      const body = (await response.json()) as { translations?: Partial<AdminTranslationFields>; failed_fields?: string[]; message?: string };
 
       if (!response.ok) {
         throw new Error(body.message ?? "AI 번역에 실패했습니다.");
@@ -1157,7 +1177,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
       const { nextForm, filledCount } = applyTranslationsToForm(form, body.translations ?? {});
       setForm(nextForm);
-      setStatus(filledCount > 0 ? `AI 번역으로 빈칸 ${filledCount}개를 채웠습니다.` : "이미 입력된 값은 유지했습니다. 채울 빈칸이 없습니다.");
+      const failureNotice = body.failed_fields?.length ? ` 검증 실패: ${body.failed_fields.join(", ")}` : "";
+      setStatus(filledCount > 0 ? `AI 번역으로 빈칸 ${filledCount}개를 채웠습니다.${failureNotice}` : `이미 입력된 값은 유지했습니다. 채울 빈칸이 없습니다.${failureNotice}`);
     } catch (translationError) {
       setStatus(translationError instanceof Error ? translationError.message : "AI 번역 중 오류가 발생했습니다.");
     } finally {
@@ -1479,12 +1500,17 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <input value={form.source_external_id} onChange={(event) => updateField("source_external_id", event.target.value)} className={inputClass} />
               </Field>
               <div className="sm:col-span-2">
+                <Field label="AI 작성용 관리자 메모">
+                  <textarea value={form.admin_notes} onChange={(event) => updateField("admin_notes", event.target.value)} className={textareaClass} />
+                </Field>
+              </div>
+              <div className="sm:col-span-2">
                 <AdminAiDraftPanel
                   draft={aiDraft}
                   generating={generatingAiDraft}
                   canApply={hasPlaceAiGeneratedContent(aiDraft?.generated_content)}
                   currentContent={aiCurrentContent}
-                  onGenerate={() => void prepareAiDraft()}
+                  onGenerate={(locales) => void prepareAiDraft(locales)}
                   onApply={applyAiDraft}
                   onCancel={() => setAiDraft(null)}
                 />
@@ -1540,6 +1566,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               </Field>
               <Field label="중국어 주소">
                 <input value={form.address_zh} onChange={(event) => updateField("address_zh", event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="영어 주소">
+                <input value={form.address_en} onChange={(event) => updateField("address_en", event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="일본어 주소">
+                <input value={form.address_ja} onChange={(event) => updateField("address_ja", event.target.value)} className={inputClass} />
               </Field>
               <div className="rounded-2xl bg-teal-50 p-3 sm:col-span-2">
                 <div className="flex flex-wrap items-center justify-between gap-3">

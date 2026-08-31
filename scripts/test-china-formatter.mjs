@@ -184,6 +184,7 @@ const mapSource = loadTsModule("lib/place-ai/map-source.ts", {
   "@/lib/map-url": mapUrl,
 });
 const placeAiTypes = {};
+const localeValidation = loadTsModule("lib/place-ai/locale-validation.ts");
 const databaseRuntime = {
   placeCategories: ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"],
 };
@@ -196,10 +197,13 @@ const generator = loadTsModule("lib/place-ai/generator.ts", {
   openai: { default: class OpenAI {} },
   "@/lib/place-ai/map-source": mapSource,
   "@/lib/place-ai/content-draft": contentDraft,
+  "@/lib/place-ai/locale-validation": localeValidation,
   "@/types/place-ai": placeAiTypes,
   "@/types/database": databaseRuntime,
 });
-const { buildAdminTranslationPrompt, buildPlaceSummaryPrompt } = loadTsModule("lib/openai-place-summary.ts");
+const { buildAdminTranslationPrompt, buildPlaceSummaryPrompt, parseAdminTranslationFields } = loadTsModule("lib/openai-place-summary.ts", {
+  "@/lib/place-ai/locale-validation": localeValidation,
+});
 
 const naverLinkAnalysis = analyzeMapLink("https://naver.me/x9VaDLM8", [
   "https://map.naver.com/?pinId=1435915485&appMenu=location&app=Y&menu=location&lat=35.1671242&title=%EC%A7%84%EC%86%A1%EC%88%AF%EB%B6%88%20%EC%88%98%EC%98%81%EC%A0%90&pinType=site&lng=129.1170388&version=2",
@@ -298,9 +302,72 @@ const translationPrompt = buildAdminTranslationPrompt({
   name_en: "",
   description_ko: "수영역 근처 숯불구이 식당",
 });
-assert.match(translationPrompt, /한국어\/중국어 간체\/영어/);
-assert.match(translationPrompt, /일본어는 만들지 않는다/);
+assert.match(translationPrompt, /한국어\/중국어 간체\/영어\/일본어/);
+assert.match(translationPrompt, /과장 문구는 직역하지 말고/);
 assert.match(translationPrompt, /진송숯불 수영점/);
+
+const multilingualJson = JSON.stringify({
+  description: {
+    ko: "광안리 해변 인근의 카페입니다.",
+    zh: "这是一家位于广安里海边附近的咖啡馆。",
+    en: "This cafe is near Gwangalli Beach.",
+    ja: "広安里ビーチ近くのカフェです。",
+  },
+  travel_tip: {
+    ko: "광안역에서 이동할 수 있습니다.",
+    zh: "可从广安站前往。",
+    en: "It is accessible from Gwangan Station.",
+    ja: "広安駅からアクセスできます。",
+  },
+});
+const multilingual = generator.parseAndValidateGeneratedContent(multilingualJson);
+assert.equal(multilingual.localeResults.ko.status, "generated");
+assert.equal(multilingual.localeResults.zh.status, "generated");
+assert.equal(multilingual.localeResults.en.status, "generated");
+assert.equal(multilingual.localeResults.ja.status, "generated");
+assert.equal(multilingual.content.travel_tip_ja, "広安駅からアクセスできます。");
+
+const japaneseFailure = generator.parseAndValidateGeneratedContent(JSON.stringify({
+  description: { ko: "광안리 카페입니다.", zh: "这是广安里的咖啡馆。", en: "This is a cafe in Gwangalli.", ja: "광안리 카페입니다." },
+  travel_tip: { ko: "광안역에서 가깝습니다.", zh: "距离广安站较近。", en: "It is close to Gwangan Station.", ja: "광안역에서 가깝습니다." },
+}));
+assert.equal(japaneseFailure.localeResults.ja.status, "failed");
+assert.equal(japaneseFailure.content.description_ja, "");
+assert.equal(japaneseFailure.localeResults.en.status, "generated");
+
+const chineseFailure = generator.parseAndValidateGeneratedContent(JSON.stringify({
+  description: { ko: "광안리 카페입니다.", zh: "광안리 카페입니다.", en: "This is a cafe in Gwangalli.", ja: "広安里のカフェです。" },
+  travel_tip: { ko: "광안역에서 가깝습니다.", zh: "광안역에서 가깝습니다.", en: "It is close to Gwangan Station.", ja: "広安駅から近いです。" },
+}));
+assert.equal(chineseFailure.localeResults.zh.status, "failed");
+assert.equal(chineseFailure.localeResults.ja.status, "generated");
+
+assert.equal(localeValidation.sanitizeLocalizedAddress("부산 수영구 광안해변로 219", "부산 수영구 광안해변로 219", "zh"), "");
+assert.equal(localeValidation.sanitizeLocalizedAddress("釜山广域市水营区广安海边路219", "부산 수영구 광안해변로 219", "zh"), "釜山广域市水营区广安海边路219");
+assert.equal(localeValidation.sanitizeLocalizedAddress("Busan, Suyeong-gu, Gwanganhaebyeon-ro", "부산 수영구 광안해변로 219", "en"), "");
+assert.equal(localeValidation.sanitizeLocalizedAddress("219 Gwanganhaebyeon-ro, Suyeong-gu, Busan", "부산 수영구 광안해변로 219", "en"), "219 Gwanganhaebyeon-ro, Suyeong-gu, Busan");
+
+const translatedFields = parseAdminTranslationFields({ output_text: JSON.stringify({
+  name_ko: "진송숯불 수영점", name_zh: "真松炭火水营店", name_en: "Jinsong Charcoal Suyeong", name_ja: "ジンソン炭火焼き 水営店",
+  short_description_ko: "수영구의 숯불구이 식당입니다.", short_description_zh: "位于水营区的炭火烤肉店。", short_description_en: "A charcoal grill restaurant in Suyeong-gu.", short_description_ja: "水営区にある炭火焼き店です。",
+  description_ko: "수영구의 숯불구이 식당입니다.", description_zh: "位于水营区的炭火烤肉店。", description_en: "A charcoal grill restaurant in Suyeong-gu.", description_ja: "水営区にある炭火焼き店です。",
+  tips_ko: "수영역에서 이동할 수 있습니다.", tips_zh: "可从水营站前往。", tips_en: "It is accessible from Suyeong Station.", tips_ja: "水営駅からアクセスできます。",
+  recommended_order_ko: "", recommended_order_zh: "",
+  address_ko: "부산 수영구 수영로 219", address_zh: "釜山市水营区水营路219", address_en: "219 Suyeong-ro, Suyeong-gu, Busan", address_ja: "釜山市水営区水営路219",
+}) }, { address_ko: "부산 수영구 수영로 219" });
+assert.equal(translatedFields.translations.address_zh, "釜山市水营区水营路219");
+assert.equal(translatedFields.translations.address_ja, "釜山市水営区水営路219");
+assert.equal(translatedFields.failed_fields.length, 0);
+
+const sourceWithNoMemo = contentDraft.buildPlaceSourceData({
+  slug: "memo-test", name_zh: "测试", name_ko: "테스트", category: "cafe", address_ko: "부산 수영구 219", address_zh: "", latitude: 35.15, longitude: 129.11,
+  nearest_station: "", nearest_exit: "", walking_minutes: 0, price_min: null, price_max: null, opening_hours: "", waiting_info_zh: "", waiting_info_ko: "",
+  solo_friendly: false, luggage_friendly: false, chinese_menu: false, card_payment: false, recommended_order_zh: "", recommended_order_ko: "", tips_zh: "", tips_ko: "",
+  short_description_zh: "", short_description_ko: "", thumbnail_url: "", is_featured: false, is_active: true, status: "ACTIVE", tags: [], menu_items: [],
+});
+assert.equal(sourceWithNoMemo.admin_notes, "");
+const hypePrompt = generator.buildUserPrompt(JSON.stringify({ ...sourceWithNoMemo, admin_notes: "부산 느좋 카페 1등" }), ["ko", "zh", "en", "ja"]);
+assert.match(hypePrompt, /부산 느좋 카페 1등/);
 assert.equal(mapSource.analyzePlaceMapSource("https://map.naver.com/p/entry/place/1435915485").source_type, "naver");
 assert.equal(mapSource.analyzePlaceMapSource("https://place.map.kakao.com/12345").external_id, "12345");
 assert.equal(mapSource.analyzePlaceMapSource("https://maps.google.com/?cid=999").source_type, "google");

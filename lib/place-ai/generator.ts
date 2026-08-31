@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { normalizePlaceAiGeneratedContent, toPlaceAiGenerationApiContent } from "@/lib/place-ai/content-draft";
-import type { PlaceAiGeneratedContent, PlaceAiGenerationRequest, PlaceAiGenerationResponse, PlaceSourceData } from "@/types/place-ai";
+import { validateLocaleText } from "@/lib/place-ai/locale-validation";
+import type { PlaceAiGeneratedContent, PlaceAiGenerationRequest, PlaceAiGenerationResponse, PlaceAiLocaleResult, PlaceContentLocale, PlaceSourceData } from "@/types/place-ai";
 import { placeCategories, type PlaceCategory, type PlaceFactTristate, type PlaceSourceProvider } from "@/types/database";
 
 const defaultPlaceModel = "gpt-5.6-luna";
@@ -48,13 +49,16 @@ export function normalizePlaceAiGenerationRequest(body: IncomingPlaceAiGeneratio
   }
 
   const normalizedSourceData = normalizeSourceData(sourceData);
-  const localeTargets = body.locale_targets ?? body.localeTargets ?? ["ko", "zh", "en", "ja"];
+  const localeTargets = [...new Set(body.locale_targets ?? body.localeTargets ?? ["ko", "zh", "en", "ja"])]
+    .filter((locale): locale is PlaceContentLocale => locale === "ko" || locale === "zh" || locale === "en" || locale === "ja");
+
+  if (localeTargets.length === 0) {
+    throw new PlaceAiGenerationError("invalid_request", "생성할 locale을 하나 이상 선택해 주세요.", 400);
+  }
 
   return {
     source_data: normalizedSourceData,
-    locale_targets: localeTargets.filter((locale): locale is "ko" | "zh" | "en" | "ja" =>
-      locale === "ko" || locale === "zh" || locale === "en" || locale === "ja",
-    ),
+    locale_targets: localeTargets,
     existing_content: body.existing_content ?? body.existingContent,
   };
 }
@@ -97,7 +101,7 @@ export async function generatePlaceAiContent(request: PlaceAiGenerationRequest):
         },
         {
           role: "user",
-          content: buildUserPrompt(sourceJson),
+          content: buildUserPrompt(sourceJson, request.locale_targets),
         },
       ],
       text: {
@@ -116,13 +120,18 @@ export async function generatePlaceAiContent(request: PlaceAiGenerationRequest):
       store: false,
     });
 
-    const content = parseAndValidateGeneratedContent(response.output_text);
+    const { content, localeResults } = parseAndValidateGeneratedContent(
+      response.output_text,
+      request.locale_targets,
+      request.existing_content,
+    );
     const apiContent = toPlaceAiGenerationApiContent(content);
 
     return {
       status: "generated",
       source_data: sourceData,
       generated_content: content,
+      locale_results: localeResults,
       api_content: apiContent,
       description: apiContent.description,
       shortSummary: apiContent.shortSummary,
@@ -140,44 +149,26 @@ export async function generatePlaceAiContent(request: PlaceAiGenerationRequest):
   }
 }
 
-const stringArraySchema = {
-  type: "array",
-  items: { type: "string" },
+const localizedTextSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    ko: { type: "string" },
+    zh: { type: "string" },
+    en: { type: "string" },
+    ja: { type: "string" },
+  },
+  required: ["ko", "zh", "en", "ja"],
 };
 
 const placeAiGeneratedContentSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    description_ko: { type: "string" },
-    description_zh: { type: "string" },
-    description_en: { type: "string" },
-    description_ja: { type: "string" },
-    short_summary: { type: "string" },
-    short_summary_ko: { type: "string" },
-    short_summary_zh: { type: "string" },
-    short_summary_en: { type: "string" },
-    short_summary_ja: { type: "string" },
-    highlights: stringArraySchema,
-    traveler_tips: stringArraySchema,
-    recommended_for: stringArraySchema,
-    cautions: stringArraySchema,
+    description: localizedTextSchema,
+    travel_tip: localizedTextSchema,
   },
-  required: [
-    "description_ko",
-    "description_zh",
-    "description_en",
-    "description_ja",
-    "short_summary",
-    "short_summary_ko",
-    "short_summary_zh",
-    "short_summary_en",
-    "short_summary_ja",
-    "highlights",
-    "traveler_tips",
-    "recommended_for",
-    "cautions",
-  ],
+  required: ["description", "travel_tip"],
 };
 
 function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<string, unknown>): PlaceSourceData {
@@ -190,6 +181,10 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
   const rawSoloFriendly = sourceData.solo_friendly ?? sourceData.soloFriendly;
   const rawWaitingInfo = sourceData.waiting_info ?? sourceData.waitingInfo;
   const rawNearestStation = sourceData.nearest_station ?? sourceData.nearestStation;
+  const rawAddressKo = sourceData.address_ko ?? sourceData.address;
+  const rawFormattedAddress = sourceData.formatted_address ?? sourceData.formattedAddress;
+  const rawAdminNotes = sourceData.admin_notes ?? sourceData.adminNotes;
+  const rawProviderMetadata = sourceData.provider_metadata ?? sourceData.providerMetadata;
 
   if (!name) {
     throw new PlaceAiGenerationError("source_data_missing", "AI 생성에는 장소명이 필요합니다.", 400);
@@ -220,6 +215,8 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
     name,
     category,
     address: normalizeText(sourceData.address, 300),
+    address_ko: normalizeText(rawAddressKo, 300),
+    formatted_address: normalizeText(rawFormattedAddress, 300),
     latitude: normalizeNumber(sourceData.latitude),
     longitude: normalizeNumber(sourceData.longitude),
     map_url: mapUrl,
@@ -238,6 +235,8 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
     card_payment: normalizeTristate(rawCardPayment),
     solo_friendly: normalizeTristate(rawSoloFriendly),
     waiting_info: normalizeText(rawWaitingInfo, 180),
+    admin_notes: normalizeText(rawAdminNotes, 1_200),
+    provider_metadata: asRecord(rawProviderMetadata),
     source: sourceData.source === "map_link" || mapUrl ? "map_link" : "admin_form",
     map_link_facts: mapFacts,
   };
@@ -254,27 +253,37 @@ function buildSystemPrompt() {
     "You are a precise place information editor for foreign travelers visiting Busan.",
     "Use only the facts in sourceData. Do not browse, scrape, infer from the URL, or invent missing facts.",
     "Do not fabricate prices, hours, menus, reviews, wait times, payment support, toilet, parking, popularity, or amenities.",
+    "Admin notes are editorial leads, not verified facts. Reframe subjective or exaggerated wording into neutral travel-service copy.",
+    "Never translate superlatives or hype literally, including claims like best, number one, must-visit, famous, or viral unless provider facts explicitly prove them.",
     "Avoid advertising exaggeration. Write practical travel copy.",
     "Generate Korean, Simplified Chinese, English, and Japanese. Do not mix languages.",
     "Chinese must be natural Simplified Chinese for mainland Chinese independent travelers.",
     "If a fact is unknown, omit it from descriptions. If important, add a short caution such as information confirmation needed.",
     "Separate business-provided facts from travel-editor judgment. Make judgment modest and based only on provided facts.",
     "When present, use location convenience, price, menu, portion, greasiness, spiciness, smell, wait, solo dining, card payment, toilet, parking, and cautions.",
-    "Keep output concise: descriptions up to two short sentences per language, arrays up to five short items.",
-    "Fill short_summary_ko, short_summary_zh, short_summary_en, and short_summary_ja in their own languages. short_summary can mirror Korean.",
+    "Description: explain what the place is, its factual location, key verified characteristics, and suitable travelers in up to two short sentences.",
+    "Travel tip: use only supported visit timing, transport, nearby route, waiting, photo, or usage facts. Return an empty string when no grounded tip exists.",
+    "Keep road names, building numbers, prices, and proper nouns accurate. Do not translate or generate address fields in this response.",
+    "Each locale must use its own language. A short Korean proper noun may remain when no established localized place name exists.",
   ].join("\n");
 }
 
-function buildUserPrompt(sourceJson: string) {
+export function buildUserPrompt(sourceJson: string, localeTargets: PlaceContentLocale[]) {
   return [
     "Create admin-reviewable place content from this normalized sourceData.",
+    `Generate only these locales: ${localeTargets.join(", ")}.`,
+    "For non-target locales, return empty strings. Locale failures must not affect other locale values.",
     "Return only fields defined by the JSON schema.",
     "",
     sourceJson,
   ].join("\n");
 }
 
-function parseAndValidateGeneratedContent(text: string) {
+export function parseAndValidateGeneratedContent(
+  text: string,
+  localeTargets: PlaceContentLocale[] = ["ko", "zh", "en", "ja"],
+  existingContent: Partial<PlaceAiGeneratedContent> = {},
+) {
   if (!text.trim()) {
     throw new PlaceAiGenerationError("schema_validation_failed", "OpenAI 응답이 비어 있습니다.", 502);
   }
@@ -293,30 +302,41 @@ function parseAndValidateGeneratedContent(text: string) {
     throw new PlaceAiGenerationError("schema_validation_failed", "OpenAI 응답 형식이 올바르지 않습니다.", 502);
   }
 
-  const content = normalizePlaceAiGeneratedContent(record);
-  const hasRequiredStrings = [
-    content.description_ko,
-    content.description_zh,
-    content.description_en,
-    content.description_ja,
-    content.short_summary,
-    content.short_summary_ko,
-    content.short_summary_zh,
-    content.short_summary_en,
-    content.short_summary_ja,
-  ].every((value) => value.length > 0);
+  const descriptions = asRecord(record.description) ?? {};
+  const travelTips = asRecord(record.travel_tip) ?? {};
+  const existing = normalizePlaceAiGeneratedContent(existingContent);
+  const content = normalizePlaceAiGeneratedContent(existing);
+  const localeResults = {} as Record<PlaceContentLocale, PlaceAiLocaleResult>;
 
-  if (!hasRequiredStrings) {
-    throw new PlaceAiGenerationError("schema_validation_failed", "OpenAI 응답에 필수 설명 필드가 없습니다.", 502);
+  for (const locale of ["ko", "zh", "en", "ja"] as const) {
+    if (!localeTargets.includes(locale)) {
+      localeResults[locale] = { status: "preserved", failed_fields: [], message: "재생성 대상이 아니어서 기존 값을 유지했습니다." };
+      continue;
+    }
+
+    const description = normalizeText(descriptions[locale], 800);
+    const travelTip = normalizeText(travelTips[locale], 800);
+    const failedFields: Array<"description" | "travel_tip"> = [];
+    const descriptionValidation = validateLocaleText(description, locale);
+    const travelTipValidation = travelTip ? validateLocaleText(travelTip, locale) : { valid: false };
+
+    if (descriptionValidation.valid) content[`description_${locale}`] = description;
+    else failedFields.push("description");
+
+    if (travelTipValidation.valid) content[`travel_tip_${locale}`] = travelTip;
+    else failedFields.push("travel_tip");
+
+    localeResults[locale] = buildLocaleResult(locale, failedFields);
   }
 
-  return {
-    ...content,
-    highlights: content.highlights.slice(0, 5),
-    traveler_tips: content.traveler_tips.slice(0, 5),
-    recommended_for: content.recommended_for.slice(0, 5),
-    cautions: content.cautions.slice(0, 5),
-  };
+  return { content, localeResults };
+}
+
+function buildLocaleResult(locale: PlaceContentLocale, failedFields: Array<"description" | "travel_tip">): PlaceAiLocaleResult {
+  const localeLabel = { ko: "한국어", zh: "중국어", en: "영어", ja: "일본어" }[locale];
+  if (failedFields.length === 0) return { status: "generated", failed_fields: [], message: `${localeLabel} 설명과 팁을 생성했습니다.` };
+  if (failedFields.length === 2) return { status: "failed", failed_fields: failedFields, message: `${localeLabel} 생성 결과를 검증하지 못했습니다.` };
+  return { status: "partial", failed_fields: failedFields, message: `${localeLabel} 일부 필드만 생성했습니다.` };
 }
 
 function mapOpenAiError(error: unknown): PlaceAiGenerationError {

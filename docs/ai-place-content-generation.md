@@ -20,6 +20,7 @@ Factual/source data stays in existing place tables:
 Generated candidates are represented by `PlaceAiGeneratedContent` in `types/place-ai.ts`:
 
 - `description_ko`, `description_zh`, `description_en`, `description_ja`
+- `travel_tip_ko`, `travel_tip_zh`, `travel_tip_en`, `travel_tip_ja`
 - `short_summary_ko`, `short_summary_zh`, `short_summary_en`, `short_summary_ja`
 - `highlights`
 - `traveler_tips`
@@ -49,7 +50,9 @@ Public place fields are updated only after an admin applies draft content to the
 
 Use `app/api/admin/place-ai-generation/route.ts` or the alias `app/api/admin/places/generate-ai/route.ts` as the integration point. The route is already admin-protected and receives `PlaceAiGenerationRequest`.
 
-The OpenAI integration uses Structured Outputs with a JSON schema matching `PlaceAiGeneratedContent`, so the UI receives predictable fields and arrays. Keep source facts and generated copy separate, and do not invent facts that are not present in `source_data`.
+The OpenAI integration uses Structured Outputs with `description.{ko,zh,en,ja}` and `travel_tip.{ko,zh,en,ja}` objects. Each locale is validated independently, so one missing or wrong-language value does not discard successful locales. Admin notes are editorial context rather than factual authority; superlatives and promotional wording must be neutralized. Keep source facts and generated copy separate, and do not invent facts that are not present in `source_data`.
+
+Localized addresses are stored in `place_translations.address`. Korean provider addresses remain in `places.address_ko`; translated addresses must preserve road/building numbers and are rejected when the Korean source is copied unchanged into another locale.
 
 ## Migration
 
@@ -57,6 +60,7 @@ Run the additive migration only when the database is ready for persisted AI draf
 
 ```bash
 supabase/migrations/010_place_ai_generation_drafts.sql
+supabase/migrations/014_place_translation_addresses.sql
 ```
 
 This migration does not modify existing place records and is restricted to admins by RLS.
