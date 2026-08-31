@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Check, Eye, Languages, Pencil, Plus, RotateCcw, Save, Star, Trash2, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, Eye, Languages, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { EmptyState } from "@/components/EmptyState";
@@ -573,6 +573,45 @@ function applyGeneratedContentToForm(form: FormState, content: PlaceAiGeneratedC
   };
 }
 
+function applyGeneratedContentToEmptyFields(form: FormState, response: PlaceAiGenerationResponse): FormState {
+  const content = response.generated_content;
+  const canUse = (locale: PlaceContentLocale, field: "description" | "travel_tip") =>
+    !response.locale_results[locale].failed_fields.includes(field);
+  const fill = (current: string, generated: string, locale: PlaceContentLocale, field: "description" | "travel_tip") =>
+    current.trim() || !canUse(locale, field) ? current : generated;
+
+  return {
+    ...form,
+    short_description_ko: fill(form.short_description_ko, content.description_ko, "ko", "description"),
+    short_description_zh: fill(form.short_description_zh, content.description_zh, "zh", "description"),
+    short_description_en: fill(form.short_description_en, content.description_en, "en", "description"),
+    short_description_ja: fill(form.short_description_ja, content.description_ja, "ja", "description"),
+    tips_ko: fill(form.tips_ko, content.travel_tip_ko, "ko", "travel_tip"),
+    tips_zh: fill(form.tips_zh, content.travel_tip_zh, "zh", "travel_tip"),
+    tips_en: fill(form.tips_en, content.travel_tip_en, "en", "travel_tip"),
+    tips_ja: fill(form.tips_ja, content.travel_tip_ja, "ja", "travel_tip"),
+  };
+}
+
+function buildAiInputFingerprint(form: FormState) {
+  return JSON.stringify({
+    source_url: form.source_url,
+    source_external_id: form.source_external_id,
+    name_ko: form.name_ko,
+    category: form.category,
+    address_ko: form.address_ko,
+    latitude: form.latitude,
+    longitude: form.longitude,
+    opening_hours: form.opening_hours,
+    price_level: form.price_level,
+    price_min: form.price_min,
+    price_max: form.price_max,
+    nearest_station: form.nearest_station,
+    admin_notes: form.admin_notes,
+    source_metadata: form.source_metadata,
+  });
+}
+
 function localPlaceFromPayload(payload: PlacePayload, id?: string): PlaceWithRelations {
   const placeId = id ?? `local-${Date.now()}`;
   const now = new Date().toISOString();
@@ -719,6 +758,13 @@ function getMapLinkState(value: string) {
   };
 }
 
+function providerDisplayName(provider: PlaceSourceProvider) {
+  if (provider === "GOOGLE") return "Google Maps";
+  if (provider === "NAVER") return "네이버지도";
+  if (provider === "KAKAO") return "카카오맵";
+  return "지도";
+}
+
 function hasEnoughAiSourceFacts(form: FormState) {
   const hasPlaceName = Boolean(form.name_ko.trim() || form.name_zh.trim());
   const hasMenu = form.menu_items.some((item) => item.name_ko.trim() || item.name_zh.trim() || item.description_zh.trim() || item.price.trim());
@@ -749,6 +795,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [translating, setTranslating] = useState(false);
   const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
   const [aiDraft, setAiDraft] = useState<PlaceAiGenerationResponse | null>(null);
+  const [lastAiFingerprint, setLastAiFingerprint] = useState("");
+  const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info)), [form.china_info]);
   const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
@@ -846,6 +894,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }
 
     const payload = toPayload(form);
+    const inputFingerprint = buildAiInputFingerprint(form);
+
+    if (localeTargets.length === 4 && aiDraft && lastAiFingerprint === inputFingerprint) {
+      setStatus("입력 내용이 변경되지 않아 기존 AI 생성 결과를 재사용했습니다.");
+      return;
+    }
 
     if (!payload.name_ko && !payload.name_zh) {
       setStatus("AI 설명을 생성하려면 장소명과 최소한의 장소 정보가 필요합니다.");
@@ -884,8 +938,11 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         throw new Error("message" in body ? body.message : "AI 설명 생성에 실패했습니다. 직접 작성하거나 다시 시도해주세요.");
       }
 
-      setAiDraft(body as PlaceAiGenerationResponse);
-      setStatus((body as PlaceAiGenerationResponse).message);
+      const generatedResponse = body as PlaceAiGenerationResponse;
+      setAiDraft(generatedResponse);
+      setLastAiFingerprint(inputFingerprint);
+      setForm((current) => applyGeneratedContentToEmptyFields(current, generatedResponse));
+      setStatus(`${generatedResponse.message} 비어 있는 locale 필드에 결과를 반영했습니다.`);
     } catch (draftError) {
       const message = draftError instanceof Error ? draftError.message : "";
       setStatus(
@@ -1425,40 +1482,117 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               현재 데이터 소스: {source === "supabase" ? "Supabase" : "Demo fallback"}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={resetChinaInfoToUnknown}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-200"
-            >
-              <RotateCcw size={17} aria-hidden="true" />
-              중국 특화 확인 필요
-            </button>
-            <button
-              type="button"
-              onClick={() => void translateTextFields()}
-              disabled={translating || saving}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Languages size={17} aria-hidden="true" />
-              {translating ? "번역 중" : "AI 번역 채우기"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void savePlace()}
-              disabled={saving || geocoding}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Save size={17} aria-hidden="true" />
-              {saving ? "저장 중" : geocoding ? "좌표 검색 중" : "저장"}
-            </button>
-          </div>
         </div>
 
         {status ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{status}</p> : null}
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-7">
+        <div className="mt-6 space-y-6">
+          <section className="border-y border-slate-200 py-5">
+            <h3 className="text-base font-black text-slate-950">1. 지도 링크</h3>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <input
+                value={form.source_url}
+                onChange={(event) => updateSourceUrl(event.target.value)}
+                onBlur={normalizeSourceUrl}
+                placeholder="Google Maps / 네이버지도 / 카카오맵 링크"
+                className={`${inputClass} min-w-0 break-all`}
+              />
+              <button
+                type="button"
+                onClick={() => void parseSourceUrl()}
+                disabled={analyzing || !mapLinkState.valid}
+                className="min-h-12 w-full shrink-0 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {analyzing ? `${providerDisplayName(mapLinkState.provider)} 정보를 불러오는 중...` : form.id ? "지도 정보 다시 확인" : "장소 정보 불러오기"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs font-semibold text-slate-500">Google Maps / 네이버지도 / 카카오맵 지원</p>
+            {form.id ? <p className="mt-1 text-xs font-semibold text-amber-700">기존 관리자 입력값은 링크 재분석으로 덮어쓰지 않습니다.</p> : null}
+          </section>
+
+          <section className="border-b border-slate-200 pb-6">
+            <h3 className="text-base font-black text-slate-950">2. 관리자 기본 입력</h3>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <Field label="장소명">
+                <input value={form.name_ko} onChange={(event) => updateField("name_ko", event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="카테고리">
+                <select value={form.category} onChange={(event) => updateField("category", event.target.value as PlaceCategory)} className={inputClass}>
+                  <option value="">선택 필요</option>
+                  {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
+                </select>
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="대표 이미지">
+                  <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
+                    <div
+                      className="aspect-[4/3] w-full max-w-[160px] rounded-lg bg-slate-100 bg-cover bg-center ring-1 ring-slate-200"
+                      style={form.thumbnail_url ? { backgroundImage: `url(${form.thumbnail_url})` } : undefined}
+                    />
+                    <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} />
+                  </div>
+                </Field>
+              </div>
+              <Field label="가격대">
+                <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
+                  <option value="">정보 없음</option>
+                  <option value="0">무료</option>
+                  <option value="1">₩</option>
+                  <option value="2">₩₩</option>
+                  <option value="3">₩₩₩</option>
+                  <option value="4">₩₩₩₩</option>
+                </select>
+              </Field>
+              <CheckField label={form.is_active ? "공개" : "비공개"} checked={form.is_active} onChange={(checked) => updateField("is_active", checked)} />
+              <div className="sm:col-span-2">
+                <Field label="관리자 메모">
+                  <textarea value={form.admin_notes} onChange={(event) => updateField("admin_notes", event.target.value)} className={textareaClass} />
+                </Field>
+              </div>
+            </div>
+          </section>
+
+          <AdminReviewSummary form={form} locale={previewLocale} onLocaleChange={setPreviewLocale} />
+
+          <section className="border-b border-slate-200 pb-6">
+            <button
+              type="button"
+              onClick={() => void prepareAiDraft()}
+              disabled={generatingAiDraft}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            >
+              <Sparkles size={17} aria-hidden="true" />
+              {generatingAiDraft ? "AI 콘텐츠 생성 중..." : "AI 콘텐츠 생성"}
+            </button>
+          </section>
+
+          <details className="group rounded-lg border border-slate-200 bg-slate-50">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-black text-slate-900">
+              고급 편집 펼치기
+              <ChevronDown size={18} className="transition group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="border-t border-slate-200 p-4">
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void translateTextFields()}
+                  disabled={translating || saving}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-blue-50 px-4 text-sm font-semibold text-blue-800 ring-1 ring-blue-100 disabled:opacity-60"
+                >
+                  <Languages size={17} aria-hidden="true" />
+                  {translating ? "번역 중" : "빈 다국어 필드 번역"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetChinaInfoToUnknown}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-slate-800 ring-1 ring-slate-200"
+                >
+                  <RotateCcw size={17} aria-hidden="true" />
+                  중국 특화 값 초기화
+                </button>
+              </div>
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="space-y-7">
             <FormSection title="1. 기본 장소 정보">
               <div className="sm:col-span-2">
                 <Field label="지도 링크">
@@ -1807,11 +1941,24 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 </div>
               </div>
             </FormSection>
-          </div>
+                </div>
 
-          <section className="xl:sticky xl:top-24 xl:self-start">
-            <ChinaPreview summary={preview} />
-          </section>
+                <section className="xl:sticky xl:top-24 xl:self-start">
+                  <ChinaPreview summary={preview} />
+                </section>
+              </div>
+            </div>
+          </details>
+
+          <button
+            type="button"
+            onClick={() => void savePlace()}
+            disabled={saving || geocoding}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            <Save size={17} aria-hidden="true" />
+            {saving ? "저장 중" : geocoding ? "좌표 검색 중" : "저장"}
+          </button>
         </div>
       </section>
     </div>
@@ -1839,6 +1986,98 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
       <h3 className="mb-3 text-base font-black text-slate-950">{title}</h3>
       <div className="grid gap-3 sm:grid-cols-2">{children}</div>
     </section>
+  );
+}
+
+function AdminReviewSummary({
+  form,
+  locale,
+  onLocaleChange,
+}: {
+  form: FormState;
+  locale: PlaceContentLocale;
+  onLocaleChange: (locale: PlaceContentLocale) => void;
+}) {
+  const facts = [
+    { label: "장소명", available: Boolean(form.name_ko.trim() || form.name_zh.trim()) },
+    { label: "주소", available: Boolean(form.address_ko.trim()) },
+    { label: "좌표", available: hasValidFormCoordinates(form) },
+    { label: "전화", available: Boolean(form.phone.trim()) },
+    { label: "영업시간", available: Boolean(form.opening_hours.trim()) },
+    { label: `${providerDisplayName(form.source_provider)} Place ID`, available: Boolean(form.source_external_id.trim()) },
+    { label: "홈페이지", available: Boolean(form.website.trim()) },
+  ];
+  const localeContent: Record<PlaceContentLocale, { name: string; address: string; description: string; tip: string }> = {
+    ko: { name: form.name_ko, address: form.address_ko, description: form.short_description_ko, tip: form.tips_ko },
+    zh: { name: form.name_zh, address: form.address_zh, description: form.short_description_zh, tip: form.tips_zh },
+    en: { name: form.name_en, address: form.address_en, description: form.short_description_en, tip: form.tips_en },
+    ja: { name: form.name_ja, address: form.address_ja, description: form.short_description_ja, tip: form.tips_ja },
+  };
+  const selected = localeContent[locale];
+
+  return (
+    <section className="border-b border-slate-200 pb-6">
+      <h3 className="text-base font-black text-slate-950">3. 자동수집 / AI 결과 미리보기</h3>
+      <div className="mt-4 grid gap-5 lg:grid-cols-2">
+        <div>
+          <p className="text-sm font-black text-slate-800">자동 수집</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {facts.map((fact) => (
+              <div key={fact.label} className="flex min-h-9 items-center gap-2 text-sm font-semibold text-slate-700">
+                {fact.available ? <Check size={17} className="shrink-0 text-teal-700" aria-hidden="true" /> : <span className="w-[17px] shrink-0 text-center text-slate-300">-</span>}
+                <span>{fact.label}{fact.available ? "" : " 정보 없음"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-black text-slate-800">AI 콘텐츠</p>
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            {(["ko", "zh", "en", "ja"] as const).map((item) => {
+              const complete = Boolean(localeContent[item].description.trim() && localeContent[item].tip.trim());
+              return (
+                <div key={item} className="flex min-h-10 items-center justify-center gap-1 text-xs font-black uppercase text-slate-700">
+                  {complete ? <Check size={15} className="text-teal-700" aria-hidden="true" /> : <X size={15} className="text-rose-500" aria-hidden="true" />}
+                  {item}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-4 gap-1 rounded-lg bg-slate-100 p-1">
+        {(["ko", "zh", "en", "ja"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => onLocaleChange(item)}
+            className={["min-h-11 rounded-md text-xs font-black uppercase", locale === item ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"].join(" ")}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <PreviewValue label="장소명" value={selected.name} />
+        <PreviewValue label="주소" value={selected.address} />
+        <PreviewValue label="설명" value={selected.description} />
+        <PreviewValue label="여행 팁" value={selected.tip} />
+        {!selected.name.trim() && !selected.address.trim() && !selected.description.trim() && !selected.tip.trim() ? (
+          <p className="text-sm font-semibold text-slate-400">이 언어로 생성된 내용이 없습니다.</p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function PreviewValue({ label, value }: { label: string; value: string }) {
+  if (!value.trim()) return null;
+  return (
+    <div>
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">{value}</p>
+    </div>
   );
 }
 
