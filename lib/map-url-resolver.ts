@@ -3,6 +3,7 @@ import { normalizeMapUrl, parseMapUrl, toPlaceSourceProvider } from "@/lib/map-u
 import { isSupportedPlaceUrl } from "@/lib/place-providers/detect";
 import { mergeNormalizedPlace } from "@/lib/place-providers/normalize";
 import { getPlaceProvider, getPlaceProviderConfiguration } from "@/lib/place-providers/registry";
+import { formatProviderWarnings } from "@/lib/place-providers/capabilities";
 import { resolveNearestStation } from "@/lib/place-providers/nearest-station";
 import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
 
@@ -67,6 +68,13 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
   }
 
   let normalizedPlace = mergeNormalizedPlace(basePlace, providerDetails);
+
+  if (!providerConfiguration.configured) {
+    normalizedPlace = {
+      ...normalizedPlace,
+      providerWarnings: ["provider_credentials_missing"],
+    };
+  }
 
   if (normalizedPlace.latitude !== undefined && normalizedPlace.longitude !== undefined) {
     const station = await resolveNearestStation(normalizedPlace.latitude, normalizedPlace.longitude, fetcher).catch(() => null);
@@ -143,7 +151,7 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
         ? `${providerLabel(provider)} 상세 조회 실패: ${lookupError}`
         : providerConfiguration.configured
           ? providerDetails
-            ? normalizedPlace.providerWarnings?.join(" ") ?? ""
+            ? formatProviderWarnings(normalizedPlace.providerWarnings).join(" · ")
             : `${providerLabel(provider)} 공식 API에서 일치하는 상세 장소 정보를 찾지 못했습니다.`
           : `${providerLabel(provider)} 상세정보 API 환경변수가 없어 URL에 포함된 기본 정보만 수집했습니다. Vercel에 ${providerConfiguration.missingEnvironmentVariables.join(", ")}를 설정해 주세요.`,
     },

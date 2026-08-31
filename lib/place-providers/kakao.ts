@@ -98,6 +98,14 @@ function normalizeKakaoItem(item: KakaoPlaceDocument): Partial<NormalizedPlace> 
     ...coordinates,
     phone: text(item.phone),
     providerUri: text(item.place_url),
+    providerWarnings: [
+      "photos_not_supported",
+      "price_not_supported",
+      "opening_hours_not_supported",
+      "rating_not_supported",
+      "review_count_not_supported",
+      "website_not_supported",
+    ],
     fetchedAt: new Date().toISOString(),
     raw: item,
   };

@@ -112,6 +112,14 @@ function normalizeNaverItem(item: NaverLocalItem, parsedPlaceId?: string): Parti
     ...coordinates,
     phone: text(item.telephone),
     providerUri: link,
+    providerWarnings: [
+      "photos_not_supported",
+      "price_not_supported",
+      "opening_hours_not_supported",
+      "rating_not_supported",
+      "review_count_not_supported",
+      "website_not_supported",
+    ],
     fetchedAt: new Date().toISOString(),
     raw: item,
   };

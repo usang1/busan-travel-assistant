@@ -23,6 +23,7 @@ import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { isPublicPlace } from "@/lib/place-publishing";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
+import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import {
@@ -1659,37 +1660,39 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
                 </select>
               </Field>
-              <div className="sm:col-span-2">
-                <Field label="대표 이미지">
-                  <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
-                    <div
-                      className="aspect-[4/3] w-full max-w-[160px] rounded-lg bg-slate-100 bg-cover bg-center ring-1 ring-slate-200"
-                      style={form.thumbnail_url || form.provider_image_preview_url
-                        ? { backgroundImage: `url(${form.thumbnail_url || form.provider_image_preview_url})` }
-                        : undefined}
-                    />
-                    <div>
-                      <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} placeholder="관리자 이미지 URL" />
-                      {!form.thumbnail_url && form.provider_image_preview_url ? (
-                        <p className="mt-2 text-xs leading-5 text-amber-700">
-                          Provider 사진 미리보기입니다. Google 정책상 임시 사진 URL은 DB 대표 이미지로 자동 저장하지 않습니다.
-                          {form.provider_image_attribution ? ` 출처: ${form.provider_image_attribution}` : ""}
-                        </p>
-                      ) : null}
+              {(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) ? (
+                <div className="sm:col-span-2">
+                  <Field label="대표 이미지">
+                    <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
+                      <div
+                        className="aspect-[4/3] w-full max-w-[160px] rounded-lg bg-slate-100 bg-cover bg-center ring-1 ring-slate-200"
+                        style={{ backgroundImage: `url(${form.thumbnail_url || form.provider_image_preview_url})` }}
+                      />
+                      <div>
+                        <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} placeholder="관리자 이미지 URL" />
+                        {!form.thumbnail_url && form.provider_image_preview_url ? (
+                          <p className="mt-2 text-xs leading-5 text-amber-700">
+                            Provider 사진 미리보기입니다. Google 정책상 임시 사진 URL은 DB 대표 이미지로 자동 저장하지 않습니다.
+                            {form.provider_image_attribution ? ` 출처: ${form.provider_image_attribution}` : ""}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  </Field>
+                </div>
+              ) : null}
+              {form.price_level.trim() ? (
+                <Field label="가격대">
+                  <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
+                    <option value="">정보 없음</option>
+                    <option value="0">무료</option>
+                    <option value="1">₩</option>
+                    <option value="2">₩₩</option>
+                    <option value="3">₩₩₩</option>
+                    <option value="4">₩₩₩₩</option>
+                  </select>
                 </Field>
-              </div>
-              <Field label="가격대">
-                <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
-                  <option value="">정보 없음</option>
-                  <option value="0">무료</option>
-                  <option value="1">₩</option>
-                  <option value="2">₩₩</option>
-                  <option value="3">₩₩₩</option>
-                  <option value="4">₩₩₩₩</option>
-                </select>
-              </Field>
+              ) : null}
               <CheckField label={form.is_active ? "공개" : "비공개"} checked={form.is_active} onChange={(checked) => updateField("is_active", checked)} />
               <div className="sm:col-span-2">
                 <Field label="AI 장소 요약">
@@ -2155,19 +2158,42 @@ function AdminReviewSummary({
   onLocaleChange: (locale: PlaceContentLocale) => void;
 }) {
   const facts = [
-    { label: "장소명", available: Boolean(form.name_ko.trim() || form.name_zh.trim()) },
-    { label: "카테고리", available: Boolean(form.category) },
-    { label: "주소", available: Boolean(form.address_ko.trim()) },
-    { label: "좌표", available: hasValidFormCoordinates(form) },
-    { label: "전화", available: Boolean(form.phone.trim()) },
-    { label: "영업시간", available: Boolean(form.opening_hours.trim()) },
-    { label: "대표 이미지", available: Boolean(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) },
-    { label: "가격대", available: Boolean(form.price_level.trim()) },
-    { label: "평점", available: Boolean(form.provider_rating.trim()) },
-    { label: "리뷰 수", available: Boolean(form.provider_review_count.trim()) },
-    { label: `${providerDisplayName(form.source_provider)} Place ID`, available: Boolean(form.source_external_id.trim()) },
-    { label: "홈페이지", available: Boolean(form.website.trim()) },
-  ];
+    { field: "name", label: "장소명", available: Boolean(form.name_ko.trim() || form.name_zh.trim()) },
+    { field: "category", label: "카테고리", available: Boolean(form.category) },
+    { field: "address", label: "주소", available: Boolean(form.address_ko.trim()) },
+    { field: "coordinates", label: "좌표", available: hasValidFormCoordinates(form) },
+    { field: "phone", label: "전화번호", available: Boolean(form.phone.trim()) },
+    { field: "openingHours", label: "영업시간", available: Boolean(form.opening_hours.trim()) },
+    { field: "photos", label: "사진", available: Boolean(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) },
+    { field: "priceLevel", label: "가격대", available: Boolean(form.price_level.trim()) },
+    { field: "rating", label: "평점", available: Boolean(form.provider_rating.trim()) },
+    { field: "reviewCount", label: "리뷰 수", available: Boolean(form.provider_review_count.trim()) },
+    { field: "providerPlaceId", label: `${providerDisplayName(form.source_provider)} Place ID`, available: Boolean(form.source_external_id.trim()) },
+    { field: "website", label: "홈페이지", available: Boolean(form.website.trim()) },
+  ] as const;
+  const provider = toSupportedProvider(form.source_provider);
+  const unavailable = provider
+    ? getProviderUnavailableCapabilities(provider, {
+        name: form.name_ko || form.name_zh,
+        category: form.category,
+        addressKo: form.address_ko,
+        roadAddressKo: undefined,
+        formattedAddress: undefined,
+        latitude: hasValidFormCoordinates(form) ? Number(form.latitude) : undefined,
+        longitude: hasValidFormCoordinates(form) ? Number(form.longitude) : undefined,
+        phone: form.phone,
+        website: form.website,
+        openingHours: form.opening_hours,
+        currentOpeningHours: undefined,
+        rating: form.provider_rating ? Number(form.provider_rating) : undefined,
+        reviewCount: form.provider_review_count ? Number(form.provider_review_count) : undefined,
+        priceLevel: form.price_level ? Number(form.price_level) : undefined,
+        photos: form.thumbnail_url || form.provider_image_preview_url ? [{ url: form.thumbnail_url || form.provider_image_preview_url, persistence: "preview_only" as const }] : undefined,
+        providerPlaceId: form.source_external_id,
+        sourceUrl: form.source_url,
+      })
+    : [];
+  const missingLabels = Array.from(new Set([...facts.filter((fact) => !fact.available).map((fact) => fact.label), ...unavailable.map((fact) => fact.label)]));
   const localeContent: Record<PlaceContentLocale, { name: string; address: string; description: string; tip: string }> = {
     ko: { name: form.name_ko, address: form.address_ko, description: form.short_description_ko, tip: form.tips_ko },
     zh: { name: form.name_zh, address: form.address_zh, description: form.short_description_zh, tip: form.tips_zh },
@@ -2183,12 +2209,13 @@ function AdminReviewSummary({
         <div>
           <p className="text-sm font-black text-slate-800">자동 수집</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {facts.map((fact) => (
+            {facts.filter((fact) => fact.available).map((fact) => (
               <div key={fact.label} className="flex min-h-9 items-center gap-2 text-sm font-semibold text-slate-700">
-                {fact.available ? <Check size={17} className="shrink-0 text-teal-700" aria-hidden="true" /> : <span className="w-[17px] shrink-0 text-center text-slate-300">-</span>}
-                <span>{fact.label}{fact.available ? "" : " 정보 없음"}</span>
+                <Check size={17} className="shrink-0 text-teal-700" aria-hidden="true" />
+                <span>{fact.label}</span>
               </div>
             ))}
+            {missingLabels.length ? <p className="text-xs font-semibold leading-5 text-slate-500 sm:col-span-2">{missingLabels.join(" · ")} 정보 없음</p> : null}
           </div>
           {providerLookupNotice ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">{providerLookupNotice}</p> : null}
         </div>

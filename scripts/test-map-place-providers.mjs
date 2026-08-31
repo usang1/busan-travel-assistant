@@ -38,6 +38,7 @@ function loadTsModule(path, aliases = {}, env = testEnv) {
 }
 
 const detection = loadTsModule("lib/place-providers/detect.ts");
+const capabilities = loadTsModule("lib/place-providers/capabilities.ts");
 const mapUrl = loadTsModule("lib/map-url.ts", {
   "@/lib/place-providers/detect": detection,
 });
@@ -82,6 +83,7 @@ const resolver = loadTsModule("lib/map-url-resolver.ts", {
   "@/lib/place-providers/normalize": normalize,
   "@/lib/place-providers/nearest-station": nearestStation,
   "@/lib/place-providers/registry": registry,
+  "@/lib/place-providers/capabilities": capabilities,
 });
 const databaseRuntime = {
   placeCategories: ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"],
@@ -116,6 +118,13 @@ assert.equal(detection.detectPlaceProvider("https://map.kakao.com/link/map/test,
 assert.equal(detection.detectPlaceProvider("https://place.map.kakao.com/123"), "kakao");
 assert.equal(detection.detectPlaceProvider("https://kko.kakao.com/short"), "kakao");
 assert.equal(detection.detectPlaceProvider("https://www.google.com/search?q=maps"), "unknown");
+assert.deepEqual([...capabilities.getProviderCapabilities("google").map(({ field }) => field)], [
+  "name", "category", "address", "coordinates", "phone", "website", "openingHours", "rating", "reviewCount", "priceLevel", "photos", "providerPlaceId", "sourceUrl",
+]);
+assert.deepEqual([...capabilities.getProviderCapabilities("naver").map(({ field }) => field)], [
+  "name", "category", "address", "coordinates", "phone", "providerPlaceId", "sourceUrl",
+]);
+assert.equal(capabilities.formatProviderWarnings(["photos_not_supported", "price_not_supported"]).join(" · "), "사진 정보 없음 · 가격대 정보 없음");
 
 const googlePlaceId = "ChIJN1t_tDeuEmsRUsoyG83frY4";
 const googleIdUrl = `https://www.google.com/maps/search/?api=1&query=Gwangalli&query_place_id=${googlePlaceId}`;
