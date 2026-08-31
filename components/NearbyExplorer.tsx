@@ -95,7 +95,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const [activeChinaFilters, setActiveChinaFilters] = useState<ChinaDiscoveryFilter[]>(() => readChinaFilters(searchParams));
   const [sortMode, setSortMode] = useState<ChinaDiscoverySort>(() => readSortMode(searchParams, "distance"));
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [focusRequest, setFocusRequest] = useState<{ id: string; sequence: number } | null>(null);
   const [currentBounds, setCurrentBounds] = useState<MapBounds | null>(null);
   const [appliedBounds, setAppliedBounds] = useState<MapBounds | null>(null);
   const [mapMoved, setMapMoved] = useState(false);
@@ -262,7 +261,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
 
   function selectPlace(placeId: string, source: "card" | "marker") {
     setSelectedId(placeId);
-    setFocusRequest((current) => ({ id: placeId, sequence: (current?.sequence ?? 0) + 1 }));
 
     if (source === "marker") {
       window.setTimeout(() => {
@@ -391,7 +389,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
             provider={provider}
             locale={locale}
             selectedId={selectedItem?.place.id ?? null}
-            focusRequest={focusRequest}
             searchAreaVisible={mapMoved}
             onSearchArea={applyCurrentMapBounds}
             onSelectMarker={(id) => selectPlace(id, "marker")}
@@ -415,7 +412,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
             provider={provider}
             locale={locale}
             selectedId={selectedItem?.place.id ?? null}
-            focusRequest={focusRequest}
             searchAreaVisible={mapMoved}
             onSearchArea={applyCurrentMapBounds}
             onSelectMarker={(id) => selectPlace(id, "marker")}

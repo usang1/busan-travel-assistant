@@ -16,7 +16,6 @@ type TravelMapProps = {
   provider: TravelMapProvider;
   locale?: Locale;
   selectedId?: string | null;
-  focusRequest?: { id: string; sequence: number } | null;
   className?: string;
   searchAreaVisible?: boolean;
   onSearchArea?: (bounds: MapBounds) => void;
@@ -177,7 +176,6 @@ function NaverTravelMap({
   provider,
   locale = defaultLocale,
   selectedId,
-  focusRequest,
   className,
   searchAreaVisible = false,
   onSearchArea,
@@ -193,21 +191,18 @@ function NaverTravelMap({
   const userMarkerRef = useRef<NaverMarkerInstance | null>(null);
   const infoWindowRef = useRef<NaverInfoWindowInstance | null>(null);
   const idleListenerRef = useRef<NaverEventListener | null>(null);
-  const lastFittedContentRef = useRef<string | null>(null);
+  const lastFocusedPlaceIdRef = useRef<string | null>(null);
   const viewportSourceRef = useRef<"user" | "program">("program");
   const onViewportSettledRef = useRef(onViewportSettled);
+  const onSelectMarkerRef = useRef(onSelectMarker);
+  const selectedIdRef = useRef(selectedId);
+  const eventContextRef = useRef({ locale, providerId: provider.id, userId: undefined as string | undefined });
   const { user } = useAuth();
-  const contentSignature = useMemo(
-    () =>
-      JSON.stringify({
-        center,
-        userLocation: userLocation ?? null,
-        markers: markers.map((marker) => ({ id: marker.id, position: marker.position })),
-      }),
-    [center, markers, userLocation],
-  );
 
   onViewportSettledRef.current = onViewportSettled;
+  onSelectMarkerRef.current = onSelectMarker;
+  selectedIdRef.current = selectedId;
+  eventContextRef.current = { locale, providerId: provider.id, userId: user?.id };
 
   useEffect(() => {
     let active = true;
@@ -265,9 +260,14 @@ function NaverTravelMap({
     });
 
     window.setTimeout(() => {
+      if (mapInstanceRef.current !== map) {
+        return;
+      }
+
       maps.Event.trigger(map, "resize");
-      lastFittedContentRef.current = contentSignature;
-      fitNaverMapToContent(maps, map, center, markers, userLocation);
+      if (!selectedIdRef.current) {
+        fitNaverMapToContent(maps, map, center, markers, userLocation);
+      }
     }, 0);
 
     return () => {
@@ -282,25 +282,10 @@ function NaverTravelMap({
       userMarkerRef.current = null;
       closeNaverInfoWindow(infoWindowRef.current);
       infoWindowRef.current = null;
+      lastFocusedPlaceIdRef.current = null;
       mapInstanceRef.current = null;
     };
   }, [maps]);
-
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-
-    if (!maps || !map) {
-      return;
-    }
-
-    if (lastFittedContentRef.current === contentSignature) {
-      return;
-    }
-
-    lastFittedContentRef.current = contentSignature;
-    viewportSourceRef.current = "program";
-    fitNaverMapToContent(maps, map, center, markers, userLocation);
-  }, [center, contentSignature, maps, markers, userLocation]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -326,19 +311,18 @@ function NaverTravelMap({
       });
 
       maps.Event.addListener(markerInstance, "click", () => {
-        onSelectMarker?.(marker.id);
+        onSelectMarkerRef.current?.(marker.id);
         closeNaverInfoWindow(infoWindowRef.current);
         infoWindowRef.current = openNaverInfoWindow(maps, map, markerInstance, marker);
-        viewportSourceRef.current = "program";
-        map.setCenter(toNaverLatLng(maps, marker.position));
-        map.setZoom(Math.max(map.getZoom(), 16));
+
+        const eventContext = eventContextRef.current;
 
         void recordPlaceEvent({
           eventType: "marker_click",
-          locale,
+          locale: eventContext.locale,
           placeId: marker.id,
-          userId: user?.id,
-          metadata: { provider: provider.id },
+          userId: eventContext.userId,
+          metadata: { provider: eventContext.providerId },
         });
       });
 
@@ -352,7 +336,7 @@ function NaverTravelMap({
       closeNaverInfoWindow(infoWindowRef.current);
       infoWindowRef.current = openNaverInfoWindow(maps, map, selectedMarkerInstance, selectedMarker);
     }
-  }, [locale, maps, markers, onSelectMarker, provider.id, selectedId, user?.id]);
+  }, [maps, markers, selectedId]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -382,17 +366,27 @@ function NaverTravelMap({
   useEffect(() => {
     const map = mapInstanceRef.current;
 
-    if (!maps || !map || !focusRequest) {
+    if (!maps || !map) {
       return;
     }
 
-    const target = markers.find((marker) => marker.id === focusRequest.id);
-    const markerInstance = markerRefs.current.get(focusRequest.id);
+    if (!selectedId) {
+      lastFocusedPlaceIdRef.current = null;
+      return;
+    }
+
+    if (lastFocusedPlaceIdRef.current === selectedId) {
+      return;
+    }
+
+    const target = markers.find((marker) => marker.id === selectedId);
+    const markerInstance = markerRefs.current.get(selectedId);
 
     if (!target) {
       return;
     }
 
+    lastFocusedPlaceIdRef.current = selectedId;
     viewportSourceRef.current = "program";
     map.setCenter(toNaverLatLng(maps, target.position));
     map.setZoom(Math.max(map.getZoom(), 16));
@@ -401,10 +395,10 @@ function NaverTravelMap({
       closeNaverInfoWindow(infoWindowRef.current);
       infoWindowRef.current = openNaverInfoWindow(maps, map, markerInstance, target);
     }
-  }, [focusRequest, maps, markers]);
+  }, [maps, markers, selectedId]);
 
   if (scriptStatus === "error") {
-    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} focusRequest={focusRequest} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onViewportSettled={onViewportSettled} />;
+    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onViewportSettled={onViewportSettled} />;
   }
 
   return (
@@ -449,7 +443,6 @@ function FallbackTravelMap({
   provider,
   locale = defaultLocale,
   selectedId,
-  focusRequest,
   className,
   searchAreaVisible = false,
   onSearchArea,
@@ -462,6 +455,7 @@ function FallbackTravelMap({
   const gestureRef = useRef<GestureState | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const suppressClickRef = useRef(false);
+  const lastFocusedPlaceIdRef = useRef<string | null>(null);
   const { user } = useAuth();
 
   const world = useMemo(() => {
@@ -504,31 +498,32 @@ function FallbackTravelMap({
   const clusters = useMemo(() => clusterMarkers(markerPoints, mapView.zoom), [markerPoints, mapView.zoom]);
 
   useEffect(() => {
-    if (!focusRequest) {
+    if (!selectedId) {
+      lastFocusedPlaceIdRef.current = null;
       return;
     }
 
-    const target = markerPoints.find((item) => item.marker.id === focusRequest.id);
+    if (lastFocusedPlaceIdRef.current === selectedId) {
+      return;
+    }
+
+    const target = markerPoints.find((item) => item.marker.id === selectedId);
 
     if (!target) {
       return;
     }
 
-    const nextView = keepViewInBounds({
-      zoom: Math.max(mapView.zoom, focusZoom),
-      center: target.point,
+    lastFocusedPlaceIdRef.current = selectedId;
+    setMapView((current) => {
+      const nextView = keepViewInBounds({
+        zoom: Math.max(current.zoom, focusZoom),
+        center: target.point,
+      });
+
+      window.setTimeout(() => onViewportSettled?.(viewToBounds(nextView, world), "program"), 0);
+      return nextView;
     });
-
-    setMapView(nextView);
-    onViewportSettled?.(viewToBounds(nextView, world), "program");
-  }, [focusRequest?.sequence]);
-
-  useEffect(() => {
-    const nextView = keepViewInBounds({ zoom: defaultZoom, center: { x: 50, y: 50 } });
-
-    setMapView(nextView);
-    onViewportSettled?.(viewToBounds(nextView, world), "program");
-  }, [world.minLat, world.maxLat, world.minLng, world.maxLng]);
+  }, [markerPoints, onViewportSettled, selectedId, world]);
 
   function toScreenPoint(point: WorldPoint): WorldPoint {
     return {
@@ -720,17 +715,6 @@ function FallbackTravelMap({
     }
 
     onSelectMarker?.(markerId);
-    const marker = markers.find((item) => item.id === markerId);
-
-    if (marker) {
-      const nextView = keepViewInBounds({
-        zoom: Math.max(mapView.zoom, focusZoom),
-        center: toWorldPoint(marker.position, world),
-      });
-
-      setMapView(nextView);
-      settle("program", nextView);
-    }
 
     void recordPlaceEvent({
       eventType: "marker_click",
@@ -1018,6 +1002,7 @@ function openNaverInfoWindow(
       "</div>",
     ].join(""),
     borderWidth: 0,
+    disableAutoPan: true,
     disableAnchor: false,
     backgroundColor: "white",
   });
