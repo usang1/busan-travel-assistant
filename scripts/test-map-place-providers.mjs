@@ -426,6 +426,22 @@ assert.equal(naverResolved.normalizedPlace.roadAddressKo, "부산 수영구 수�
 assert.equal(naverResolved.normalizedPlace.latitude, 35.1671242);
 assert.equal(naverResolved.normalizedPlace.longitude, 129.1170388);
 
+const naverSearchPlaceUrl = "https://map.naver.com/p/search/%ED%95%B4%EC%9A%B4%EB%8C%80%20%EB%A7%9B%EC%A7%91/place/1664978106?searchType=place&n_query=%ED%95%B4%EC%9A%B4%EB%8C%80%EB%A7%9B%EC%A7%91";
+const parsedNaverSearchPlaceUrl = mapUrl.parseMapUrl(naverSearchPlaceUrl);
+assert.equal(parsedNaverSearchPlaceUrl.placeId, "1664978106");
+assert.equal(parsedNaverSearchPlaceUrl.title, "해운대 맛집");
+const naverSearchPlaceResolved = await resolver.resolveMapUrl(naverSearchPlaceUrl, async (input) => {
+  const url = new URL(input.toString());
+  if (url.origin + url.pathname === "https://openapi.naver.com/v1/search/local.json") {
+    assert.equal(url.searchParams.get("query"), "해운대 맛집");
+    return jsonResponse({ items: [{ title: "해운대 테스트 맛집", link: "https://map.naver.com/p/entry/place/1664978106", category: "음식점>한식", address: "부산 해운대구", roadAddress: "부산 해운대구 해운대로", telephone: "051-111-2222", mapx: "1291600000", mapy: "351700000" }] });
+  }
+  return htmlResponse();
+});
+assert.equal(naverSearchPlaceResolved.normalizedPlace.providerPlaceId, "1664978106");
+assert.equal(naverSearchPlaceResolved.normalizedPlace.name, "해운대 테스트 맛집");
+assert.equal(naverSearchPlaceResolved.normalizedPlace.phone, "051-111-2222");
+
 const naverHubPlace = await naverHub.naverMapsProvider.lookup({
   sourceUrl: naverUrl,
   finalResolvedUrl: naverUrl,

@@ -324,14 +324,20 @@ function extractTitle(url: URL, coordinates: CoordinateMatch | null) {
     return query;
   }
 
-  if (url.pathname.includes("/place/")) {
-    const pathTitle = decodeURIComponent(url.pathname.split("/place/")[1]?.split("/")[0] ?? "").replaceAll("+", " ");
-    return /^\d+$/.test(pathTitle) ? "" : pathTitle;
-  }
-
+  // Naver's search result links put the lookup query before `/place/{id}`.
+  // Handle it before the generic place path branch, which otherwise sees only
+  // the numeric ID and returns an empty title.
   if (url.hostname.endsWith("naver.com")) {
     const searchTitle = decodePathSegment(url.pathname.match(/\/p\/search\/([^/]+)/)?.[1]);
     if (searchTitle) return searchTitle;
+
+    const naverQuery = textParam(url, ["n_query"]);
+    if (naverQuery) return naverQuery;
+  }
+
+  if (url.pathname.includes("/place/")) {
+    const pathTitle = decodeURIComponent(url.pathname.split("/place/")[1]?.split("/")[0] ?? "").replaceAll("+", " ");
+    return /^\d+$/.test(pathTitle) ? "" : pathTitle;
   }
 
   if (url.hostname.endsWith("kakao.com")) {
