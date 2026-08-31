@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { publicOpenAiValidationError, toPublicOpenAiError } from "@/lib/openai-errors";
 import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
 
 const defaultModel = "gpt-5.6-luna";
@@ -91,50 +92,57 @@ export async function generateAdminPlaceSummary(place: NormalizedPlace): Promise
 
   const model = process.env.OPENAI_PLACE_MODEL || process.env.OPENAI_SUMMARY_MODEL || defaultModel;
   const client = new OpenAI({ apiKey, timeout: requestTimeoutMs, maxRetries: 0 });
-  const response = await client.responses.create({
-    model,
-    input: [
-      {
-        role: "system",
-        content: [
-          "You write a short Korean factual summary for a place administrator.",
-          "You must only summarize facts contained in the provided place data.",
-          "Do not infer missing features, atmosphere, menu quality, popularity, waiting time, views, suitability, or customer experience.",
-          "Do not write advertising language, recommendations, superlatives, or unsupported evaluations.",
-          "Write 2 to 4 concise Korean sentences. Omit unavailable facts.",
-          "If rating or review count is mentioned, explicitly identify the map provider as the source and make no value judgment.",
-          "Do not introduce any number that is absent from the provided JSON.",
-        ].join("\n"),
-      },
-      {
-        role: "user",
-        content: `다음 장소 사실정보만 객관적으로 요약하세요.\n\n${JSON.stringify(facts, null, 2)}`,
-      },
-    ],
-    text: {
-      verbosity: "low",
-      format: {
-        type: "json_schema",
-        name: "admin_place_summary",
-        strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: { summaryKo: { type: "string" } },
-          required: ["summaryKo"],
+  try {
+    const response = await client.responses.create({
+      model,
+      input: [
+        {
+          role: "system",
+          content: [
+            "You write a short Korean factual summary for a place administrator.",
+            "You must only summarize facts contained in the provided place data.",
+            "Do not infer missing features, atmosphere, menu quality, popularity, waiting time, views, suitability, or customer experience.",
+            "Do not write advertising language, recommendations, superlatives, or unsupported evaluations.",
+            "Write 2 to 4 concise Korean sentences. Omit unavailable facts.",
+            "If rating or review count is mentioned, explicitly identify the map provider as the source and make no value judgment.",
+            "Do not introduce any number that is absent from the provided JSON.",
+          ].join("\n"),
+        },
+        {
+          role: "user",
+          content: `다음 장소 사실정보만 객관적으로 요약하세요.\n\n${JSON.stringify(facts, null, 2)}`,
+        },
+      ],
+      text: {
+        verbosity: "low",
+        format: {
+          type: "json_schema",
+          name: "admin_place_summary",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: { summaryKo: { type: "string" } },
+            required: ["summaryKo"],
+          },
         },
       },
-    },
-    reasoning: { effort: "minimal" },
-    max_output_tokens: 400,
-    store: false,
-  });
+      reasoning: { effort: "low" },
+      max_output_tokens: 400,
+      store: false,
+    });
 
-  const parsed = JSON.parse(response.output_text || "{}") as { summaryKo?: unknown };
-  const summaryKo = cleanText(parsed.summaryKo, 800);
-  validateAdminPlaceSummary(summaryKo, facts);
+    const parsed = JSON.parse(response.output_text || "{}") as { summaryKo?: unknown };
+    const summaryKo = cleanText(parsed.summaryKo, 800);
+    validateAdminPlaceSummary(summaryKo, facts);
 
-  return { summaryKo, model, generatedAt: new Date().toISOString() };
+    return { summaryKo, model, generatedAt: new Date().toISOString() };
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("AI 장소 요약")) {
+      throw publicOpenAiValidationError(`${error.message} 다시 생성해 주세요.`);
+    }
+    throw toPublicOpenAiError(error, "AI 장소 요약 생성");
+  }
 }
 
 export function validateAdminPlaceSummary(summary: string, facts: AdminPlaceSummaryFacts) {

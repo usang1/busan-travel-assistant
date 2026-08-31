@@ -53,7 +53,6 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
     provider: sourceProvider,
     source_external_id: place.providerPlaceId ?? (sameSource ? form.source_external_id : ""),
     name_ko: fillText(form.name_ko, place.name),
-    name_zh: fillText(form.name_zh, place.name),
     category: form.category || providerCategory || "",
     address_ko: fillText(form.address_ko, addressKo || place.formattedAddress),
     address_en: fillText(form.address_en, providerAddressEn),

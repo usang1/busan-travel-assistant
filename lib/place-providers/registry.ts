@@ -16,3 +16,34 @@ export function getPlaceProvider(provider: SupportedPlaceProvider) {
 export function listPlaceProviders() {
   return Object.values(providers);
 }
+
+export function getPlaceProviderConfiguration(provider: SupportedPlaceProvider) {
+  if (provider === "google") {
+    const configured = Boolean(process.env.GOOGLE_MAPS_API_KEY?.trim());
+    return {
+      configured,
+      missingEnvironmentVariables: configured ? [] : ["GOOGLE_MAPS_API_KEY"],
+    };
+  }
+
+  if (provider === "naver") {
+    const apiHubConfigured = Boolean(
+      process.env.NAVER_API_HUB_CLIENT_ID?.trim() && process.env.NAVER_API_HUB_CLIENT_SECRET?.trim(),
+    );
+    const legacyConfigured = Boolean(
+      process.env.NAVER_SEARCH_CLIENT_ID?.trim() && process.env.NAVER_SEARCH_CLIENT_SECRET?.trim(),
+    );
+    return {
+      configured: apiHubConfigured || legacyConfigured,
+      missingEnvironmentVariables: apiHubConfigured || legacyConfigured
+        ? []
+        : ["NAVER_API_HUB_CLIENT_ID", "NAVER_API_HUB_CLIENT_SECRET"],
+    };
+  }
+
+  const configured = Boolean(process.env.KAKAO_REST_API_KEY?.trim());
+  return {
+    configured,
+    missingEnvironmentVariables: configured ? [] : ["KAKAO_REST_API_KEY"],
+  };
+}

@@ -210,7 +210,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     source_external_id: "",
     slug: slugify(baseName),
     category: submission?.category ?? "",
-    name_zh: baseName,
+    name_zh: "",
     name_en: "",
     name_ja: "",
     name_ko: baseName,
@@ -505,6 +505,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   const [lastAiFingerprint, setLastAiFingerprint] = useState("");
   const [lastNormalizedPlace, setLastNormalizedPlace] = useState<NormalizedPlace | null>(null);
   const [adminSummaryFailed, setAdminSummaryFailed] = useState(false);
+  const [adminSummaryErrorMessage, setAdminSummaryErrorMessage] = useState("");
+  const [providerLookupNotice, setProviderLookupNotice] = useState("");
 
   const visibleSubmissions = useMemo(
     () => submissions.filter((submission) => submission.status === activeStatus),
@@ -530,6 +532,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
     setGeneratingAdminSummary(true);
     setAdminSummaryFailed(false);
+    setAdminSummaryErrorMessage("");
     setStatus("지도 사실정보로 AI 장소 요약을 생성하는 중입니다.");
 
     try {
@@ -541,10 +544,13 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       if (!response.ok || !body.summaryKo) throw new Error(body.message ?? "AI 장소 요약 생성에 실패했습니다.");
 
       setForm((current) => ({ ...current, admin_summary: body.summaryKo ?? current.admin_summary }));
+      setAdminSummaryErrorMessage("");
       setStatus("AI 장소 요약을 다시 생성했습니다. 저장 전에 내용을 검수해 주세요.");
     } catch (error) {
+      const message = error instanceof Error ? error.message : "AI 장소 요약 생성에 실패했습니다.";
       setAdminSummaryFailed(true);
-      setStatus(error instanceof Error ? `AI 장소 요약 생성 실패: ${error.message}` : "AI 장소 요약 생성에 실패했습니다.");
+      setAdminSummaryErrorMessage(message);
+      setStatus(`AI 장소 요약 생성 실패: ${message}`);
     } finally {
       setGeneratingAdminSummary(false);
     }
@@ -573,6 +579,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     setAiDraft(null);
     setLastNormalizedPlace(null);
     setAdminSummaryFailed(false);
+    setAdminSummaryErrorMessage("");
+    setProviderLookupNotice("");
     setStatus("");
   }
 
@@ -582,6 +590,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     setAiDraft(null);
     setLastNormalizedPlace(null);
     setAdminSummaryFailed(false);
+    setAdminSummaryErrorMessage("");
+    setProviderLookupNotice("");
     setStatus("제보 없이 직접 장소를 등록합니다. 지도 링크를 넣으면 provider만 식별합니다.");
   }
 
@@ -671,7 +681,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     const inputFingerprint = buildPublishAiFingerprint(form);
 
     if (localeTargets.length === 4 && aiDraft && lastAiFingerprint === inputFingerprint) {
-      setStatus("입력 내용이 변경되지 않아 기존 AI 생성 결과를 재사용했습니다.");
+      await translateTextFields();
       return;
     }
 
@@ -712,17 +722,39 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       }
 
       const generatedResponse = body as PlaceAiGenerationResponse;
+      const generatedForm = applyGeneratedContentToEmptyPublishFields(form, generatedResponse);
+      let translations: Partial<AdminTranslationFields> = {};
+      let translationNotice = "";
+
+      try {
+        setTranslating(true);
+        const translationResponse = await adminFetch("/api/admin/translate-place", {
+          method: "POST",
+          body: JSON.stringify({ fields: buildTranslationFieldsFromPublishForm(generatedForm) }),
+        });
+        const translationBody = (await translationResponse.json()) as { translations?: Partial<AdminTranslationFields>; failed_fields?: string[]; message?: string };
+        if (!translationResponse.ok) throw new Error(translationBody.message ?? "AI 이름/주소 번역에 실패했습니다.");
+        translations = translationBody.translations ?? {};
+        const translated = applyTranslationsToPublishForm(generatedForm, translations);
+        const failed = translationBody.failed_fields?.length ? ` 검증 실패: ${translationBody.failed_fields.join(", ")}` : "";
+        translationNotice = ` 이름/주소 번역 ${translated.filledCount}개를 함께 반영했습니다.${failed}`;
+      } catch (translationError) {
+        const message = translationError instanceof Error ? translationError.message : "AI 이름/주소 번역에 실패했습니다.";
+        translationNotice = ` 설명/여행팁은 반영했지만 이름/주소 번역은 실패했습니다: ${message}`;
+      } finally {
+        setTranslating(false);
+      }
+
       setAiDraft(generatedResponse);
       setLastAiFingerprint(inputFingerprint);
-      setForm((current) => applyGeneratedContentToEmptyPublishFields(current, generatedResponse));
-      setStatus(`${generatedResponse.message} 비어 있는 locale 필드에 결과를 반영했습니다.`);
+      setForm((current) => {
+        const withContent = applyGeneratedContentToEmptyPublishFields(current, generatedResponse);
+        return applyTranslationsToPublishForm(withContent, translations).nextForm;
+      });
+      setStatus(`${generatedResponse.message} 비어 있는 locale 필드에 결과를 반영했습니다.${translationNotice}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      setStatus(
-        message.includes("최소한의 장소 정보") || message.includes("장소명")
-          ? message
-          : "AI 설명 생성에 실패했습니다. 직접 작성하거나 다시 시도해주세요.",
-      );
+      setStatus(message ? `AI 설명 생성 실패: ${message}` : "AI 설명 생성에 실패했습니다. 직접 작성하거나 다시 시도해 주세요.");
     } finally {
       setGeneratingAiDraft(false);
     }
@@ -792,6 +824,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         adminSummary?: { summaryKo?: string } | null;
         adminSummaryError?: string;
         aiConfigured?: boolean;
+        providerLookup?: { configured: boolean; enriched: boolean; message: string };
       };
       const { analysis } = body;
       const normalizedPlace = body.normalizedPlace;
@@ -807,6 +840,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
       setLastNormalizedPlace(normalizedPlace ?? null);
       setAdminSummaryFailed(Boolean(body.adminSummaryError));
+      setAdminSummaryErrorMessage(body.adminSummaryError ?? "");
+      setProviderLookupNotice(body.providerLookup?.message ?? "");
 
       setForm((current) => {
         const enriched = normalizedPlace ? applyProviderFactsToPublishForm(current, normalizedPlace) : current;
@@ -816,7 +851,6 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
           provider: analysis.sourceProvider,
           source_external_id: externalId ?? enriched.source_external_id,
           name_ko: enriched.name_ko || title,
-          name_zh: enriched.name_zh || title,
           slug: enriched.slug || slugify(title),
           latitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? latitude!.toFixed(7) : enriched.latitude,
           longitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? longitude!.toFixed(7) : enriched.longitude,
@@ -843,13 +877,14 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 AI 장소 요약은 생성하지 않았습니다.";
       const aiErrorNotice = body.adminSummaryError ? ` AI 장소 요약 생성 실패: ${body.adminSummaryError}` : "";
       const lookupNotice = body.lookupError ? ` Provider 상세 조회 실패: ${body.lookupError}` : "";
+      const providerConfigurationNotice = body.providerLookup?.message ? ` ${body.providerLookup.message}` : "";
       const coordinateNotice = hasResolvedCoordinates
         ? ""
         : " 이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.";
       setStatus(
         filled.length
-          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${lookupNotice}${aiNotice}${aiErrorNotice}`
-          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${lookupNotice}${aiNotice}${aiErrorNotice}`,
+          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}`
+          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}`,
       );
     } catch (error) {
       const localAnalysis = analyzeMapLink(parsed.normalizedUrl);
@@ -1134,6 +1169,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             generatingAiDraft={generatingAiDraft}
             generatingAdminSummary={generatingAdminSummary}
             adminSummaryFailed={adminSummaryFailed}
+            adminSummaryErrorMessage={adminSummaryErrorMessage}
+            providerLookupNotice={providerLookupNotice}
             onGeocode={() => void fillCoordinatesFromAddress()}
             onPrepareAiDraft={(locales) => void prepareAiDraft(locales)}
             onApplyAiDraft={applyAiDraft}
@@ -1161,6 +1198,8 @@ function PublishFormView({
   generatingAiDraft,
   generatingAdminSummary,
   adminSummaryFailed,
+  adminSummaryErrorMessage,
+  providerLookupNotice,
   onGeocode,
   onPrepareAiDraft,
   onApplyAiDraft,
@@ -1181,6 +1220,8 @@ function PublishFormView({
   generatingAiDraft: boolean;
   generatingAdminSummary: boolean;
   adminSummaryFailed: boolean;
+  adminSummaryErrorMessage: string;
+  providerLookupNotice: string;
   onGeocode: () => void;
   onPrepareAiDraft: (locales?: PlaceContentLocale[]) => void;
   onApplyAiDraft: (fields: AdminAiDraftApplyField[]) => void;
@@ -1296,13 +1337,13 @@ function PublishFormView({
                   {generatingAdminSummary ? "AI 요약 생성 중..." : "AI 요약 다시 생성"}
                 </button>
               </div>
-              {adminSummaryFailed ? <p className="mt-2 text-xs font-bold text-rose-700">AI 장소 요약 생성 실패. Provider 사실정보는 유지되며 다시 생성할 수 있습니다.</p> : null}
+              {adminSummaryFailed ? <p className="mt-2 text-xs font-bold leading-5 text-rose-700">AI 장소 요약 생성 실패: {adminSummaryErrorMessage || "다시 생성해 주세요."} Provider 사실정보는 유지됩니다.</p> : null}
             </Field>
           </div>
         </div>
       </section>
 
-      <SubmissionReviewSummary form={form} locale={previewLocale} onLocaleChange={setPreviewLocale} />
+      <SubmissionReviewSummary form={form} locale={previewLocale} providerLookupNotice={providerLookupNotice} onLocaleChange={setPreviewLocale} />
 
       <section className="border-b border-slate-200 py-5">
         <button type="button" onClick={() => onPrepareAiDraft()} disabled={generatingAiDraft} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-5 text-sm font-black text-white disabled:opacity-60 sm:w-auto">
@@ -1448,10 +1489,12 @@ const textareaClass = "min-h-24 w-full rounded-2xl bg-slate-50 px-3 py-3 text-sm
 function SubmissionReviewSummary({
   form,
   locale,
+  providerLookupNotice,
   onLocaleChange,
 }: {
   form: PublishForm;
   locale: PlaceContentLocale;
+  providerLookupNotice: string;
   onLocaleChange: (locale: PlaceContentLocale) => void;
 }) {
   const localized = {
@@ -1488,6 +1531,7 @@ function SubmissionReviewSummary({
             </div>
           ))}
         </div>
+        {providerLookupNotice ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800 lg:col-span-2">{providerLookupNotice}</p> : null}
         <div className="grid grid-cols-4 gap-1">
           {(["ko", "zh", "en", "ja"] as const).map((item) => {
             const complete = Boolean(localized[item].description.trim() && localized[item].tip.trim());

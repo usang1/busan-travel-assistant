@@ -2,7 +2,7 @@ import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { normalizeMapUrl, parseMapUrl, toPlaceSourceProvider } from "@/lib/map-url";
 import { isSupportedPlaceUrl } from "@/lib/place-providers/detect";
 import { mergeNormalizedPlace } from "@/lib/place-providers/normalize";
-import { getPlaceProvider } from "@/lib/place-providers/registry";
+import { getPlaceProvider, getPlaceProviderConfiguration } from "@/lib/place-providers/registry";
 import { resolveNearestStation } from "@/lib/place-providers/nearest-station";
 import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
 
@@ -51,6 +51,7 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     latitude: urlAnalysis.latitude,
     longitude: urlAnalysis.longitude,
   };
+  const providerConfiguration = getPlaceProviderConfiguration(provider);
   const providerDetails = await getPlaceProvider(provider).lookup({
     sourceUrl: originalUrl,
     finalResolvedUrl,
@@ -127,9 +128,25 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     confidence: analysis.confidence,
     failureReason: analysis.failureReason,
     lookupError: "",
+    providerLookup: {
+      configured: providerConfiguration.configured,
+      enriched: Boolean(providerDetails),
+      missingEnvironmentVariables: providerConfiguration.missingEnvironmentVariables,
+      message: providerConfiguration.configured
+        ? providerDetails
+          ? ""
+          : `${providerLabel(provider)} 공식 API에서 일치하는 상세 장소 정보를 찾지 못했습니다.`
+        : `${providerLabel(provider)} 상세정보 API 환경변수가 없어 URL에 포함된 기본 정보만 수집했습니다. Vercel에 ${providerConfiguration.missingEnvironmentVariables.join(", ")}를 설정해 주세요.`,
+    },
     normalizedPlace,
     analysis,
   };
+}
+
+function providerLabel(provider: SupportedPlaceProvider) {
+  if (provider === "google") return "Google Maps";
+  if (provider === "naver") return "네이버지도";
+  return "카카오맵";
 }
 
 async function resolveMapRedirects(initialUrl: URL, fetcher: Fetcher) {

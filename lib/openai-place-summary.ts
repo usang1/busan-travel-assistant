@@ -99,7 +99,7 @@ export async function generatePlaceSummaryDraft(analysis: MapLinkAnalysisResult)
   const body = (await response.json().catch(() => ({}))) as OpenAIResponse;
 
   if (!response.ok) {
-    throw new Error(body.error?.message || "OpenAI 설명 생성에 실패했습니다.");
+    throw Object.assign(new Error(body.error?.message || "OpenAI 설명 생성에 실패했습니다."), { status: response.status });
   }
 
   return parsePlaceSummaryDraft(body);
@@ -149,7 +149,7 @@ export async function generateAdminPlaceTranslations(fields: Partial<AdminTransl
   const body = (await response.json().catch(() => ({}))) as OpenAIResponse;
 
   if (!response.ok) {
-    throw new Error(body.error?.message || "OpenAI 번역에 실패했습니다.");
+    throw Object.assign(new Error(body.error?.message || "OpenAI 번역에 실패했습니다."), { status: response.status });
   }
 
   return parseAdminTranslationFields(body, fields);

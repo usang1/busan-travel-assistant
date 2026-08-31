@@ -67,6 +67,11 @@ const registry = loadTsModule("lib/place-providers/registry.ts", {
   "@/lib/place-providers/naver": naver,
   "@/lib/place-providers/kakao": kakao,
 });
+const unconfiguredRegistry = loadTsModule("lib/place-providers/registry.ts", {
+  "@/lib/place-providers/google": google,
+  "@/lib/place-providers/naver": naver,
+  "@/lib/place-providers/kakao": kakao,
+}, {});
 const mapLinkAnalysis = loadTsModule("lib/map-link-analysis.ts", {
   "@/lib/map-url": mapUrl,
 });
@@ -95,8 +100,10 @@ const validation = loadTsModule("lib/place-validation.ts", {
   "@/types/database": databaseRuntime,
 });
 class FakeOpenAI {}
+const openAiErrors = loadTsModule("lib/openai-errors.ts");
 const adminSummary = loadTsModule("lib/place-ai/admin-summary.ts", {
   openai: FakeOpenAI,
+  "@/lib/openai-errors": openAiErrors,
 });
 
 assert.equal(detection.detectPlaceProvider("https://www.google.com/maps/place/Gwangalli"), "google");
@@ -182,6 +189,10 @@ assert.equal(googleDetails.normalizedPlace.amenities.reservable, true);
 assert.equal(googleDetails.coordinateSource, "provider-lookup");
 assert.equal(googleDetails.normalizedPlace.nearestStation, "광안역 부산2호선");
 assert.equal(googleDetails.normalizedPlace.nearestStationWalkingMinutes, 6);
+assert.equal(googleDetails.providerLookup.configured, true);
+assert.equal(googleDetails.providerLookup.enriched, true);
+assert.equal(unconfiguredRegistry.getPlaceProviderConfiguration("google").configured, false);
+assert.deepEqual([...unconfiguredRegistry.getPlaceProviderConfiguration("naver").missingEnvironmentVariables], ["NAVER_API_HUB_CLIENT_ID", "NAVER_API_HUB_CLIENT_SECRET"]);
 
 const googleShort = await resolver.resolveMapUrl("https://maps.app.goo.gl/short", async (input, init = {}) => {
   const url = input.toString();
@@ -473,6 +484,19 @@ assert.match(submissionWorkflowSource, /recommendation_reason \|\| selected\.not
 const mapLinkRouteSource = readFileSync(new URL("../app/api/admin/map-link/route.ts", import.meta.url), "utf8");
 assert.match(mapLinkRouteSource, /catch \(error\)[\s\S]*adminSummaryError/);
 assert.match(mapLinkRouteSource, /\.\.\.resolution,[\s\S]*adminSummary,[\s\S]*adminSummaryError/);
+
+const adminSummarySource = readFileSync(new URL("../lib/place-ai/admin-summary.ts", import.meta.url), "utf8");
+const placeGeneratorSource = readFileSync(new URL("../lib/place-ai/generator.ts", import.meta.url), "utf8");
+assert.match(adminSummarySource, /reasoning:\s*\{ effort: "low" \}/);
+assert.match(placeGeneratorSource, /effort: "low"/);
+assert.doesNotMatch(`${adminSummarySource}\n${placeGeneratorSource}`, /effort: "minimal"/);
+
+for (const editorFile of ["AdminPlaceManager.tsx", "AdminSubmissionWorkflow.tsx"]) {
+  const editorSource = readFileSync(new URL(`../components/${editorFile}`, import.meta.url), "utf8");
+  const translationCalls = editorSource.match(/\/api\/admin\/translate-place/g) ?? [];
+  assert.ok(translationCalls.length >= 2, `${editorFile} must translate names and addresses during full AI generation and on manual retry`);
+  assert.doesNotMatch(editorSource, /name_zh:\s*enriched\.name_zh \|\| title/);
+}
 
 const validPayload = {
   name_ko: "광안리",

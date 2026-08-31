@@ -114,7 +114,7 @@ export async function generatePlaceAiContent(request: PlaceAiGenerationRequest):
         },
       },
       reasoning: {
-        effort: "minimal",
+        effort: "low",
       },
       max_output_tokens: maxOutputTokens,
       store: false,
@@ -358,6 +358,10 @@ function mapOpenAiError(error: unknown): PlaceAiGenerationError {
 
   if (status === 401 || status === 403) {
     return new PlaceAiGenerationError("openai_failed", "OpenAI API Key 권한을 확인해 주세요.", 502);
+  }
+
+  if (status === 400 || status === 404) {
+    return new PlaceAiGenerationError("openai_failed", "OpenAI 모델 또는 요청 설정이 올바르지 않습니다. OPENAI_PLACE_MODEL과 배포 버전을 확인해 주세요.", 502);
   }
 
   return new PlaceAiGenerationError("openai_failed", "OpenAI 장소 설명 생성에 실패했습니다.", 502);

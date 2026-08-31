@@ -849,6 +849,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [aiDraft, setAiDraft] = useState<PlaceAiGenerationResponse | null>(null);
   const [lastNormalizedPlace, setLastNormalizedPlace] = useState<NormalizedPlace | null>(null);
   const [adminSummaryFailed, setAdminSummaryFailed] = useState(false);
+  const [adminSummaryErrorMessage, setAdminSummaryErrorMessage] = useState("");
+  const [providerLookupNotice, setProviderLookupNotice] = useState("");
   const [lastAiFingerprint, setLastAiFingerprint] = useState("");
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
@@ -900,6 +902,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
     setGeneratingAdminSummary(true);
     setAdminSummaryFailed(false);
+    setAdminSummaryErrorMessage("");
     setStatus("지도 사실정보로 AI 장소 요약을 생성하는 중입니다.");
 
     try {
@@ -912,10 +915,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       if (!response.ok || !body.summaryKo) throw new Error(body.message ?? "AI 장소 요약 생성에 실패했습니다.");
 
       setForm((current) => ({ ...current, admin_summary: body.summaryKo ?? current.admin_summary }));
+      setAdminSummaryErrorMessage("");
       setStatus("AI 장소 요약을 다시 생성했습니다. 저장 전에 내용을 검수해 주세요.");
     } catch (error) {
+      const message = error instanceof Error ? error.message : "AI 장소 요약 생성에 실패했습니다.";
       setAdminSummaryFailed(true);
-      setStatus(error instanceof Error ? `AI 장소 요약 생성 실패: ${error.message}` : "AI 장소 요약 생성에 실패했습니다.");
+      setAdminSummaryErrorMessage(message);
+      setStatus(`AI 장소 요약 생성 실패: ${message}`);
     } finally {
       setGeneratingAdminSummary(false);
     }
@@ -980,7 +986,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     const inputFingerprint = buildAiInputFingerprint(form);
 
     if (localeTargets.length === 4 && aiDraft && lastAiFingerprint === inputFingerprint) {
-      setStatus("입력 내용이 변경되지 않아 기존 AI 생성 결과를 재사용했습니다.");
+      await translateTextFields();
       return;
     }
 
@@ -1022,17 +1028,40 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       }
 
       const generatedResponse = body as PlaceAiGenerationResponse;
+      const generatedForm = applyGeneratedContentToEmptyFields(form, generatedResponse);
+      let translations: Partial<AdminTranslationFields> = {};
+      let translationNotice = "";
+
+      try {
+        setTranslating(true);
+        const translationResponse = await fetch("/api/admin/translate-place", {
+          method: "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify({ fields: buildTranslationFieldsFromForm(generatedForm) }),
+        });
+        const translationBody = (await translationResponse.json()) as { translations?: Partial<AdminTranslationFields>; failed_fields?: string[]; message?: string };
+        if (!translationResponse.ok) throw new Error(translationBody.message ?? "AI 이름/주소 번역에 실패했습니다.");
+        translations = translationBody.translations ?? {};
+        const translated = applyTranslationsToForm(generatedForm, translations);
+        const failed = translationBody.failed_fields?.length ? ` 검증 실패: ${translationBody.failed_fields.join(", ")}` : "";
+        translationNotice = ` 이름/주소 번역 ${translated.filledCount}개를 함께 반영했습니다.${failed}`;
+      } catch (translationError) {
+        const message = translationError instanceof Error ? translationError.message : "AI 이름/주소 번역에 실패했습니다.";
+        translationNotice = ` 설명/여행팁은 반영했지만 이름/주소 번역은 실패했습니다: ${message}`;
+      } finally {
+        setTranslating(false);
+      }
+
       setAiDraft(generatedResponse);
       setLastAiFingerprint(inputFingerprint);
-      setForm((current) => applyGeneratedContentToEmptyFields(current, generatedResponse));
-      setStatus(`${generatedResponse.message} 비어 있는 locale 필드에 결과를 반영했습니다.`);
+      setForm((current) => {
+        const withContent = applyGeneratedContentToEmptyFields(current, generatedResponse);
+        return applyTranslationsToForm(withContent, translations).nextForm;
+      });
+      setStatus(`${generatedResponse.message} 비어 있는 locale 필드에 결과를 반영했습니다.${translationNotice}`);
     } catch (draftError) {
       const message = draftError instanceof Error ? draftError.message : "";
-      setStatus(
-        message.includes("최소한의 장소 정보") || message.includes("장소명")
-          ? message
-          : "AI 설명 생성에 실패했습니다. 직접 작성하거나 다시 시도해주세요.",
-      );
+      setStatus(message ? `AI 설명 생성 실패: ${message}` : "AI 설명 생성에 실패했습니다. 직접 작성하거나 다시 시도해 주세요.");
     } finally {
       setGeneratingAiDraft(false);
     }
@@ -1180,6 +1209,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         adminSummary?: { summaryKo?: string } | null;
         adminSummaryError?: string;
         aiConfigured?: boolean;
+        providerLookup?: { configured: boolean; enriched: boolean; message: string };
       };
       const { analysis } = body;
       const normalizedPlace = body.normalizedPlace;
@@ -1195,6 +1225,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
       setLastNormalizedPlace(normalizedPlace ?? null);
       setAdminSummaryFailed(Boolean(body.adminSummaryError));
+      setAdminSummaryErrorMessage(body.adminSummaryError ?? "");
+      setProviderLookupNotice(body.providerLookup?.message ?? "");
 
       setForm((current) => {
         const enriched = normalizedPlace ? applyProviderFactsToForm(current, normalizedPlace) : current;
@@ -1204,7 +1236,6 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           source_provider: analysis.sourceProvider,
           source_external_id: externalId ?? enriched.source_external_id,
           name_ko: enriched.name_ko || title,
-          name_zh: enriched.name_zh || title,
           slug: enriched.slug || slugify(title),
           latitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? latitude!.toFixed(7) : enriched.latitude,
           longitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? longitude!.toFixed(7) : enriched.longitude,
@@ -1231,13 +1262,14 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 AI 장소 요약은 생성하지 않았습니다.";
       const aiErrorNotice = body.adminSummaryError ? ` AI 장소 요약 생성 실패: ${body.adminSummaryError}` : "";
       const lookupNotice = body.lookupError ? ` Provider 상세 조회 실패: ${body.lookupError}` : "";
+      const providerConfigurationNotice = body.providerLookup?.message ? ` ${body.providerLookup.message}` : "";
       const coordinateNotice = hasResolvedCoordinates
         ? ""
         : " 이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.";
       setStatus(
         filled.length
-          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${lookupNotice}${aiNotice}${aiErrorNotice}`
-          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${lookupNotice}${aiNotice}${aiErrorNotice}`,
+          ? `지도 링크 분석 완료: ${filled.join(", ")}를 채웠습니다.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}`
+          : `provider만 확인했습니다. 장소명과 좌표는 직접 입력해 주세요.${coordinateNotice}${lookupNotice}${providerConfigurationNotice}${aiNotice}${aiErrorNotice}`,
       );
     } catch (parseError) {
       const localAnalysis = analyzeMapLink(parsed.normalizedUrl);
@@ -1510,6 +1542,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             setAiDraft(null);
             setLastNormalizedPlace(null);
             setAdminSummaryFailed(false);
+            setAdminSummaryErrorMessage("");
+            setProviderLookupNotice("");
           }}
           className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-95"
         >
@@ -1531,6 +1565,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   setAiDraft(null);
                   setLastNormalizedPlace(null);
                   setAdminSummaryFailed(false);
+                  setAdminSummaryErrorMessage("");
+                  setProviderLookupNotice("");
                 }} className="block w-full text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1553,6 +1589,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                     setAiDraft(null);
                     setLastNormalizedPlace(null);
                     setAdminSummaryFailed(false);
+                    setAdminSummaryErrorMessage("");
+                    setProviderLookupNotice("");
                   }} icon={Pencil} />
                   <IconButton label="활성 토글" onClick={() => void togglePlace(place, "is_active")} icon={place.is_active ? Check : X} />
                   <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
@@ -1660,13 +1698,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                       {generatingAdminSummary ? "AI 요약 생성 중..." : "AI 요약 다시 생성"}
                     </button>
                   </div>
-                  {adminSummaryFailed ? <p className="mt-2 text-xs font-bold text-rose-700">AI 장소 요약 생성 실패. Provider 사실정보는 유지되며 다시 생성할 수 있습니다.</p> : null}
+                  {adminSummaryFailed ? <p className="mt-2 text-xs font-bold leading-5 text-rose-700">AI 장소 요약 생성 실패: {adminSummaryErrorMessage || "다시 생성해 주세요."} Provider 사실정보는 유지됩니다.</p> : null}
                 </Field>
               </div>
             </div>
           </section>
 
-          <AdminReviewSummary form={form} locale={previewLocale} onLocaleChange={setPreviewLocale} />
+          <AdminReviewSummary form={form} locale={previewLocale} providerLookupNotice={providerLookupNotice} onLocaleChange={setPreviewLocale} />
 
           <section className="border-b border-slate-200 pb-6">
             <button
@@ -2101,10 +2139,12 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
 function AdminReviewSummary({
   form,
   locale,
+  providerLookupNotice,
   onLocaleChange,
 }: {
   form: FormState;
   locale: PlaceContentLocale;
+  providerLookupNotice: string;
   onLocaleChange: (locale: PlaceContentLocale) => void;
 }) {
   const facts = [
@@ -2143,6 +2183,7 @@ function AdminReviewSummary({
               </div>
             ))}
           </div>
+          {providerLookupNotice ? <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">{providerLookupNotice}</p> : null}
         </div>
         <div>
           <p className="text-sm font-black text-slate-800">AI 콘텐츠</p>

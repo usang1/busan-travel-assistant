@@ -178,6 +178,7 @@ const mapUrlResolver = loadTsModule("lib/map-url-resolver.ts", {
   "@/lib/place-providers/nearest-station": { resolveNearestStation: async () => null },
   "@/lib/place-providers/registry": {
     getPlaceProvider: (provider) => ({ id: provider, lookup: async () => null }),
+    getPlaceProviderConfiguration: () => ({ configured: false, missingEnvironmentVariables: ["TEST_PROVIDER_KEY"] }),
   },
 });
 const mapSource = loadTsModule("lib/place-ai/map-source.ts", {

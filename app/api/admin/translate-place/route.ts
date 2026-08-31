@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
+import { toPublicOpenAiError } from "@/lib/openai-errors";
 import {
   canGeneratePlaceSummary,
   generateAdminPlaceTranslations,
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    const response = adminErrorResponse(error);
+    const response = adminErrorResponse(toPublicOpenAiError(error, "AI 번역"));
 
     return NextResponse.json({ message: response.message }, { status: response.status });
   }
