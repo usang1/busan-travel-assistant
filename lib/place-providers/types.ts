@@ -54,6 +54,7 @@ export type NormalizedPlace = {
   nearestStation?: string;
   nearestStationDistanceMeters?: number;
   nearestStationWalkingMinutes?: number;
+  providerWarnings?: string[];
   fetchedAt?: string;
   raw?: unknown;
 };

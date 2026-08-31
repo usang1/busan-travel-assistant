@@ -112,6 +112,7 @@ export function buildSourceMetadata(place: NormalizedPlace, existing: Record<str
     amenities: place.amenities ?? null,
     nearest_station: place.nearestStation ?? null,
     nearest_station_distance_meters: place.nearestStationDistanceMeters ?? null,
+    provider_warnings: place.providerWarnings ?? null,
     raw: place.raw ?? null,
   };
 

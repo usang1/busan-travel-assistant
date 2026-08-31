@@ -191,6 +191,17 @@ assert.equal(googleDetails.normalizedPlace.nearestStation, "광안역 부산2호
 assert.equal(googleDetails.normalizedPlace.nearestStationWalkingMinutes, 6);
 assert.equal(googleDetails.providerLookup.configured, true);
 assert.equal(googleDetails.providerLookup.enriched, true);
+
+const googlePhotoFailure = await resolver.resolveMapUrl(googleIdUrl, async (input, init = {}) => {
+  const url = input.toString();
+  if (url.includes("/photos/") && url.includes("/media")) {
+    return jsonResponse({ error: { status: "PERMISSION_DENIED" } }, 403);
+  }
+  return googleDetailsFetcher(input, init);
+});
+assert.equal(googlePhotoFailure.providerLookup.enriched, true);
+assert.equal(googlePhotoFailure.normalizedPlace.photos, undefined);
+assert.match(googlePhotoFailure.normalizedPlace.providerWarnings[0], /Google 사진 조회에 실패/);
 assert.equal(unconfiguredRegistry.getPlaceProviderConfiguration("google").configured, false);
 assert.deepEqual([...unconfiguredRegistry.getPlaceProviderConfiguration("naver").missingEnvironmentVariables], ["NAVER_API_HUB_CLIENT_ID", "NAVER_API_HUB_CLIENT_SECRET"]);
 
@@ -222,6 +233,26 @@ const googleTextSearch = await resolver.resolveMapUrl(
 assert.equal(googleTextSearch.normalizedPlace.providerPlaceId, "ChIJTextSearch");
 assert.equal(googleTextSearch.normalizedPlace.name, "Gwangalli Beach");
 assert.equal(googleTextSearch.normalizedPlace.photos, undefined);
+
+const googlePlacePath = "https://www.google.com/maps/place/Gwangalli+Beach/@35.1532,129.1186,17z/data=!3m1!4b1";
+const parsedGooglePlacePath = mapUrl.parseMapUrl(googlePlacePath);
+assert.equal(parsedGooglePlacePath.title, "Gwangalli Beach");
+assert.equal(parsedGooglePlacePath.latitude, 35.1532);
+assert.equal(parsedGooglePlacePath.longitude, 129.1186);
+const googlePlacePathResolved = await resolver.resolveMapUrl(googlePlacePath, async (input) => {
+  const url = input.toString();
+  if (url.endsWith("places:searchText")) {
+    return jsonResponse({ places: [{
+      id: "ChIJPathPlace",
+      displayName: { text: "Gwangalli Beach" },
+      formattedAddress: "Busan",
+      location: { latitude: 35.1532, longitude: 129.1186 },
+    }] });
+  }
+  return htmlResponse();
+});
+assert.equal(googlePlacePathResolved.normalizedPlace.providerPlaceId, "ChIJPathPlace");
+assert.equal(googlePlacePathResolved.normalizedPlace.name, "Gwangalli Beach");
 
 const googleWithoutPrice = await resolver.resolveMapUrl(
   `https://www.google.com/maps/search/?api=1&query=Cafe&query_place_id=${googlePlaceId}`,
@@ -328,6 +359,51 @@ const kakaoShort = await resolver.resolveMapUrl("https://kko.kakao.com/short", a
 });
 assert.equal(kakaoShort.resolvedUrl, kakaoUrl);
 assert.equal(kakaoShort.normalizedPlace.providerPlaceId, "12345");
+
+const naverWrongSearchResult = await resolver.resolveMapUrl(naverUrl, async (input) => {
+  const url = input.toString();
+  if (url.startsWith("https://openapi.naver.com")) {
+    return jsonResponse({ items: [{
+      title: "전혀 다른 장소",
+      link: "https://map.naver.com/p/entry/place/9999999999",
+      address: "부산 해운대구",
+      mapx: "1291600000",
+      mapy: "351800000",
+    }] });
+  }
+  return htmlResponse();
+});
+assert.equal(naverWrongSearchResult.normalizedPlace.name, "진송숯불 수영점");
+assert.equal(naverWrongSearchResult.providerLookup.enriched, false);
+assert.match(naverWrongSearchResult.providerLookup.message, /일치하는 상세 장소/);
+
+const kakaoWrongSearchResult = await resolver.resolveMapUrl(kakaoUrl, async (input) => {
+  const url = input.toString();
+  if (url.startsWith("https://dapi.kakao.com/v2/local/search/keyword.json")) {
+    return jsonResponse({ documents: [{
+      id: "99999",
+      place_name: "전혀 다른 장소",
+      x: "129.18",
+      y: "35.18",
+    }] });
+  }
+  return htmlResponse();
+});
+assert.equal(kakaoWrongSearchResult.normalizedPlace.name, "광안리");
+assert.equal(kakaoWrongSearchResult.providerLookup.enriched, false);
+
+const googleProviderFailure = await resolver.resolveMapUrl(googleIdUrl, async (input) => {
+  const url = input.toString();
+  if (url.startsWith("https://places.googleapis.com/v1/places/")) {
+    return jsonResponse({ error: { status: "PERMISSION_DENIED" } }, 403);
+  }
+  return htmlResponse();
+});
+assert.equal(googleProviderFailure.normalizedPlace.providerPlaceId, googlePlaceId);
+assert.equal(googleProviderFailure.normalizedPlace.name, "Gwangalli");
+assert.equal(googleProviderFailure.normalizedPlace.latitude, undefined);
+assert.match(googleProviderFailure.lookupError, /Google Places 상세 조회에 실패/);
+assert.equal(googleProviderFailure.providerLookup.enriched, false);
 
 await assert.rejects(() => resolver.resolveMapUrl("https://example.com/place/123", async () => htmlResponse()), /네이버\/카카오\/구글 지도 링크/);
 

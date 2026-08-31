@@ -51,12 +51,13 @@ export const googleMapsProvider: PlaceProvider = {
     const normalized = normalizeGooglePlace(raw);
     if (!normalized) return null;
 
-    const photos = await resolveGooglePhotos(raw, apiKey, context.fetcher);
+    const { photos, warnings } = await resolveGooglePhotos(raw, apiKey, context.fetcher);
     return {
       ...normalized,
       imageUrl: photos[0]?.url,
       primaryImageUrl: photos[0]?.url,
       photos: photos.length ? photos : undefined,
+      providerWarnings: warnings.length ? warnings : undefined,
       fetchedAt: new Date().toISOString(),
     };
   },
@@ -160,24 +161,35 @@ async function resolveGooglePhotos(value: unknown, apiKey: string, fetcher: type
   const place = asRecord(value);
   const rawPhotos = Array.isArray(place?.photos) ? place.photos.slice(0, 3) : [];
   const fetchedAt = new Date().toISOString();
+  const warnings: string[] = [];
 
   const candidates = await Promise.all(rawPhotos.map(async (item) => {
     const photo = asRecord(item);
     const reference = text(photo?.name);
-    if (!reference?.startsWith("places/")) return null;
+    if (!reference?.startsWith("places/")) {
+      warnings.push("Google 사진 reference 형식이 올바르지 않습니다.");
+      return null;
+    }
+
+    const endpoint = new URL(`https://places.googleapis.com/v1/${reference}/media`);
+    endpoint.searchParams.set("maxWidthPx", "1200");
+    endpoint.searchParams.set("maxHeightPx", "1200");
+    endpoint.searchParams.set("skipHttpRedirect", "true");
+    endpoint.searchParams.set("key", apiKey);
 
     try {
-      const endpoint = new URL(`https://places.googleapis.com/v1/${reference}/media`);
-      endpoint.searchParams.set("maxWidthPx", "1200");
-      endpoint.searchParams.set("maxHeightPx", "1200");
-      endpoint.searchParams.set("skipHttpRedirect", "true");
-      endpoint.searchParams.set("key", apiKey);
       const response = await fetcher(endpoint, { cache: "no-store" });
-      if (!response.ok) return null;
+      if (!response.ok) {
+        warnings.push(`Google 사진 조회에 실패했습니다 (HTTP ${response.status}).`);
+        return null;
+      }
 
       const media = asRecord(await response.json());
       const url = text(media?.photoUri);
-      if (!url) return null;
+      if (!url) {
+        warnings.push("Google 사진 응답에 사용할 수 있는 이미지 URL이 없습니다.");
+        return null;
+      }
 
       return {
         reference,
@@ -188,12 +200,16 @@ async function resolveGooglePhotos(value: unknown, apiKey: string, fetcher: type
         persistence: "preview_only" as const,
         fetchedAt,
       };
-    } catch {
+    } catch (error) {
+      warnings.push(`Google 사진 조회 중 네트워크 오류가 발생했습니다: ${error instanceof Error ? error.message : "알 수 없는 오류"}`);
       return null;
     }
   }));
 
-  return candidates.filter((photo): photo is NonNullable<typeof photo> => Boolean(photo));
+  return {
+    photos: candidates.filter((photo): photo is NonNullable<typeof photo> => Boolean(photo)),
+    warnings,
+  };
 }
 
 function formatPhotoAttributions(value: unknown) {

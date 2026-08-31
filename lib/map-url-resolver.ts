@@ -52,12 +52,19 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     longitude: urlAnalysis.longitude,
   };
   const providerConfiguration = getPlaceProviderConfiguration(provider);
-  const providerDetails = await getPlaceProvider(provider).lookup({
-    sourceUrl: originalUrl,
-    finalResolvedUrl,
-    parsedUrls,
-    fetcher,
-  });
+  let providerDetails: Partial<NormalizedPlace> | null = null;
+  let lookupError = "";
+
+  try {
+    providerDetails = await getPlaceProvider(provider).lookup({
+      sourceUrl: originalUrl,
+      finalResolvedUrl,
+      parsedUrls,
+      fetcher,
+    });
+  } catch (error) {
+    lookupError = getErrorMessage(error) ?? `${providerLabel(provider)} 상세 조회에 실패했습니다.`;
+  }
 
   let normalizedPlace = mergeNormalizedPlace(basePlace, providerDetails);
 
@@ -127,16 +134,18 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     coordinateSource: analysis.coordinateSource,
     confidence: analysis.confidence,
     failureReason: analysis.failureReason,
-    lookupError: "",
+    lookupError,
     providerLookup: {
       configured: providerConfiguration.configured,
       enriched: Boolean(providerDetails),
       missingEnvironmentVariables: providerConfiguration.missingEnvironmentVariables,
-      message: providerConfiguration.configured
-        ? providerDetails
-          ? ""
-          : `${providerLabel(provider)} 공식 API에서 일치하는 상세 장소 정보를 찾지 못했습니다.`
-        : `${providerLabel(provider)} 상세정보 API 환경변수가 없어 URL에 포함된 기본 정보만 수집했습니다. Vercel에 ${providerConfiguration.missingEnvironmentVariables.join(", ")}를 설정해 주세요.`,
+      message: lookupError
+        ? `${providerLabel(provider)} 상세 조회 실패: ${lookupError}`
+        : providerConfiguration.configured
+          ? providerDetails
+            ? normalizedPlace.providerWarnings?.join(" ") ?? ""
+            : `${providerLabel(provider)} 공식 API에서 일치하는 상세 장소 정보를 찾지 못했습니다.`
+          : `${providerLabel(provider)} 상세정보 API 환경변수가 없어 URL에 포함된 기본 정보만 수집했습니다. Vercel에 ${providerConfiguration.missingEnvironmentVariables.join(", ")}를 설정해 주세요.`,
     },
     normalizedPlace,
     analysis,
@@ -147,6 +156,14 @@ function providerLabel(provider: SupportedPlaceProvider) {
   if (provider === "google") return "Google Maps";
   if (provider === "naver") return "네이버지도";
   return "카카오맵";
+}
+
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+
+  return typeof error === "string" && error.trim() ? error : undefined;
 }
 
 async function resolveMapRedirects(initialUrl: URL, fetcher: Fetcher) {

@@ -1,7 +1,21 @@
 import type { DetectedPlaceProvider } from "@/lib/place-providers/types";
 
-const naverHosts = ["map.naver.com", "place.naver.com", "m.place.naver.com", "naver.me"];
-const kakaoHosts = ["map.kakao.com", "place.map.kakao.com", "m.map.kakao.com", "kko.kakao.com"];
+const naverHosts = [
+  "map.naver.com",
+  "www.map.naver.com",
+  "m.map.naver.com",
+  "place.naver.com",
+  "www.place.naver.com",
+  "m.place.naver.com",
+  "naver.me",
+];
+const kakaoHosts = [
+  "map.kakao.com",
+  "place.map.kakao.com",
+  "m.map.kakao.com",
+  "m.place.map.kakao.com",
+  "kko.kakao.com",
+];
 const googleShortHosts = ["maps.app.goo.gl", "goo.gl"];
 
 export function detectPlaceProvider(value: string | URL): DetectedPlaceProvider {

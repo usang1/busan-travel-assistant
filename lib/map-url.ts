@@ -324,7 +324,7 @@ function extractTitle(url: URL, coordinates: CoordinateMatch | null) {
     return query;
   }
 
-  if (!coordinates && url.pathname.includes("/place/")) {
+  if (url.pathname.includes("/place/")) {
     const pathTitle = decodeURIComponent(url.pathname.split("/place/")[1]?.split("/")[0] ?? "").replaceAll("+", " ");
     return /^\d+$/.test(pathTitle) ? "" : pathTitle;
   }

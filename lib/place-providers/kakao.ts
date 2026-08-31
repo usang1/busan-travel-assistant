@@ -44,19 +44,44 @@ export const kakaoMapsProvider: PlaceProvider = {
     }
 
     const body = await response.json() as { documents?: KakaoPlaceDocument[] };
-    const item = selectKakaoItem(body.documents ?? [], parsed.placeId, query);
+    const item = selectKakaoItem(body.documents ?? [], parsed.placeId, query, parsed.latitude, parsed.longitude);
     return item ? normalizeKakaoItem(item) : null;
   },
 };
 
-function selectKakaoItem(items: KakaoPlaceDocument[], placeId: string | undefined, query: string) {
+function selectKakaoItem(
+  items: KakaoPlaceDocument[],
+  placeId: string | undefined,
+  query: string,
+  latitude?: number,
+  longitude?: number,
+) {
   if (placeId) {
     const idMatch = items.find((item) => text(item.id) === placeId);
     if (idMatch) return idMatch;
   }
 
   const normalizedQuery = normalizeName(query);
-  return items.find((item) => normalizeName(text(item.place_name) ?? "") === normalizedQuery) ?? items[0];
+  const nameMatch = items.find((item) => normalizeName(text(item.place_name) ?? "") === normalizedQuery);
+
+  if (nameMatch && (!placeId || isNearCoordinates(nameMatch, latitude, longitude))) {
+    return nameMatch;
+  }
+
+  if (placeId) {
+    return null;
+  }
+
+  const nearbyItem = items
+    .map((item) => ({ item, distance: coordinateDistanceMeters(item, latitude, longitude) }))
+    .filter((candidate): candidate is { item: KakaoPlaceDocument; distance: number } => candidate.distance !== null)
+    .sort((a, b) => a.distance - b.distance)[0];
+
+  if (nearbyItem && nearbyItem.distance <= 1500) {
+    return nearbyItem.item;
+  }
+
+  return items.length === 1 ? items[0] : null;
 }
 
 function normalizeKakaoItem(item: KakaoPlaceDocument): Partial<NormalizedPlace> {
@@ -79,7 +104,23 @@ function normalizeKakaoItem(item: KakaoPlaceDocument): Partial<NormalizedPlace> 
 }
 
 function normalizeName(value: string) {
-  return value.replace(/\s+/g, "").toLowerCase();
+  return value.replace(/[\s\p{P}\p{S}]+/gu, "").toLowerCase();
+}
+
+function isNearCoordinates(item: KakaoPlaceDocument, latitude?: number, longitude?: number) {
+  if (latitude === undefined || longitude === undefined) return true;
+  const distance = coordinateDistanceMeters(item, latitude, longitude);
+  return distance !== null && distance <= 1500;
+}
+
+function coordinateDistanceMeters(item: KakaoPlaceDocument, latitude?: number, longitude?: number) {
+  if (latitude === undefined || longitude === undefined) return null;
+  const itemCoordinates = normalizeCoordinates(item.y, item.x);
+  if (!itemCoordinates) return null;
+
+  const latitudeDelta = (itemCoordinates.latitude - latitude) * 111_320;
+  const longitudeDelta = (itemCoordinates.longitude - longitude) * 111_320 * Math.cos(latitude * Math.PI / 180);
+  return Math.sqrt(latitudeDelta ** 2 + longitudeDelta ** 2);
 }
 
 function providerError(message: string, providerStatus: number) {
