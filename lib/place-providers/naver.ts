@@ -24,8 +24,13 @@ export const naverMapsProvider: PlaceProvider = {
     const clientSecret = hubClientSecret || legacyClientSecret;
     if (!clientId || !clientSecret) return null;
 
-    const parsed = [...context.parsedUrls].reverse().find((item) => item.provider === "naver");
-    const query = parsed?.title?.trim();
+    const naverUrls = context.parsedUrls.filter((item) => item.provider === "naver");
+    const parsed = [...naverUrls].reverse().find((item) => item.title?.trim() && item.placeId)
+      ?? [...naverUrls].reverse().find((item) => item.title?.trim())
+      ?? [...naverUrls].reverse().find((item) => item.placeId);
+    const coordinateUrl = [...naverUrls].reverse().find((item) => item.latitude !== undefined && item.longitude !== undefined);
+    const query = [...naverUrls].reverse().find((item) => item.title?.trim())?.title?.trim();
+    const placeId = [...naverUrls].reverse().find((item) => item.placeId)?.placeId;
     if (!parsed || !query) return null;
 
     const useApiHub = Boolean(hubClientId && hubClientSecret);
@@ -54,8 +59,14 @@ export const naverMapsProvider: PlaceProvider = {
     }
 
     const body = await response.json() as { items?: NaverLocalItem[] };
-    const item = selectNaverItem(body.items ?? [], parsed.placeId, query, parsed.latitude, parsed.longitude);
-    return item ? normalizeNaverItem(item, parsed.placeId) : null;
+    const item = selectNaverItem(
+      body.items ?? [],
+      placeId,
+      query,
+      coordinateUrl?.latitude ?? parsed.latitude,
+      coordinateUrl?.longitude ?? parsed.longitude,
+    );
+    return item ? normalizeNaverItem(item, placeId) : null;
   },
 };
 

@@ -34,16 +34,26 @@ export const googleMapsProvider: PlaceProvider = {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
     if (!apiKey) return null;
 
-    const parsed = [...context.parsedUrls].reverse().find((item) => item.provider === "google");
-    if (!parsed) return null;
+    const googleUrls = context.parsedUrls.filter((item) => item.provider === "google");
+    const placeId = [...googleUrls].reverse()
+      .map((item) => normalizeGooglePlaceId(item.placeId))
+      .find(Boolean);
+    const queryUrl = [...googleUrls].reverse().find((item) => item.title?.trim());
+    const coordinateUrl = [...googleUrls].reverse().find((item) => item.latitude !== undefined && item.longitude !== undefined);
+    if (!placeId && !queryUrl?.title) return null;
 
-    const placeId = normalizeGooglePlaceId(parsed.placeId);
     let raw: unknown = null;
 
     if (placeId) {
       raw = await fetchGooglePlaceDetails(placeId, apiKey, context.fetcher);
-    } else if (parsed.title) {
-      raw = await searchGooglePlace(parsed.title, parsed.latitude, parsed.longitude, apiKey, context.fetcher);
+    } else if (queryUrl?.title) {
+      raw = await searchGooglePlace(
+        queryUrl.title,
+        coordinateUrl?.latitude ?? queryUrl.latitude,
+        coordinateUrl?.longitude ?? queryUrl.longitude,
+        apiKey,
+        context.fetcher,
+      );
     }
 
     if (!raw) return null;

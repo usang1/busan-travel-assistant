@@ -388,8 +388,19 @@ function extractPlaceId(url: URL, provider: MapProvider) {
 }
 
 function extractGooglePlaceIdFromData(url: URL) {
-  const decoded = decodeURIComponent(`${url.pathname}${url.search}${url.hash}`);
-  return decoded.match(/!1s(ChI[A-Za-z0-9_-]+)/)?.[1] ?? decoded.match(/(?:place_id:|place\/)(ChI[A-Za-z0-9_-]+)/)?.[1] ?? null;
+  const decoded = safeDecodeURIComponent(`${url.pathname}${url.search}${url.hash}`);
+  return decoded.match(/!\d+s(ChI[A-Za-z0-9_-]+)/)?.[1]
+    ?? decoded.match(/(?:place_id:|place\/)(ChI[A-Za-z0-9_-]+)/)?.[1]
+    ?? decoded.match(/!\d+s(0x[0-9a-f]+:0x[0-9a-f]+)/i)?.[1]
+    ?? null;
+}
+
+function safeDecodeURIComponent(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function decodePathSegment(value?: string) {

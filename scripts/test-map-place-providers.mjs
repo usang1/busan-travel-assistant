@@ -232,6 +232,17 @@ const providerWithLevelOnly = placeDraft.createPlaceDraft({
 assert.deepEqual([...placeDraft.getMissingPlaceFields(providerWithLevelOnly)], ["openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
 
 const googlePlaceId = "ChIJN1t_tDeuEmsRUsoyG83frY4";
+const googleLongUrl = "https://www.google.com/maps/place/%EA%B0%81%EB%B0%94/data=!4m7!3m6!1s0x3568ecdf45d8c293:0x55ec98fb16b7e1e9!8m2!3d35.1482312!4d129.1117663!16s%2Fg%2F11gcf9j8f9!19sChIJk8LYRd_saDUR6eG3FvuY7FU?authuser=0&hl=ko&g_ep=EgoyMDI2MDgyNi4wIJJjKgBIAVAD&rclk=1";
+const parsedGoogleLongUrl = mapUrl.parseMapUrl(googleLongUrl);
+assert.equal(parsedGoogleLongUrl.provider, "google");
+assert.equal(parsedGoogleLongUrl.placeId, "ChIJk8LYRd_saDUR6eG3FvuY7FU");
+assert.equal(parsedGoogleLongUrl.title, "각바");
+assert.equal(parsedGoogleLongUrl.latitude, 35.1482312);
+assert.equal(parsedGoogleLongUrl.longitude, 129.1117663);
+assert.equal(
+  mapUrl.parseMapUrl("https://www.google.com/maps/place/Test/data=!4m2!3m1!1s0x3568ecdf45d8c293:0x55ec98fb16b7e1e9!8m2!3d35.1482312!4d129.1117663").placeId,
+  "0x3568ecdf45d8c293:0x55ec98fb16b7e1e9",
+);
 const googleIdUrl = `https://www.google.com/maps/search/?api=1&query=Gwangalli&query_place_id=${googlePlaceId}`;
 assert.equal(mapUrl.parseMapUrl(googleIdUrl).placeId, googlePlaceId);
 assert.equal(mapUrl.parseMapUrl("https://www.google.com/maps/place/Test/data=!4m2!3m1!1sChIJAbc_123-xyz").placeId, "ChIJAbc_123-xyz");
@@ -281,6 +292,25 @@ const googleDetailsFetcher = async (input, init = {}) => {
   }
   return htmlResponse();
 };
+const googleLongDetails = await resolver.resolveMapUrl(googleLongUrl, async (input) => {
+  const url = input.toString();
+  if (url.startsWith("https://places.googleapis.com/v1/places/")) {
+    assert.match(url, /ChIJk8LYRd_saDUR6eG3FvuY7FU/);
+    return jsonResponse({
+      id: "ChIJk8LYRd_saDUR6eG3FvuY7FU",
+      displayName: { text: "각바" },
+      formattedAddress: "부산 수영구 테스트로 1",
+      location: { latitude: 35.1482312, longitude: 129.1117663 },
+      primaryType: "bar",
+    });
+  }
+  if (url.endsWith("places:searchText")) throw new Error("Place ID URL must not fall back to text search");
+  return htmlResponse();
+});
+assert.equal(googleLongDetails.normalizedPlace.providerPlaceId, "ChIJk8LYRd_saDUR6eG3FvuY7FU");
+assert.equal(googleLongDetails.normalizedPlace.name, "각바");
+assert.equal(googleLongDetails.normalizedPlace.latitude, 35.1482312);
+assert.equal(googleLongDetails.normalizedPlace.longitude, 129.1117663);
 const googleDetails = await resolver.resolveMapUrl(googleIdUrl, googleDetailsFetcher);
 assert.equal(googleDetails.provider, "google");
 assert.equal(googleDetails.normalizedPlace.providerPlaceId, googlePlaceId);
@@ -426,12 +456,15 @@ assert.equal(naverResolved.normalizedPlace.roadAddressKo, "부산 수영구 수�
 assert.equal(naverResolved.normalizedPlace.latitude, 35.1671242);
 assert.equal(naverResolved.normalizedPlace.longitude, 129.1170388);
 
-const naverSearchPlaceUrl = "https://map.naver.com/p/search/%ED%95%B4%EC%9A%B4%EB%8C%80%20%EB%A7%9B%EC%A7%91/place/1664978106?searchType=place&n_query=%ED%95%B4%EC%9A%B4%EB%8C%80%EB%A7%9B%EC%A7%91";
+const naverSearchPlaceUrl = "https://map.naver.com/p/search/%ED%95%B4%EC%9A%B4%EB%8C%80%20%EB%A7%9B%EC%A7%91/place/1664978106?placePath=%3Fentry%3Dpll%26from%3Dnx%26fromNxList%3Dtrue%26n_ad_group_type%3D10%26n_query%3D%25ED%2595%25B4%25EC%259A%25B4%25EB%258C%2580%25EB%25A7%259B%25EC%25A7%2591&placeSearchOption=entry%3Dpll%26fromNxList%3Dtrue%26n_ad_group_type%3D10%26n_query%3D%25ED%2595%25B4%25EC%259A%25B4%25EB%258C%2580%25EB%25A7%259B%25EC%25A7%2591&searchType=place&n_ad_group_type=10&n_query=%ED%95%B4%EC%9A%B4%EB%8C%80%EB%A7%9B%EC%A7%91";
 const parsedNaverSearchPlaceUrl = mapUrl.parseMapUrl(naverSearchPlaceUrl);
 assert.equal(parsedNaverSearchPlaceUrl.placeId, "1664978106");
 assert.equal(parsedNaverSearchPlaceUrl.title, "해운대 맛집");
-const naverSearchPlaceResolved = await resolver.resolveMapUrl(naverSearchPlaceUrl, async (input) => {
+const naverSearchPlaceResolved = await resolver.resolveMapUrl(naverSearchPlaceUrl, async (input, init = {}) => {
   const url = new URL(input.toString());
+  if (url.pathname.startsWith("/p/search/") && init.method === "HEAD") {
+    return redirectResponse("https://map.naver.com/p/entry/place/1664978106");
+  }
   if (url.origin + url.pathname === "https://openapi.naver.com/v1/search/local.json") {
     assert.equal(url.searchParams.get("query"), "해운대 맛집");
     return jsonResponse({ items: [{ title: "해운대 테스트 맛집", link: "https://map.naver.com/p/entry/place/1664978106", category: "음식점>한식", address: "부산 해운대구", roadAddress: "부산 해운대구 해운대로", telephone: "051-111-2222", mapx: "1291600000", mapy: "351700000" }] });

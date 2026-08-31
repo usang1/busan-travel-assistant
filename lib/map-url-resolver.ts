@@ -65,6 +65,14 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     });
   } catch (error) {
     lookupError = getErrorMessage(error) ?? `${providerLabel(provider)} 상세 조회에 실패했습니다.`;
+    // eslint-disable-next-line no-console
+    console.warn("[maps:provider-lookup]", {
+      provider,
+      placeId: urlAnalysis.placeId,
+      hasTitle: Boolean(urlAnalysis.title),
+      hasCoordinates: urlAnalysis.latitude !== undefined && urlAnalysis.longitude !== undefined,
+      message: lookupError,
+    });
   }
 
   let normalizedPlace = mergeNormalizedPlace(basePlace, providerDetails);
