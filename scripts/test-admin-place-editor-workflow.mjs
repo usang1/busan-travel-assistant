@@ -42,7 +42,7 @@ assert.match(placeStoreSource, /query\.limit\(1\)\.maybeSingle\(\)/, "place deta
 assert.match(placeStoreSource, /compatibleQuery\.limit\(1\)\.maybeSingle\(\)/, "compatible place detail lookup must tolerate duplicate rows");
 assert.match(placeStoreSource, /legacyQuery\.limit\(1\)\.maybeSingle\(\)/, "legacy place detail lookup must tolerate duplicate rows");
 assert.match(placeStoreSource, /const listResult = await getPlaces\(/, "place detail lookup must fall back to the working public list query");
-assert.match(placeStoreSource, /listResult\.places\.find\(\(place\) => place\.slug === slug\)/, "place detail fallback must use the requested slug");
+assert.match(placeStoreSource, /normalizePlaceSlug\(place\.slug\) === requestedSlug/, "place detail fallback must normalize the requested slug");
 
 for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[slug]/page.tsx"]) {
   const detailSource = readFileSync(new URL(`../${detailFile}`, import.meta.url), "utf8");

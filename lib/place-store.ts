@@ -412,7 +412,8 @@ export async function getPlaceBySlug(
       },
       resolvedClient,
     );
-    const listedPlace = listResult.places.find((place) => place.slug === slug);
+    const requestedSlug = normalizePlaceSlug(slug);
+    const listedPlace = listResult.places.find((place) => normalizePlaceSlug(place.slug) === requestedSlug);
 
     if (listedPlace) {
       return {
@@ -438,6 +439,14 @@ export async function getPlaceBySlug(
     place: { ...place, save_count: counts.get(place.id) ?? 0 },
     source: "supabase",
   };
+}
+
+function normalizePlaceSlug(value: string) {
+  try {
+    return decodeURIComponent(value).normalize("NFKC").trim().toLowerCase();
+  } catch {
+    return value.normalize("NFKC").trim().toLowerCase();
+  }
 }
 
 function toPlaceWriteRow(payload: PlacePayload): PlaceWriteRow {
