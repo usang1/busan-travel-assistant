@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
-import { resolveMapUrl } from "@/lib/map-url-resolver";
+import { resolveMapUrlCached } from "@/lib/map-url-resolver";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "지도 링크를 먼저 입력해 주세요." }, { status: 400 });
     }
 
-    const resolution = await resolveMapUrl(inputUrl);
+    const resolution = await resolveMapUrlCached(inputUrl);
 
     return NextResponse.json(resolution);
   } catch (error) {

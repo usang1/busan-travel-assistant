@@ -22,10 +22,11 @@
 | `price_min`, `price_max` | A/C | provider가 KRW 실제 범위를 제공할 때만 | 빈 값만 |
 | `nearest_station`, `walking_minutes` | A/C | 좌표 기반 Kakao 지하철역 검색 또는 관리자 | 빈 값만 |
 | `nearest_exit` | C | 관리자 확인 | 자동입력 안 함 |
-| `thumbnail_url` | A/C | 관리자/기존 DB/provider image/fallback | 빈 값만, fallback은 저장 시점 |
+| `thumbnail_url` | A/C | 관리자/기존 DB/영구 저장 가능한 provider image/fallback | 관리자/기존 DB 우선. Google 임시 Photo Media URL은 미리보기만 제공하고 저장하지 않음 |
 | provider rating/review count | A | provider | form read-only 및 source metadata 저장 |
 | `provider`, `external_id`, `source_url` | A | URL detect/parser | 자동입력 |
 | `raw_metadata`, `last_synced_at` | A | provider normalized/raw result | source에 저장 |
+| `admin_summary` | B/C | 검증된 provider 사실만 입력받는 별도 AI 요약, 관리자 검수 | 지도 정보 조회 시 자동 생성, 관리자 수정 가능 |
 | 메뉴 및 실제 메뉴 가격 | A/C | 공식 source가 제공할 때만, 그 외 관리자 | 현재 provider API 미제공 |
 | 주차/예약 가능/포장/화장실 | A/C | Google factual attributes 또는 관리자 | form 읽기 전용 표시 및 source metadata 저장, 의미가 같은 화장실만 canonical field 반영 |
 | 짧은 설명, 여행 팁, 추천 주문 | B/C | 관리자/향후 AI 편집 콘텐츠 | provider가 채우지 않음 |
@@ -40,6 +41,8 @@
 2. 기존 DB에서 form으로 불러온 값
 3. provider factual data
 4. AI 편집 콘텐츠
+
+`admin_summary`는 사용자 제보 원문이나 다국어 생성용 관리자 메모가 아니다. 사용자 원문은 `place_submissions.recommendation_reason`/`notes`에 유지하며, AI 요약에는 정규화된 provider 사실만 전달한다.
 
 Provider 재분석은 비어 있는 canonical 필드만 채운다. source provider, provider place ID, source metadata는 현재 분석한 URL의 최신 사실로 갱신한다.
 

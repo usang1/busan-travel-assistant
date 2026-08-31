@@ -3,6 +3,16 @@ import type { ParsedMapUrl } from "@/lib/map-url";
 export type SupportedPlaceProvider = "google" | "naver" | "kakao";
 export type DetectedPlaceProvider = SupportedPlaceProvider | "unknown";
 
+export type NormalizedPlacePhoto = {
+  reference?: string;
+  url?: string;
+  attribution?: string;
+  width?: number;
+  height?: number;
+  persistence: "preview_only" | "persistent";
+  fetchedAt?: string;
+};
+
 export type NormalizedPlace = {
   provider: SupportedPlaceProvider;
   providerPlaceId?: string;
@@ -10,6 +20,8 @@ export type NormalizedPlace = {
   finalResolvedUrl?: string;
   name?: string;
   category?: string;
+  types?: string[];
+  description?: string;
   addressKo?: string;
   roadAddressKo?: string;
   formattedAddress?: string;
@@ -17,13 +29,22 @@ export type NormalizedPlace = {
   longitude?: number;
   phone?: string;
   website?: string;
+  providerUri?: string;
   openingHours?: string | string[];
+  currentOpeningHours?: string | string[];
   imageUrl?: string;
+  primaryImageUrl?: string;
+  photos?: NormalizedPlacePhoto[];
   rating?: number;
   reviewCount?: number;
   priceLevel?: number;
   priceMin?: number;
   priceMax?: number;
+  priceRange?: {
+    min?: number;
+    max?: number;
+    currency?: string;
+  };
   amenities?: {
     parking?: boolean;
     reservable?: boolean;
@@ -33,6 +54,7 @@ export type NormalizedPlace = {
   nearestStation?: string;
   nearestStationDistanceMeters?: number;
   nearestStationWalkingMinutes?: number;
+  fetchedAt?: string;
   raw?: unknown;
 };
 

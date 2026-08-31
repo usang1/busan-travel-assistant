@@ -23,6 +23,8 @@ export type EnrichablePlaceForm = {
   price_min: string;
   price_max: string;
   thumbnail_url: string;
+  provider_image_preview_url: string;
+  provider_image_attribution: string;
   nearest_station: string;
   walking_minutes: string;
   provider_rating: string;
@@ -34,12 +36,16 @@ export type EnrichablePlaceForm = {
 
 export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: NormalizedPlace): T {
   const coordinates = normalizeCoordinates(place.latitude, place.longitude);
-  const providerCategory = mapProviderCategory(place.category);
-  const openingHours = Array.isArray(place.openingHours) ? place.openingHours.join("\n") : place.openingHours;
+  const providerCategory = mapProviderCategory([place.category, ...(place.types ?? [])].filter(Boolean).join(">"));
+  const providerHours = place.openingHours ?? place.currentOpeningHours;
+  const openingHours = Array.isArray(providerHours) ? providerHours.join("\n") : providerHours;
   const sourceProvider = toSourceProvider(place.provider);
   const sameSource = isSameProviderSource(form, sourceProvider, place.providerPlaceId);
   const addressKo = place.roadAddressKo ?? place.addressKo ?? "";
   const providerAddressEn = sanitizeLocalizedAddress(place.formattedAddress, addressKo, "en");
+  const persistentImage = place.photos?.find((photo) => photo.persistence === "persistent" && photo.url)?.url;
+  const previewPhoto = place.photos?.find((photo) => photo.url);
+  const previewImage = previewPhoto?.url ?? place.primaryImageUrl ?? place.imageUrl ?? "";
 
   return {
     ...form,
@@ -59,14 +65,16 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
     price_level: fillNumber(form.price_level, place.priceLevel),
     price_min: fillNumber(form.price_min, place.priceMin),
     price_max: fillNumber(form.price_max, place.priceMax),
-    thumbnail_url: fillText(form.thumbnail_url, place.imageUrl),
+    thumbnail_url: fillText(form.thumbnail_url, persistentImage),
+    provider_image_preview_url: refreshText(form.provider_image_preview_url, previewImage, sameSource),
+    provider_image_attribution: refreshText(form.provider_image_attribution, previewPhoto?.attribution ?? "", sameSource),
     nearest_station: fillText(form.nearest_station, place.nearestStation),
     walking_minutes: fillNumber(form.walking_minutes, place.nearestStationWalkingMinutes),
     provider_rating: refreshNumber(form.provider_rating, place.rating, sameSource),
     provider_review_count: refreshNumber(form.provider_review_count, place.reviewCount, sameSource),
     provider_amenities: refreshText(form.provider_amenities, formatProviderAmenities(place.amenities), sameSource),
     source_metadata: buildSourceMetadata(place, sameSource ? form.source_metadata : null),
-    source_fetched_at: new Date().toISOString(),
+    source_fetched_at: place.fetchedAt ?? new Date().toISOString(),
   };
 }
 
@@ -93,10 +101,15 @@ export function buildSourceMetadata(place: NormalizedPlace, existing: Record<str
     provider_place_id: place.providerPlaceId ?? null,
     final_resolved_url: place.finalResolvedUrl ?? null,
     category: place.category ?? null,
+    types: place.types ?? null,
+    provider_description: place.description ?? null,
+    provider_uri: place.providerUri ?? null,
     rating: place.rating ?? null,
     review_count: place.reviewCount ?? null,
     price_level: place.priceLevel ?? null,
-    image_url: place.imageUrl ?? null,
+    price_range: place.priceRange ?? null,
+    photo_count: place.photos?.length ?? 0,
+    provider_photo_preview_only: place.photos?.some((photo) => photo.persistence === "preview_only") ?? false,
     amenities: place.amenities ?? null,
     nearest_station: place.nearestStation ?? null,
     nearest_station_distance_meters: place.nearestStationDistanceMeters ?? null,

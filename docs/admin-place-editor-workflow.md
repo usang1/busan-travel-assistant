@@ -5,7 +5,7 @@ The place editor is organized as a review workflow instead of a full data-entry 
 ## Default view
 
 1. **Map link**: accepts Google Maps, Naver Map, and Kakao Map URLs. The provider is detected automatically.
-2. **Administrator input**: place name, category, representative image, price level, administrator notes, and publication status.
+2. **Administrator review**: place name, category, representative image, price level, AI place summary, and publication status.
 3. **Collection and AI preview**: shows which factual fields were collected and previews KO, ZH, EN, and JA content in locale tabs.
 4. **Actions**: generates AI content, opens advanced editing, and saves or publishes the place.
 
@@ -19,7 +19,7 @@ Empty phone, website, opening-hours, price, and localized preview values are not
 
 ## AI behavior
 
-AI generation uses factual provider data and administrator notes. Valid generated content is applied only to empty locale fields. Existing administrator content remains unchanged. Repeating a full generation request without changing its inputs reuses the previous response, while failed locales can be retried independently.
+The Korean AI place summary is generated independently from whitelisted provider facts and remains editable by an administrator. Multilingual description and travel-tip generation does not use that summary as factual input. Valid locale content is applied only to empty fields; existing administrator content remains unchanged. Repeating a full generation request without changing its inputs reuses the previous response, while failed locales can be retried independently.
 
 ## Mobile layout
 

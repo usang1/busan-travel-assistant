@@ -29,6 +29,7 @@ export type PlaceRecord = {
   address?: string;
   short_description_zh: string;
   short_description_ko: string;
+  admin_summary: string;
   address_ko: string;
   address_zh: string;
   latitude: number | null;

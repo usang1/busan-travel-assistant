@@ -8,8 +8,11 @@ const placeFields = [
   "shortFormattedAddress",
   "location",
   "nationalPhoneNumber",
+  "internationalPhoneNumber",
   "websiteUri",
   "regularOpeningHours.weekdayDescriptions",
+  "currentOpeningHours.weekdayDescriptions",
+  "currentOpeningHours.openNow",
   "rating",
   "userRatingCount",
   "priceLevel",
@@ -43,7 +46,19 @@ export const googleMapsProvider: PlaceProvider = {
       raw = await searchGooglePlace(parsed.title, parsed.latitude, parsed.longitude, apiKey, context.fetcher);
     }
 
-    return raw ? normalizeGooglePlace(raw) : null;
+    if (!raw) return null;
+
+    const normalized = normalizeGooglePlace(raw);
+    if (!normalized) return null;
+
+    const photos = await resolveGooglePhotos(raw, apiKey, context.fetcher);
+    return {
+      ...normalized,
+      imageUrl: photos[0]?.url,
+      primaryImageUrl: photos[0]?.url,
+      photos: photos.length ? photos : undefined,
+      fetchedAt: new Date().toISOString(),
+    };
   },
 };
 
@@ -102,29 +117,101 @@ function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> | null {
   const typeDisplayName = asRecord(place.primaryTypeDisplayName);
   const location = asRecord(place.location);
   const openingHours = asRecord(place.regularOpeningHours);
+  const currentOpeningHours = asRecord(place.currentOpeningHours);
   const priceRange = asRecord(place.priceRange);
   const weekdayDescriptions = Array.isArray(openingHours?.weekdayDescriptions)
     ? openingHours.weekdayDescriptions.filter((item): item is string => typeof item === "string")
     : undefined;
+  const currentWeekdayDescriptions = Array.isArray(currentOpeningHours?.weekdayDescriptions)
+    ? currentOpeningHours.weekdayDescriptions.filter((item): item is string => typeof item === "string")
+    : undefined;
   const coordinates = normalizeCoordinates(location?.latitude, location?.longitude);
+  const priceMin = normalizeKrwMoney(priceRange?.startPrice);
+  const priceMax = normalizeKrwMoney(priceRange?.endPrice);
+  const types = stringArray(place.types);
 
   return {
     providerPlaceId: text(place.id),
     name: text(displayName?.text),
-    category: text(typeDisplayName?.text) ?? text(place.primaryType) ?? stringArray(place.types)?.[0],
+    category: text(typeDisplayName?.text) ?? text(place.primaryType) ?? types?.[0],
+    types,
     addressKo: text(place.formattedAddress),
     formattedAddress: text(place.formattedAddress) ?? text(place.shortFormattedAddress),
     ...coordinates,
-    phone: text(place.nationalPhoneNumber),
+    phone: text(place.nationalPhoneNumber) ?? text(place.internationalPhoneNumber),
     website: text(place.websiteUri),
+    providerUri: text(place.googleMapsUri),
     openingHours: weekdayDescriptions?.length ? weekdayDescriptions : undefined,
+    currentOpeningHours: currentWeekdayDescriptions?.length ? currentWeekdayDescriptions : undefined,
     rating: finiteNumber(place.rating),
     reviewCount: finiteNumber(place.userRatingCount),
     priceLevel: normalizeGooglePriceLevel(place.priceLevel),
-    priceMin: normalizeKrwMoney(priceRange?.startPrice),
-    priceMax: normalizeKrwMoney(priceRange?.endPrice),
+    priceMin,
+    priceMax,
+    priceRange: priceMin !== undefined || priceMax !== undefined
+      ? { min: priceMin, max: priceMax, currency: "KRW" }
+      : undefined,
     amenities: normalizeGoogleAmenities(place),
-    raw: place,
+    raw: sanitizeGoogleRaw(place),
+  };
+}
+
+async function resolveGooglePhotos(value: unknown, apiKey: string, fetcher: typeof fetch) {
+  const place = asRecord(value);
+  const rawPhotos = Array.isArray(place?.photos) ? place.photos.slice(0, 3) : [];
+  const fetchedAt = new Date().toISOString();
+
+  const candidates = await Promise.all(rawPhotos.map(async (item) => {
+    const photo = asRecord(item);
+    const reference = text(photo?.name);
+    if (!reference?.startsWith("places/")) return null;
+
+    try {
+      const endpoint = new URL(`https://places.googleapis.com/v1/${reference}/media`);
+      endpoint.searchParams.set("maxWidthPx", "1200");
+      endpoint.searchParams.set("maxHeightPx", "1200");
+      endpoint.searchParams.set("skipHttpRedirect", "true");
+      endpoint.searchParams.set("key", apiKey);
+      const response = await fetcher(endpoint, { cache: "no-store" });
+      if (!response.ok) return null;
+
+      const media = asRecord(await response.json());
+      const url = text(media?.photoUri);
+      if (!url) return null;
+
+      return {
+        reference,
+        url,
+        attribution: formatPhotoAttributions(photo?.authorAttributions),
+        width: finiteNumber(photo?.widthPx),
+        height: finiteNumber(photo?.heightPx),
+        persistence: "preview_only" as const,
+        fetchedAt,
+      };
+    } catch {
+      return null;
+    }
+  }));
+
+  return candidates.filter((photo): photo is NonNullable<typeof photo> => Boolean(photo));
+}
+
+function formatPhotoAttributions(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const labels = value.map((item) => {
+    const attribution = asRecord(item);
+    const name = text(attribution?.displayName);
+    const uri = text(attribution?.uri);
+    return name && uri ? `${name} (${uri})` : name ?? uri;
+  }).filter((item): item is string => Boolean(item));
+  return labels.length ? labels.join(", ") : undefined;
+}
+
+function sanitizeGoogleRaw(place: Record<string, unknown>) {
+  const { photos, ...facts } = place;
+  return {
+    ...facts,
+    photoCount: Array.isArray(photos) ? photos.length : 0,
   };
 }
 

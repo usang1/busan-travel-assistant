@@ -50,7 +50,7 @@ Public place fields are updated only after an admin applies draft content to the
 
 Use `app/api/admin/place-ai-generation/route.ts` or the alias `app/api/admin/places/generate-ai/route.ts` as the integration point. The route is already admin-protected and receives `PlaceAiGenerationRequest`.
 
-The OpenAI integration uses Structured Outputs with `description.{ko,zh,en,ja}` and `travel_tip.{ko,zh,en,ja}` objects. Each locale is validated independently, so one missing or wrong-language value does not discard successful locales. Admin notes are editorial context rather than factual authority; superlatives and promotional wording must be neutralized. Keep source facts and generated copy separate, and do not invent facts that are not present in `source_data`.
+The OpenAI integration uses Structured Outputs with `description.{ko,zh,en,ja}` and `travel_tip.{ko,zh,en,ja}` objects. Each locale is validated independently, so one missing or wrong-language value does not discard successful locales. The separate `places.admin_summary` flow receives only whitelisted provider facts; it is not reused as factual input for multilingual generation. Keep source facts, the Korean admin summary, and localized generated copy separate, and do not invent facts that are absent from `source_data`.
 
 Localized addresses are stored in `place_translations.address`. Korean provider addresses remain in `places.address_ko`; translated addresses must preserve road/building numbers and are rejected when the Korean source is copied unchanged into another locale.
 

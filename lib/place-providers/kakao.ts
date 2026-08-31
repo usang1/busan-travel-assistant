@@ -66,11 +66,14 @@ function normalizeKakaoItem(item: KakaoPlaceDocument): Partial<NormalizedPlace> 
     providerPlaceId: text(item.id),
     name: text(item.place_name),
     category: text(item.category_name) ?? text(item.category_group_name),
+    types: text(item.category_name)?.split(">").map((value) => value.trim()).filter(Boolean),
     addressKo: text(item.address_name),
     roadAddressKo: text(item.road_address_name),
     formattedAddress: text(item.road_address_name) ?? text(item.address_name),
     ...coordinates,
     phone: text(item.phone),
+    providerUri: text(item.place_url),
+    fetchedAt: new Date().toISOString(),
     raw: item,
   };
 }

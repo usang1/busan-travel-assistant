@@ -7,10 +7,32 @@ import { resolveNearestStation } from "@/lib/place-providers/nearest-station";
 import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
 
 const maxRedirects = 5;
+const providerCacheTtlMs = 5 * 60 * 1000;
+const resolutionCache = new Map<string, { expiresAt: number; value: Promise<ResolvedMapUrl> }>();
 
 export type ResolvedMapUrl = Awaited<ReturnType<typeof resolveMapUrl>>;
 
 type Fetcher = typeof fetch;
+
+export async function resolveMapUrlCached(inputUrl: string) {
+  const key = normalizeMapUrl(inputUrl);
+  const now = Date.now();
+  const cached = resolutionCache.get(key);
+
+  if (cached && cached.expiresAt > now) {
+    return { ...(await cached.value), cacheHit: true };
+  }
+
+  const value = resolveMapUrl(key);
+  resolutionCache.set(key, { expiresAt: now + providerCacheTtlMs, value });
+
+  try {
+    return { ...(await value), cacheHit: false };
+  } catch (error) {
+    resolutionCache.delete(key);
+    throw error;
+  }
+}
 
 export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) {
   const originalUrl = normalizeMapUrl(inputUrl);
@@ -29,19 +51,12 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     latitude: urlAnalysis.latitude,
     longitude: urlAnalysis.longitude,
   };
-  let lookupError = "";
-  let providerDetails: Partial<NormalizedPlace> | null = null;
-
-  try {
-    providerDetails = await getPlaceProvider(provider).lookup({
-      sourceUrl: originalUrl,
-      finalResolvedUrl,
-      parsedUrls,
-      fetcher,
-    });
-  } catch (error) {
-    lookupError = error instanceof Error ? error.message : "지도 provider 상세 조회에 실패했습니다.";
-  }
+  const providerDetails = await getPlaceProvider(provider).lookup({
+    sourceUrl: originalUrl,
+    finalResolvedUrl,
+    parsedUrls,
+    fetcher,
+  });
 
   let normalizedPlace = mergeNormalizedPlace(basePlace, providerDetails);
 
@@ -111,7 +126,7 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     coordinateSource: analysis.coordinateSource,
     confidence: analysis.confidence,
     failureReason: analysis.failureReason,
-    lookupError,
+    lookupError: "",
     normalizedPlace,
     analysis,
   };

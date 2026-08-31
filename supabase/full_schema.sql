@@ -113,6 +113,7 @@ create table if not exists public.places (
   category public.place_category not null,
   short_description_zh text not null default '',
   short_description_ko text not null default '',
+  admin_summary text not null default '',
   address text,
   address_ko text not null default '',
   address_zh text not null default '',
@@ -156,6 +157,7 @@ alter table public.places
   add column if not exists phone text,
   add column if not exists website text,
   add column if not exists price_level smallint,
+  add column if not exists admin_summary text not null default '',
   add column if not exists status text not null default 'ACTIVE';
 
 alter table public.places
@@ -888,6 +890,8 @@ comment on table public.place_translations is
   'Locale-specific place content. Legacy name_zh/name_ko columns remain for compatibility until all readers migrate.';
 comment on table public.place_sources is
   'Admin-only source references for NAVER, KAKAO, GOOGLE, or MANUAL entries. This table does not imply unofficial crawling.';
+comment on column public.places.admin_summary is
+  'Administrator-reviewed Korean summary generated only from normalized provider facts. User submission text remains in place_submissions.';
 comment on table public.place_action_events is
   'Append-only behavior log for place interactions. Core product actions must not fail if logging fails.';
 comment on table public.place_china_info is

@@ -16,23 +16,36 @@ type NaverLocalItem = {
 export const naverMapsProvider: PlaceProvider = {
   id: "naver",
   async lookup(context) {
-    const clientId = process.env.NAVER_SEARCH_CLIENT_ID?.trim();
-    const clientSecret = process.env.NAVER_SEARCH_CLIENT_SECRET?.trim();
+    const hubClientId = process.env.NAVER_API_HUB_CLIENT_ID?.trim();
+    const hubClientSecret = process.env.NAVER_API_HUB_CLIENT_SECRET?.trim();
+    const legacyClientId = process.env.NAVER_SEARCH_CLIENT_ID?.trim();
+    const legacyClientSecret = process.env.NAVER_SEARCH_CLIENT_SECRET?.trim();
+    const clientId = hubClientId || legacyClientId;
+    const clientSecret = hubClientSecret || legacyClientSecret;
     if (!clientId || !clientSecret) return null;
 
     const parsed = [...context.parsedUrls].reverse().find((item) => item.provider === "naver");
     const query = parsed?.title?.trim();
     if (!parsed || !query) return null;
 
-    const endpoint = new URL("https://openapi.naver.com/v1/search/local.json");
+    const useApiHub = Boolean(hubClientId && hubClientSecret);
+    const endpoint = new URL(useApiHub
+      ? "https://naverapihub.apigw.ntruss.com/search/v1/local"
+      : "https://openapi.naver.com/v1/search/local.json");
     endpoint.searchParams.set("query", query);
     endpoint.searchParams.set("display", "5");
+    if (useApiHub) endpoint.searchParams.set("format", "json");
 
     const response = await context.fetcher(endpoint, {
-      headers: {
-        "X-Naver-Client-Id": clientId,
-        "X-Naver-Client-Secret": clientSecret,
-      },
+      headers: useApiHub
+        ? {
+            "X-NCP-APIGW-API-KEY-ID": clientId,
+            "X-NCP-APIGW-API-KEY": clientSecret,
+          }
+        : {
+            "X-Naver-Client-Id": clientId,
+            "X-Naver-Client-Secret": clientSecret,
+          },
       cache: "no-store",
     });
 
@@ -66,11 +79,15 @@ function normalizeNaverItem(item: NaverLocalItem, parsedPlaceId?: string): Parti
     providerPlaceId: parsedPlaceId ?? link?.match(/\/(\d+)(?:$|[/?#])/)?.[1],
     name: stripHtml(item.title),
     category: text(item.category),
+    types: text(item.category)?.split(">").map((value) => value.trim()).filter(Boolean),
+    description: stripHtml(item.description),
     addressKo: text(item.address),
     roadAddressKo: text(item.roadAddress),
     formattedAddress: text(item.roadAddress) ?? text(item.address),
     ...coordinates,
     phone: text(item.telephone),
+    providerUri: link,
+    fetchedAt: new Date().toISOString(),
     raw: item,
   };
 }

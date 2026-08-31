@@ -45,6 +45,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 GOOGLE_MAPS_API_KEY=
+NAVER_API_HUB_CLIENT_ID=
+NAVER_API_HUB_CLIENT_SECRET=
 NAVER_SEARCH_CLIENT_ID=
 NAVER_SEARCH_CLIENT_SECRET=
 KAKAO_REST_API_KEY=
@@ -56,9 +58,10 @@ OPENAI_PLACE_MODEL=
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
 - `GOOGLE_MAPS_API_KEY`: Google Places API (New)의 Place Details/Text Search 서버 호출에 사용합니다.
-- `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET`: Naver 지역 검색 API의 서버 인증 정보입니다.
+- `NAVER_API_HUB_CLIENT_ID`, `NAVER_API_HUB_CLIENT_SECRET`: NAVER API HUB 지역 검색의 서버 인증 정보입니다. 설정되어 있으면 legacy 키보다 우선합니다.
+- `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET`: 2027년 6월 30일까지 기존 신청자에게 제공되는 legacy Naver 지역 검색 API의 호환 인증 정보입니다.
 - `KAKAO_REST_API_KEY`: Kakao 로컬 키워드 검색 API의 서버 인증 정보입니다.
-- `OPENAI_API_KEY`: 관리자 AI 장소 설명/번역 생성에 서버에서만 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
+- `OPENAI_API_KEY`: provider 사실 기반 AI 장소 요약과 관리자 다국어 설명/여행팁 생성에 서버에서만 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
 - `OPENAI_PLACE_MODEL`: 관리자 장소 설명 생성 모델입니다. 비우면 코드 기본값 `gpt-5.6-luna`를 사용합니다.
 
 관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
@@ -91,6 +94,7 @@ supabase/migrations/011_place_visibility_listing_flow.sql
 supabase/migrations/012_place_publication_defaults.sql
 supabase/migrations/013_place_source_metadata.sql
 supabase/migrations/014_place_translation_addresses.sql
+supabase/migrations/015_place_admin_summary.sql
 supabase/seed.sql
 ```
 

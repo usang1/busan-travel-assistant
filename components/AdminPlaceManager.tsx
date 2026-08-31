@@ -75,7 +75,7 @@ type FormState = {
   address_zh: string;
   address_en: string;
   address_ja: string;
-  admin_notes: string;
+  admin_summary: string;
   latitude: string;
   longitude: string;
   phone: string;
@@ -94,6 +94,8 @@ type FormState = {
   tips_ja: string;
   tips_ko: string;
   thumbnail_url: string;
+  provider_image_preview_url: string;
+  provider_image_attribution: string;
   provider_rating: string;
   provider_review_count: string;
   provider_amenities: string;
@@ -248,7 +250,7 @@ function createEmptyForm(): FormState {
     address_zh: "",
     address_en: "",
     address_ja: "",
-    admin_notes: "",
+    admin_summary: "",
     latitude: "",
     longitude: "",
     phone: "",
@@ -267,6 +269,8 @@ function createEmptyForm(): FormState {
     tips_ja: "",
     tips_ko: "",
     thumbnail_url: "",
+    provider_image_preview_url: "",
+    provider_image_attribution: "",
     provider_rating: "",
     provider_review_count: "",
     provider_amenities: "",
@@ -319,7 +323,7 @@ function toForm(place: PlaceWithRelations): FormState {
     address_zh: place.address_zh,
     address_en: en?.address ?? "",
     address_ja: ja?.address ?? "",
-    admin_notes: "",
+    admin_summary: place.admin_summary ?? "",
     latitude: place.latitude?.toString() ?? "",
     longitude: place.longitude?.toString() ?? "",
     phone: place.phone ?? "",
@@ -338,6 +342,8 @@ function toForm(place: PlaceWithRelations): FormState {
     tips_ja: ja?.travel_tip ?? "",
     tips_ko: place.tips_ko,
     thumbnail_url: place.thumbnail_url,
+    provider_image_preview_url: "",
+    provider_image_attribution: "",
     provider_rating: metadataNumber(sourceMetadata, "rating"),
     provider_review_count: metadataNumber(sourceMetadata, "review_count"),
     provider_amenities: formatProviderAmenities(sourceMetadata?.amenities),
@@ -465,6 +471,7 @@ function toPayload(form: FormState): PlacePayload {
     status: form.is_active ? "ACTIVE" : "DRAFT",
     short_description_zh: form.short_description_zh,
     short_description_ko: form.short_description_ko,
+    admin_summary: form.admin_summary,
     address_ko: form.address_ko,
     address_zh: form.address_zh,
     latitude: normalizeLatitude(form.latitude),
@@ -607,7 +614,6 @@ function buildAiInputFingerprint(form: FormState) {
     price_min: form.price_min,
     price_max: form.price_max,
     nearest_station: form.nearest_station,
-    admin_notes: form.admin_notes,
     source_metadata: form.source_metadata,
   });
 }
@@ -765,6 +771,51 @@ function providerDisplayName(provider: PlaceSourceProvider) {
   return "지도";
 }
 
+function normalizedPlaceForAdminSummary(form: FormState): NormalizedPlace | null {
+  const provider = form.source_provider === "GOOGLE"
+    ? "google"
+    : form.source_provider === "NAVER"
+      ? "naver"
+      : form.source_provider === "KAKAO"
+        ? "kakao"
+        : null;
+  if (!provider || !form.name_ko.trim()) return null;
+
+  const coordinates = hasValidFormCoordinates(form)
+    ? { latitude: Number(form.latitude), longitude: Number(form.longitude) }
+    : {};
+  const types = Array.isArray(form.source_metadata?.types)
+    ? form.source_metadata.types.filter((value): value is string => typeof value === "string")
+    : undefined;
+  const rating = nullableNumber(form.provider_rating) ?? undefined;
+  const reviewCount = nullableNumber(form.provider_review_count) ?? undefined;
+  const priceLevel = nullableNumber(form.price_level) ?? undefined;
+  const priceMin = nullableNumber(form.price_min) ?? undefined;
+  const priceMax = nullableNumber(form.price_max) ?? undefined;
+
+  return {
+    provider,
+    providerPlaceId: form.source_external_id || undefined,
+    sourceUrl: form.source_url,
+    finalResolvedUrl: typeof form.source_metadata?.final_resolved_url === "string" ? form.source_metadata.final_resolved_url : undefined,
+    name: form.name_ko,
+    category: typeof form.source_metadata?.category === "string" ? form.source_metadata.category : form.category,
+    types,
+    description: typeof form.source_metadata?.provider_description === "string" ? form.source_metadata.provider_description : undefined,
+    addressKo: form.address_ko || undefined,
+    ...coordinates,
+    website: form.website || undefined,
+    openingHours: form.opening_hours ? form.opening_hours.split("\n").filter(Boolean) : undefined,
+    rating,
+    reviewCount,
+    priceLevel,
+    priceMin,
+    priceMax,
+    priceRange: priceMin !== undefined || priceMax !== undefined ? { min: priceMin, max: priceMax, currency: "KRW" } : undefined,
+    fetchedAt: form.source_fetched_at || undefined,
+  };
+}
+
 function hasEnoughAiSourceFacts(form: FormState) {
   const hasPlaceName = Boolean(form.name_ko.trim() || form.name_zh.trim());
   const hasMenu = form.menu_items.some((item) => item.name_ko.trim() || item.name_zh.trim() || item.description_zh.trim() || item.price.trim());
@@ -794,7 +845,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [geocoding, setGeocoding] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
+  const [generatingAdminSummary, setGeneratingAdminSummary] = useState(false);
   const [aiDraft, setAiDraft] = useState<PlaceAiGenerationResponse | null>(null);
+  const [lastNormalizedPlace, setLastNormalizedPlace] = useState<NormalizedPlace | null>(null);
+  const [adminSummaryFailed, setAdminSummaryFailed] = useState(false);
   const [lastAiFingerprint, setLastAiFingerprint] = useState("");
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
@@ -836,6 +890,35 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       "Content-Type": "application/json",
       ...(adminAccessToken ? { Authorization: `Bearer ${adminAccessToken}` } : {}),
     };
+  }
+
+  async function regenerateAdminSummary(place = lastNormalizedPlace ?? normalizedPlaceForAdminSummary(form)) {
+    if (!place) {
+      setStatus("AI 장소 요약을 만들려면 먼저 지도 장소 정보를 불러와 주세요.");
+      return;
+    }
+
+    setGeneratingAdminSummary(true);
+    setAdminSummaryFailed(false);
+    setStatus("지도 사실정보로 AI 장소 요약을 생성하는 중입니다.");
+
+    try {
+      const response = await fetch("/api/admin/place-summary", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ normalizedPlace: place }),
+      });
+      const body = (await response.json()) as { summaryKo?: string; message?: string };
+      if (!response.ok || !body.summaryKo) throw new Error(body.message ?? "AI 장소 요약 생성에 실패했습니다.");
+
+      setForm((current) => ({ ...current, admin_summary: body.summaryKo ?? current.admin_summary }));
+      setStatus("AI 장소 요약을 다시 생성했습니다. 저장 전에 내용을 검수해 주세요.");
+    } catch (error) {
+      setAdminSummaryFailed(true);
+      setStatus(error instanceof Error ? `AI 장소 요약 생성 실패: ${error.message}` : "AI 장소 요약 생성에 실패했습니다.");
+    } finally {
+      setGeneratingAdminSummary(false);
+    }
   }
 
   useEffect(() => {
@@ -927,7 +1010,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         method: "POST",
         headers: adminHeaders(),
         body: JSON.stringify({
-          source_data: buildPlaceSourceData(payload, { adminNotes: form.admin_notes, formattedAddress: form.address_en }),
+          source_data: buildPlaceSourceData(payload, { formattedAddress: form.address_en }),
           locale_targets: localeTargets,
           existing_content: existingContent,
         }),
@@ -1094,18 +1177,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         };
         normalizedPlace?: NormalizedPlace;
         lookupError?: string;
-        summary?: {
-          description_zh?: string;
-          description_ko?: string;
-          tips_zh?: string;
-          tips_ko?: string;
-        } | null;
-        summaryError?: string;
+        adminSummary?: { summaryKo?: string } | null;
+        adminSummaryError?: string;
         aiConfigured?: boolean;
       };
       const { analysis } = body;
       const normalizedPlace = body.normalizedPlace;
-      const summary = body.summary ?? null;
+      const adminSummary = body.adminSummary?.summaryKo?.trim() ?? "";
       const title = normalizedPlace?.name?.trim() ?? analysis.title?.trim() ?? "";
       const externalId = normalizedPlace?.providerPlaceId ?? analysis.externalId ?? analysis.placeId;
       const latitude = normalizedPlace?.latitude ?? analysis.latitude;
@@ -1114,6 +1192,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       const openingHours = Array.isArray(normalizedPlace?.openingHours)
         ? normalizedPlace.openingHours.join("\n")
         : normalizedPlace?.openingHours ?? "";
+
+      setLastNormalizedPlace(normalizedPlace ?? null);
+      setAdminSummaryFailed(Boolean(body.adminSummaryError));
 
       setForm((current) => {
         const enriched = normalizedPlace ? applyProviderFactsToForm(current, normalizedPlace) : current;
@@ -1128,10 +1209,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           latitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? latitude!.toFixed(7) : enriched.latitude,
           longitude: hasResolvedCoordinates && !hasCoordinateInput(enriched) ? longitude!.toFixed(7) : enriched.longitude,
           opening_hours: enriched.opening_hours || openingHours,
-          short_description_zh: enriched.short_description_zh || summary?.description_zh || "",
-          short_description_ko: enriched.short_description_ko || summary?.description_ko || "",
-          tips_zh: enriched.tips_zh || summary?.tips_zh || "",
-          tips_ko: enriched.tips_ko || summary?.tips_ko || "",
+          admin_summary: enriched.admin_summary || adminSummary,
         };
       });
 
@@ -1140,10 +1218,18 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         hasResolvedCoordinates ? "좌표" : "",
         externalId ? "지도 장소 ID" : "",
         normalizedPlace?.formattedAddress || normalizedPlace?.addressKo ? "주소" : "",
-        summary ? "AI 설명" : "",
+        normalizedPlace?.category ? "카테고리" : "",
+        normalizedPlace?.openingHours || normalizedPlace?.currentOpeningHours ? "영업시간" : "",
+        normalizedPlace?.phone ? "전화번호" : "",
+        normalizedPlace?.website ? "웹사이트" : "",
+        normalizedPlace?.photos?.length ? "사진 미리보기" : "",
+        normalizedPlace?.priceLevel !== undefined ? "가격대" : "",
+        normalizedPlace?.rating !== undefined ? "평점" : "",
+        normalizedPlace?.reviewCount !== undefined ? "리뷰 수" : "",
+        adminSummary ? "AI 장소 요약" : "",
       ].filter(Boolean);
-      const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 설명 초안은 생성하지 않았습니다.";
-      const aiErrorNotice = body.summaryError ? ` AI 설명 생성 실패: ${body.summaryError}` : "";
+      const aiNotice = body.aiConfigured ? "" : " OpenAI API 키가 없어 AI 장소 요약은 생성하지 않았습니다.";
+      const aiErrorNotice = body.adminSummaryError ? ` AI 장소 요약 생성 실패: ${body.adminSummaryError}` : "";
       const lookupNotice = body.lookupError ? ` Provider 상세 조회 실패: ${body.lookupError}` : "";
       const coordinateNotice = hasResolvedCoordinates
         ? ""
@@ -1422,6 +1508,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           onClick={() => {
             setForm(createEmptyForm());
             setAiDraft(null);
+            setLastNormalizedPlace(null);
+            setAdminSummaryFailed(false);
           }}
           className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-95"
         >
@@ -1441,6 +1529,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <button type="button" onClick={() => {
                   setForm(toForm(place));
                   setAiDraft(null);
+                  setLastNormalizedPlace(null);
+                  setAdminSummaryFailed(false);
                 }} className="block w-full text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1461,6 +1551,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   <IconButton label="수정" onClick={() => {
                     setForm(toForm(place));
                     setAiDraft(null);
+                    setLastNormalizedPlace(null);
+                    setAdminSummaryFailed(false);
                   }} icon={Pencil} />
                   <IconButton label="활성 토글" onClick={() => void togglePlace(place, "is_active")} icon={place.is_active ? Check : X} />
                   <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
@@ -1527,9 +1619,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
                     <div
                       className="aspect-[4/3] w-full max-w-[160px] rounded-lg bg-slate-100 bg-cover bg-center ring-1 ring-slate-200"
-                      style={form.thumbnail_url ? { backgroundImage: `url(${form.thumbnail_url})` } : undefined}
+                      style={form.thumbnail_url || form.provider_image_preview_url
+                        ? { backgroundImage: `url(${form.thumbnail_url || form.provider_image_preview_url})` }
+                        : undefined}
                     />
-                    <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} />
+                    <div>
+                      <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} placeholder="관리자 이미지 URL" />
+                      {!form.thumbnail_url && form.provider_image_preview_url ? (
+                        <p className="mt-2 text-xs leading-5 text-amber-700">
+                          Provider 사진 미리보기입니다. Google 정책상 임시 사진 URL은 DB 대표 이미지로 자동 저장하지 않습니다.
+                          {form.provider_image_attribution ? ` 출처: ${form.provider_image_attribution}` : ""}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                 </Field>
               </div>
@@ -1545,8 +1647,20 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               </Field>
               <CheckField label={form.is_active ? "공개" : "비공개"} checked={form.is_active} onChange={(checked) => updateField("is_active", checked)} />
               <div className="sm:col-span-2">
-                <Field label="관리자 메모">
-                  <textarea value={form.admin_notes} onChange={(event) => updateField("admin_notes", event.target.value)} className={textareaClass} />
+                <Field label="AI 장소 요약">
+                  <textarea value={form.admin_summary} onChange={(event) => updateField("admin_summary", event.target.value)} className={textareaClass} />
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs font-semibold text-slate-500">지도에서 가져온 사실정보를 기반으로 자동 생성됩니다. 필요하면 직접 수정할 수 있습니다.</p>
+                    <button
+                      type="button"
+                      onClick={() => void regenerateAdminSummary()}
+                      disabled={generatingAdminSummary}
+                      className="min-h-11 shrink-0 rounded-lg bg-white px-3 text-xs font-black text-teal-800 ring-1 ring-teal-200 disabled:opacity-50"
+                    >
+                      {generatingAdminSummary ? "AI 요약 생성 중..." : "AI 요약 다시 생성"}
+                    </button>
+                  </div>
+                  {adminSummaryFailed ? <p className="mt-2 text-xs font-bold text-rose-700">AI 장소 요약 생성 실패. Provider 사실정보는 유지되며 다시 생성할 수 있습니다.</p> : null}
                 </Field>
               </div>
             </div>
@@ -1633,11 +1747,6 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="지도 장소 ID">
                 <input value={form.source_external_id} onChange={(event) => updateField("source_external_id", event.target.value)} className={inputClass} />
               </Field>
-              <div className="sm:col-span-2">
-                <Field label="AI 작성용 관리자 메모">
-                  <textarea value={form.admin_notes} onChange={(event) => updateField("admin_notes", event.target.value)} className={textareaClass} />
-                </Field>
-              </div>
               <div className="sm:col-span-2">
                 <AdminAiDraftPanel
                   draft={aiDraft}
@@ -2000,10 +2109,15 @@ function AdminReviewSummary({
 }) {
   const facts = [
     { label: "장소명", available: Boolean(form.name_ko.trim() || form.name_zh.trim()) },
+    { label: "카테고리", available: Boolean(form.category) },
     { label: "주소", available: Boolean(form.address_ko.trim()) },
     { label: "좌표", available: hasValidFormCoordinates(form) },
     { label: "전화", available: Boolean(form.phone.trim()) },
     { label: "영업시간", available: Boolean(form.opening_hours.trim()) },
+    { label: "대표 이미지", available: Boolean(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) },
+    { label: "가격대", available: Boolean(form.price_level.trim()) },
+    { label: "평점", available: Boolean(form.provider_rating.trim()) },
+    { label: "리뷰 수", available: Boolean(form.provider_review_count.trim()) },
     { label: `${providerDisplayName(form.source_provider)} Place ID`, available: Boolean(form.source_external_id.trim()) },
     { label: "홈페이지", available: Boolean(form.website.trim()) },
   ];
@@ -2032,6 +2146,10 @@ function AdminReviewSummary({
         </div>
         <div>
           <p className="text-sm font-black text-slate-800">AI 콘텐츠</p>
+          <div className="mt-2 flex min-h-9 items-center gap-2 text-sm font-semibold text-slate-700">
+            {form.admin_summary.trim() ? <Check size={17} className="text-teal-700" aria-hidden="true" /> : <X size={17} className="text-rose-500" aria-hidden="true" />}
+            AI 장소 요약{form.admin_summary.trim() ? " 생성 완료" : " 없음"}
+          </div>
           <div className="mt-2 grid grid-cols-4 gap-2">
             {(["ko", "zh", "en", "ja"] as const).map((item) => {
               const complete = Boolean(localeContent[item].description.trim() && localeContent[item].tip.trim());

@@ -10,7 +10,7 @@ const testEnv = {
   KAKAO_REST_API_KEY: "kakao-test-key",
 };
 
-function loadTsModule(path, aliases = {}) {
+function loadTsModule(path, aliases = {}, env = testEnv) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: {
@@ -30,7 +30,7 @@ function loadTsModule(path, aliases = {}) {
     exports: module.exports,
     require,
     console,
-    process: { env: testEnv },
+    process: { env },
     URL,
   });
 
@@ -49,6 +49,12 @@ const google = loadTsModule("lib/place-providers/google.ts", {
 });
 const naver = loadTsModule("lib/place-providers/naver.ts", {
   "@/lib/place-providers/normalize": normalize,
+});
+const naverHub = loadTsModule("lib/place-providers/naver.ts", {
+  "@/lib/place-providers/normalize": normalize,
+}, {
+  NAVER_API_HUB_CLIENT_ID: "hub-client-id",
+  NAVER_API_HUB_CLIENT_SECRET: "hub-client-secret",
 });
 const kakao = loadTsModule("lib/place-providers/kakao.ts", {
   "@/lib/place-providers/normalize": normalize,
@@ -88,6 +94,10 @@ const validation = loadTsModule("lib/place-validation.ts", {
   "@/lib/place-providers/normalize": normalize,
   "@/types/database": databaseRuntime,
 });
+class FakeOpenAI {}
+const adminSummary = loadTsModule("lib/place-ai/admin-summary.ts", {
+  openai: FakeOpenAI,
+});
 
 assert.equal(detection.detectPlaceProvider("https://www.google.com/maps/place/Gwangalli"), "google");
 assert.equal(detection.detectPlaceProvider("https://maps.google.com/?q=Busan"), "google");
@@ -115,6 +125,11 @@ const googleDetailsFetcher = async (input, init = {}) => {
   if (url.startsWith("https://dapi.kakao.com/v2/local/search/category.json")) {
     return jsonResponse({ documents: [{ id: "station-1", place_name: "광안역 부산2호선", distance: "420" }] });
   }
+  if (url.includes("/photos/") && url.includes("/media")) {
+    assert.equal(new URL(url).searchParams.get("key"), "google-test-key");
+    assert.equal(new URL(url).searchParams.get("skipHttpRedirect"), "true");
+    return jsonResponse({ photoUri: "https://lh3.googleusercontent.com/place-preview" });
+  }
   if (url.startsWith("https://places.googleapis.com/v1/places/")) {
     assert.equal(init.headers["X-Goog-Api-Key"], "google-test-key");
     return jsonResponse({
@@ -134,7 +149,13 @@ const googleDetailsFetcher = async (input, init = {}) => {
       takeout: false,
       restroom: true,
       primaryTypeDisplayName: { text: "해변" },
-      photos: [{ name: "places/test/photos/photo" }],
+      types: ["tourist_attraction", "beach"],
+      photos: [{
+        name: "places/test/photos/photo",
+        widthPx: 1200,
+        heightPx: 800,
+        authorAttributions: [{ displayName: "지도 사용자", uri: "https://maps.google.com/contrib/test" }],
+      }],
     });
   }
   return htmlResponse();
@@ -147,8 +168,15 @@ assert.equal(googleDetails.normalizedPlace.formattedAddress, "대한민국 부�
 assert.equal(googleDetails.normalizedPlace.latitude, 35.1532);
 assert.equal(googleDetails.normalizedPlace.longitude, 129.1186);
 assert.equal(googleDetails.normalizedPlace.reviewCount, 321);
+assert.deepEqual([...googleDetails.normalizedPlace.types], ["tourist_attraction", "beach"]);
 assert.equal(googleDetails.normalizedPlace.priceMin, 5000);
 assert.equal(googleDetails.normalizedPlace.priceMax, 12000);
+assert.equal(googleDetails.normalizedPlace.priceRange.currency, "KRW");
+assert.equal(googleDetails.normalizedPlace.primaryImageUrl, "https://lh3.googleusercontent.com/place-preview");
+assert.equal(googleDetails.normalizedPlace.photos[0].persistence, "preview_only");
+assert.match(googleDetails.normalizedPlace.photos[0].attribution, /지도 사용자/);
+assert.equal("photos" in googleDetails.normalizedPlace.raw, false);
+assert.equal(googleDetails.normalizedPlace.raw.photoCount, 1);
 assert.equal(googleDetails.normalizedPlace.amenities.parking, true);
 assert.equal(googleDetails.normalizedPlace.amenities.reservable, true);
 assert.equal(googleDetails.coordinateSource, "provider-lookup");
@@ -182,6 +210,51 @@ const googleTextSearch = await resolver.resolveMapUrl(
 );
 assert.equal(googleTextSearch.normalizedPlace.providerPlaceId, "ChIJTextSearch");
 assert.equal(googleTextSearch.normalizedPlace.name, "Gwangalli Beach");
+assert.equal(googleTextSearch.normalizedPlace.photos, undefined);
+
+const googleWithoutPrice = await resolver.resolveMapUrl(
+  `https://www.google.com/maps/search/?api=1&query=Cafe&query_place_id=${googlePlaceId}`,
+  async (input) => {
+    const url = input.toString();
+    if (url.startsWith("https://places.googleapis.com/v1/places/")) {
+      return jsonResponse({
+        id: googlePlaceId,
+        displayName: { text: "가격 정보 없는 카페" },
+        formattedAddress: "부산 수영구 광안해변로 1",
+        location: { latitude: 35.15, longitude: 129.11 },
+        primaryType: "cafe",
+      });
+    }
+    return htmlResponse();
+  },
+);
+assert.equal(googleWithoutPrice.normalizedPlace.priceLevel, undefined);
+assert.equal(googleWithoutPrice.normalizedPlace.priceRange, undefined);
+
+const googleRestaurant = await resolver.resolveMapUrl(
+  "https://www.google.com/maps/search/?api=1&query=Restaurant&query_place_id=ChIJRestaurant",
+  async (input) => {
+    const url = input.toString();
+    if (url.startsWith("https://places.googleapis.com/v1/places/")) {
+      return jsonResponse({
+        id: "ChIJRestaurant",
+        displayName: { text: "테스트 음식점" },
+        formattedAddress: "부산 수영구 테스트로 10",
+        location: { latitude: 35.16, longitude: 129.12 },
+        nationalPhoneNumber: "051-123-4567",
+        websiteUri: "https://restaurant.example",
+        currentOpeningHours: { weekdayDescriptions: ["월요일: 오전 11:00~오후 9:00"] },
+        primaryType: "restaurant",
+        types: ["restaurant", "food"],
+      });
+    }
+    return htmlResponse();
+  },
+);
+assert.equal(googleRestaurant.normalizedPlace.category, "restaurant");
+assert.equal(googleRestaurant.normalizedPlace.phone, "051-123-4567");
+assert.equal(googleRestaurant.normalizedPlace.website, "https://restaurant.example");
+assert.deepEqual([...googleRestaurant.normalizedPlace.currentOpeningHours], ["월요일: 오전 11:00~오후 9:00"]);
 
 const naverUrl = "https://map.naver.com/?pinId=1435915485&title=%EC%A7%84%EC%86%A1%EC%88%AF%EB%B6%88%20%EC%88%98%EC%98%81%EC%A0%90";
 const naverResolved = await resolver.resolveMapUrl(naverUrl, async (input) => {
@@ -196,6 +269,22 @@ assert.equal(naverResolved.normalizedPlace.name, "진송숯불 수영점");
 assert.equal(naverResolved.normalizedPlace.roadAddressKo, "부산 수영구 수영로");
 assert.equal(naverResolved.normalizedPlace.latitude, 35.1671242);
 assert.equal(naverResolved.normalizedPlace.longitude, 129.1170388);
+
+const naverHubPlace = await naverHub.naverMapsProvider.lookup({
+  sourceUrl: naverUrl,
+  finalResolvedUrl: naverUrl,
+  parsedUrls: [mapUrl.parseMapUrl(naverUrl)],
+  fetcher: async (input, init = {}) => {
+    const url = new URL(input.toString());
+    assert.equal(url.origin + url.pathname, "https://naverapihub.apigw.ntruss.com/search/v1/local");
+    assert.equal(url.searchParams.get("format"), "json");
+    assert.equal(init.headers["X-NCP-APIGW-API-KEY-ID"], "hub-client-id");
+    assert.equal(init.headers["X-NCP-APIGW-API-KEY"], "hub-client-secret");
+    return jsonResponse({ items: [{ title: "진송숯불 수영점", category: "한식>육류", address: "부산 수영구", roadAddress: "부산 수영구 수영로", mapx: "1291170388", mapy: "351671242" }] });
+  },
+});
+assert.equal(naverHubPlace.name, "진송숯불 수영점");
+assert.deepEqual([...naverHubPlace.types], ["한식", "육류"]);
 
 const naverShort = await resolver.resolveMapUrl("https://naver.me/short", async (input, init = {}) => {
   const url = input.toString();
@@ -251,6 +340,8 @@ const emptyForm = {
   price_min: "",
   price_max: "",
   thumbnail_url: "",
+  provider_image_preview_url: "",
+  provider_image_attribution: "",
   nearest_station: "",
   walking_minutes: "",
   provider_rating: "",
@@ -262,10 +353,10 @@ const emptyForm = {
 const enrichedGoogleForm = enrichment.enrichPlaceForm(emptyForm, {
   ...googleDetails.normalizedPlace,
   category: "cafe",
-  imageUrl: "https://images.example/place.jpg",
   priceMin: 5000,
   priceMax: 12000,
 });
+assert.equal(enrichment.enrichPlaceForm(emptyForm, googleRestaurant.normalizedPlace).opening_hours, "월요일: 오전 11:00~오후 9:00");
 assert.equal(enrichedGoogleForm.provider, "GOOGLE");
 assert.equal(enrichedGoogleForm.name_ko, "광안리해수욕장");
 assert.equal(enrichedGoogleForm.category, "cafe");
@@ -275,7 +366,9 @@ assert.equal(enrichedGoogleForm.website, "https://example.com");
 assert.equal(enrichedGoogleForm.price_level, "0");
 assert.equal(enrichedGoogleForm.price_min, "5000");
 assert.equal(enrichedGoogleForm.price_max, "12000");
-assert.equal(enrichedGoogleForm.thumbnail_url, "https://images.example/place.jpg");
+assert.equal(enrichedGoogleForm.thumbnail_url, "");
+assert.equal(enrichedGoogleForm.provider_image_preview_url, "https://lh3.googleusercontent.com/place-preview");
+assert.match(enrichedGoogleForm.provider_image_attribution, /지도 사용자/);
 assert.equal(enrichedGoogleForm.provider_rating, "4.6");
 assert.equal(enrichedGoogleForm.provider_review_count, "321");
 assert.equal(enrichedGoogleForm.provider_amenities, "주차: 가능 · 예약 지원: 가능 · 포장: 불가 · 화장실: 가능");
@@ -303,6 +396,7 @@ assert.equal(preservedForm.website, "https://admin.example");
 assert.equal(preservedForm.opening_hours, "관리자 영업시간");
 assert.equal(preservedForm.price_level, "3");
 assert.equal(preservedForm.thumbnail_url, "https://admin.example/image.jpg");
+assert.equal(preservedForm.provider_image_preview_url, "https://lh3.googleusercontent.com/place-preview");
 
 const preservedMetadataForm = enrichment.enrichPlaceForm({
   ...emptyForm,
@@ -349,6 +443,36 @@ assert.equal(enrichedKakaoForm.provider, "KAKAO");
 assert.equal(enrichedKakaoForm.category, "attraction");
 assert.equal(enrichedKakaoForm.website, "");
 assert.equal(enrichedKakaoForm.latitude, "35.1532000");
+
+const summaryFacts = adminSummary.buildAdminPlaceSummaryFacts(googleDetails.normalizedPlace);
+assert.equal(summaryFacts.provider, "google");
+assert.equal(summaryFacts.priceLevel, 0);
+assert.deepEqual([...summaryFacts.types], ["tourist_attraction", "beach"]);
+assert.doesNotThrow(() => adminSummary.validateAdminPlaceSummary(
+  "광안리해수욕장은 부산광역시 수영구에 위치한 해변입니다. Google Maps 기준 평점 4.6점과 리뷰 321개가 확인됩니다.",
+  summaryFacts,
+));
+assert.throws(() => adminSummary.validateAdminPlaceSummary(
+  "광안리해수욕장은 현지인 맛집으로 유명합니다. 평점이 높아 실패 없는 장소입니다.",
+  summaryFacts,
+), /근거 없는 표현/);
+assert.throws(() => adminSummary.validateAdminPlaceSummary(
+  "가격 정보 없는 카페입니다. 가격대는 2단계입니다.",
+  adminSummary.buildAdminPlaceSummaryFacts(googleWithoutPrice.normalizedPlace),
+), /가격 정보가 없는/);
+assert.throws(() => adminSummary.validateAdminPlaceSummary(
+  "광안리해수욕장은 부산에 있습니다. 매일 23시에 마감합니다.",
+  { ...summaryFacts, openingHours: undefined },
+), /영업시간 정보가 없는|없는 수치/);
+
+const submissionWorkflowSource = readFileSync(new URL("../components/AdminSubmissionWorkflow.tsx", import.meta.url), "utf8");
+assert.match(submissionWorkflowSource, /admin_summary:\s*""/);
+assert.doesNotMatch(submissionWorkflowSource, /admin_summary:\s*reason/);
+assert.match(submissionWorkflowSource, /recommendation_reason \|\| selected\.notes|selected\.recommendation_reason \|\| selected\.notes/);
+
+const mapLinkRouteSource = readFileSync(new URL("../app/api/admin/map-link/route.ts", import.meta.url), "utf8");
+assert.match(mapLinkRouteSource, /catch \(error\)[\s\S]*adminSummaryError/);
+assert.match(mapLinkRouteSource, /\.\.\.resolution,[\s\S]*adminSummary,[\s\S]*adminSummaryError/);
 
 const validPayload = {
   name_ko: "광안리",
