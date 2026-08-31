@@ -24,6 +24,7 @@ import { isPublicPlace } from "@/lib/place-publishing";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
+import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import {
@@ -553,6 +554,16 @@ function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): Form
   return {
     ...nextForm,
     source_provider: provider,
+    menu_items: nextForm.menu_items.length || !place.menu?.length
+      ? nextForm.menu_items
+      : place.menu.map((item, index) => ({
+          name_ko: item.name,
+          name_zh: item.name,
+          description_zh: "",
+          price: item.price === undefined ? "" : String(item.price),
+          is_recommended: false,
+          sort_order: String(index + 1),
+        })),
     china_info: {
       ...form.china_info,
       toilet_available: fillUnknownTristate(form.china_info.toilet_available, place.amenities?.restroom),
@@ -2213,6 +2224,7 @@ function AdminReviewSummary({
               <div key={fact.label} className="flex min-h-9 items-center gap-2 text-sm font-semibold text-slate-700">
                 <Check size={17} className="shrink-0 text-teal-700" aria-hidden="true" />
                 <span>{fact.label}</span>
+                {formatPlaceFactSource(getFieldSource(form.source_metadata, fact.field)) ? <span className="text-xs font-medium text-slate-400">{formatPlaceFactSource(getFieldSource(form.source_metadata, fact.field))}</span> : null}
               </div>
             ))}
             {missingLabels.length ? <p className="text-xs font-semibold leading-5 text-slate-500 sm:col-span-2">{missingLabels.join(" · ")} 정보 없음</p> : null}
@@ -2262,6 +2274,13 @@ function AdminReviewSummary({
       </div>
     </section>
   );
+}
+
+function getFieldSource(sourceMetadata: Record<string, unknown> | null, field: string) {
+  const sources = sourceMetadata?.field_sources;
+  return sources && typeof sources === "object" && !Array.isArray(sources)
+    ? (sources as Record<string, unknown>)[field]
+    : undefined;
 }
 
 function PreviewValue({ label, value }: { label: string; value: string }) {

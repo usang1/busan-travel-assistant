@@ -1,4 +1,5 @@
 import type { ParsedMapUrl } from "@/lib/map-url";
+import type { PlaceFactMetadata, PlaceMenuItem } from "@/lib/place-draft";
 
 export type SupportedPlaceProvider = "google" | "naver" | "kakao";
 export type DetectedPlaceProvider = SupportedPlaceProvider | "unknown";
@@ -32,6 +33,8 @@ export type NormalizedPlace = {
   providerUri?: string;
   openingHours?: string | string[];
   currentOpeningHours?: string | string[];
+  closedDays?: string | string[];
+  menu?: PlaceMenuItem[];
   imageUrl?: string;
   primaryImageUrl?: string;
   photos?: NormalizedPlacePhoto[];
@@ -51,6 +54,7 @@ export type NormalizedPlace = {
     takeout?: boolean;
     restroom?: boolean;
   };
+  fieldSources?: Partial<Record<string, PlaceFactMetadata>>;
   nearestStation?: string;
   nearestStationDistanceMeters?: number;
   nearestStationWalkingMinutes?: number;

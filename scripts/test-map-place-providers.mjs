@@ -5,6 +5,8 @@ import ts from "typescript";
 
 const testEnv = {
   GOOGLE_MAPS_API_KEY: "google-test-key",
+  OPENAI_API_KEY: "openai-test-key",
+  OPENAI_PLACE_MODEL: "gpt-test-model",
   NAVER_SEARCH_CLIENT_ID: "naver-client-id",
   NAVER_SEARCH_CLIENT_SECRET: "naver-client-secret",
   KAKAO_REST_API_KEY: "kakao-test-key",
@@ -44,6 +46,46 @@ const mapUrl = loadTsModule("lib/map-url.ts", {
 });
 const normalize = loadTsModule("lib/place-providers/normalize.ts", {
   "@/lib/map-url": mapUrl,
+});
+const placeDraft = loadTsModule("lib/place-draft.ts");
+let webSearchRequest;
+class FakeWebSearchOpenAI {
+  constructor() {
+    this.responses = {
+      create: async (request) => {
+        webSearchRequest = request;
+        return {
+          output_text: JSON.stringify({
+            phone: { value: "051-999-9999", confidence: 0.95, sourceUrls: ["https://official.example/place"] },
+            openingHours: { value: "17:00-02:00", confidence: 0.82, sourceUrls: ["https://official.example/place"] },
+            closedDays: { value: null, confidence: 0, sourceUrls: [] },
+            menu: { value: [{ name: "깐풍육", price: null }], confidence: 0.9, sourceUrls: ["https://official.example/menu"] },
+            priceRange: { value: { min: 12000, max: 30000 }, confidence: 0.8, sourceUrls: ["https://official.example/menu"] },
+            parking: { value: true, confidence: 0.9, sourceUrls: ["https://official.example/place"] },
+            description: { value: "중식 요리와 주류를 함께 판매하는 중식 요리주점", confidence: 0.85, sourceUrls: ["https://official.example/place"] },
+            websiteUrl: { value: "https://official.example", confidence: 0.9, sourceUrls: ["https://official.example/place"] },
+            sources: [{ title: "공식 페이지", url: "https://official.example/place", type: "OFFICIAL" }],
+          }),
+          output: [{ type: "web_search_call", action: { sources: [{ title: "공식 페이지", url: "https://official.example/place" }] } }],
+        };
+      },
+    };
+  }
+}
+const webSearch = loadTsModule("lib/place-web-search.ts", {
+  openai: FakeWebSearchOpenAI,
+  "@/lib/openai-errors": { toPublicOpenAiError: (error) => error },
+  "@/lib/place-draft": placeDraft,
+});
+class FailingWebSearchOpenAI {
+  constructor() {
+    this.responses = { create: async () => { throw new Error("web search unavailable"); } };
+  }
+}
+const failingWebSearch = loadTsModule("lib/place-web-search.ts", {
+  openai: FailingWebSearchOpenAI,
+  "@/lib/openai-errors": { toPublicOpenAiError: (error) => error },
+  "@/lib/place-draft": placeDraft,
 });
 const google = loadTsModule("lib/place-providers/google.ts", {
   "@/lib/place-providers/normalize": normalize,
@@ -125,6 +167,69 @@ assert.deepEqual([...capabilities.getProviderCapabilities("naver").map(({ field 
   "name", "category", "address", "coordinates", "phone", "providerPlaceId", "sourceUrl",
 ]);
 assert.equal(capabilities.formatProviderWarnings(["photos_not_supported", "price_not_supported"]).join(" · "), "사진 정보 없음 · 가격대 정보 없음");
+
+const sparseProviderPlace = {
+  provider: "kakao",
+  sourceUrl: "https://place.map.kakao.com/12345",
+  providerPlaceId: "12345",
+  name: "테스트 중식당",
+  category: "restaurant",
+  addressKo: "부산 수영구",
+  latitude: 35.15,
+  longitude: 129.11,
+  phone: "051-111-1111",
+};
+const sparseDraft = placeDraft.createPlaceDraft(sparseProviderPlace);
+assert.ok(sparseDraft.fieldSources.name);
+assert.ok(sparseDraft.fieldSources.phone);
+assert.deepEqual([...placeDraft.getMissingPlaceFields(sparseDraft)], ["openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
+const webResult = await webSearch.searchMissingPlaceDataCached(sparseDraft, placeDraft.getMissingPlaceFields(sparseDraft));
+assert.equal(webSearchRequest.tools[0].type, "web_search");
+assert.deepEqual([...webResult.needsReviewFields], ["openingHours", "priceRange"]);
+const mergedSparse = placeDraft.mergePlaceData(sparseProviderPlace, webResult.data);
+assert.equal(mergedSparse.normalizedPlace.phone, "051-111-1111");
+assert.equal(mergedSparse.normalizedPlace.description, "중식 요리와 주류를 함께 판매하는 중식 요리주점");
+assert.equal(mergedSparse.normalizedPlace.website, "https://official.example");
+assert.equal(mergedSparse.normalizedPlace.openingHours, undefined);
+assert.equal(mergedSparse.normalizedPlace.menu[0].name, "깐풍육");
+assert.equal(mergedSparse.normalizedPlace.amenities.parking, true);
+assert.equal(mergedSparse.normalizedPlace.priceRange, undefined);
+assert.equal(mergedSparse.normalizedPlace.photos, undefined);
+
+const providerConflict = placeDraft.mergePlaceData(sparseProviderPlace, {
+  phone: { value: "051-000-0000", confidence: 0.99, sourceUrls: ["https://official.example/place"] },
+  sources: [{ title: "공식 페이지", url: "https://official.example/place", type: "OFFICIAL" }],
+});
+assert.equal(providerConflict.normalizedPlace.phone, "051-111-1111");
+
+const unsupportedSearchFact = placeDraft.mergePlaceData(sparseProviderPlace, {
+  description: { value: "근거 없는 설명", confidence: 0.99, sourceUrls: [] },
+  sources: [],
+});
+assert.equal(unsupportedSearchFact.normalizedPlace.description, undefined);
+assert.deepEqual([...unsupportedSearchFact.needsReviewFields], ["description"]);
+
+const providerComplete = placeDraft.createPlaceDraft({
+  ...sparseProviderPlace,
+  openingHours: ["월요일: 10:00-20:00"],
+  closedDays: ["연중무휴"],
+  menu: [{ name: "대표 메뉴", price: 10000 }],
+  priceRange: { min: 10000, max: 20000, currency: "KRW" },
+  amenities: { parking: true },
+  description: "Provider 설명",
+  website: "https://official.example",
+});
+assert.deepEqual([...placeDraft.getMissingPlaceFields(providerComplete)], []);
+await assert.rejects(
+  () => failingWebSearch.searchMissingPlaceData(sparseDraft, ["description"]),
+  /web search unavailable/,
+);
+
+const providerWithLevelOnly = placeDraft.createPlaceDraft({
+  ...sparseProviderPlace,
+  priceLevel: 2,
+});
+assert.deepEqual([...placeDraft.getMissingPlaceFields(providerWithLevelOnly)], ["openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
 
 const googlePlaceId = "ChIJN1t_tDeuEmsRUsoyG83frY4";
 const googleIdUrl = `https://www.google.com/maps/search/?api=1&query=Gwangalli&query_place_id=${googlePlaceId}`;

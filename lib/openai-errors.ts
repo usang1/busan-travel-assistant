@@ -1,4 +1,4 @@
-type OpenAiOperation = "AI 장소 요약 생성" | "AI 여행정보 생성" | "AI 번역";
+type OpenAiOperation = "AI 장소 요약 생성" | "AI 여행정보 생성" | "AI 번역" | "장소 정보 웹 검색 보완";
 
 type PublicOpenAiError = Error & {
   status: number;

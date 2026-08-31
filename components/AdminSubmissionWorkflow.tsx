@@ -14,6 +14,7 @@ import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
+import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { categoryLabels, placeCategories, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type SubmissionStatus } from "@/types/database";
 import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
@@ -1565,7 +1566,8 @@ function SubmissionReviewSummary({
           {facts.filter((fact) => fact.available).map((fact) => (
             <div key={fact.label} className="flex min-h-9 items-center gap-2 text-sm font-semibold text-slate-700">
               <CheckCircle2 size={16} className="text-teal-700" aria-hidden="true" />
-              {fact.label}
+              <span>{fact.label}</span>
+              {formatPlaceFactSource(getFieldSource(form.source_metadata, fact.field)) ? <span className="text-xs font-medium text-slate-400">{formatPlaceFactSource(getFieldSource(form.source_metadata, fact.field))}</span> : null}
             </div>
           ))}
           {missingLabels.length ? <p className="text-xs font-semibold leading-5 text-slate-500 sm:col-span-2">{missingLabels.join(" · ")} 정보 없음</p> : null}
@@ -1596,6 +1598,13 @@ function SubmissionReviewSummary({
       </div>
     </section>
   );
+}
+
+function getFieldSource(sourceMetadata: Record<string, unknown> | null, field: string) {
+  const sources = sourceMetadata?.field_sources;
+  return sources && typeof sources === "object" && !Array.isArray(sources)
+    ? (sources as Record<string, unknown>)[field]
+    : undefined;
 }
 
 function SubmissionPreviewValue({ label, value }: { label: string; value: string }) {

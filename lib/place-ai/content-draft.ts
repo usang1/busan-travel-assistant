@@ -154,7 +154,13 @@ export function buildPlaceSourceDataFromNormalizedPlace(place: NormalizedPlace):
     source_external_id: place.providerPlaceId ?? null,
     nearest_station: place.nearestStation ?? "",
     opening_hours: Array.isArray(openingHours) ? openingHours.join("\n") : openingHours ?? "",
-    menu: [],
+    menu: (place.menu ?? []).map((item) => ({
+      name_ko: item.name,
+      name_zh: item.name,
+      description_zh: "",
+      price: item.price ?? null,
+      is_recommended: false,
+    })),
     price: {
       level: place.priceLevel ?? null,
       min: priceRange?.min ?? null,

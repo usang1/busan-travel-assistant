@@ -30,6 +30,9 @@ export type AdminPlaceSummaryFacts = {
   providerDescription?: string;
   address?: string;
   openingHours?: string[];
+  closedDays?: string[];
+  menu?: Array<{ name: string; price?: number }>;
+  parking?: boolean;
   priceLevel?: number;
   priceRange?: { min?: number; max?: number; currency?: string };
   rating?: number;
@@ -61,6 +64,7 @@ export async function generateAdminPlaceSummaryCached(place: NormalizedPlace) {
 
 export function buildAdminPlaceSummaryFacts(place: NormalizedPlace): AdminPlaceSummaryFacts {
   const openingHours = normalizeStringArray(place.openingHours ?? place.currentOpeningHours);
+  const closedDays = normalizeStringArray(place.closedDays);
   const priceRange = place.priceRange ?? (
     place.priceMin !== undefined || place.priceMax !== undefined
       ? { min: place.priceMin, max: place.priceMax, currency: "KRW" }
@@ -75,6 +79,9 @@ export function buildAdminPlaceSummaryFacts(place: NormalizedPlace): AdminPlaceS
     providerDescription: cleanOptionalText(place.description, 400),
     address: cleanOptionalText(place.roadAddressKo ?? place.addressKo ?? place.formattedAddress, 300),
     openingHours,
+    closedDays,
+    menu: place.menu?.slice(0, 20),
+    parking: typeof place.amenities?.parking === "boolean" ? place.amenities.parking : undefined,
     priceLevel: validPriceLevel(place.priceLevel),
     priceRange,
     rating: finiteNumber(place.rating),
