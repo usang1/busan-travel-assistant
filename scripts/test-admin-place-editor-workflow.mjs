@@ -39,4 +39,10 @@ assert.match(placeStoreSource, /isMissingAdminSummaryColumnError/, "place writes
 assert.match(placeStoreSource, /insert\(withoutAdminSummary\(placeRow\)\)/, "place creation must retry against the pre-migration schema");
 assert.match(placeStoreSource, /update\(withoutAdminSummary\(placeRow\)\)/, "place updates must retry against the pre-migration schema");
 
+for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[slug]/page.tsx"]) {
+  const detailSource = readFileSync(new URL(`../${detailFile}`, import.meta.url), "utf8");
+  assert.match(detailSource, /const getCachedPlaceBySlug = cache\(\(slug: string\) => getPlaceBySlug\(slug\)\)/, `${detailFile}: metadata and page must share the place lookup`);
+  assert.match(detailSource, /getCachedPlaceBySlug\(slug\)/, `${detailFile}: detail route must use the shared lookup`);
+}
+
 console.log("Admin place editor workflow tests passed (375px, 390px, 430px mobile layout contracts).");

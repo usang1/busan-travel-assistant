@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -39,13 +40,15 @@ type PlaceDetailPageProps = {
 
 export const dynamic = "force-dynamic";
 
+const getCachedPlaceBySlug = cache((slug: string) => getPlaceBySlug(slug));
+
 export function generateStaticParams() {
   return demoPlaces.map((place) => ({ slug: place.slug }));
 }
 
 export async function generateMetadata({ params }: PlaceDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { place } = await getPlaceBySlug(slug);
+  const { place } = await getCachedPlaceBySlug(slug);
   const chinaSummary = buildChinaPlaceSummary(place?.china_info);
   const featureText = chinaSummary.tags.slice(0, 3).join("、");
 
@@ -72,7 +75,7 @@ export async function generateMetadata({ params }: PlaceDetailPageProps): Promis
 
 export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) {
   const { slug } = await params;
-  const { place, source, error } = await getPlaceBySlug(slug);
+  const { place, source, error } = await getCachedPlaceBySlug(slug);
 
   if (!place) {
     notFound();

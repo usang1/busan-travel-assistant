@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -53,6 +54,8 @@ type LocalizedPlaceDetailPageProps = {
 
 export const dynamic = "force-dynamic";
 
+const getCachedPlaceBySlug = cache((slug: string) => getPlaceBySlug(slug));
+
 export function generateStaticParams() {
   return demoPlaces.flatMap((place) => [
     { locale: "zh", slug: place.slug },
@@ -74,7 +77,7 @@ async function getRouteParams(params: LocalizedPlaceDetailPageProps["params"]) {
 
 export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps): Promise<Metadata> {
   const { locale, slug } = await getRouteParams(params);
-  const { place } = await getPlaceBySlug(slug);
+  const { place } = await getCachedPlaceBySlug(slug);
   const copy = ui[locale];
 
   if (!place) {
@@ -118,7 +121,7 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
 
 export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlaceDetailPageProps) {
   const { locale, slug } = await getRouteParams(params);
-  const { place, source, error } = await getPlaceBySlug(slug);
+  const { place, source, error } = await getCachedPlaceBySlug(slug);
   const copy = ui[locale];
 
   if (!place) {
