@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Clock3, MapPin } from "lucide-react";
+import { Clock3, MapPin, MessageSquarePlus } from "lucide-react";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
@@ -24,6 +24,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const placeHref = withLocale(`/places/${place.slug}`, locale);
   const opening = formatOpeningStatus(place.opening_hours, locale);
   const chinaTags = locale === "zh" ? getChinaDiscoveryTags(place, locale, 4) : [];
+  const correctionLabel = { zh: "补充商家信息", en: "Update info", ja: "店舗情報を報告", ko: "영업정보 제보" }[locale];
   const coordinates: Coordinates | null =
     typeof place.latitude === "number" && typeof place.longitude === "number"
       ? { latitude: place.latitude, longitude: place.longitude }
@@ -97,7 +98,11 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
             </TagChip>
           ))}
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <Link href={`${placeHref}#place-correction`} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
+            <MessageSquarePlus size={15} aria-hidden="true" />
+            {correctionLabel}
+          </Link>
           <DirectionsButton
             placeId={place.id}
             name={content.name}

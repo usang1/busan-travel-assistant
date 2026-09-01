@@ -141,6 +141,10 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   const opening = formatOpeningStatus(place.opening_hours, locale);
   const priceText = formatPriceRange(place, locale);
   const localizedHoursLabel = { zh: "营业", en: "Hours", ja: "営業時間", ko: "영업" }[locale];
+  const currentMenuText = place.menu_items.map((item) => {
+    const menu = getLocalizedMenuItem(item, locale);
+    return [menu.name, item.price === null ? "" : formatWon(item.price, locale)].filter(Boolean).join(" · ");
+  }).join("\n");
   const localizedOrderFallback = {
     zh: "请问可以推荐这里最受欢迎的菜单吗？",
     en: "Could you recommend the most popular item here?",
@@ -351,7 +355,19 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         {copy.placeDetail.confirmationNote}
       </section>
 
-      <PlaceCorrectionForm placeId={place.id} locale={locale} />
+      <PlaceCorrectionForm
+        placeId={place.id}
+        locale={locale}
+        currentValues={{
+          opening_hours: place.opening_hours,
+          menu: currentMenuText,
+          menu_price: currentMenuText,
+          price_range: priceText,
+          phone: place.phone ?? "",
+          website: place.website ?? "",
+          address: content.address,
+        }}
+      />
       <PlaceLocationPanel place={place} locale={locale} />
     </main>
   );

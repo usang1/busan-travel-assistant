@@ -18,10 +18,17 @@ const statusLabels: Record<PlaceCorrectionStatus, string> = {
 
 const fieldLabels: Record<string, string> = {
   opening_hours: "영업시간",
+  closed_days: "휴무일",
   price: "가격",
+  price_range: "1인 가격대",
+  menu_price: "메뉴별 가격",
+  phone: "전화번호",
+  website: "홈페이지/공식 SNS",
   address: "주소",
-  menu: "메뉴",
-  closed: "폐업",
+  menu: "메뉴/대표 메뉴",
+  parking: "주차 정보",
+  reservation: "예약 정보",
+  closed: "폐업/이전",
   other: "기타",
 };
 

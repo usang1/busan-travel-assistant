@@ -91,6 +91,9 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
   ].filter((label): label is string => Boolean(label));
   const opening = formatOpeningStatus(place.opening_hours, "zh");
   const priceText = formatPriceRange(place);
+  const currentMenuText = place.menu_items.map((item) => (
+    [item.name_zh || item.name_ko, item.price === null ? "" : formatWon(item.price)].filter(Boolean).join(" · ")
+  )).join("\n");
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -279,7 +282,19 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
         信息可能会发生变化，请出发前再次确认。가격, 영업시간, 대기 정보는 변경될 수 있으니 방문 전 다시 확인하세요.
       </section>
 
-      <PlaceCorrectionForm placeId={place.id} locale="zh" />
+      <PlaceCorrectionForm
+        placeId={place.id}
+        locale="zh"
+        currentValues={{
+          opening_hours: place.opening_hours,
+          menu: currentMenuText,
+          menu_price: currentMenuText,
+          price_range: priceText,
+          phone: place.phone ?? "",
+          website: place.website ?? "",
+          address: place.address_zh || place.address_ko || place.address,
+        }}
+      />
       <PlaceLocationPanel place={place} />
     </main>
   );

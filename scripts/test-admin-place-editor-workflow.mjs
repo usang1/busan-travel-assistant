@@ -52,6 +52,17 @@ for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[sl
   const detailSource = readFileSync(new URL(`../${detailFile}`, import.meta.url), "utf8");
   assert.match(detailSource, /const getCachedPlaceBySlug = cache\(\(slug: string\) => getPlaceBySlug\(slug\)\)/, `${detailFile}: metadata and page must share the place lookup`);
   assert.match(detailSource, /getCachedPlaceBySlug\(slug\)/, `${detailFile}: detail route must use the shared lookup`);
+  assert.match(detailSource, /<PlaceCorrectionForm[\s\S]*currentValues=\{\{[\s\S]*opening_hours:[\s\S]*menu:[\s\S]*phone:/, `${detailFile}: correction form must receive current business values`);
 }
+
+const placeCardSource = readFileSync(new URL("../components/PlaceCard.tsx", import.meta.url), "utf8");
+assert.match(placeCardSource, /href=\{`\$\{placeHref\}#place-correction`\}/, "place cards must link directly to the business information report form");
+assert.match(placeCardSource, /영업정보 제보/, "place cards must expose the Korean business information report label");
+
+const correctionFormSource = readFileSync(new URL("../components/PlaceCorrectionForm.tsx", import.meta.url), "utf8");
+for (const field of ["opening_hours", "closed_days", "menu", "menu_price", "price_range", "phone", "website", "parking", "reservation", "closed"]) {
+  assert.match(correctionFormSource, new RegExp(`value: "${field}"`), `correction form must support ${field}`);
+}
+assert.match(correctionFormSource, /current_value: currentValue \|\| null/, "correction submissions must preserve the current value for admin comparison");
 
 console.log("Admin place editor workflow tests passed (375px, 390px, 430px mobile layout contracts).");
