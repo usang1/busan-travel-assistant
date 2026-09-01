@@ -16,11 +16,23 @@ const searchCache = new Map<string, { expiresAt: number; value: Promise<PlaceWeb
 
 export type PlaceWebSearchResult = {
   data: WebSearchEnrichmentData;
+  identity: PlaceWebSearchIdentity;
   searchedFields: PlaceDraftField[];
   needsReviewFields: PlaceDraftField[];
   sources: PlaceSourceCitation[];
   model: string;
   searchedAt: string;
+};
+
+export type PlaceWebSearchIdentity = {
+  matched: boolean;
+  reason: string;
+  confidence: number;
+  name?: string;
+  address?: string;
+  category?: string;
+  providerPlaceId?: string;
+  sourceUrls: string[];
 };
 
 export type PlaceWebSearchHints = {
@@ -60,6 +72,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
   if (!missingFields.length) {
     return {
       data: { sources: [] },
+      identity: { matched: true, reason: "검색할 누락 필드가 없습니다.", confidence: 1, sourceUrls: [] },
       searchedFields: [],
       needsReviewFields: [],
       sources: [],
@@ -82,6 +95,8 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
             "You research only the missing factual fields for a specific place in South Korea.",
             "Provider data is authoritative. Never change or repeat provider values as web facts.",
             "The provider lookup query is not the place name. Use the provider place ID, source URL, address, and reliable sources to identify the exact business.",
+            "Before returning facts, identify the exact matched place in matchedPlace. A nearby landmark, park, similarly named branch, or broad search-query result is not the same place.",
+            "matchedPlace must describe the page/entity from which the returned facts were taken, including its actual name, address, category, provider place ID when visible, confidence, and evidence URLs.",
             "Use official website, official social account, or official business page first; then major map or business pages; then trustworthy booking or travel platforms; use blogs only as a last resort.",
             "Research only these normalized fields when requested: name, address, roadAddress, category, phone, openingHours, closedDays, menu, recommendedOrder, priceRange, parking, description, websiteUrl, and coordinates.",
             "For menu, identify signature items, set or course composition, and prices only when a cited source states them.",
@@ -127,10 +142,13 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
 
     const parsed = parseJson(response.output_text);
     const responseSources = extractResponseSources(response);
-    const data = normalizeWebSearchData(parsed, responseSources);
+    const rawData = normalizeWebSearchData(parsed, responseSources);
+    const identity = verifyWebSearchPlaceIdentity(place, hints, parsed.matchedPlace, rawData.sources);
+    const data: WebSearchEnrichmentData = identity.matched ? rawData : { sources: rawData.sources };
     const searchedAt = new Date().toISOString();
     const needsReviewFields = missingFields.filter((field) => {
-      const candidate = data[field];
+      const candidate = rawData[field];
+      if (!identity.matched) return candidate?.value !== null && candidate?.value !== undefined;
       const threshold = ["coordinates", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking"].includes(field)
         ? WEB_SEARCH_VOLATILE_CONFIDENCE
         : 0.75;
@@ -139,6 +157,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
 
     return {
       data,
+      identity,
       searchedFields: missingFields,
       needsReviewFields,
       sources: data.sources,
@@ -253,6 +272,19 @@ const webSearchSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    matchedPlace: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        name: { type: ["string", "null"] },
+        address: { type: ["string", "null"] },
+        category: { type: ["string", "null"] },
+        providerPlaceId: { type: ["string", "null"] },
+        confidence: { type: "number" },
+        sourceUrls: { type: "array", items: { type: "string" } },
+      },
+      required: ["name", "address", "category", "providerPlaceId", "confidence", "sourceUrls"],
+    },
     name: factSchema,
     category: factSchema,
     address: factSchema,
@@ -290,7 +322,7 @@ const webSearchSchema = {
       },
     },
   },
-  required: ["name", "category", "address", "roadAddress", "coordinates", "phone", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking", "description", "websiteUrl", "sources"],
+  required: ["matchedPlace", "name", "category", "address", "roadAddress", "coordinates", "phone", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking", "description", "websiteUrl", "sources"],
 } as const;
 
 function parseJson(value: string) {
@@ -351,4 +383,89 @@ function normalizeSources(value: unknown, fallback: PlaceSourceCitation[]) {
 
 function normalizeSourceType(value: unknown): PlaceSourceCitation["type"] {
   return value === "OFFICIAL" || value === "MAP" || value === "PLATFORM" || value === "BLOG" || value === "OTHER" ? value : "OTHER";
+}
+
+export function verifyWebSearchPlaceIdentity(
+  place: PlaceDraft,
+  hints: PlaceWebSearchHints,
+  value: unknown,
+  sources: PlaceSourceCitation[] = [],
+): PlaceWebSearchIdentity {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const name = normalizeIdentityText(record.name);
+  const address = normalizeIdentityText(record.address);
+  const category = normalizeIdentityText(record.category);
+  const providerPlaceId = normalizeIdentityText(record.providerPlaceId);
+  const confidence = typeof record.confidence === "number" && Number.isFinite(record.confidence)
+    ? Math.min(1, Math.max(0, record.confidence))
+    : 0;
+  const sourceUrls = Array.from(new Set([
+    ...(Array.isArray(record.sourceUrls) ? record.sourceUrls : []),
+    ...sources.map((source) => source.url),
+  ].filter((url): url is string => typeof url === "string" && /^https?:\/\//i.test(url)))).slice(0, 10);
+  const expectedName = place.name?.trim() || hints.name?.trim() || "";
+  const expectedAddress = place.roadAddress?.trim() || place.address?.trim() || hints.address?.trim() || "";
+  const expectedCategory = place.category?.trim() || hints.category?.trim() || "";
+  const expectedId = place.providerPlaceId?.trim() || "";
+  const idMatched = Boolean(expectedId && (
+    providerPlaceId === expectedId || sourceUrls.some((url) => url.includes(encodeURIComponent(expectedId)) || url.includes(expectedId))
+  ));
+  const nameMatched = Boolean(expectedName && name && identityNameMatches(expectedName, name));
+  const addressMatched = Boolean(expectedAddress && address && identityAddressMatches(expectedAddress, address));
+  const categoryMatched = identityCategoryMatches(expectedCategory, category);
+
+  const base = { confidence, name: name || undefined, address: address || undefined, category: category || undefined, providerPlaceId: providerPlaceId || undefined, sourceUrls };
+  if (confidence < WEB_SEARCH_VOLATILE_CONFIDENCE) return { ...base, matched: false, reason: "웹검색 장소 식별 신뢰도가 부족합니다." };
+  if (!sourceUrls.length) return { ...base, matched: false, reason: "웹검색 장소 식별 출처가 없습니다." };
+  if (expectedName && !nameMatched) return { ...base, matched: false, reason: "웹검색 상호명이 등록 장소와 일치하지 않습니다." };
+  if (!categoryMatched) return { ...base, matched: false, reason: "웹검색 장소 카테고리가 등록 장소와 일치하지 않습니다." };
+  if (expectedAddress && !addressMatched && !idMatched) return { ...base, matched: false, reason: "웹검색 주소가 등록 장소와 일치하지 않습니다." };
+  if (!idMatched && !(nameMatched && addressMatched)) {
+    return { ...base, matched: false, reason: "동일한 장소임을 확인할 상호명·주소 또는 Place ID 근거가 부족합니다." };
+  }
+  return { ...base, matched: true, reason: idMatched ? "Provider Place ID가 일치합니다." : "상호명과 주소가 일치합니다." };
+}
+
+function normalizeIdentityText(value: unknown) {
+  return typeof value === "string" ? value.trim().slice(0, 300) : "";
+}
+
+function identityNameMatches(expected: string, actual: string) {
+  const left = compactIdentityText(expected);
+  const right = compactIdentityText(actual);
+  return left.length >= 3 && right.length >= 3 && (left === right || left.includes(right) || right.includes(left));
+}
+
+function identityAddressMatches(expected: string, actual: string) {
+  const left = compactIdentityText(expected);
+  const right = compactIdentityText(actual);
+  if (left.length >= 6 && right.length >= 6 && (left.includes(right) || right.includes(left))) return true;
+  const ignored = new Set(["대한민국", "한국", "부산", "부산광역시"]);
+  const expectedTokens = new Set(tokenizeIdentityText(expected).filter((token) => !ignored.has(token)));
+  const actualTokens = new Set(tokenizeIdentityText(actual).filter((token) => !ignored.has(token)));
+  const common = [...expectedTokens].filter((token) => actualTokens.has(token));
+  return common.length >= 2;
+}
+
+function identityCategoryMatches(expected: string, actual: string) {
+  const expectedFamily = categoryFamily(expected);
+  const actualFamily = categoryFamily(actual);
+  return !expectedFamily || !actualFamily || expectedFamily === actualFamily;
+}
+
+function categoryFamily(value: string) {
+  const normalized = value.toLowerCase();
+  if (/(cafe|coffee|bakery|카페|커피|베이커리)/.test(normalized)) return "cafe";
+  if (/(restaurant|food|한식|중식|일식|음식점|식당|고기|국밥)/.test(normalized)) return "restaurant";
+  if (/(bar|pub|술집|주점|호프|와인)/.test(normalized)) return "bar";
+  if (/(park|beach|museum|attraction|공원|해변|박물관|관광|명소)/.test(normalized)) return "attraction";
+  return "";
+}
+
+function compactIdentityText(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/[^0-9a-z가-힣]/g, "");
+}
+
+function tokenizeIdentityText(value: string) {
+  return value.normalize("NFKC").toLowerCase().match(/[0-9a-z가-힣]+/g) ?? [];
 }

@@ -39,6 +39,16 @@ export async function POST(request: Request) {
         normalizedPlace = mergeResult.normalizedPlace;
         webSearchAcceptedFields = mergeResult.acceptedFields;
         webSearchNeedsReviewFields = mergeResult.needsReviewFields;
+        if (!webSearch.identity.matched) {
+          // eslint-disable-next-line no-console
+          console.warn("[place:web-search] identity mismatch", {
+            provider: resolution.provider,
+            providerPlaceId: providerDraft.providerPlaceId,
+            expectedName: providerDraft.name || searchHints.name,
+            matchedName: webSearch.identity.name,
+            reason: webSearch.identity.reason,
+          });
+        }
       } catch (error) {
         webSearchError = error instanceof Error ? error.message : "Web Search 보완에 실패했습니다.";
         // Provider facts remain usable when web search is unavailable.
@@ -53,6 +63,8 @@ export async function POST(request: Request) {
 
     const webSearchNotice = webSearchError
       ? `Web Search 보완 실패: ${webSearchError} Provider 정보만 사용합니다.`
+      : webSearch && !webSearch.identity.matched
+        ? `Web Search 결과가 다른 장소일 가능성이 있어 반영하지 않았습니다. ${webSearch.identity.reason}`
       : webSearchNeedsReviewFields.length
         ? `Web Search에서 ${webSearchAcceptedFields.length}개 필드를 보완했습니다. ${webSearchNeedsReviewFields.join(", ")}는 근거 또는 신뢰도가 부족해 반영하지 않았습니다.`
         : webSearch

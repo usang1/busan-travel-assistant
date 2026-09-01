@@ -56,6 +56,14 @@ class FakeWebSearchOpenAI {
         webSearchRequest = request;
         return {
           output_text: JSON.stringify({
+            matchedPlace: {
+              name: "테스트 중식당",
+              address: "부산 수영구",
+              category: "중식 음식점",
+              providerPlaceId: "12345",
+              confidence: 0.96,
+              sourceUrls: ["https://place.map.kakao.com/12345"],
+            },
             name: { value: null, confidence: 0, sourceUrls: [] },
             category: { value: null, confidence: 0, sourceUrls: [] },
             address: { value: null, confidence: 0, sourceUrls: [] },
@@ -80,6 +88,38 @@ class FakeWebSearchOpenAI {
 }
 const webSearch = loadTsModule("lib/place-web-search.ts", {
   openai: FakeWebSearchOpenAI,
+  "@/lib/openai-errors": { toPublicOpenAiError: (error) => error },
+  "@/lib/place-draft": placeDraft,
+});
+class WrongPlaceWebSearchOpenAI {
+  constructor() {
+    this.responses = {
+      create: async () => ({
+        output_text: JSON.stringify({
+          matchedPlace: { name: "민락수변공원", address: "부산 수영구 민락동 110", category: "공원", providerPlaceId: null, confidence: 0.99, sourceUrls: ["https://example.com/minrak-park"] },
+          name: { value: null, confidence: 0, sourceUrls: [] },
+          category: { value: null, confidence: 0, sourceUrls: [] },
+          address: { value: null, confidence: 0, sourceUrls: [] },
+          roadAddress: { value: null, confidence: 0, sourceUrls: [] },
+          coordinates: { value: null, confidence: 0, sourceUrls: [] },
+          phone: { value: null, confidence: 0, sourceUrls: [] },
+          openingHours: { value: null, confidence: 0, sourceUrls: [] },
+          closedDays: { value: null, confidence: 0, sourceUrls: [] },
+          menu: { value: null, confidence: 0, sourceUrls: [] },
+          recommendedOrder: { value: null, confidence: 0, sourceUrls: [] },
+          priceRange: { value: null, confidence: 0, sourceUrls: [] },
+          parking: { value: null, confidence: 0, sourceUrls: [] },
+          description: { value: "해변 인접 수변공원", confidence: 0.99, sourceUrls: ["https://example.com/minrak-park"] },
+          websiteUrl: { value: null, confidence: 0, sourceUrls: [] },
+          sources: [{ title: "민락수변공원", url: "https://example.com/minrak-park", type: "OTHER" }],
+        }),
+        output: [],
+      }),
+    };
+  }
+}
+const wrongPlaceWebSearch = loadTsModule("lib/place-web-search.ts", {
+  openai: WrongPlaceWebSearchOpenAI,
   "@/lib/openai-errors": { toPublicOpenAiError: (error) => error },
   "@/lib/place-draft": placeDraft,
 });
@@ -191,6 +231,7 @@ assert.ok(sparseDraft.fieldSources.phone);
 assert.deepEqual([...placeDraft.getMissingPlaceFields(sparseDraft)], ["roadAddress", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking", "description", "websiteUrl"]);
 const webResult = await webSearch.searchMissingPlaceDataCached(sparseDraft, placeDraft.getMissingPlaceFields(sparseDraft));
 assert.equal(webSearchRequest.tools[0].type, "web_search");
+assert.equal(webResult.identity.matched, true);
 assert.deepEqual([...webResult.needsReviewFields], ["openingHours", "priceRange"]);
 const mergedSparse = placeDraft.mergePlaceData(sparseProviderPlace, webResult.data);
 assert.equal(mergedSparse.normalizedPlace.phone, "051-111-1111");
@@ -206,6 +247,31 @@ assert.equal(mergedSparse.normalizedPlace.fieldSources.recommendedOrder.source, 
 assert.equal(mergedSparse.normalizedPlace.amenities.parking, true);
 assert.equal(mergedSparse.normalizedPlace.priceRange, undefined);
 assert.equal(mergedSparse.normalizedPlace.photos, undefined);
+
+const wrongCafeIdentity = webSearch.verifyWebSearchPlaceIdentity({
+  ...sparseDraft,
+  name: "테스트 카페",
+  category: "cafe",
+  address: "부산 수영구 민락동 10",
+}, {}, {
+  name: "민락수변공원",
+  address: "부산 수영구 민락동 110",
+  category: "공원",
+  providerPlaceId: null,
+  confidence: 0.99,
+  sourceUrls: ["https://example.com/minrak-park"],
+}, [{ url: "https://example.com/minrak-park", type: "OTHER" }]);
+assert.equal(wrongCafeIdentity.matched, false);
+assert.match(wrongCafeIdentity.reason, /상호명|카테고리/);
+const rejectedWrongPlaceResult = await wrongPlaceWebSearch.searchMissingPlaceData({
+  ...sparseDraft,
+  name: "테스트 카페",
+  category: "cafe",
+  address: "부산 수영구 민락동 10",
+}, ["description"]);
+assert.equal(rejectedWrongPlaceResult.identity.matched, false);
+assert.equal(rejectedWrongPlaceResult.data.description, undefined);
+assert.deepEqual([...rejectedWrongPlaceResult.needsReviewFields], ["description"]);
 
 const providerConflict = placeDraft.mergePlaceData(sparseProviderPlace, {
   phone: { value: "051-000-0000", confidence: 0.99, sourceUrls: ["https://official.example/place"] },
@@ -837,6 +903,7 @@ assert.match(mapLinkRouteSource, /Promise\.allSettled\(\[summaryPromise, koreanC
 assert.match(mapLinkRouteSource, /forceWebSearch[\s\S]*searchMissingPlaceData\(providerDraft, missingFields, searchHints\)/);
 assert.equal(webSearchRequest.text.format.schema.properties.menu.properties.value.items.properties.role.enum.includes("popular"), true);
 assert.ok(webSearchRequest.text.format.schema.properties.recommendedOrder);
+assert.ok(webSearchRequest.text.format.schema.properties.matchedPlace);
 
 const adminSummarySource = readFileSync(new URL("../lib/place-ai/admin-summary.ts", import.meta.url), "utf8");
 const placeGeneratorSource = readFileSync(new URL("../lib/place-ai/generator.ts", import.meta.url), "utf8");
