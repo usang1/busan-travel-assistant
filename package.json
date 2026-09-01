@@ -7,7 +7,7 @@
     "build": "node node_modules/next/dist/bin/next build",
     "lint": "node node_modules/eslint/bin/eslint.js app components data lib types",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
-    "test": "node scripts/test-china-formatter.mjs && node scripts/test-map-place-providers.mjs && node scripts/test-admin-place-editor-workflow.mjs && node scripts/test-map-focus-behavior.mjs && node scripts/verify-place-publication-flow.mjs"
+    "test": "node scripts/test-china-formatter.mjs && node scripts/test-map-place-providers.mjs && node scripts/test-admin-place-editor-workflow.mjs && node scripts/test-map-focus-behavior.mjs && node scripts/test-map-discovery-filters.mjs && node scripts/verify-place-publication-flow.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",

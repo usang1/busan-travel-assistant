@@ -24,7 +24,23 @@ export const gwangalliCenter: Coordinates = {
 export const mapCategories: PlaceCategory[] = ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"];
 
 export function hasCoordinates(place: Pick<PlaceWithRelations, "latitude" | "longitude">): place is PlaceWithRelations & Coordinates {
-  return typeof place.latitude === "number" && typeof place.longitude === "number";
+  return isValidCoordinates({ latitude: place.latitude, longitude: place.longitude });
+}
+
+export function isValidCoordinates(coordinates: { latitude?: number | null; longitude?: number | null }): coordinates is Coordinates {
+  const { latitude, longitude } = coordinates;
+
+  return (
+    typeof latitude === "number" &&
+    typeof longitude === "number" &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180 &&
+    !(latitude === 0 && longitude === 0)
+  );
 }
 
 export function calculateDistanceMeters(from: Coordinates, to: Coordinates) {

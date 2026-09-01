@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import type { MutableRefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ChevronUp, LocateFixed, MapPinned, Navigation, Search } from "lucide-react";
+import { ArrowRight, ChevronUp, Heart, MapPinned, Navigation, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { EmptyState } from "@/components/EmptyState";
 import { SaveButton } from "@/components/SaveButton";
@@ -19,6 +20,7 @@ import {
   getOpeningStatus,
   getPlaceDistance,
   gwangalliCenter,
+  hasCoordinates,
   mapCategories,
   type Coordinates,
 } from "@/lib/location";
@@ -40,7 +42,8 @@ import { formatPriceRange } from "@/lib/place-store";
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { getPreferredMapProvider, type MapBounds, type MapMarker } from "@/lib/map-provider";
-import { categoryLabels, type PlaceCategory, type PlaceWithRelations } from "@/types/database";
+import { getSupabaseClient } from "@/lib/supabase";
+import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 
 type NearbyExplorerProps = {
   places: PlaceWithRelations[];
@@ -49,6 +52,8 @@ type NearbyExplorerProps = {
 };
 
 type OriginMode = "current" | "gwangalli";
+type MapCategoryFilter = "all" | "restaurant" | "cafe" | "attraction" | "shopping" | "saved";
+type DistanceFilter = "all" | "500" | "1000" | "3000";
 
 type PlaceListItem = {
   place: PlaceWithRelations;
@@ -57,15 +62,20 @@ type PlaceListItem = {
   openingStatus: ReturnType<typeof getOpeningStatus>;
 };
 
-const categoryOptions: Array<{ value: PlaceCategory | "all"; short: Record<Locale, string> }> = [
+const categoryOptions: Array<{ value: MapCategoryFilter; short: Record<Locale, string> }> = [
   { value: "all", short: { zh: "全部", en: "All", ja: "すべて", ko: "전체" } },
-  { value: "restaurant", short: categoryLabels.restaurant },
+  { value: "restaurant", short: { zh: "美食", en: "Food", ja: "グルメ", ko: "맛집" } },
   { value: "cafe", short: categoryLabels.cafe },
-  { value: "bar", short: categoryLabels.bar },
   { value: "attraction", short: categoryLabels.attraction },
   { value: "shopping", short: categoryLabels.shopping },
-  { value: "photo_spot", short: categoryLabels.photo_spot },
-  { value: "luggage", short: categoryLabels.luggage },
+  { value: "saved", short: { zh: "保存", en: "Saved", ja: "保存", ko: "저장" } },
+];
+
+const distanceOptions: Array<{ value: DistanceFilter; meters: number | null }> = [
+  { value: "500", meters: 500 },
+  { value: "1000", meters: 1000 },
+  { value: "3000", meters: 3000 },
+  { value: "all", meters: null },
 ];
 
 function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
@@ -82,6 +92,7 @@ function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
 }
 
 export function NearbyExplorer({ places, locale = defaultLocale, loadError }: NearbyExplorerProps) {
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -90,7 +101,12 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState(localizedCopy.gwangalliBase);
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
-  const [category, setCategory] = useState<PlaceCategory | "all">(() => readCategory(searchParams));
+  const [category, setCategory] = useState<MapCategoryFilter>(() => readCategory(searchParams));
+  const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>(() => readDistanceFilter(searchParams));
+  const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(() => new Set());
+  const [filterNotice, setFilterNotice] = useState("");
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationFocusRequest, setLocationFocusRequest] = useState(0);
   const [priceBucket, setPriceBucket] = useState<ChinaPriceBucket>(() => readPriceBucket(searchParams));
   const [activeChinaFilters, setActiveChinaFilters] = useState<ChinaDiscoveryFilter[]>(() => readChinaFilters(searchParams));
   const [sortMode, setSortMode] = useState<ChinaDiscoverySort>(() => readSortMode(searchParams, "distance"));
@@ -100,6 +116,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const [mapMoved, setMapMoved] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const initialSelectionAppliedRef = useRef(false);
   const origin = originMode === "current" && userLocation ? userLocation : gwangalliCenter;
   const provider = getPreferredMapProvider();
   const copy = ui[locale];
@@ -120,6 +137,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
 
     if (query.trim()) nextParams.set("q", query.trim());
     if (category !== "all") nextParams.set("category", category);
+    if (distanceFilter !== "all") nextParams.set("distance", distanceFilter);
     if (priceBucket !== "all") nextParams.set("price", priceBucket);
     if (sortMode !== "distance") nextParams.set("sort", sortMode);
 
@@ -139,12 +157,56 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
     if (nextQuery !== currentQuery) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     }
-  }, [activeChinaFilters, category, pathname, priceBucket, query, router, searchParams, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, category, distanceFilter, pathname, priceBucket, query, router, searchParams, showChinaFilters, sortMode]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSavedPlaceIds() {
+      const client = getSupabaseClient();
+
+      if (!client || !user) {
+        if (mounted) setSavedPlaceIds(new Set());
+        return;
+      }
+
+      const { data, error } = await client
+        .from("place_saves")
+        .select("place_id")
+        .eq("user_id", user.id);
+
+      if (!mounted) return;
+
+      if (error) {
+        setSavedPlaceIds(new Set());
+        setFilterNotice(localizedCopy.savedLoadFailed);
+        return;
+      }
+
+      setSavedPlaceIds(new Set((data ?? []).map((row) => String(row.place_id))));
+      setFilterNotice("");
+    }
+
+    void loadSavedPlaceIds();
+    window.addEventListener("place-save-change", loadSavedPlaceIds);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("place-save-change", loadSavedPlaceIds);
+    };
+  }, [localizedCopy.savedLoadFailed, user]);
+
+  useEffect(() => {
+    if (!authLoading && !user && category === "saved") {
+      setCategory("all");
+      setFilterNotice(localizedCopy.savedLoginRequired);
+    }
+  }, [authLoading, category, localizedCopy.savedLoginRequired, user]);
 
   const baseItems = useMemo(() => {
     return places
       .filter((place) => mapCategories.includes(place.category))
-      .filter((place) => typeof place.latitude === "number" && typeof place.longitude === "number")
+      .filter(hasCoordinates)
       .map((place) => {
         const distance = getPlaceDistance(place, origin);
 
@@ -170,7 +232,14 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
     const filtered = baseItems
       .filter((item) => {
         const content = getPlaceContent(item.place, locale);
-        const categoryMatch = category === "all" || item.place.category === category;
+        const categoryMatch =
+          category === "all" ||
+          (category === "saved" && savedPlaceIds.has(item.place.id)) ||
+          (category === "restaurant" && (item.place.category === "restaurant" || item.place.category === "bar")) ||
+          item.place.category === category;
+        const distanceFromUser = userLocation ? getPlaceDistance(item.place, userLocation) : null;
+        const distanceLimit = distanceOptions.find((option) => option.value === distanceFilter)?.meters ?? null;
+        const distanceMatch = distanceLimit === null || (distanceFromUser !== null && distanceFromUser <= distanceLimit);
         const boundsMatch = isInsideBounds(item.place, appliedBounds);
         const chinaMatch = chinaFilteredPlaces.has(item.place.id);
         const searchText = [
@@ -190,11 +259,11 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           .toLowerCase();
         const searchMatch = lowered.length === 0 || searchText.includes(lowered);
 
-        return categoryMatch && boundsMatch && searchMatch && chinaMatch;
+        return categoryMatch && boundsMatch && searchMatch && chinaMatch && distanceMatch;
       });
 
     return sortPlacesForChineseTraveler(filtered, sortMode);
-  }, [activeChinaFilters, appliedBounds, baseItems, category, locale, priceBucket, query, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, appliedBounds, baseItems, category, distanceFilter, locale, priceBucket, query, savedPlaceIds, showChinaFilters, sortMode, userLocation]);
 
   const markers: MapMarker[] = useMemo(() => {
     return filteredItems.map(({ place, distance, walkingMinutes }) => {
@@ -206,8 +275,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
         subtitle: content.secondaryName,
         category: place.category,
         position: {
-          latitude: place.latitude as number,
-          longitude: place.longitude as number,
+          latitude: place.latitude,
+          longitude: place.longitude,
         },
         href: withLocale(`/places/${place.slug}`, locale),
         imageUrl: place.thumbnail_url,
@@ -223,7 +292,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   }, [copy.common.minutes, copy.placeDetail.walkingApprox, filteredItems, locale, localizedCopy.detail]);
 
   const selectedItem = useMemo(() => {
-    return filteredItems.find((item) => item.place.id === selectedId) ?? filteredItems[0] ?? null;
+    return selectedId ? filteredItems.find((item) => item.place.id === selectedId) ?? null : null;
   }, [filteredItems, selectedId]);
 
   useEffect(() => {
@@ -237,6 +306,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       activeFilters: {
         query: query.trim(),
         category,
+        distanceFilter,
+        savedOnly: category === "saved",
         priceBucket,
         chinaFilters: showChinaFilters ? activeChinaFilters : [],
         sortMode,
@@ -248,18 +319,19 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       finalFilteredCount: filteredItems.length,
       loadError: loadError ?? null,
     });
-  }, [activeChinaFilters, appliedBounds, baseItems.length, category, filteredItems.length, loadError, locale, originMode, places.length, priceBucket, query, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, appliedBounds, baseItems.length, category, distanceFilter, filteredItems.length, loadError, locale, originMode, places.length, priceBucket, query, showChinaFilters, sortMode]);
 
   useEffect(() => {
-    if (!selectedItem) {
-      setSelectedId(null);
+    if (!initialSelectionAppliedRef.current && filteredItems[0]) {
+      initialSelectionAppliedRef.current = true;
+      setSelectedId(filteredItems[0].place.id);
       return;
     }
 
-    if (selectedId !== selectedItem.place.id) {
-      setSelectedId(selectedItem.place.id);
+    if (selectedId && !selectedItem) {
+      setSelectedId(null);
     }
-  }, [selectedId, selectedItem]);
+  }, [filteredItems, selectedId, selectedItem]);
 
   function selectPlace(placeId: string, source: "card" | "marker") {
     setSelectedId(placeId);
@@ -295,6 +367,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   function clearFilters() {
     setQuery("");
     setCategory("all");
+    setDistanceFilter("all");
+    setFilterNotice("");
     setPriceBucket("all");
     setActiveChinaFilters([]);
     setSortMode("distance");
@@ -308,6 +382,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       return;
     }
 
+    setIsLocating(true);
     setLocationStatus(localizedCopy.locationChecking);
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -319,11 +394,15 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
 
         setUserLocation(nextLocation);
         setOriginMode("current");
+        setLocationFocusRequest((current) => current + 1);
+        clearAreaSearch();
         setLocationStatus(`${localizedCopy.currentBase} ${localizedCopy.distanceToGwangalli} ${formatDistance(distanceToGwangalli)}.`);
+        setIsLocating(false);
       },
       () => {
         setOriginMode("gwangalli");
         setLocationStatus(localizedCopy.locationDenied);
+        setIsLocating(false);
       },
       {
         enableHighAccuracy: true,
@@ -333,6 +412,16 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
     );
   }
 
+  function changeCategory(nextCategory: MapCategoryFilter) {
+    if (nextCategory === "saved" && !user) {
+      setFilterNotice(localizedCopy.savedLoginRequired);
+      return;
+    }
+
+    setFilterNotice("");
+    setCategory(nextCategory);
+  }
+
   const searchControls = (
     <SearchAndFilters
       query={query}
@@ -340,13 +429,14 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       locale={locale}
       appliedBounds={appliedBounds}
       onQueryChange={setQuery}
-      onCategoryChange={setCategory}
+      onCategoryChange={changeCategory}
       onClearArea={clearAreaSearch}
-      onRequestLocation={requestLocation}
-      originMode={originMode}
       locationStatus={locationStatus}
-      canUseCurrentLocation={Boolean(userLocation)}
-      onOriginModeChange={setOriginMode}
+      filterNotice={filterNotice}
+      userLoggedIn={Boolean(user)}
+      userLocation={userLocation}
+      distanceFilter={distanceFilter}
+      onDistanceFilterChange={setDistanceFilter}
       priceBucket={priceBucket}
       sortMode={sortMode}
       activeChinaFilters={activeChinaFilters}
@@ -388,6 +478,9 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
             center={origin}
             markers={markers}
             userLocation={originMode === "current" ? userLocation : null}
+            currentLocationFocusRequest={locationFocusRequest}
+            locationPending={isLocating}
+            onRequestCurrentLocation={requestLocation}
             provider={provider}
             locale={locale}
             selectedId={selectedItem?.place.id ?? null}
@@ -411,6 +504,9 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
             center={origin}
             markers={markers}
             userLocation={originMode === "current" ? userLocation : null}
+            currentLocationFocusRequest={locationFocusRequest}
+            locationPending={isLocating}
+            onRequestCurrentLocation={requestLocation}
             provider={provider}
             locale={locale}
             selectedId={selectedItem?.place.id ?? null}
@@ -467,8 +563,10 @@ function SearchAndFilters({
   locale,
   appliedBounds,
   locationStatus,
-  originMode,
-  canUseCurrentLocation,
+  filterNotice,
+  userLoggedIn,
+  userLocation,
+  distanceFilter,
   priceBucket,
   sortMode,
   activeChinaFilters,
@@ -479,20 +577,21 @@ function SearchAndFilters({
   onQueryChange,
   onCategoryChange,
   onClearArea,
-  onRequestLocation,
-  onOriginModeChange,
+  onDistanceFilterChange,
   onPriceBucketChange,
   onSortModeChange,
   onToggleChinaFilter,
   onClearFilters,
 }: {
   query: string;
-  category: PlaceCategory | "all";
+  category: MapCategoryFilter;
   locale: Locale;
   appliedBounds: MapBounds | null;
   locationStatus: string;
-  originMode: OriginMode;
-  canUseCurrentLocation: boolean;
+  filterNotice: string;
+  userLoggedIn: boolean;
+  userLocation: Coordinates | null;
+  distanceFilter: DistanceFilter;
   priceBucket: ChinaPriceBucket;
   sortMode: ChinaDiscoverySort;
   activeChinaFilters: ChinaDiscoveryFilter[];
@@ -501,10 +600,9 @@ function SearchAndFilters({
   detailedChinaFilters: typeof chinaDiscoveryFilters;
   showChinaFilters: boolean;
   onQueryChange: (value: string) => void;
-  onCategoryChange: (value: PlaceCategory | "all") => void;
+  onCategoryChange: (value: MapCategoryFilter) => void;
   onClearArea: () => void;
-  onRequestLocation: () => void;
-  onOriginModeChange: (value: OriginMode) => void;
+  onDistanceFilterChange: (value: DistanceFilter) => void;
   onPriceBucketChange: (value: ChinaPriceBucket) => void;
   onSortModeChange: (value: ChinaDiscoverySort) => void;
   onToggleChinaFilter: (value: ChinaDiscoveryFilter) => void;
@@ -535,43 +633,60 @@ function SearchAndFilters({
         />
       </label>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => onOriginModeChange("current")}
-          disabled={!canUseCurrentLocation}
-          className={cn(
-            "h-11 rounded-2xl text-sm font-black ring-1 transition active:scale-95 disabled:opacity-50",
-            originMode === "current" ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
-          )}
-        >
-          {localizedCopy.currentLocation}
-        </button>
-        <button
-          type="button"
-          onClick={onRequestLocation}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-teal-700 px-3 text-sm font-black text-white transition active:scale-95"
-        >
-          <LocateFixed size={17} aria-hidden="true" />
-          {localizedCopy.useMyLocation}
-        </button>
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto px-0.5 pb-1" aria-label={localizedCopy.categoryFilters}>
         {categoryOptions.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => onCategoryChange(option.value)}
+            aria-pressed={category === option.value}
+            title={option.value === "saved" && !userLoggedIn ? localizedCopy.savedLoginRequired : undefined}
             className={cn(
-              "shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
+              "inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-black ring-1 transition active:scale-95",
               category === option.value ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
             )}
           >
+            {option.value === "saved" ? <Heart size={15} fill={category === "saved" ? "currentColor" : "none"} aria-hidden="true" /> : null}
             {option.short[locale]}
           </button>
         ))}
       </div>
+
+      {userLocation ? (
+        <div>
+          <p className="mb-2 text-xs font-black text-slate-500">{localizedCopy.distanceRange}</p>
+          <div className="grid grid-cols-4 gap-1.5" aria-label={localizedCopy.distanceRange}>
+            {distanceOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onDistanceFilterChange(option.value)}
+                aria-pressed={distanceFilter === option.value}
+                className={cn(
+                  "min-h-11 rounded-xl px-1.5 py-1.5 text-xs font-black ring-1 transition active:scale-95",
+                  distanceFilter === option.value
+                    ? "bg-teal-700 text-white ring-teal-700"
+                    : "bg-white text-slate-700 ring-slate-200",
+                )}
+              >
+                <span className="block">{localizedCopy.distanceLabels[option.value]}</span>
+                {option.value === "500" || option.value === "1000" ? (
+                  <span className={cn("mt-0.5 block text-[10px] font-semibold", distanceFilter === option.value ? "text-teal-50" : "text-slate-400")}>
+                    {localizedCopy.walkingLabels[option.value]}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] leading-4 text-slate-400">{localizedCopy.walkingEstimateNotice}</p>
+        </div>
+      ) : null}
+
+      {filterNotice ? (
+        <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 ring-1 ring-amber-100">
+          {filterNotice}
+        </p>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block">
@@ -634,7 +749,7 @@ function SearchAndFilters({
         </details>
       ) : null}
 
-      {activeFilterCount > 0 || query || category !== "all" || appliedBounds ? (
+      {activeFilterCount > 0 || query || category !== "all" || distanceFilter !== "all" || appliedBounds ? (
         <button
           type="button"
           onClick={onClearFilters}
@@ -899,6 +1014,13 @@ const nearbyCopy: Record<Locale, {
   moreFilters: string;
   activeFilters: string;
   clearFilters: string;
+  categoryFilters: string;
+  distanceRange: string;
+  distanceLabels: Record<DistanceFilter, string>;
+  walkingLabels: Record<"500" | "1000", string>;
+  walkingEstimateNotice: string;
+  savedLoginRequired: string;
+  savedLoadFailed: string;
 }> = {
   zh: {
     gwangalliBase: "以广安里为基准显示。",
@@ -930,6 +1052,13 @@ const nearbyCopy: Record<Locale, {
     moreFilters: "更多中国游客筛选",
     activeFilters: "已选",
     clearFilters: "全部清除",
+    categoryFilters: "地点类型",
+    distanceRange: "距当前位置",
+    distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "全部" },
+    walkingLabels: { "500": "步行约5-10分", "1000": "步行约10-20分" },
+    walkingEstimateNotice: "步行时间仅为距离换算的大致参考。",
+    savedLoginRequired: "登录后可以只查看已保存的地点。",
+    savedLoadFailed: "无法读取已保存的地点，请稍后重试。",
   },
   en: {
     gwangalliBase: "Showing results from Gwangalli.",
@@ -961,6 +1090,13 @@ const nearbyCopy: Record<Locale, {
     moreFilters: "More traveler filters",
     activeFilters: "Active",
     clearFilters: "Reset filters",
+    categoryFilters: "Place categories",
+    distanceRange: "From current location",
+    distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "All" },
+    walkingLabels: { "500": "about 5-10 min", "1000": "about 10-20 min" },
+    walkingEstimateNotice: "Walking times are rough distance-based estimates, not live directions.",
+    savedLoginRequired: "Sign in to show only your saved places.",
+    savedLoadFailed: "Saved places could not be loaded. Please try again.",
   },
   ja: {
     gwangalliBase: "広安里を基準に表示しています。",
@@ -992,6 +1128,13 @@ const nearbyCopy: Record<Locale, {
     moreFilters: "旅行者向け条件",
     activeFilters: "選択中",
     clearFilters: "リセット",
+    categoryFilters: "スポット種別",
+    distanceRange: "現在地からの距離",
+    distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "すべて" },
+    walkingLabels: { "500": "徒歩約5〜10分", "1000": "徒歩約10〜20分" },
+    walkingEstimateNotice: "徒歩時間は距離換算による目安で、実際の経路時間ではありません。",
+    savedLoginRequired: "ログインすると保存したスポットだけを表示できます。",
+    savedLoadFailed: "保存したスポットを読み込めませんでした。時間をおいて再度お試しください。",
   },
   ko: {
     gwangalliBase: "광안리 기준으로 표시 중입니다.",
@@ -1023,15 +1166,29 @@ const nearbyCopy: Record<Locale, {
     moreFilters: "여행자 상세 필터",
     activeFilters: "적용",
     clearFilters: "전체 초기화",
+    categoryFilters: "장소 유형",
+    distanceRange: "현재 위치에서",
+    distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "전체" },
+    walkingLabels: { "500": "도보 약 5~10분", "1000": "도보 약 10~20분" },
+    walkingEstimateNotice: "도보 시간은 실제 경로 안내가 아닌 거리 기준의 대략적인 값입니다.",
+    savedLoginRequired: "로그인하면 저장한 장소만 지도에서 볼 수 있습니다.",
+    savedLoadFailed: "저장한 장소를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
   },
 };
 
 const selectClass = "h-11 w-full rounded-2xl bg-white px-3 text-sm font-bold text-slate-800 outline-none ring-1 ring-slate-200";
 
-function readCategory(searchParams: URLSearchParams) {
+function readCategory(searchParams: URLSearchParams): MapCategoryFilter {
   const value = searchParams.get("category");
 
-  return categoryOptions.some((option) => option.value === value) ? (value as PlaceCategory) : "all";
+  if (value === "bar") return "restaurant";
+  return categoryOptions.some((option) => option.value === value) ? (value as MapCategoryFilter) : "all";
+}
+
+function readDistanceFilter(searchParams: URLSearchParams): DistanceFilter {
+  const value = searchParams.get("distance");
+
+  return distanceOptions.some((option) => option.value === value) ? (value as DistanceFilter) : "all";
 }
 
 function readChinaFilters(searchParams: URLSearchParams): ChinaDiscoveryFilter[] {

@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Navigation, Plus, Search, ZoomIn, ZoomOut } from "lucide-react";
+import { LocateFixed, MapPin, Navigation, Plus, Search, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { recordPlaceEvent } from "@/lib/place-events";
@@ -16,10 +16,13 @@ type TravelMapProps = {
   provider: TravelMapProvider;
   locale?: Locale;
   selectedId?: string | null;
+  currentLocationFocusRequest?: number;
+  locationPending?: boolean;
   className?: string;
   searchAreaVisible?: boolean;
   onSearchArea?: (bounds: MapBounds) => void;
   onSelectMarker?: (id: string) => void;
+  onRequestCurrentLocation?: () => void;
   onViewportSettled?: (bounds: MapBounds, source: "user" | "program") => void;
 };
 
@@ -133,6 +136,21 @@ const boundsPaddingRatio = 0.32;
 const clusterDistance = 5.6;
 let naverMapsPromise: Promise<NaverMapsNamespace> | null = null;
 
+const mapCopy: Record<Locale, {
+  currentLocation: string;
+  loading: string;
+  searchArea: string;
+  zoomIn: string;
+  zoomOut: string;
+  you: string;
+  places: string;
+}> = {
+  zh: { currentLocation: "使用当前位置", loading: "地图加载中", searchArea: "搜索此区域", zoomIn: "放大地图", zoomOut: "缩小地图", you: "我", places: "地点" },
+  en: { currentLocation: "Use current location", loading: "Loading map", searchArea: "Search this area", zoomIn: "Zoom in", zoomOut: "Zoom out", you: "You", places: "places" },
+  ja: { currentLocation: "現在地を使う", loading: "地図を読み込み中", searchArea: "このエリアを検索", zoomIn: "地図を拡大", zoomOut: "地図を縮小", you: "現在地", places: "スポット" },
+  ko: { currentLocation: "현재 위치 사용", loading: "지도 로딩 중", searchArea: "이 지역에서 검색", zoomIn: "지도 확대", zoomOut: "지도 축소", you: "내 위치", places: "장소" },
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -176,10 +194,13 @@ function NaverTravelMap({
   provider,
   locale = defaultLocale,
   selectedId,
+  currentLocationFocusRequest = 0,
+  locationPending = false,
   className,
   searchAreaVisible = false,
   onSearchArea,
   onSelectMarker,
+  onRequestCurrentLocation,
   onViewportSettled,
   ncpKeyId,
 }: TravelMapProps & { ncpKeyId: string }) {
@@ -192,12 +213,14 @@ function NaverTravelMap({
   const infoWindowRef = useRef<NaverInfoWindowInstance | null>(null);
   const idleListenerRef = useRef<NaverEventListener | null>(null);
   const lastFocusedPlaceIdRef = useRef<string | null>(null);
+  const lastFocusedLocationRequestRef = useRef(0);
   const viewportSourceRef = useRef<"user" | "program">("program");
   const onViewportSettledRef = useRef(onViewportSettled);
   const onSelectMarkerRef = useRef(onSelectMarker);
   const selectedIdRef = useRef(selectedId);
   const eventContextRef = useRef({ locale, providerId: provider.id, userId: undefined as string | undefined });
   const { user } = useAuth();
+  const localizedCopy = mapCopy[locale];
 
   onViewportSettledRef.current = onViewportSettled;
   onSelectMarkerRef.current = onSelectMarker;
@@ -283,6 +306,7 @@ function NaverTravelMap({
       closeNaverInfoWindow(infoWindowRef.current);
       infoWindowRef.current = null;
       lastFocusedPlaceIdRef.current = null;
+      lastFocusedLocationRequestRef.current = 0;
       mapInstanceRef.current = null;
     };
   }, [maps]);
@@ -355,13 +379,13 @@ function NaverTravelMap({
     userMarkerRef.current = new maps.Marker({
       map,
       position: toNaverLatLng(maps, userLocation),
-      title: "현재 위치",
+      title: localizedCopy.you,
       icon: {
         content: naverUserMarkerHtml(),
         anchor: new maps.Point(16, 16),
       },
     });
-  }, [maps, userLocation]);
+  }, [localizedCopy.you, maps, userLocation]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -397,8 +421,23 @@ function NaverTravelMap({
     }
   }, [maps, markers, selectedId]);
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+
+    if (!maps || !map || !userLocation || currentLocationFocusRequest <= lastFocusedLocationRequestRef.current) {
+      return;
+    }
+
+    lastFocusedLocationRequestRef.current = currentLocationFocusRequest;
+    viewportSourceRef.current = "program";
+    closeNaverInfoWindow(infoWindowRef.current);
+    infoWindowRef.current = null;
+    map.setCenter(toNaverLatLng(maps, userLocation));
+    map.setZoom(Math.max(map.getZoom(), 16));
+  }, [currentLocationFocusRequest, maps, userLocation]);
+
   if (scriptStatus === "error") {
-    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onViewportSettled={onViewportSettled} />;
+    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} currentLocationFocusRequest={currentLocationFocusRequest} locationPending={locationPending} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onRequestCurrentLocation={onRequestCurrentLocation} onViewportSettled={onViewportSettled} />;
   }
 
   return (
@@ -423,13 +462,26 @@ function NaverTravelMap({
           className="absolute left-1/2 top-3 z-40 inline-flex h-10 -translate-x-1/2 items-center justify-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-black text-white shadow-lg transition active:scale-95"
         >
           <Search size={16} aria-hidden="true" />
-          이 지역에서 검색
+          {localizedCopy.searchArea}
+        </button>
+      ) : null}
+
+      {onRequestCurrentLocation ? (
+        <button
+          type="button"
+          onClick={onRequestCurrentLocation}
+          disabled={locationPending}
+          className="absolute right-3 top-3 z-40 grid size-11 place-items-center rounded-full bg-white/95 text-blue-700 shadow-lg ring-1 ring-slate-200 transition hover:bg-blue-50 active:scale-95 disabled:opacity-60"
+          aria-label={localizedCopy.currentLocation}
+          title={localizedCopy.currentLocation}
+        >
+          <LocateFixed size={20} className={locationPending ? "animate-pulse" : undefined} aria-hidden="true" />
         </button>
       ) : null}
 
       {scriptStatus === "loading" ? (
         <div className="absolute inset-0 z-20 grid place-items-center bg-white/70 text-sm font-bold text-slate-600 backdrop-blur-sm">
-          지도 로딩 중
+          {localizedCopy.loading}
         </div>
       ) : null}
     </section>
@@ -443,10 +495,13 @@ function FallbackTravelMap({
   provider,
   locale = defaultLocale,
   selectedId,
+  currentLocationFocusRequest = 0,
+  locationPending = false,
   className,
   searchAreaVisible = false,
   onSearchArea,
   onSelectMarker,
+  onRequestCurrentLocation,
   onViewportSettled,
 }: TravelMapProps) {
   const [mapView, setMapView] = useState<MapView>({ zoom: defaultZoom, center: { x: 50, y: 50 } });
@@ -456,7 +511,9 @@ function FallbackTravelMap({
   const mapRef = useRef<HTMLDivElement | null>(null);
   const suppressClickRef = useRef(false);
   const lastFocusedPlaceIdRef = useRef<string | null>(null);
+  const lastFocusedLocationRequestRef = useRef(0);
   const { user } = useAuth();
+  const localizedCopy = mapCopy[locale];
 
   const world = useMemo(() => {
     const coordinates = [
@@ -524,6 +581,25 @@ function FallbackTravelMap({
       return nextView;
     });
   }, [markerPoints, onViewportSettled, selectedId, world]);
+
+  useEffect(() => {
+    if (!userLocation || currentLocationFocusRequest <= lastFocusedLocationRequestRef.current) {
+      return;
+    }
+
+    lastFocusedLocationRequestRef.current = currentLocationFocusRequest;
+    const target = toWorldPoint(userLocation, world);
+
+    setMapView((current) => {
+      const nextView = keepViewInBounds({
+        zoom: Math.max(current.zoom, focusZoom),
+        center: target,
+      });
+
+      window.setTimeout(() => onViewportSettled?.(viewToBounds(nextView, world), "program"), 0);
+      return nextView;
+    });
+  }, [currentLocationFocusRequest, onViewportSettled, userLocation, world]);
 
   function toScreenPoint(point: WorldPoint): WorldPoint {
     return {
@@ -778,18 +854,30 @@ function FallbackTravelMap({
             data-map-control
           >
             <Search size={16} aria-hidden="true" />
-            이 지역에서 검색
+            {localizedCopy.searchArea}
           </button>
         ) : null}
 
         <div className="absolute right-3 top-3 z-30 flex flex-col gap-2" data-map-control>
+          {onRequestCurrentLocation ? (
+            <button
+              type="button"
+              onClick={onRequestCurrentLocation}
+              disabled={locationPending}
+              className="grid size-10 place-items-center rounded-full bg-white/95 text-blue-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50 active:scale-95 disabled:opacity-60"
+              aria-label={localizedCopy.currentLocation}
+              title={localizedCopy.currentLocation}
+            >
+              <LocateFixed size={18} className={locationPending ? "animate-pulse" : undefined} aria-hidden="true" />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => changeZoom("in")}
             className="grid size-10 place-items-center rounded-full bg-white/95 text-slate-800 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40"
             disabled={mapView.zoom >= maxZoom}
-            aria-label="지도 확대"
-            title="지도 확대"
+            aria-label={localizedCopy.zoomIn}
+            title={localizedCopy.zoomIn}
           >
             <ZoomIn size={18} aria-hidden="true" />
           </button>
@@ -798,8 +886,8 @@ function FallbackTravelMap({
             onClick={() => changeZoom("out")}
             className="grid size-10 place-items-center rounded-full bg-white/95 text-slate-800 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40"
             disabled={mapView.zoom <= minZoom}
-            aria-label="지도 축소"
-            title="지도 축소"
+            aria-label={localizedCopy.zoomOut}
+            title={localizedCopy.zoomOut}
           >
             <ZoomOut size={18} aria-hidden="true" />
           </button>
@@ -811,7 +899,7 @@ function FallbackTravelMap({
               <Navigation size={17} aria-hidden="true" />
             </div>
             <span className="absolute left-1/2 top-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-2 py-1 text-[11px] font-bold text-blue-700 shadow-sm">
-              我
+              {localizedCopy.you}
             </span>
           </div>
         ) : null}
@@ -829,7 +917,7 @@ function FallbackTravelMap({
                 onClick={() => selectCluster(cluster)}
                 className="absolute z-10 -translate-x-1/2 -translate-y-1/2 transition active:scale-95"
                 style={screenStyle(toScreenPoint(cluster.point))}
-                aria-label={`${cluster.markerIds.length} places`}
+                aria-label={`${cluster.markerIds.length} ${localizedCopy.places}`}
               >
                 <span className="grid size-11 place-items-center rounded-full bg-slate-950 text-sm font-black text-white shadow-lg ring-4 ring-white/80">
                   <Plus size={15} aria-hidden="true" />
