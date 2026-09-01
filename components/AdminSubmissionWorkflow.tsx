@@ -514,6 +514,11 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     () => submissions.filter((submission) => submission.status === activeStatus),
     [activeStatus, submissions],
   );
+  const selectedSourceLink = useMemo(() => {
+    if (!selected?.source_url) return "";
+    const linkState = getMapLinkState(selected.source_url);
+    return linkState.valid ? linkState.normalizedUrl : "";
+  }, [selected?.source_url]);
 
   async function adminFetch(input: string, init: RequestInit = {}) {
     return fetch(input, {
@@ -1143,11 +1148,20 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700 ring-1 ring-slate-200">{statusLabels[selected.status]}</span>
               </div>
               <p className="mt-4 text-sm leading-6 text-slate-700">{selected.recommendation_reason || selected.notes}</p>
-              {selected.source_url ? (
-                <a href={selected.source_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-black text-teal-700">
-                  원본 지도 링크
-                  <ExternalLink size={15} aria-hidden="true" />
-                </a>
+              {selectedSourceLink ? (
+                <div className="mt-4">
+                  <p className="text-xs font-black text-slate-500">제보된 지도 링크</p>
+                  <a
+                    href={selectedSourceLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex min-h-12 max-w-full items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-bold text-teal-700 ring-1 ring-teal-200 hover:bg-teal-50"
+                    title="제보된 지도 링크 새 탭에서 열기"
+                  >
+                    <span className="min-w-0 flex-1 break-all underline underline-offset-2">{selectedSourceLink}</span>
+                    <ExternalLink size={16} className="shrink-0" aria-hidden="true" />
+                  </a>
+                </div>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={() => void updateSubmissionStatus("reviewing")} className="rounded-full bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">
@@ -1301,6 +1315,17 @@ function PublishFormView({
           </button>
         </div>
         <p className="mt-2 text-xs font-semibold text-slate-500">Google Maps / 네이버지도 / 카카오맵 지원</p>
+        {mapLinkState.valid && mapLinkState.normalizedUrl ? (
+          <a
+            href={mapLinkState.normalizedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-teal-50 px-3 text-sm font-black text-teal-800 ring-1 ring-teal-200 hover:bg-teal-100"
+          >
+            제보된 링크 열기
+            <ExternalLink size={15} aria-hidden="true" />
+          </a>
+        ) : null}
       </section>
 
       <section className="border-b border-slate-200 py-5">

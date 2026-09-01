@@ -33,6 +33,8 @@ for (const viewportWidth of [375, 390, 430]) {
 const submissionWorkflowSource = readFileSync(new URL("../components/AdminSubmissionWorkflow.tsx", import.meta.url), "utf8");
 assert.match(submissionWorkflowSource, /providerLookupNotice=\{providerLookupNotice\}[\s\S]*status=\{status\}/, "publish form must receive the current save status");
 assert.match(submissionWorkflowSource, /<p role="status"[^>]*>\{status\}<\/p>/, "mobile publish controls must show save feedback beside the button");
+assert.match(submissionWorkflowSource, /제보된 지도 링크[\s\S]*href=\{selectedSourceLink\}[\s\S]*noopener noreferrer/, "submitted map URL must be a safe external hyperlink");
+assert.match(submissionWorkflowSource, /href=\{mapLinkState\.normalizedUrl\}[\s\S]*제보된 링크 열기/, "publish editor must provide a direct map-link action");
 
 const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
 assert.match(placeStoreSource, /isMissingAdminSummaryColumnError/, "place writes must detect a missing optional admin_summary migration");
