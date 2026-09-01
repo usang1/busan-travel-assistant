@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronDown, Eye, Languages, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, Eye, EyeOff, Languages, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { EmptyState } from "@/components/EmptyState";
@@ -20,7 +20,7 @@ import {
 } from "@/lib/place-china/format";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
-import { isPublicPlace } from "@/lib/place-publishing";
+import { isPublicPlace, nextPlacePublicationIsActive } from "@/lib/place-publishing";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
@@ -1530,7 +1530,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   async function togglePlace(place: PlaceWithRelations, key: "is_active" | "is_featured") {
-    await savePlace({ ...toForm(place), [key]: !place[key] });
+    const nextValue = key === "is_active" ? nextPlacePublicationIsActive(place) : !place[key];
+    await savePlace({ ...toForm(place), [key]: nextValue });
   }
 
   function addMenu() {
@@ -1612,7 +1613,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                         {categoryLabels[place.category].ko}
                       </span>
                       <span className={["rounded-full px-2 py-1 text-[11px] font-black", isPublicPlace(place) ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-800"].join(" ")}>
-                        {isPublicPlace(place) ? "공개" : place.status ?? "DRAFT"}
+                        {isPublicPlace(place) ? "공개" : place.status === "DRAFT" ? "비공개 초안" : "비공개"}
                       </span>
                     </div>
                   </div>
@@ -1626,7 +1627,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                     setAdminSummaryErrorMessage("");
                     setProviderLookupNotice("");
                   }} icon={Pencil} />
-                  <IconButton label="활성 토글" onClick={() => void togglePlace(place, "is_active")} icon={place.is_active ? Check : X} />
+                  <PublicationButton published={isPublicPlace(place)} onClick={() => void togglePlace(place, "is_active")} />
                   <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
                   <IconButton label="비공개" onClick={() => void deleteSelected(place)} icon={Trash2} danger />
                 </div>
@@ -2542,6 +2543,26 @@ function IconButton({ label, onClick, icon: Icon, danger = false }: IconButtonPr
       title={label}
     >
       <Icon size={16} aria-hidden="true" />
+    </button>
+  );
+}
+
+function PublicationButton({ published, onClick }: { published: boolean; onClick: () => void }) {
+  const Icon = published ? EyeOff : Eye;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-black ring-1 transition active:scale-95",
+        published
+          ? "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
+          : "bg-teal-50 text-teal-800 ring-teal-200 hover:bg-teal-100",
+      ].join(" ")}
+      title={published ? "사용자 화면에서 숨기기" : "사용자 화면에 공개하기"}
+    >
+      <Icon size={15} aria-hidden="true" />
+      {published ? "비공개 전환" : "공개하기"}
     </button>
   );
 }

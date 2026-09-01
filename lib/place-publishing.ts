@@ -24,3 +24,7 @@ export function normalizePlacePublicationForWrite<T extends PlacePublicationFiel
 export function isPublicPlace(place: PlacePublicationFields) {
   return place.is_active === true && place.status === activePlaceStatus;
 }
+
+export function nextPlacePublicationIsActive(place: PlacePublicationFields) {
+  return !isPublicPlace(place);
+}

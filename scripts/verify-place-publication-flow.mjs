@@ -14,7 +14,7 @@ const compiled = ts.transpileModule(source, {
 const module = { exports: {} };
 vm.runInNewContext(compiled, { exports: module.exports, module });
 
-const { normalizePlacePublicationForWrite, isPublicPlace } = module.exports;
+const { normalizePlacePublicationForWrite, isPublicPlace, nextPlacePublicationIsActive } = module.exports;
 
 const newPlace = normalizePlacePublicationForWrite({
   slug: "jinsong-suyeong",
@@ -50,6 +50,20 @@ const draftPayload = normalizePlacePublicationForWrite({
 assert.equal(draftPayload.is_active, false);
 assert.equal(draftPayload.status, "DRAFT");
 assert.equal(isPublicPlace(draftPayload), false);
+assert.equal(nextPlacePublicationIsActive(draftPayload), true);
+
+const inconsistentDraft = {
+  is_active: true,
+  status: "DRAFT",
+};
+assert.equal(isPublicPlace(inconsistentDraft), false);
+assert.equal(nextPlacePublicationIsActive(inconsistentDraft), true);
+const repairedPublication = normalizePlacePublicationForWrite({
+  ...inconsistentDraft,
+  is_active: nextPlacePublicationIsActive(inconsistentDraft),
+});
+assert.equal(repairedPublication.is_active, true);
+assert.equal(repairedPublication.status, "ACTIVE");
 
 const nearbyEligible =
   isPublicPlace(newPlace) &&
