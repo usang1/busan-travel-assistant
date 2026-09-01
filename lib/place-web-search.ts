@@ -83,10 +83,15 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
             "Provider data is authoritative. Never change or repeat provider values as web facts.",
             "The provider lookup query is not the place name. Use the provider place ID, source URL, address, and reliable sources to identify the exact business.",
             "Use official website, official social account, or official business page first; then major map or business pages; then trustworthy booking or travel platforms; use blogs only as a last resort.",
-            "Research only these normalized fields when requested: name, address, roadAddress, category, phone, openingHours, closedDays, menu, priceRange, parking, description, websiteUrl, and coordinates.",
+            "Research only these normalized fields when requested: name, address, roadAddress, category, phone, openingHours, closedDays, menu, recommendedOrder, priceRange, parking, description, websiteUrl, and coordinates.",
+            "For menu, identify signature items, set or course composition, and prices only when a cited source states them.",
+            "priceRange means a verified approximate per-person spend or average check. Do not derive it from the cheapest and most expensive menu items unless a source explicitly describes per-person spending.",
+            "Mark a menu as popular only when multiple independent visitor sources repeatedly mention ordering it; a menu's display order is not popularity evidence.",
+            "recommendedOrder is only for a first-time order supported by an official recommendation or repeated ordering evidence. Otherwise return null.",
+            "When current menu prices conflict, prefer the newest official source. Mark priceApproximate or priceRange.approximate true when the cited price is approximate or source dates cannot establish an exact current price.",
             "The description field is a one-to-three sentence factual short description, not advertising copy.",
             "Return coordinates only when an official map or official business source clearly identifies the exact place and coordinates.",
-            "Do not search for or return images. Do not infer atmosphere, popularity, taste, menu quality, views, or recommendations.",
+            "Do not search for or return images. Do not infer atmosphere, popularity, taste, menu quality, views, or recommendations without the explicit menu evidence rules above.",
             "Return null with confidence 0 when a fact cannot be verified. If sources conflict or may be stale, return the candidate with confidence below 0.75 so it will not be auto-applied.",
             "Confidence must reflect source quality, agreement, recency, and place identity. Include source URLs for every non-null fact.",
           ].join("\n"),
@@ -116,7 +121,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
         },
       },
       reasoning: { effort: "low" },
-      max_output_tokens: 900,
+      max_output_tokens: 1_600,
       store: false,
     });
 
@@ -126,7 +131,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
     const searchedAt = new Date().toISOString();
     const needsReviewFields = missingFields.filter((field) => {
       const candidate = data[field];
-      const threshold = ["coordinates", "openingHours", "closedDays", "menu", "priceRange", "parking"].includes(field)
+      const threshold = ["coordinates", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking"].includes(field)
         ? WEB_SEARCH_VOLATILE_CONFIDENCE
         : 0.75;
       return Boolean(candidate?.value !== null && candidate?.value !== undefined && (candidate.confidence ?? 0) < threshold);
@@ -210,8 +215,12 @@ const menuFactSchema = {
         properties: {
           name: { type: "string" },
           price: { type: ["number", "null"] },
+          priceApproximate: { type: "boolean" },
+          role: { type: "string", enum: ["signature", "popular", "set", "course", "other"] },
+          composition: { type: "array", items: { type: "string" } },
+          reviewHighlights: { type: "array", items: { type: "string" } },
         },
-        required: ["name", "price"],
+        required: ["name", "price", "priceApproximate", "role", "composition", "reviewHighlights"],
       },
     },
     confidence: { type: "number" },
@@ -230,8 +239,9 @@ const priceRangeFactSchema = {
       properties: {
         min: { type: ["number", "null"] },
         max: { type: ["number", "null"] },
+        approximate: { type: "boolean" },
       },
-      required: ["min", "max"],
+      required: ["min", "max", "approximate"],
     },
     confidence: { type: "number" },
     sourceUrls: { type: "array", items: { type: "string" } },
@@ -252,6 +262,16 @@ const webSearchSchema = {
     openingHours: factSchema,
     closedDays: factSchema,
     menu: menuFactSchema,
+    recommendedOrder: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        value: { type: ["array", "null"], items: { type: "string" } },
+        confidence: { type: "number" },
+        sourceUrls: { type: "array", items: { type: "string" } },
+      },
+      required: ["value", "confidence", "sourceUrls"],
+    },
     priceRange: priceRangeFactSchema,
     parking: nullableBooleanFactSchema,
     description: factSchema,
@@ -270,7 +290,7 @@ const webSearchSchema = {
       },
     },
   },
-  required: ["name", "category", "address", "roadAddress", "coordinates", "phone", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl", "sources"],
+  required: ["name", "category", "address", "roadAddress", "coordinates", "phone", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking", "description", "websiteUrl", "sources"],
 } as const;
 
 function parseJson(value: string) {

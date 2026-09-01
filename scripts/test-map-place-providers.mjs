@@ -64,8 +64,9 @@ class FakeWebSearchOpenAI {
             phone: { value: "051-999-9999", confidence: 0.95, sourceUrls: ["https://official.example/place"] },
             openingHours: { value: "17:00-02:00", confidence: 0.82, sourceUrls: ["https://official.example/place"] },
             closedDays: { value: null, confidence: 0, sourceUrls: [] },
-            menu: { value: [{ name: "깐풍육", price: null }], confidence: 0.9, sourceUrls: ["https://official.example/menu"] },
-            priceRange: { value: { min: 12000, max: 30000 }, confidence: 0.8, sourceUrls: ["https://official.example/menu"] },
+            menu: { value: [{ name: "깐풍육", price: 28000, priceApproximate: true, role: "popular", composition: [], reviewHighlights: ["여러 방문 후기에서 주문 메뉴로 반복 언급"] }], confidence: 0.9, sourceUrls: ["https://official.example/menu", "https://reviews.example/place"] },
+            recommendedOrder: { value: ["처음 방문 시 깐풍육"], confidence: 0.9, sourceUrls: ["https://reviews.example/place"] },
+            priceRange: { value: { min: 12000, max: 30000, approximate: true }, confidence: 0.8, sourceUrls: ["https://official.example/menu"] },
             parking: { value: true, confidence: 0.9, sourceUrls: ["https://official.example/place"] },
             description: { value: "중식 요리와 주류를 함께 판매하는 중식 요리주점", confidence: 0.85, sourceUrls: ["https://official.example/place"] },
             websiteUrl: { value: "https://official.example", confidence: 0.9, sourceUrls: ["https://official.example/place"] },
@@ -187,7 +188,7 @@ const sparseProviderPlace = {
 const sparseDraft = placeDraft.createPlaceDraft(sparseProviderPlace);
 assert.ok(sparseDraft.fieldSources.name);
 assert.ok(sparseDraft.fieldSources.phone);
-assert.deepEqual([...placeDraft.getMissingPlaceFields(sparseDraft)], ["roadAddress", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
+assert.deepEqual([...placeDraft.getMissingPlaceFields(sparseDraft)], ["roadAddress", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking", "description", "websiteUrl"]);
 const webResult = await webSearch.searchMissingPlaceDataCached(sparseDraft, placeDraft.getMissingPlaceFields(sparseDraft));
 assert.equal(webSearchRequest.tools[0].type, "web_search");
 assert.deepEqual([...webResult.needsReviewFields], ["openingHours", "priceRange"]);
@@ -197,6 +198,11 @@ assert.equal(mergedSparse.normalizedPlace.description, "중식 요리와 주류�
 assert.equal(mergedSparse.normalizedPlace.website, "https://official.example");
 assert.equal(mergedSparse.normalizedPlace.openingHours, undefined);
 assert.equal(mergedSparse.normalizedPlace.menu[0].name, "깐풍육");
+assert.equal(mergedSparse.normalizedPlace.menu[0].role, "popular");
+assert.equal(mergedSparse.normalizedPlace.menu[0].priceApproximate, true);
+assert.deepEqual([...mergedSparse.normalizedPlace.recommendedOrder], ["처음 방문 시 깐풍육"]);
+assert.equal(mergedSparse.normalizedPlace.fieldSources.menu.source, "WEB_SEARCH");
+assert.equal(mergedSparse.normalizedPlace.fieldSources.recommendedOrder.source, "WEB_SEARCH");
 assert.equal(mergedSparse.normalizedPlace.amenities.parking, true);
 assert.equal(mergedSparse.normalizedPlace.priceRange, undefined);
 assert.equal(mergedSparse.normalizedPlace.photos, undefined);
@@ -220,6 +226,7 @@ const providerComplete = placeDraft.createPlaceDraft({
   openingHours: ["월요일: 10:00-20:00"],
   closedDays: ["연중무휴"],
   menu: [{ name: "대표 메뉴", price: 10000 }],
+  recommendedOrder: ["대표 메뉴"],
   priceRange: { min: 10000, max: 20000, currency: "KRW" },
   amenities: { parking: true },
   description: "Provider 설명",
@@ -235,7 +242,7 @@ const providerWithLevelOnly = placeDraft.createPlaceDraft({
   ...sparseProviderPlace,
   priceLevel: 2,
 });
-assert.deepEqual([...placeDraft.getMissingPlaceFields(providerWithLevelOnly)], ["roadAddress", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
+assert.deepEqual([...placeDraft.getMissingPlaceFields(providerWithLevelOnly)], ["roadAddress", "openingHours", "closedDays", "menu", "recommendedOrder", "priceRange", "parking", "description", "websiteUrl"]);
 
 const googlePlaceId = "ChIJN1t_tDeuEmsRUsoyG83frY4";
 const googleLongUrl = "https://www.google.com/maps/place/%EA%B0%81%EB%B0%94/data=!4m7!3m6!1s0x3568ecdf45d8c293:0x55ec98fb16b7e1e9!8m2!3d35.1482312!4d129.1117663!16s%2Fg%2F11gcf9j8f9!19sChIJk8LYRd_saDUR6eG3FvuY7FU?authuser=0&hl=ko&g_ep=EgoyMDI2MDgyNi4wIJJjKgBIAVAD&rclk=1";
@@ -751,7 +758,7 @@ const webEnrichmentCases = [
     provider: "kakao",
     direct: kakaoResolved.normalizedPlace,
     web: {
-      priceRange: { value: { min: 10000, max: 20000 }, confidence: 0.9, sourceUrls: ["https://official.example/kakao-place"] },
+      priceRange: { value: { min: 10000, max: 20000, approximate: false }, confidence: 0.9, sourceUrls: ["https://official.example/kakao-place"] },
       description: { value: "부산 수영구에 위치한 관광 장소", confidence: 0.9, sourceUrls: ["https://official.example/kakao-place"] },
       sources: [{ title: "공식 장소 페이지", url: "https://official.example/kakao-place", type: "OFFICIAL" }],
     },
@@ -774,6 +781,10 @@ for (const result of webEnrichmentCases) {
 const webIdentifiedNaverForm = enrichment.enrichPlaceForm(emptyForm, identifiedNaverPlace.normalizedPlace);
 assert.equal(webIdentifiedNaverForm.source_metadata.field_sources.name.source, "WEB_SEARCH");
 assert.equal(webIdentifiedNaverForm.source_metadata.field_sources.coordinates.source, "WEB_SEARCH");
+
+const enrichedMenuForm = enrichment.enrichPlaceForm(emptyForm, mergedSparse.normalizedPlace);
+assert.equal(enrichedMenuForm.source_metadata.menu[0].role, "popular");
+assert.equal(enrichedMenuForm.source_metadata.recommended_order[0], "처음 방문 시 깐풍육");
 
 const enrichedKakaoForm = enrichment.enrichPlaceForm(emptyForm, kakaoResolved.normalizedPlace);
 assert.equal(enrichedKakaoForm.provider, "KAKAO");
@@ -801,6 +812,15 @@ assert.throws(() => adminSummary.validateAdminPlaceSummary(
   "광안리해수욕장은 부산에 있습니다. 매일 23시에 마감합니다.",
   { ...summaryFacts, openingHours: undefined },
 ), /영업시간 정보가 없는|없는 수치/);
+const menuSummaryFacts = adminSummary.buildAdminPlaceSummaryFacts(mergedSparse.normalizedPlace);
+assert.doesNotThrow(() => adminSummary.validateAdminPlaceSummary(
+  "테스트 중식당은 부산 수영구의 중식 요리주점입니다. 여러 방문 후기에서 깐풍육이 반복적으로 언급되며 가격은 약 28,000원입니다. 처음 방문할 때는 깐풍육이 확인된 선택지입니다.",
+  menuSummaryFacts,
+));
+assert.throws(() => adminSummary.validateAdminPlaceSummary(
+  "테스트 중식당은 부산 수영구의 중식 요리주점입니다. 처음 방문하면 탕수육 주문을 추천합니다.",
+  { ...menuSummaryFacts, recommendedOrder: undefined },
+), /추천 주문 근거가 없는/);
 
 const submissionWorkflowSource = readFileSync(new URL("../components/AdminSubmissionWorkflow.tsx", import.meta.url), "utf8");
 assert.match(submissionWorkflowSource, /admin_summary:\s*""/);
@@ -815,6 +835,8 @@ assert.match(mapLinkRouteSource, /locale_targets: \["ko"\]/);
 assert.match(mapLinkRouteSource, /koreanContentError/);
 assert.match(mapLinkRouteSource, /Promise\.allSettled\(\[summaryPromise, koreanContentPromise\]\)/);
 assert.match(mapLinkRouteSource, /forceWebSearch[\s\S]*searchMissingPlaceData\(providerDraft, missingFields, searchHints\)/);
+assert.equal(webSearchRequest.text.format.schema.properties.menu.properties.value.items.properties.role.enum.includes("popular"), true);
+assert.ok(webSearchRequest.text.format.schema.properties.recommendedOrder);
 
 const adminSummarySource = readFileSync(new URL("../lib/place-ai/admin-summary.ts", import.meta.url), "utf8");
 const placeGeneratorSource = readFileSync(new URL("../lib/place-ai/generator.ts", import.meta.url), "utf8");

@@ -13,7 +13,6 @@ const unsupportedClaims = [
   "분위기",
   "오션뷰",
   "바다 뷰",
-  "인기 메뉴",
   "매우 인기",
   "유명한",
   "실패 없는",
@@ -31,10 +30,18 @@ export type AdminPlaceSummaryFacts = {
   address?: string;
   openingHours?: string[];
   closedDays?: string[];
-  menu?: Array<{ name: string; price?: number }>;
+  menu?: Array<{
+    name: string;
+    price?: number;
+    priceApproximate?: boolean;
+    role?: "signature" | "popular" | "set" | "course" | "other";
+    composition?: string[];
+    reviewHighlights?: string[];
+  }>;
+  recommendedOrder?: string[];
   parking?: boolean;
   priceLevel?: number;
-  priceRange?: { min?: number; max?: number; currency?: string };
+  priceRange?: { min?: number; max?: number; currency?: string; approximate?: boolean };
   rating?: number;
   reviewCount?: number;
   website?: string;
@@ -81,6 +88,7 @@ export function buildAdminPlaceSummaryFacts(place: NormalizedPlace): AdminPlaceS
     openingHours,
     closedDays,
     menu: place.menu?.slice(0, 20),
+    recommendedOrder: place.recommendedOrder?.slice(0, 6),
     parking: typeof place.amenities?.parking === "boolean" ? place.amenities.parking : undefined,
     priceLevel: validPriceLevel(place.priceLevel),
     priceRange,
@@ -113,6 +121,9 @@ export async function generateAdminPlaceSummary(place: NormalizedPlace): Promise
             "Write 2 to 4 concise Korean sentences. Omit unavailable facts.",
             "If rating or review count is mentioned, explicitly identify the map provider as the source and make no value judgment.",
             "Do not introduce any number that is absent from the provided JSON.",
+            "When verified menu data exists, naturally mention signature or repeatedly ordered menu items, their stated or approximate prices, and set/course composition.",
+            "Mention a first-time order only when recommendedOrder is present. Treat reviewHighlights as repeated observations, not universal quality claims.",
+            "When priceApproximate or priceRange.approximate is true, use Korean wording such as '약' or '대략'.",
           ].join("\n"),
         },
         {
@@ -162,7 +173,8 @@ export function validateAdminPlaceSummary(summary: string, facts: AdminPlaceSumm
   const unsupported = unsupportedClaims.find((claim) => summary.includes(claim));
   if (unsupported) throw new Error(`AI 장소 요약에 근거 없는 표현이 포함되었습니다: ${unsupported}`);
 
-  if (facts.priceLevel === undefined && !facts.priceRange && /(가격|원\b|무료)/.test(summary)) {
+  const hasMenuPrice = facts.menu?.some((item) => item.price !== undefined) ?? false;
+  if (facts.priceLevel === undefined && !facts.priceRange && !hasMenuPrice && /(가격|원\b|무료)/.test(summary)) {
     throw new Error("가격 정보가 없는 장소에 가격 표현을 생성했습니다.");
   }
   if (!facts.openingHours?.length && /(영업|운영 시간|오픈|마감)/.test(summary)) {
@@ -173,6 +185,12 @@ export function validateAdminPlaceSummary(summary: string, facts: AdminPlaceSumm
   }
   if (facts.reviewCount === undefined && /리뷰\s*[0-9]/.test(summary)) {
     throw new Error("리뷰 수가 없는 장소에 리뷰 수를 생성했습니다.");
+  }
+  if (!(facts.menu?.some((item) => item.role === "popular" || item.reviewHighlights?.length) ?? false) && /인기 메뉴/.test(summary)) {
+    throw new Error("반복 리뷰 근거가 없는 장소에 인기 메뉴 표현을 생성했습니다.");
+  }
+  if (!facts.recommendedOrder?.length && /(처음 방문|첫 방문).{0,20}(주문|선택|추천)/.test(summary)) {
+    throw new Error("추천 주문 근거가 없는 장소에 첫 방문 추천을 생성했습니다.");
   }
 
   const allowedNumbers = new Set((JSON.stringify(facts).match(/\d+(?:[.,]\d+)*/g) ?? []).map(normalizeNumberToken));

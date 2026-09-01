@@ -13,6 +13,7 @@ export const placeDraftFields = [
   "openingHours",
   "closedDays",
   "menu",
+  "recommendedOrder",
   "priceRange",
   "parking",
   "description",
@@ -40,6 +41,10 @@ export type PlaceSourceCitation = {
 export type PlaceMenuItem = {
   name: string;
   price?: number;
+  priceApproximate?: boolean;
+  role?: "signature" | "popular" | "set" | "course" | "other";
+  composition?: string[];
+  reviewHighlights?: string[];
 };
 
 export type PlaceDraft = {
@@ -59,8 +64,9 @@ export type PlaceDraft = {
   openingHours?: string | string[];
   closedDays?: string | string[];
   menu?: PlaceMenuItem[];
+  recommendedOrder?: string[];
   priceLevel?: number;
-  priceRange?: { min?: number; max?: number; currency?: string };
+  priceRange?: { min?: number; max?: number; currency?: string; approximate?: boolean };
   parking?: boolean;
   description?: string;
   websiteUrl?: string;
@@ -110,6 +116,7 @@ export function createPlaceDraft(place: NormalizedPlace): PlaceDraft {
     openingHours,
     closedDays: place.closedDays,
     menu: place.menu,
+    recommendedOrder: place.recommendedOrder,
     priceLevel: place.priceLevel,
     priceRange,
     parking: place.amenities?.parking,
@@ -225,6 +232,7 @@ function applyDraftToNormalizedPlace(providerData: NormalizedPlace, draft: Place
     openingHours: draft.openingHours,
     closedDays: draft.closedDays,
     menu: draft.menu,
+    recommendedOrder: draft.recommendedOrder,
     description: draft.description,
     website: draft.websiteUrl,
     priceRange: draft.priceRange ?? providerData.priceRange,
@@ -262,9 +270,23 @@ function normalizeFieldValue(field: PlaceDraftField, value: unknown) {
       const record = item as Record<string, unknown>;
       const name = typeof record.name === "string" ? record.name.trim() : "";
       const price = typeof record.price === "number" && Number.isFinite(record.price) ? Math.max(0, Math.round(record.price)) : undefined;
-      return name ? [{ name, ...(price === undefined ? {} : { price }) }] : [];
+      const role = normalizeMenuRole(record.role);
+      const composition = normalizeTextArray(record.composition, 8, 120);
+      const reviewHighlights = normalizeTextArray(record.reviewHighlights, 6, 160);
+      const priceApproximate = typeof record.priceApproximate === "boolean" ? record.priceApproximate : undefined;
+      return name ? [{
+        name,
+        ...(price === undefined ? {} : { price }),
+        ...(priceApproximate === undefined ? {} : { priceApproximate }),
+        ...(role ? { role } : {}),
+        ...(composition ? { composition } : {}),
+        ...(reviewHighlights ? { reviewHighlights } : {}),
+      }] : [];
     }).slice(0, 20);
     return menu.length ? menu : undefined;
+  }
+  if (field === "recommendedOrder") {
+    return normalizeTextArray(value, 6, 240);
   }
   if (field === "priceRange") {
     if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
@@ -272,7 +294,13 @@ function normalizeFieldValue(field: PlaceDraftField, value: unknown) {
     const min = normalizeMoney(record.min);
     const max = normalizeMoney(record.max);
     if (min === undefined && max === undefined) return undefined;
-    return { ...(min === undefined ? {} : { min }), ...(max === undefined ? {} : { max }), currency: "KRW" };
+    const approximate = typeof record.approximate === "boolean" ? record.approximate : undefined;
+    return {
+      ...(min === undefined ? {} : { min }),
+      ...(max === undefined ? {} : { max }),
+      currency: "KRW",
+      ...(approximate === undefined ? {} : { approximate }),
+    };
   }
   if (typeof value === "string" && value.trim()) return value.trim().slice(0, 2000);
   return undefined;
@@ -288,7 +316,22 @@ function normalizeConfidence(value: unknown) {
 }
 
 function isVolatileField(field: PlaceDraftField) {
-  return field === "coordinates" || field === "openingHours" || field === "closedDays" || field === "menu" || field === "priceRange" || field === "parking";
+  return field === "coordinates" || field === "openingHours" || field === "closedDays" || field === "menu" || field === "recommendedOrder" || field === "priceRange" || field === "parking";
+}
+
+function normalizeMenuRole(value: unknown): PlaceMenuItem["role"] {
+  return value === "signature" || value === "popular" || value === "set" || value === "course" || value === "other"
+    ? value
+    : undefined;
+}
+
+function normalizeTextArray(value: unknown, limit: number, textLimit: number) {
+  if (!Array.isArray(value)) return undefined;
+  const values = value
+    .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    .map((item) => item.trim().slice(0, textLimit))
+    .slice(0, limit);
+  return values.length ? values : undefined;
 }
 
 function normalizeDraftCoordinates(latitude: unknown, longitude: unknown) {

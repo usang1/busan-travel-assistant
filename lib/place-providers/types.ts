@@ -36,6 +36,7 @@ export type NormalizedPlace = {
   currentOpeningHours?: string | string[];
   closedDays?: string | string[];
   menu?: PlaceMenuItem[];
+  recommendedOrder?: string[];
   imageUrl?: string;
   primaryImageUrl?: string;
   photos?: NormalizedPlacePhoto[];
@@ -48,6 +49,7 @@ export type NormalizedPlace = {
     min?: number;
     max?: number;
     currency?: string;
+    approximate?: boolean;
   };
   amenities?: {
     parking?: boolean;

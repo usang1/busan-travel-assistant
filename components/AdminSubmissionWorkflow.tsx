@@ -33,6 +33,12 @@ type TranslationDraft = {
 
 type PayloadTranslation = NonNullable<PlacePayload["translations"]>[number];
 
+type PublishMenuDraft = {
+  name_ko: string;
+  price: number | null;
+  is_recommended: boolean;
+};
+
 type PublishForm = {
   source_url: string;
   provider: PlaceSourceProvider;
@@ -60,6 +66,8 @@ type PublishForm = {
   price_level: string;
   price_min: string;
   price_max: string;
+  menu_items: PublishMenuDraft[];
+  recommended_order_ko: string;
   tips_zh: string;
   tips_en: string;
   tips_ja: string;
@@ -233,6 +241,8 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     price_level: "",
     price_min: "",
     price_max: "",
+    menu_items: [],
+    recommended_order_ko: "",
     tips_zh: "",
     tips_en: "",
     tips_ja: "",
@@ -301,7 +311,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     chinese_menu: form.chinese_menu,
     card_payment: form.card_payment,
     recommended_order_zh: "",
-    recommended_order_ko: "",
+    recommended_order_ko: form.recommended_order_ko,
     tips_zh: form.tips_zh,
     tips_ko: form.tips_ko,
     thumbnail_url: form.thumbnail_url || defaultImage,
@@ -310,7 +320,14 @@ function buildPayload(form: PublishForm): PlacePayload {
     tags: [
       { label_zh: categoryLabels[category].zh, label_ko: categoryLabels[category].ko, slug: category },
     ],
-    menu_items: [],
+    menu_items: form.menu_items.map((item, index) => ({
+      name_ko: item.name_ko,
+      name_zh: "",
+      description_zh: "",
+      price: item.price,
+      is_recommended: item.is_recommended,
+      sort_order: index + 1,
+    })),
     translations: [
       { locale: "zh", ...zh },
       form.name_en || form.description_en || form.tips_en || form.address_en
@@ -326,7 +343,18 @@ function buildPayload(form: PublishForm): PlacePayload {
 }
 
 function applyProviderFactsToPublishForm(form: PublishForm, place: NormalizedPlace): PublishForm {
-  return enrichPlaceForm(form, place);
+  const enriched = enrichPlaceForm(form, place);
+  return {
+    ...enriched,
+    menu_items: form.menu_items.length || !place.menu?.length
+      ? form.menu_items
+      : place.menu.map((item) => ({
+          name_ko: item.name,
+          price: item.price ?? null,
+          is_recommended: item.role === "signature" || item.role === "popular",
+        })),
+    recommended_order_ko: form.recommended_order_ko || place.recommendedOrder?.join(" · ") || "",
+  };
 }
 
 function buildTranslationFieldsFromPublishForm(form: PublishForm): AdminTranslationFields {
@@ -437,6 +465,8 @@ function buildPublishAiFingerprint(form: PublishForm) {
     price_level: form.price_level,
     price_min: form.price_min,
     price_max: form.price_max,
+    menu_items: form.menu_items,
+    recommended_order_ko: form.recommended_order_ko,
     nearest_station: form.nearest_station,
     source_metadata: form.source_metadata,
   });
@@ -467,6 +497,13 @@ function normalizedPublishFormForAdminSummary(form: PublishForm): NormalizedPlac
     : undefined;
   const priceMin = nullableNumber(form.price_min) ?? undefined;
   const priceMax = nullableNumber(form.price_max) ?? undefined;
+  const menu = readNormalizedMenu(form.source_metadata) ?? form.menu_items.map((item) => ({
+    name: item.name_ko,
+    price: item.price ?? undefined,
+    role: item.is_recommended ? "signature" as const : "other" as const,
+  }));
+  const recommendedOrder = readStringArray(form.source_metadata?.recommended_order)
+    ?? (form.recommended_order_ko.trim() ? [form.recommended_order_ko.trim()] : undefined);
 
   return {
     provider,
@@ -487,6 +524,8 @@ function normalizedPublishFormForAdminSummary(form: PublishForm): NormalizedPlac
     priceMin,
     priceMax,
     priceRange: priceMin !== undefined || priceMax !== undefined ? { min: priceMin, max: priceMax, currency: "KRW" } : undefined,
+    menu: menu.length ? menu : undefined,
+    recommendedOrder,
     fetchedAt: form.source_fetched_at || undefined,
   };
 }
@@ -1520,6 +1559,23 @@ function PublishFormView({
         <Field label="가격대(0-4)"><input value={form.price_level} onChange={(event) => onFieldChange("price_level", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
         <Field label="최소 가격"><input value={form.price_min} onChange={(event) => onFieldChange("price_min", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
         <Field label="최대 가격"><input value={form.price_max} onChange={(event) => onFieldChange("price_max", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
+        <div className="md:col-span-2">
+          <Field label="첫 방문 추천 주문">
+            <textarea value={form.recommended_order_ko} onChange={(event) => onFieldChange("recommended_order_ko", event.target.value)} className={textareaClass} placeholder="확인된 근거가 있을 때만 표시됩니다." />
+          </Field>
+        </div>
+        {form.menu_items.length ? (
+          <div className="space-y-3 md:col-span-2">
+            <p className="text-sm font-bold text-slate-700">확인된 메뉴</p>
+            {form.menu_items.map((item, index) => (
+              <div key={`${item.name_ko}-${index}`} className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
+                <input value={item.name_ko} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, name_ko: event.target.value } : menu))} className={inputClass} aria-label={`메뉴 ${index + 1} 이름`} />
+                <input value={item.price ?? ""} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, price: nullableNumber(event.target.value) } : menu))} className={inputClass} inputMode="numeric" aria-label={`메뉴 ${index + 1} 가격`} placeholder="가격 미확인" />
+                <CheckField label="대표" checked={item.is_recommended} onChange={(checked) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, is_recommended: checked } : menu))} />
+              </div>
+            ))}
+          </div>
+        ) : null}
         <Field label="가까운 역"><input value={form.nearest_station} onChange={(event) => onFieldChange("nearest_station", event.target.value)} className={inputClass} /></Field>
         <Field label="출구"><input value={form.nearest_exit} onChange={(event) => onFieldChange("nearest_exit", event.target.value)} className={inputClass} /></Field>
         <Field label="도보 시간"><input value={form.walking_minutes} onChange={(event) => onFieldChange("walking_minutes", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
@@ -1585,6 +1641,8 @@ function SubmissionReviewSummary({
     { field: "priceLevel", label: "가격대", available: Boolean(form.price_level.trim()) },
     { field: "rating", label: "평점", available: Boolean(form.provider_rating.trim()) },
     { field: "reviewCount", label: "리뷰 수", available: Boolean(form.provider_review_count.trim()) },
+    { field: "menu", label: "메뉴", available: form.menu_items.some((item) => Boolean(item.name_ko.trim())) },
+    { field: "recommendedOrder", label: "첫 주문 정보", available: Boolean(form.recommended_order_ko.trim()) },
     { field: "website", label: "홈페이지", available: Boolean(form.website.trim()) },
     { field: "providerPlaceId", label: "Place ID", available: Boolean(form.source_external_id.trim()) },
   ] as const;
@@ -1659,6 +1717,21 @@ function getFieldSource(sourceMetadata: Record<string, unknown> | null, field: s
   return sources && typeof sources === "object" && !Array.isArray(sources)
     ? (sources as Record<string, unknown>)[field]
     : undefined;
+}
+
+function readNormalizedMenu(sourceMetadata: Record<string, unknown> | null): NormalizedPlace["menu"] | undefined {
+  const raw = sourceMetadata?.menu;
+  if (!Array.isArray(raw)) return undefined;
+  const menu = raw.filter((item): item is NonNullable<NormalizedPlace["menu"]>[number] => (
+    Boolean(item) && typeof item === "object" && typeof (item as { name?: unknown }).name === "string"
+  ));
+  return menu.length ? menu : undefined;
+}
+
+function readStringArray(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const values = value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+  return values.length ? values : undefined;
 }
 
 function SubmissionPreviewValue({ label, value }: { label: string; value: string }) {

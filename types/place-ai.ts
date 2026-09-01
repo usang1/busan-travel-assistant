@@ -28,7 +28,12 @@ export type PlaceSourceData = {
     description_zh: string;
     price: number | null;
     is_recommended: boolean;
+    price_approximate?: boolean;
+    role?: "signature" | "popular" | "set" | "course" | "other";
+    composition?: string[];
+    review_highlights?: string[];
   }>;
+  recommended_order: string[];
   price: {
     level: number | null;
     min: number | null;

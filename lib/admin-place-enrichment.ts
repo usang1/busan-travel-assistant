@@ -107,6 +107,8 @@ export function buildSourceMetadata(place: NormalizedPlace, existing: Record<str
     review_count: place.reviewCount ?? null,
     price_level: place.priceLevel ?? null,
     price_range: place.priceRange ?? null,
+    menu: place.menu ?? null,
+    recommended_order: place.recommendedOrder ?? null,
     photo_count: place.photos?.length ?? 0,
     provider_photo_preview_only: place.photos?.some((photo) => photo.persistence === "preview_only") ?? false,
     amenities: place.amenities ?? null,

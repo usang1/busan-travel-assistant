@@ -554,6 +554,7 @@ function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): Form
   return {
     ...nextForm,
     source_provider: provider,
+    recommended_order_ko: nextForm.recommended_order_ko || place.recommendedOrder?.join(" · ") || "",
     menu_items: nextForm.menu_items.length || !place.menu?.length
       ? nextForm.menu_items
       : place.menu.map((item, index) => ({
@@ -561,7 +562,7 @@ function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): Form
           name_zh: item.name,
           description_zh: "",
           price: item.price === undefined ? "" : String(item.price),
-          is_recommended: false,
+          is_recommended: item.role === "signature" || item.role === "popular",
           sort_order: String(index + 1),
         })),
     china_info: {
@@ -804,6 +805,15 @@ function normalizedPlaceForAdminSummary(form: FormState): NormalizedPlace | null
   const priceLevel = nullableNumber(form.price_level) ?? undefined;
   const priceMin = nullableNumber(form.price_min) ?? undefined;
   const priceMax = nullableNumber(form.price_max) ?? undefined;
+  const menu = readNormalizedMenu(form.source_metadata) ?? form.menu_items
+    .filter((item) => item.name_ko.trim())
+    .map((item) => ({
+      name: item.name_ko.trim(),
+      price: nullableNumber(item.price) ?? undefined,
+      role: item.is_recommended ? "signature" as const : "other" as const,
+    }));
+  const recommendedOrder = readStringArray(form.source_metadata?.recommended_order)
+    ?? (form.recommended_order_ko.trim() ? [form.recommended_order_ko.trim()] : undefined);
 
   return {
     provider,
@@ -824,6 +834,8 @@ function normalizedPlaceForAdminSummary(form: FormState): NormalizedPlace | null
     priceMin,
     priceMax,
     priceRange: priceMin !== undefined || priceMax !== undefined ? { min: priceMin, max: priceMax, currency: "KRW" } : undefined,
+    menu: menu.length ? menu : undefined,
+    recommendedOrder,
     fetchedAt: form.source_fetched_at || undefined,
   };
 }
@@ -2213,6 +2225,8 @@ function AdminReviewSummary({
     { field: "priceLevel", label: "가격대", available: Boolean(form.price_level.trim()) },
     { field: "rating", label: "평점", available: Boolean(form.provider_rating.trim()) },
     { field: "reviewCount", label: "리뷰 수", available: Boolean(form.provider_review_count.trim()) },
+    { field: "menu", label: "메뉴", available: form.menu_items.some((item) => Boolean(item.name_ko.trim())) },
+    { field: "recommendedOrder", label: "첫 주문 정보", available: Boolean(form.recommended_order_ko.trim()) },
     { field: "providerPlaceId", label: `${providerDisplayName(form.source_provider)} Place ID`, available: Boolean(form.source_external_id.trim()) },
     { field: "website", label: "홈페이지", available: Boolean(form.website.trim()) },
   ] as const;
@@ -2315,6 +2329,21 @@ function getFieldSource(sourceMetadata: Record<string, unknown> | null, field: s
   return sources && typeof sources === "object" && !Array.isArray(sources)
     ? (sources as Record<string, unknown>)[field]
     : undefined;
+}
+
+function readNormalizedMenu(sourceMetadata: Record<string, unknown> | null): NormalizedPlace["menu"] | undefined {
+  const raw = sourceMetadata?.menu;
+  if (!Array.isArray(raw)) return undefined;
+  const menu = raw.filter((item): item is NonNullable<NormalizedPlace["menu"]>[number] => (
+    Boolean(item) && typeof item === "object" && typeof (item as { name?: unknown }).name === "string"
+  ));
+  return menu.length ? menu : undefined;
+}
+
+function readStringArray(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const values = value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+  return values.length ? values : undefined;
 }
 
 function PreviewValue({ label, value }: { label: string; value: string }) {

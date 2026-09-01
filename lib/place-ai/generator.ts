@@ -207,9 +207,14 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
           description_zh: normalizeText(record.description_zh ?? record.descriptionZh, 180),
           price: normalizeNumber(record.price),
           is_recommended: record.is_recommended === true || record.isRecommended === true,
+          price_approximate: record.price_approximate === true || record.priceApproximate === true,
+          role: normalizeMenuRole(record.role),
+          composition: normalizeStringArray(record.composition, 8, 120),
+          review_highlights: normalizeStringArray(record.review_highlights ?? record.reviewHighlights, 6, 160),
         };
       })
     : [];
+  const recommendedOrder = normalizeStringArray(sourceData.recommended_order ?? sourceData.recommendedOrder, 6, 240);
   const price = asRecord(sourceData.price) ?? {};
 
   const normalized: PlaceSourceData = {
@@ -226,6 +231,7 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
     nearest_station: normalizeText(rawNearestStation, 120),
     opening_hours: normalizeText(rawOpeningHours, 300),
     menu,
+    recommended_order: recommendedOrder,
     price: {
       level: normalizeNumber(price.level),
       min: normalizeNumber(price.min),
@@ -263,6 +269,8 @@ export function buildSystemPrompt() {
     "Do not mention solo suitability or advise solo visitors to confirm conditions unless solo_friendly is explicitly yes or no in sourceData.",
     "Separate business-provided facts from travel-editor judgment. Make judgment modest and based only on provided facts.",
     "When present, use location convenience, price, menu, portion, greasiness, spiciness, smell, wait, solo dining, card payment, toilet, parking, and cautions.",
+    "When verified menu facts are present, include representative or repeatedly ordered dishes, stated prices, and set/course composition naturally in the description.",
+    "Only suggest a first order when recommended_order is non-empty. Review highlights describe repeated mentions and must not be upgraded into universal taste or quality claims.",
     "Description: explain what the place is, its factual location, and key verified characteristics in up to two short sentences. Mention suitable travelers only when directly supported by sourceData.",
     "Travel tip: use only supported visit timing, transport, nearby route, waiting, photo, or usage facts. Return an empty string when no grounded tip exists.",
     "Keep road names, building numbers, prices, and proper nouns accurate. Do not translate or generate address fields in this response.",
@@ -417,6 +425,20 @@ function pruneEmptyValues(value: unknown): unknown {
 
 function normalizeText(value: unknown, limit: number) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
+}
+
+function normalizeStringArray(value: unknown, limit: number, textLimit: number) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    .map((item) => item.trim().slice(0, textLimit))
+    .slice(0, limit);
+}
+
+function normalizeMenuRole(value: unknown): "signature" | "popular" | "set" | "course" | "other" | undefined {
+  return value === "signature" || value === "popular" || value === "set" || value === "course" || value === "other"
+    ? value
+    : undefined;
 }
 
 function normalizeNumber(value: unknown) {

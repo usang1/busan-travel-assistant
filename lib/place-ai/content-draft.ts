@@ -110,6 +110,9 @@ export function buildPlaceSourceData(payload: PlacePayload, options: { adminNote
       price: item.price,
       is_recommended: item.is_recommended,
     })),
+    recommended_order: payload.recommended_order_ko
+      ? payload.recommended_order_ko.split(/[·\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 6)
+      : [],
     price: {
       level: payload.price_level ?? null,
       min: payload.price_min,
@@ -156,11 +159,16 @@ export function buildPlaceSourceDataFromNormalizedPlace(place: NormalizedPlace):
     opening_hours: Array.isArray(openingHours) ? openingHours.join("\n") : openingHours ?? "",
     menu: (place.menu ?? []).map((item) => ({
       name_ko: item.name,
-      name_zh: item.name,
+      name_zh: "",
       description_zh: "",
       price: item.price ?? null,
-      is_recommended: false,
+      is_recommended: item.role === "signature" || item.role === "popular",
+      price_approximate: item.priceApproximate,
+      role: item.role,
+      composition: item.composition,
+      review_highlights: item.reviewHighlights,
     })),
+    recommended_order: place.recommendedOrder ?? [],
     price: {
       level: place.priceLevel ?? null,
       min: priceRange?.min ?? null,
@@ -172,7 +180,10 @@ export function buildPlaceSourceDataFromNormalizedPlace(place: NormalizedPlace):
     solo_friendly: "unknown",
     waiting_info: "",
     admin_notes: "",
-    provider_metadata: isRecord(place.raw) ? place.raw : null,
+    provider_metadata: {
+      ...(isRecord(place.raw) ? place.raw : {}),
+      field_sources: place.fieldSources ?? null,
+    },
     source: "map_link",
     map_link_facts: analyzePlaceMapSource(place.sourceUrl),
   };
