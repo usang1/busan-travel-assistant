@@ -16,6 +16,7 @@ for (const file of editorFiles) {
     "장소 정보 불러오기",
     "AI 콘텐츠 생성",
     "고급 편집 펼치기",
+    "웹검색으로 보완",
   ]) {
     assert.ok(source.includes(label), `${file}: missing workflow label: ${label}`);
   }
@@ -35,6 +36,7 @@ assert.match(submissionWorkflowSource, /providerLookupNotice=\{providerLookupNot
 assert.match(submissionWorkflowSource, /<p role="status"[^>]*>\{status\}<\/p>/, "mobile publish controls must show save feedback beside the button");
 assert.match(submissionWorkflowSource, /제보된 지도 링크[\s\S]*href=\{selectedSourceLink\}[\s\S]*noopener noreferrer/, "submitted map URL must be a safe external hyperlink");
 assert.match(submissionWorkflowSource, /href=\{mapLinkState\.normalizedUrl\}[\s\S]*제보된 링크 열기/, "publish editor must provide a direct map-link action");
+assert.match(submissionWorkflowSource, /onWebSearch=\{\(\) => void parseSourceUrl\(true\)\}/, "submission workflow must expose an explicit web-search fallback action");
 
 const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
 assert.match(placeStoreSource, /isMissingAdminSummaryColumnError/, "place writes must detect a missing optional admin_summary migration");

@@ -5,15 +5,17 @@ import { generateAdminPlaceSummaryCached } from "@/lib/place-ai/admin-summary";
 import { buildPlaceSourceDataFromNormalizedPlace } from "@/lib/place-ai/content-draft";
 import { generatePlaceAiContent } from "@/lib/place-ai/generator";
 import { createPlaceDraft, getMissingPlaceFields, mergePlaceData, type PlaceDraftField } from "@/lib/place-draft";
-import { searchMissingPlaceDataCached, type PlaceWebSearchResult } from "@/lib/place-web-search";
+import { searchMissingPlaceData, searchMissingPlaceDataCached, type PlaceWebSearchHints, type PlaceWebSearchResult } from "@/lib/place-web-search";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
     await requireAdmin(request);
-    const body = (await request.json()) as { url?: string };
+    const body = (await request.json()) as { url?: string; forceWebSearch?: boolean; searchHints?: PlaceWebSearchHints };
     const inputUrl = body.url?.trim();
+    const forceWebSearch = body.forceWebSearch === true;
+    const searchHints = sanitizeSearchHints(body.searchHints);
 
     if (!inputUrl) {
       return NextResponse.json({ message: "지도 링크를 먼저 입력해 주세요." }, { status: 400 });
@@ -30,7 +32,9 @@ export async function POST(request: Request) {
 
     if (missingFields.length > 0 && process.env.OPENAI_API_KEY?.trim()) {
       try {
-        webSearch = await searchMissingPlaceDataCached(providerDraft, missingFields);
+        webSearch = forceWebSearch
+          ? await searchMissingPlaceData(providerDraft, missingFields, searchHints)
+          : await searchMissingPlaceDataCached(providerDraft, missingFields, searchHints);
         const mergeResult = mergePlaceData(normalizedPlace, webSearch.data);
         normalizedPlace = mergeResult.normalizedPlace;
         webSearchAcceptedFields = mergeResult.acceptedFields;
@@ -119,6 +123,7 @@ export async function POST(request: Request) {
       webSearchError,
       webSearchAcceptedFields,
       webSearchNeedsReviewFields,
+      webSearchMode: forceWebSearch ? "manual" : "automatic",
       adminSummary,
       adminSummaryError,
       koreanContent,
@@ -130,4 +135,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: response.message }, { status: response.status });
   }
+}
+
+function sanitizeSearchHints(value: PlaceWebSearchHints | undefined): PlaceWebSearchHints {
+  if (!value || typeof value !== "object") return {};
+  return {
+    ...sanitizeSearchHint("name", value.name),
+    ...sanitizeSearchHint("address", value.address),
+    ...sanitizeSearchHint("category", value.category),
+  };
+}
+
+function sanitizeSearchHint<Key extends keyof PlaceWebSearchHints>(key: Key, value: unknown) {
+  return typeof value === "string" && value.trim() ? { [key]: value.trim().slice(0, 300) } : {};
 }

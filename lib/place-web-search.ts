@@ -23,7 +23,13 @@ export type PlaceWebSearchResult = {
   searchedAt: string;
 };
 
-export async function searchMissingPlaceDataCached(place: PlaceDraft, missingFields: PlaceDraftField[]) {
+export type PlaceWebSearchHints = {
+  name?: string;
+  address?: string;
+  category?: string;
+};
+
+export async function searchMissingPlaceDataCached(place: PlaceDraft, missingFields: PlaceDraftField[], hints: PlaceWebSearchHints = {}) {
   const key = JSON.stringify({
     provider: place.provider,
     placeId: place.providerPlaceId,
@@ -32,12 +38,13 @@ export async function searchMissingPlaceDataCached(place: PlaceDraft, missingFie
     name: place.name,
     address: place.roadAddress ?? place.address,
     category: place.category,
+    hints,
     missingFields,
   });
   const cached = searchCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const value = searchMissingPlaceData(place, missingFields);
+  const value = searchMissingPlaceData(place, missingFields, hints);
   searchCache.set(key, { expiresAt: Date.now() + webSearchCacheTtlMs, value });
   try {
     return await value;
@@ -47,7 +54,7 @@ export async function searchMissingPlaceDataCached(place: PlaceDraft, missingFie
   }
 }
 
-export async function searchMissingPlaceData(place: PlaceDraft, missingFields: PlaceDraftField[]): Promise<PlaceWebSearchResult> {
+export async function searchMissingPlaceData(place: PlaceDraft, missingFields: PlaceDraftField[], hints: PlaceWebSearchHints = {}): Promise<PlaceWebSearchResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error("OPENAI_API_KEY가 설정되어 있지 않습니다.");
   if (!missingFields.length) {
@@ -76,6 +83,9 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
             "Provider data is authoritative. Never change or repeat provider values as web facts.",
             "The provider lookup query is not the place name. Use the provider place ID, source URL, address, and reliable sources to identify the exact business.",
             "Use official website, official social account, or official business page first; then major map or business pages; then trustworthy booking or travel platforms; use blogs only as a last resort.",
+            "Research only these normalized fields when requested: name, address, roadAddress, category, phone, openingHours, closedDays, menu, priceRange, parking, description, websiteUrl, and coordinates.",
+            "The description field is a one-to-three sentence factual short description, not advertising copy.",
+            "Return coordinates only when an official map or official business source clearly identifies the exact place and coordinates.",
             "Do not search for or return images. Do not infer atmosphere, popularity, taste, menu quality, views, or recommendations.",
             "Return null with confidence 0 when a fact cannot be verified. If sources conflict or may be stale, return the candidate with confidence below 0.75 so it will not be auto-applied.",
             "Confidence must reflect source quality, agreement, recency, and place identity. Include source URLs for every non-null fact.",
@@ -91,6 +101,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
             providerSourceUrl: place.sourceUrl,
             providerPlaceId: place.providerPlaceId,
             providerLookupQuery: place.lookupQuery,
+            existingSearchHints: normalizeSearchHints(hints),
             missingFields,
           }, null, 2)}`,
         },
@@ -132,6 +143,18 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
   } catch (error) {
     throw toPublicOpenAiError(error, "장소 정보 웹 검색 보완");
   }
+}
+
+function normalizeSearchHints(hints: PlaceWebSearchHints) {
+  return {
+    ...normalizeSearchHint("name", hints.name),
+    ...normalizeSearchHint("address", hints.address),
+    ...normalizeSearchHint("category", hints.category),
+  };
+}
+
+function normalizeSearchHint<Key extends keyof PlaceWebSearchHints>(key: Key, value: unknown) {
+  return typeof value === "string" && value.trim() ? { [key]: value.trim().slice(0, 300) } : {};
 }
 
 const factSchema = {

@@ -499,6 +499,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [webSearching, setWebSearching] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
@@ -783,7 +784,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     setStatus(`AI 생성 결과 ${fields.length}개 필드를 입력 폼에 적용했습니다. DB 저장은 장소 등록 버튼을 눌러야 반영됩니다.`);
   }
 
-  async function parseSourceUrl() {
+  async function parseSourceUrl(forceWebSearch = false) {
     const parsed = parseMapUrl(form.source_url);
 
     if (!parsed.normalizedUrl) {
@@ -797,13 +798,26 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       return;
     }
 
-    setAnalyzing(true);
-    setStatus("지도 링크를 분석하는 중입니다.");
+    if (forceWebSearch) {
+      setWebSearching(true);
+      setStatus("Provider에 없는 제보 장소 정보를 웹검색으로 보완하는 중입니다.");
+    } else {
+      setAnalyzing(true);
+      setStatus("지도 링크를 분석하는 중입니다.");
+    }
 
     try {
       const response = await adminFetch("/api/admin/map-link", {
         method: "POST",
-        body: JSON.stringify({ url: parsed.normalizedUrl }),
+        body: JSON.stringify({
+          url: parsed.normalizedUrl,
+          forceWebSearch,
+          searchHints: {
+            name: form.name_ko,
+            address: form.address_ko,
+            category: form.category,
+          },
+        }),
       });
 
       if (!response.ok) {
@@ -919,7 +933,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             : "이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.",
       );
     } finally {
-      setAnalyzing(false);
+      if (forceWebSearch) setWebSearching(false);
+      else setAnalyzing(false);
     }
   }
 
@@ -1184,8 +1199,10 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             selected={selected}
             onFieldChange={updateField}
             onParseSourceUrl={() => void parseSourceUrl()}
+            onWebSearch={() => void parseSourceUrl(true)}
             onPublish={() => void publishPlace()}
             analyzing={analyzing}
+            webSearching={webSearching}
             geocoding={geocoding}
             translating={translating}
             aiDraft={aiDraft}
@@ -1214,8 +1231,10 @@ function PublishFormView({
   selected,
   onFieldChange,
   onParseSourceUrl,
+  onWebSearch,
   onPublish,
   analyzing,
+  webSearching,
   geocoding,
   translating,
   aiDraft,
@@ -1237,8 +1256,10 @@ function PublishFormView({
   selected: PlaceSubmissionRecord | null;
   onFieldChange: <Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) => void;
   onParseSourceUrl: () => void;
+  onWebSearch: () => void;
   onPublish: () => void;
   analyzing: boolean;
+  webSearching: boolean;
   geocoding: boolean;
   translating: boolean;
   aiDraft: PlaceAiGenerationResponse | null;
@@ -1310,8 +1331,12 @@ function PublishFormView({
             placeholder="Google Maps / 네이버지도 / 카카오맵 링크"
             className={`${inputClass} min-w-0`}
           />
-          <button type="button" onClick={onParseSourceUrl} disabled={analyzing || !mapLinkState.valid} className="min-h-12 w-full shrink-0 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-50 sm:w-auto">
+          <button type="button" onClick={onParseSourceUrl} disabled={analyzing || webSearching || !mapLinkState.valid} className="min-h-12 w-full shrink-0 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-50 sm:w-auto">
             {analyzing ? `${providerDisplayName(mapLinkState.provider)} 장소 정보를 불러오는 중...` : "장소 정보 불러오기"}
+          </button>
+          <button type="button" onClick={onWebSearch} disabled={analyzing || webSearching || !mapLinkState.valid || !form.source_url.trim()} className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-teal-50 px-4 text-sm font-black text-teal-800 ring-1 ring-teal-200 disabled:opacity-50 sm:w-auto">
+            <Sparkles size={16} aria-hidden="true" />
+            {webSearching ? "웹검색 보완 중..." : "웹검색으로 보완"}
           </button>
         </div>
         <p className="mt-2 text-xs font-semibold text-slate-500">Google Maps / 네이버지도 / 카카오맵 지원</p>
@@ -1415,8 +1440,12 @@ function PublishFormView({
                   form.source_url.trim() && !mapLinkState.valid ? "ring-rose-200 focus:ring-rose-200" : "",
                 ].join(" ")}
               />
-            <button type="button" onClick={onParseSourceUrl} disabled={analyzing} className="shrink-0 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" onClick={onParseSourceUrl} disabled={analyzing || webSearching} className="shrink-0 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">
               {analyzing ? "분석 중" : "분석"}
+            </button>
+            <button type="button" onClick={onWebSearch} disabled={analyzing || webSearching || !mapLinkState.valid} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-teal-50 px-3 text-sm font-black text-teal-800 ring-1 ring-teal-200 disabled:cursor-not-allowed disabled:opacity-60">
+              <Sparkles size={15} aria-hidden="true" />
+              {webSearching ? "웹검색 중" : "웹검색 보완"}
             </button>
             </div>
           </Field>

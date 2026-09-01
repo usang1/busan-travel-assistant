@@ -854,6 +854,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [webSearching, setWebSearching] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
@@ -1172,7 +1173,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     return formWithMapCoordinates;
   }
 
-  async function parseSourceUrl() {
+  async function parseSourceUrl(forceWebSearch = false) {
     const parsed = parseMapUrl(form.source_url);
 
     if (!parsed.normalizedUrl) {
@@ -1186,14 +1187,27 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       return;
     }
 
-    setAnalyzing(true);
-    setStatus("지도 링크를 분석하는 중입니다.");
+    if (forceWebSearch) {
+      setWebSearching(true);
+      setStatus("Provider에 없는 장소 정보를 웹검색으로 보완하는 중입니다.");
+    } else {
+      setAnalyzing(true);
+      setStatus("지도 링크를 분석하는 중입니다.");
+    }
 
     try {
       const response = await fetch("/api/admin/map-link", {
         method: "POST",
         headers: adminHeaders(),
-        body: JSON.stringify({ url: parsed.normalizedUrl }),
+        body: JSON.stringify({
+          url: parsed.normalizedUrl,
+          forceWebSearch,
+          searchHints: {
+            name: form.name_ko,
+            address: form.address_ko,
+            category: form.category,
+          },
+        }),
       });
 
       if (!response.ok) {
@@ -1309,7 +1323,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             : "이 지도 링크에서는 좌표를 자동으로 가져오지 못했습니다. 직접 입력하거나 다른 공유 링크를 사용해주세요.",
       );
     } finally {
-      setAnalyzing(false);
+      if (forceWebSearch) setWebSearching(false);
+      else setAnalyzing(false);
     }
   }
 
@@ -1649,10 +1664,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <button
                 type="button"
                 onClick={() => void parseSourceUrl()}
-                disabled={analyzing || !mapLinkState.valid}
+                disabled={analyzing || webSearching || !mapLinkState.valid}
                 className="min-h-12 w-full shrink-0 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {analyzing ? `${providerDisplayName(mapLinkState.provider)} 정보를 불러오는 중...` : form.id ? "지도 정보 다시 확인" : "장소 정보 불러오기"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void parseSourceUrl(true)}
+                disabled={analyzing || webSearching || !mapLinkState.valid || !form.source_url.trim()}
+                className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-teal-50 px-4 text-sm font-black text-teal-800 ring-1 ring-teal-200 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                <Sparkles size={16} aria-hidden="true" />
+                {webSearching ? "웹검색 보완 중..." : "웹검색으로 보완"}
               </button>
             </div>
             <p className="mt-2 text-xs font-semibold text-slate-500">Google Maps / 네이버지도 / 카카오맵 지원</p>
@@ -1780,10 +1804,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                     <button
                       type="button"
                       onClick={() => void parseSourceUrl()}
-                      disabled={analyzing}
+                      disabled={analyzing || webSearching}
                       className="shrink-0 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {analyzing ? "분석 중" : "분석"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void parseSourceUrl(true)}
+                      disabled={analyzing || webSearching || !mapLinkState.valid}
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-teal-50 px-3 text-sm font-black text-teal-800 ring-1 ring-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Sparkles size={15} aria-hidden="true" />
+                      {webSearching ? "웹검색 중" : "웹검색 보완"}
                     </button>
                   </div>
                 </Field>

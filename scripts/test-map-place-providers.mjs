@@ -493,8 +493,13 @@ assert.equal(naverSearchWithoutExactProviderResult.normalizedPlace.name, undefin
 assert.equal(naverSearchWithoutExactProviderResult.normalizedPlace.lookupQuery, "해운대 맛집");
 assert.equal(naverSearchWithoutExactProviderResult.normalizedPlace.providerPlaceId, "1664978106");
 const unresolvedNaverDraft = placeDraft.createPlaceDraft(naverSearchWithoutExactProviderResult.normalizedPlace);
-await webSearch.searchMissingPlaceData(unresolvedNaverDraft, placeDraft.getMissingPlaceFields(unresolvedNaverDraft));
+await webSearch.searchMissingPlaceData(unresolvedNaverDraft, placeDraft.getMissingPlaceFields(unresolvedNaverDraft), {
+  name: "아메리칸빌리지",
+  address: "부산 수영구 민락수변로 147 3층",
+});
 assert.match(webSearchRequest.input[1].content, /"providerLookupQuery": "해운대 맛집"/);
+assert.match(webSearchRequest.input[1].content, /"name": "아메리칸빌리지"/);
+assert.match(webSearchRequest.input[1].content, /"address": "부산 수영구 민락수변로 147 3층"/);
 const identifiedNaverPlace = placeDraft.mergePlaceData(naverSearchWithoutExactProviderResult.normalizedPlace, {
   name: { value: "아메리칸빌리지", confidence: 0.95, sourceUrls: ["https://m.place.naver.com/restaurant/1664978106/home"] },
   category: { value: "육류,고기요리", confidence: 0.9, sourceUrls: ["https://m.place.naver.com/restaurant/1664978106/home"] },
@@ -723,6 +728,53 @@ assert.equal(sourcePayload.external_id, "1435915485");
 assert.equal(sourcePayload.raw_metadata.category, "한식>육류");
 assert.ok(sourcePayload.last_synced_at);
 
+const webEnrichmentCases = [
+  {
+    provider: "google",
+    direct: googleDetails.normalizedPlace,
+    web: {
+      description: { value: "부산 수영구에 위치한 해변", confidence: 0.9, sourceUrls: ["https://official.example/google-place"] },
+      sources: [{ title: "공식 관광 페이지", url: "https://official.example/google-place", type: "OFFICIAL" }],
+    },
+  },
+  {
+    provider: "naver",
+    direct: naverResolved.normalizedPlace,
+    web: {
+      openingHours: { value: "매일 11:30-22:00", confidence: 0.9, sourceUrls: ["https://official.example/naver-place"] },
+      websiteUrl: { value: "https://official.example/naver", confidence: 0.9, sourceUrls: ["https://official.example/naver-place"] },
+      description: { value: "부산 수영구의 육류 음식점", confidence: 0.9, sourceUrls: ["https://official.example/naver-place"] },
+      sources: [{ title: "업체 공식 페이지", url: "https://official.example/naver-place", type: "OFFICIAL" }],
+    },
+  },
+  {
+    provider: "kakao",
+    direct: kakaoResolved.normalizedPlace,
+    web: {
+      priceRange: { value: { min: 10000, max: 20000 }, confidence: 0.9, sourceUrls: ["https://official.example/kakao-place"] },
+      description: { value: "부산 수영구에 위치한 관광 장소", confidence: 0.9, sourceUrls: ["https://official.example/kakao-place"] },
+      sources: [{ title: "공식 장소 페이지", url: "https://official.example/kakao-place", type: "OFFICIAL" }],
+    },
+  },
+].map(({ provider, direct, web }) => {
+  const result = placeDraft.mergePlaceData(direct, web);
+  const fieldSources = result.normalizedPlace.fieldSources ?? {};
+  const directFields = Object.entries(fieldSources).filter(([, metadata]) => metadata.source === "PROVIDER").map(([field]) => field);
+  const webFields = Object.entries(fieldSources).filter(([, metadata]) => metadata.source === "WEB_SEARCH").map(([field]) => field);
+  assert.ok(directFields.includes("name"), `${provider}: provider name must remain authoritative`);
+  assert.ok(webFields.length > 0, `${provider}: at least one missing field must be web-enriched`);
+  return { provider, directFields, webFields };
+});
+
+console.log("Provider/Web Search field-source integration:");
+for (const result of webEnrichmentCases) {
+  console.log(`- ${result.provider}: provider=[${result.directFields.join(", ")}], web_search=[${result.webFields.join(", ")}]`);
+}
+
+const webIdentifiedNaverForm = enrichment.enrichPlaceForm(emptyForm, identifiedNaverPlace.normalizedPlace);
+assert.equal(webIdentifiedNaverForm.source_metadata.field_sources.name.source, "WEB_SEARCH");
+assert.equal(webIdentifiedNaverForm.source_metadata.field_sources.coordinates.source, "WEB_SEARCH");
+
 const enrichedKakaoForm = enrichment.enrichPlaceForm(emptyForm, kakaoResolved.normalizedPlace);
 assert.equal(enrichedKakaoForm.provider, "KAKAO");
 assert.equal(enrichedKakaoForm.category, "attraction");
@@ -762,6 +814,7 @@ assert.match(mapLinkRouteSource, /generatePlaceAiContent/);
 assert.match(mapLinkRouteSource, /locale_targets: \["ko"\]/);
 assert.match(mapLinkRouteSource, /koreanContentError/);
 assert.match(mapLinkRouteSource, /Promise\.allSettled\(\[summaryPromise, koreanContentPromise\]\)/);
+assert.match(mapLinkRouteSource, /forceWebSearch[\s\S]*searchMissingPlaceData\(providerDraft, missingFields, searchHints\)/);
 
 const adminSummarySource = readFileSync(new URL("../lib/place-ai/admin-summary.ts", import.meta.url), "utf8");
 const placeGeneratorSource = readFileSync(new URL("../lib/place-ai/generator.ts", import.meta.url), "utf8");
