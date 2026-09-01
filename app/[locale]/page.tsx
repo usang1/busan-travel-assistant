@@ -3,12 +3,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowRight, MapPin } from "lucide-react";
 import { PlaceCard } from "@/components/PlaceCard";
+import { PlaceRankingSection } from "@/components/PlaceRankingSection";
 import { QuickActionCard } from "@/components/QuickActionCard";
 import { SearchBar } from "@/components/SearchBar";
 import { SectionTitle } from "@/components/SectionTitle";
 import { StructuredData } from "@/components/StructuredData";
 import { quickActions } from "@/data/places";
 import { getPlaces } from "@/lib/place-store";
+import { getPlaceRankings } from "@/lib/place-recommendations";
 import {
   isLocale,
   localeAlternates,
@@ -62,7 +64,10 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
 export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
   const copy = ui[locale];
-  const { places, source, error } = await getPlaces({ activeOnly: true, featuredOnly: true, locale, debugLabel: "localized-home-featured" });
+  const [{ places, source, error }, rankings] = await Promise.all([
+    getPlaces({ activeOnly: true, featuredOnly: true, locale, debugLabel: "localized-home-featured" }),
+    getPlaceRankings({ limit: 4 }),
+  ]);
   const recommended = places.slice(0, 4);
 
   return (
@@ -99,6 +104,8 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
           ))}
         </div>
       </section>
+
+      <PlaceRankingSection rankings={rankings} locale={locale} />
 
       <section className="mt-8 space-y-4">
         <SectionTitle

@@ -167,6 +167,14 @@ export type PlaceWithRelations = PlaceRecord & {
   sources?: PlaceSourceRecord[];
   china_info?: PlaceChinaInfoRecord | null;
   save_count?: number;
+  recent_save_count?: number;
+  recommendation_distance?: number;
+};
+
+export type PlaceRankingCollection = {
+  popular: PlaceWithRelations[];
+  trending: PlaceWithRelations[];
+  error?: string;
 };
 
 export type PlaceSourceRecord = {

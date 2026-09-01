@@ -10,6 +10,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { EmptyState } from "@/components/EmptyState";
 import { SaveButton } from "@/components/SaveButton";
+import { NearbyPopularPlaces } from "@/components/NearbyPopularPlaces";
 import { TagChip } from "@/components/TagChip";
 import { TravelMap } from "@/components/TravelMap";
 import {
@@ -465,8 +466,10 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   );
 
   return (
-    <div className="space-y-4 lg:space-y-0">
+    <div className="space-y-4">
       <section className="lg:hidden">{searchControls}</section>
+
+      {userLocation ? <NearbyPopularPlaces origin={userLocation} locale={locale} /> : null}
 
       <section className="hidden min-h-[calc(100vh-150px)] grid-cols-[minmax(320px,38%)_minmax(0,1fr)] gap-4 lg:grid">
         <aside className="flex min-h-0 flex-col rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">

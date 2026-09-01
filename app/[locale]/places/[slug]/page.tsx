@@ -21,6 +21,7 @@ import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
 import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
+import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
@@ -30,6 +31,7 @@ import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { demoPlaces } from "@/data/demo-places";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
+import { getRelatedPlaces } from "@/lib/place-recommendations";
 import { formatOpeningStatus } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
@@ -128,6 +130,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   if (!place) {
     notFound();
   }
+
+  const relatedPlaces = await getRelatedPlaces(place);
 
   const content = getPlaceContent(place, locale);
   const recommendedMenus = place.menu_items.filter((item) => item.is_recommended);
@@ -357,6 +361,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       <section className="mt-6 rounded-[24px] bg-amber-50 p-4 text-sm leading-6 text-amber-900">
         {copy.placeDetail.confirmationNote}
       </section>
+
+      <RelatedPlacesSection places={relatedPlaces} locale={locale} />
 
       <PlaceCorrectionForm
         placeId={place.id}

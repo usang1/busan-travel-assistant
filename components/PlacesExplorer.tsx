@@ -5,6 +5,7 @@ import { LocateFixed, Search, SlidersHorizontal } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { PlaceCard } from "@/components/PlaceCard";
+import { PlaceRankingSection } from "@/components/PlaceRankingSection";
 import { TagChip } from "@/components/TagChip";
 import {
   calculateDistanceMeters,
@@ -26,13 +27,14 @@ import {
 } from "@/lib/place-china/discovery";
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
-import { categoryLabels, type PlaceCategory, type PlaceWithRelations } from "@/types/database";
+import { categoryLabels, type PlaceCategory, type PlaceRankingCollection, type PlaceWithRelations } from "@/types/database";
 
 type PlacesExplorerProps = {
   places: PlaceWithRelations[];
   initialCategory?: string;
   locale?: Locale;
   loadError?: string;
+  rankings: PlaceRankingCollection;
 };
 
 type SortMode = ChinaDiscoverySort;
@@ -48,7 +50,7 @@ const categoryFilters: Array<{ value: PlaceCategory | "all" }> = [
   { value: "luggage" },
 ];
 
-export function PlacesExplorer({ places, initialCategory, locale = defaultLocale, loadError }: PlacesExplorerProps) {
+export function PlacesExplorer({ places, initialCategory, locale = defaultLocale, loadError, rankings }: PlacesExplorerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -135,13 +137,6 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
 
     return sortPlacesForChineseTraveler(filtered, sortMode);
   }, [activeChinaFilters, category, enrichedPlaces, locale, priceBucket, query, region, showChinaFilters, sortMode]);
-
-  const popularPlaces = useMemo(() => {
-    return [...places]
-      .filter((place) => (place.save_count ?? 0) > 0)
-      .sort((a, b) => (b.save_count ?? 0) - (a.save_count ?? 0))
-      .slice(0, 4);
-  }, [places]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") {
@@ -322,21 +317,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
         {locationMessage ? <p className="text-xs font-semibold text-slate-500">{locationMessage}</p> : null}
       </div>
 
-      {popularPlaces.length > 0 ? (
-        <section className="mt-5">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-slate-950">{explorerCopy.popular}</h2>
-              <p className="mt-1 text-xs text-slate-500">{explorerCopy.savedBased}</p>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {popularPlaces.map((place) => (
-              <PlaceCard key={place.id} place={place} locale={locale} compact />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <PlaceRankingSection rankings={rankings} locale={locale} />
 
       {filteredPlaces.length > 0 ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">

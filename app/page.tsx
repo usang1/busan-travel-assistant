@@ -2,11 +2,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, MapPin } from "lucide-react";
 import { PlaceCard } from "@/components/PlaceCard";
+import { PlaceRankingSection } from "@/components/PlaceRankingSection";
 import { QuickActionCard } from "@/components/QuickActionCard";
 import { SearchBar } from "@/components/SearchBar";
 import { SectionTitle } from "@/components/SectionTitle";
 import { quickActions } from "@/data/places";
 import { getPlaces } from "@/lib/place-store";
+import { getPlaceRankings } from "@/lib/place-recommendations";
 import { absoluteUrl, siteConfig } from "@/config/site";
 import { StructuredData } from "@/components/StructuredData";
 
@@ -27,7 +29,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const { places, source, error } = await getPlaces({ activeOnly: true, featuredOnly: true, locale: "zh", debugLabel: "home-featured" });
+  const [{ places, source, error }, rankings] = await Promise.all([
+    getPlaces({ activeOnly: true, featuredOnly: true, locale: "zh", debugLabel: "home-featured" }),
+    getPlaceRankings({ limit: 4 }),
+  ]);
   const recommended = places.slice(0, 4);
 
   return (
@@ -64,6 +69,8 @@ export default async function Home() {
           ))}
         </div>
       </section>
+
+      <PlaceRankingSection rankings={rankings} locale="zh" />
 
       <section className="mt-8 space-y-4">
         <SectionTitle

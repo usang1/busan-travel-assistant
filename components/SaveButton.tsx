@@ -27,6 +27,17 @@ const saveLabels: Record<Locale, { save: string; saved: string; loginRequired: s
   ko: { save: "저장", saved: "저장됨", loginRequired: "로그인 후 저장" },
 };
 
+type PlaceSaveChangeDetail = {
+  placeId?: string;
+  saved?: boolean;
+  saveCount?: number;
+};
+
+type PlaceSaveStateRow = {
+  saved: boolean;
+  save_count: number | string;
+};
+
 function readItems() {
   try {
     return JSON.parse(window.localStorage.getItem(savedItemsStorageKey) ?? "[]") as SavedItem[];
@@ -103,9 +114,16 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
     void loadState();
 
     function handleSaveChange(event: Event) {
-      const detail = (event as CustomEvent<{ placeId?: string }>).detail;
+      const detail = (event as CustomEvent<PlaceSaveChangeDetail>).detail;
 
-      if (!detail?.placeId || detail.placeId === item.id) {
+      if (detail?.placeId && detail.placeId !== item.id) {
+        return;
+      }
+
+      if (typeof detail?.saved === "boolean" && Number.isFinite(detail.saveCount)) {
+        setSaved(detail.saved);
+        setSaveCount(Math.max(0, Number(detail.saveCount)));
+      } else {
         void loadState();
       }
     }
@@ -143,43 +161,51 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
     }
 
     const wasSaved = saved;
-    const previousCount = saveCount;
+    const desiredSaved = !wasSaved;
 
     setPending(true);
-    setSaved(!wasSaved);
-    setSaveCount((current) => Math.max(0, current + (wasSaved ? -1 : 1)));
+    const rpcResult = await client.rpc("set_place_saved", {
+      target_place_id: item.id,
+      should_save: desiredSaved,
+    });
 
-    const result = wasSaved
-      ? await client.from("place_saves").delete().eq("user_id", user.id).eq("place_id", item.id)
-      : await client
-          .from("place_saves")
-          .upsert(
-            {
-              user_id: user.id,
-              place_id: item.id,
-            },
-            { onConflict: "user_id,place_id", ignoreDuplicates: true },
-          );
+    let authoritativeState = readPlaceSaveState(rpcResult.data);
 
-    if (result.error) {
-      setSaved(wasSaved);
-      setSaveCount(previousCount);
+    if (rpcResult.error || !authoritativeState) {
+      // eslint-disable-next-line no-console
+      console.warn("[place-save:set_place_saved] using RLS fallback", {
+        code: rpcResult.error?.code ?? "invalid_response",
+        message: rpcResult.error?.message ?? "The save RPC returned no state.",
+      });
+      authoritativeState = await applyLegacySaveState(client, user.id, item.id, desiredSaved);
+    }
+
+    if (!authoritativeState) {
       setPending(false);
       return;
     }
 
-    await recordPlaceEvent({
-      eventType: wasSaved ? "place_unsave" : "place_save",
-      placeId: item.id,
-      locale: derivedLocale,
-      userId: user.id,
-    });
+    setSaved(authoritativeState.saved);
+    setSaveCount(authoritativeState.saveCount);
 
-    const counts = await getPlaceSaveCounts([item.id]);
+    if (authoritativeState.saved !== wasSaved) {
+      await recordPlaceEvent({
+        eventType: authoritativeState.saved ? "place_save" : "place_unsave",
+        placeId: item.id,
+        locale: derivedLocale,
+        userId: user.id,
+      });
+    }
 
-    setSaveCount(counts.get(item.id) ?? Math.max(0, previousCount + (wasSaved ? -1 : 1)));
     setPending(false);
-    window.dispatchEvent(new CustomEvent("place-save-change", { detail: { placeId: item.id } }));
+    window.dispatchEvent(new CustomEvent<PlaceSaveChangeDetail>("place-save-change", {
+      detail: {
+        placeId: item.id,
+        saved: authoritativeState.saved,
+        saveCount: authoritativeState.saveCount,
+      },
+    }));
+    router.refresh();
   }
 
   const visibleLabel = saved ? text.saved : label ?? text.save;
@@ -203,6 +229,51 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
       <span>{saveCount}</span>
     </button>
   );
+}
+
+function readPlaceSaveState(data: unknown): { saved: boolean; saveCount: number } | null {
+  const row = Array.isArray(data) ? data[0] as PlaceSaveStateRow | undefined : data as PlaceSaveStateRow | null;
+  const count = typeof row?.save_count === "number" ? row.save_count : Number(row?.save_count);
+
+  if (!row || typeof row.saved !== "boolean" || !Number.isFinite(count)) {
+    return null;
+  }
+
+  return { saved: row.saved, saveCount: Math.max(0, Math.round(count)) };
+}
+
+async function applyLegacySaveState(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  userId: string,
+  placeId: string,
+  shouldSave: boolean,
+) {
+  const mutation = shouldSave
+    ? await client.from("place_saves").upsert(
+        { user_id: userId, place_id: placeId },
+        { onConflict: "user_id,place_id", ignoreDuplicates: true },
+      )
+    : await client.from("place_saves").delete().eq("user_id", userId).eq("place_id", placeId);
+
+  if (mutation.error) {
+    // eslint-disable-next-line no-console
+    console.error("[place-save:fallback] mutation failed", mutation.error);
+    return null;
+  }
+
+  const [{ data: savedRow, error: stateError }, counts] = await Promise.all([
+    client.from("place_saves").select("id").eq("user_id", userId).eq("place_id", placeId).maybeSingle(),
+    getPlaceSaveCounts([placeId]),
+  ]);
+  const count = counts.get(placeId);
+
+  if (stateError || typeof count !== "number") {
+    // eslint-disable-next-line no-console
+    console.error("[place-save:fallback] authoritative state unavailable", stateError);
+    return null;
+  }
+
+  return { saved: Boolean(savedRow), saveCount: count };
 }
 
 function LegacySaveButton({ item, className, label, locale }: SaveButtonProps) {

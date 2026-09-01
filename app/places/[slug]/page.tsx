@@ -19,6 +19,7 @@ import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
 import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
+import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
@@ -31,6 +32,7 @@ import { demoPlaces } from "@/data/demo-places";
 import { formatOpeningStatus } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
+import { getRelatedPlaces } from "@/lib/place-recommendations";
 import { categoryLabels } from "@/types/database";
 
 type PlaceDetailPageProps = {
@@ -81,6 +83,8 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
   if (!place) {
     notFound();
   }
+
+  const relatedPlaces = await getRelatedPlaces(place);
 
   const recommendedMenus = place.menu_items.filter((item) => item.is_recommended);
   const otherMenus = place.menu_items.filter((item) => !item.is_recommended);
@@ -284,6 +288,8 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
       <section className="mt-6 rounded-[24px] bg-amber-50 p-4 text-sm leading-6 text-amber-900">
         信息可能会发生变化，请出发前再次确认。가격, 영업시간, 대기 정보는 변경될 수 있으니 방문 전 다시 확인하세요.
       </section>
+
+      <RelatedPlacesSection places={relatedPlaces} locale="zh" />
 
       <PlaceCorrectionForm
         placeId={place.id}

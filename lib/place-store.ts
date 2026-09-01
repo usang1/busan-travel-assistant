@@ -329,6 +329,76 @@ export async function getPlaces(
   };
 }
 
+export async function getPublicPlacesByIds(ids: string[], client?: SupabaseClient): Promise<PlaceWithRelations[]> {
+  const uniqueIds = Array.from(new Set(ids)).filter(Boolean).slice(0, 24);
+  if (uniqueIds.length === 0) return [];
+
+  const resolvedClient = resolveClient(client);
+  if (!resolvedClient) {
+    return demoPlaces
+      .filter((place) => uniqueIds.includes(place.id))
+      .map((place) => ({ ...place, save_count: 0 }));
+  }
+
+  return fetchBoundedPublicPlaces(resolvedClient, { ids: uniqueIds, limit: uniqueIds.length });
+}
+
+export async function getPublicPlacesInBounds(
+  bounds: { minLatitude: number; maxLatitude: number; minLongitude: number; maxLongitude: number },
+  limit = 60,
+  client?: SupabaseClient,
+): Promise<PlaceWithRelations[]> {
+  const resolvedClient = resolveClient(client);
+  if (!resolvedClient) {
+    return demoPlaces
+      .filter((place) => (
+        typeof place.latitude === "number" &&
+        typeof place.longitude === "number" &&
+        place.latitude >= bounds.minLatitude &&
+        place.latitude <= bounds.maxLatitude &&
+        place.longitude >= bounds.minLongitude &&
+        place.longitude <= bounds.maxLongitude
+      ))
+      .slice(0, limit)
+      .map((place) => ({ ...place, save_count: 0 }));
+  }
+
+  return fetchBoundedPublicPlaces(resolvedClient, { bounds, limit: Math.max(1, Math.min(limit, 80)) });
+}
+
+async function fetchBoundedPublicPlaces(
+  client: SupabaseClient,
+  options: {
+    ids?: string[];
+    bounds?: { minLatitude: number; maxLatitude: number; minLongitude: number; maxLongitude: number };
+    limit: number;
+  },
+) {
+  const selectCandidates = [publicPlaceSelectWithChinaInfo, publicPlaceSelectWithTranslations, legacyPlaceSelect];
+
+  for (const select of selectCandidates) {
+    let query = client
+      .from("places")
+      .select(select)
+      .eq("is_active", true)
+      .eq("status", "ACTIVE");
+
+    if (options.ids?.length) query = query.in("id", options.ids);
+    if (options.bounds) {
+      query = query
+        .gte("latitude", options.bounds.minLatitude)
+        .lte("latitude", options.bounds.maxLatitude)
+        .gte("longitude", options.bounds.minLongitude)
+        .lte("longitude", options.bounds.maxLongitude);
+    }
+
+    const { data, error } = await query.limit(options.limit);
+    if (!error && data) return addSaveCounts(mapPlaceRows(data));
+  }
+
+  return [];
+}
+
 export async function getPlaceBySlug(
   slug: string,
   options: { activeOnly?: boolean; includeAdminRelations?: boolean } = {},
