@@ -25,6 +25,7 @@ export type ParsedMapUrl = {
   confidence: CoordinateConfidence;
   failureReason?: string;
   title?: string;
+  searchQuery?: string;
 };
 
 type CoordinateMatch = {
@@ -58,6 +59,7 @@ export function parseMapUrl(value: string): ParsedMapUrl {
   const placeId = extractPlaceId(url, provider);
   const coordinates = provider === "unknown" ? null : extractCoordinates(url, provider);
   const title = extractTitle(url, coordinates);
+  const searchQuery = extractSearchQuery(url, provider);
 
   return {
     provider,
@@ -65,6 +67,7 @@ export function parseMapUrl(value: string): ParsedMapUrl {
     normalizedUrl: url.toString(),
     placeId: placeId ?? undefined,
     title: title || undefined,
+    searchQuery: searchQuery || undefined,
     latitude: coordinates?.latitude,
     longitude: coordinates?.longitude,
     coordinateSource: coordinates?.source ?? "none",
@@ -324,17 +327,6 @@ function extractTitle(url: URL, coordinates: CoordinateMatch | null) {
     return query;
   }
 
-  // Naver's search result links put the lookup query before `/place/{id}`.
-  // Handle it before the generic place path branch, which otherwise sees only
-  // the numeric ID and returns an empty title.
-  if (url.hostname.endsWith("naver.com")) {
-    const searchTitle = decodePathSegment(url.pathname.match(/\/p\/search\/([^/]+)/)?.[1]);
-    if (searchTitle) return searchTitle;
-
-    const naverQuery = textParam(url, ["n_query"]);
-    if (naverQuery) return naverQuery;
-  }
-
   if (url.pathname.includes("/place/")) {
     const pathTitle = decodeURIComponent(url.pathname.split("/place/")[1]?.split("/")[0] ?? "").replaceAll("+", " ");
     return /^\d+$/.test(pathTitle) ? "" : pathTitle;
@@ -346,6 +338,15 @@ function extractTitle(url: URL, coordinates: CoordinateMatch | null) {
   }
 
   return "";
+}
+
+function extractSearchQuery(url: URL, provider: MapProvider) {
+  if (provider !== "naver") return "";
+
+  return (
+    decodePathSegment(url.pathname.match(/\/p\/search\/([^/]+)/)?.[1]) ||
+    textParam(url, ["n_query"])
+  );
 }
 
 function textParam(url: URL, names: string[]) {

@@ -56,6 +56,11 @@ class FakeWebSearchOpenAI {
         webSearchRequest = request;
         return {
           output_text: JSON.stringify({
+            name: { value: null, confidence: 0, sourceUrls: [] },
+            category: { value: null, confidence: 0, sourceUrls: [] },
+            address: { value: null, confidence: 0, sourceUrls: [] },
+            roadAddress: { value: null, confidence: 0, sourceUrls: [] },
+            coordinates: { value: null, confidence: 0, sourceUrls: [] },
             phone: { value: "051-999-9999", confidence: 0.95, sourceUrls: ["https://official.example/place"] },
             openingHours: { value: "17:00-02:00", confidence: 0.82, sourceUrls: ["https://official.example/place"] },
             closedDays: { value: null, confidence: 0, sourceUrls: [] },
@@ -182,7 +187,7 @@ const sparseProviderPlace = {
 const sparseDraft = placeDraft.createPlaceDraft(sparseProviderPlace);
 assert.ok(sparseDraft.fieldSources.name);
 assert.ok(sparseDraft.fieldSources.phone);
-assert.deepEqual([...placeDraft.getMissingPlaceFields(sparseDraft)], ["openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
+assert.deepEqual([...placeDraft.getMissingPlaceFields(sparseDraft)], ["roadAddress", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
 const webResult = await webSearch.searchMissingPlaceDataCached(sparseDraft, placeDraft.getMissingPlaceFields(sparseDraft));
 assert.equal(webSearchRequest.tools[0].type, "web_search");
 assert.deepEqual([...webResult.needsReviewFields], ["openingHours", "priceRange"]);
@@ -211,6 +216,7 @@ assert.deepEqual([...unsupportedSearchFact.needsReviewFields], ["description"]);
 
 const providerComplete = placeDraft.createPlaceDraft({
   ...sparseProviderPlace,
+  roadAddressKo: "부산 수영구 테스트로 1",
   openingHours: ["월요일: 10:00-20:00"],
   closedDays: ["연중무휴"],
   menu: [{ name: "대표 메뉴", price: 10000 }],
@@ -229,7 +235,7 @@ const providerWithLevelOnly = placeDraft.createPlaceDraft({
   ...sparseProviderPlace,
   priceLevel: 2,
 });
-assert.deepEqual([...placeDraft.getMissingPlaceFields(providerWithLevelOnly)], ["openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
+assert.deepEqual([...placeDraft.getMissingPlaceFields(providerWithLevelOnly)], ["roadAddress", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"]);
 
 const googlePlaceId = "ChIJN1t_tDeuEmsRUsoyG83frY4";
 const googleLongUrl = "https://www.google.com/maps/place/%EA%B0%81%EB%B0%94/data=!4m7!3m6!1s0x3568ecdf45d8c293:0x55ec98fb16b7e1e9!8m2!3d35.1482312!4d129.1117663!16s%2Fg%2F11gcf9j8f9!19sChIJk8LYRd_saDUR6eG3FvuY7FU?authuser=0&hl=ko&g_ep=EgoyMDI2MDgyNi4wIJJjKgBIAVAD&rclk=1";
@@ -459,7 +465,8 @@ assert.equal(naverResolved.normalizedPlace.longitude, 129.1170388);
 const naverSearchPlaceUrl = "https://map.naver.com/p/search/%ED%95%B4%EC%9A%B4%EB%8C%80%20%EB%A7%9B%EC%A7%91/place/1664978106?placePath=%3Fentry%3Dpll%26from%3Dnx%26fromNxList%3Dtrue%26n_ad_group_type%3D10%26n_query%3D%25ED%2595%25B4%25EC%259A%25B4%25EB%258C%2580%25EB%25A7%259B%25EC%25A7%2591&placeSearchOption=entry%3Dpll%26fromNxList%3Dtrue%26n_ad_group_type%3D10%26n_query%3D%25ED%2595%25B4%25EC%259A%25B4%25EB%258C%2580%25EB%25A7%259B%25EC%25A7%2591&searchType=place&n_ad_group_type=10&n_query=%ED%95%B4%EC%9A%B4%EB%8C%80%EB%A7%9B%EC%A7%91";
 const parsedNaverSearchPlaceUrl = mapUrl.parseMapUrl(naverSearchPlaceUrl);
 assert.equal(parsedNaverSearchPlaceUrl.placeId, "1664978106");
-assert.equal(parsedNaverSearchPlaceUrl.title, "해운대 맛집");
+assert.equal(parsedNaverSearchPlaceUrl.title, undefined);
+assert.equal(parsedNaverSearchPlaceUrl.searchQuery, "해운대 맛집");
 const naverSearchPlaceResolved = await resolver.resolveMapUrl(naverSearchPlaceUrl, async (input, init = {}) => {
   const url = new URL(input.toString());
   if (url.pathname.startsWith("/p/search/") && init.method === "HEAD") {
@@ -474,6 +481,34 @@ const naverSearchPlaceResolved = await resolver.resolveMapUrl(naverSearchPlaceUr
 assert.equal(naverSearchPlaceResolved.normalizedPlace.providerPlaceId, "1664978106");
 assert.equal(naverSearchPlaceResolved.normalizedPlace.name, "해운대 테스트 맛집");
 assert.equal(naverSearchPlaceResolved.normalizedPlace.phone, "051-111-2222");
+
+const naverSearchWithoutExactProviderResult = await resolver.resolveMapUrl(naverSearchPlaceUrl, async (input) => {
+  const url = input.toString();
+  if (url.startsWith("https://openapi.naver.com/v1/search/local.json")) {
+    return jsonResponse({ items: [{ title: "전혀 다른 장소", link: "https://map.naver.com/p/entry/place/9999999999" }] });
+  }
+  return htmlResponse();
+});
+assert.equal(naverSearchWithoutExactProviderResult.normalizedPlace.name, undefined);
+assert.equal(naverSearchWithoutExactProviderResult.normalizedPlace.lookupQuery, "해운대 맛집");
+assert.equal(naverSearchWithoutExactProviderResult.normalizedPlace.providerPlaceId, "1664978106");
+const unresolvedNaverDraft = placeDraft.createPlaceDraft(naverSearchWithoutExactProviderResult.normalizedPlace);
+await webSearch.searchMissingPlaceData(unresolvedNaverDraft, placeDraft.getMissingPlaceFields(unresolvedNaverDraft));
+assert.match(webSearchRequest.input[1].content, /"providerLookupQuery": "해운대 맛집"/);
+const identifiedNaverPlace = placeDraft.mergePlaceData(naverSearchWithoutExactProviderResult.normalizedPlace, {
+  name: { value: "아메리칸빌리지", confidence: 0.95, sourceUrls: ["https://m.place.naver.com/restaurant/1664978106/home"] },
+  category: { value: "육류,고기요리", confidence: 0.9, sourceUrls: ["https://m.place.naver.com/restaurant/1664978106/home"] },
+  address: { value: "부산 수영구 민락동", confidence: 0.9, sourceUrls: ["https://m.place.naver.com/restaurant/1664978106/home"] },
+  roadAddress: { value: "부산 수영구 민락수변로 147 3층", confidence: 0.9, sourceUrls: ["https://m.place.naver.com/restaurant/1664978106/home"] },
+  coordinates: { value: { latitude: 35.156, longitude: 129.131 }, confidence: 0.9, sourceUrls: ["https://m.place.naver.com/restaurant/1664978106/home"] },
+  sources: [{ title: "네이버 플레이스", url: "https://m.place.naver.com/restaurant/1664978106/home", type: "MAP" }],
+});
+assert.equal(identifiedNaverPlace.normalizedPlace.name, "아메리칸빌리지");
+assert.equal(identifiedNaverPlace.normalizedPlace.category, "육류,고기요리");
+assert.equal(identifiedNaverPlace.normalizedPlace.roadAddressKo, "부산 수영구 민락수변로 147 3층");
+assert.equal(identifiedNaverPlace.normalizedPlace.latitude, 35.156);
+assert.equal(identifiedNaverPlace.normalizedPlace.longitude, 129.131);
+assert.equal(identifiedNaverPlace.normalizedPlace.fieldSources.name.source, "WEB_SEARCH");
 
 const naverHubPlace = await naverHub.naverMapsProvider.lookup({
   sourceUrl: naverUrl,

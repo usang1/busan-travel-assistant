@@ -8,6 +8,7 @@ export type MapLinkAnalysisResult = {
   originalUrl: string;
   resolvedUrl?: string;
   title?: string;
+  searchQuery?: string;
   latitude?: number;
   longitude?: number;
   placeId?: string;
@@ -30,6 +31,7 @@ export function analyzeMapLink(input: string, resolvedUrls: string[] = []): MapL
     originalUrl: input,
     resolvedUrl: resolvedUrls.at(-1),
     title: firstText(parsedUrls.map((parsed) => parsed.title)),
+    searchQuery: firstText(parsedUrls.map((parsed) => parsed.searchQuery)),
     latitude: coordinates?.latitude,
     longitude: coordinates?.longitude,
     placeId: providerFacts.placeId,

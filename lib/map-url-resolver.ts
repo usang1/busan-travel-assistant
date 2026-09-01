@@ -48,6 +48,7 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
     providerPlaceId: urlAnalysis.placeId,
     sourceUrl: originalUrl,
     finalResolvedUrl,
+    lookupQuery: urlAnalysis.searchQuery,
     name: urlAnalysis.title,
     latitude: urlAnalysis.latitude,
     longitude: urlAnalysis.longitude,

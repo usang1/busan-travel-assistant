@@ -4,7 +4,7 @@ import { resolveMapUrlCached } from "@/lib/map-url-resolver";
 import { generateAdminPlaceSummaryCached } from "@/lib/place-ai/admin-summary";
 import { buildPlaceSourceDataFromNormalizedPlace } from "@/lib/place-ai/content-draft";
 import { generatePlaceAiContent } from "@/lib/place-ai/generator";
-import { createPlaceDraft, getMissingPlaceFields, mergePlaceData } from "@/lib/place-draft";
+import { createPlaceDraft, getMissingPlaceFields, mergePlaceData, type PlaceDraftField } from "@/lib/place-draft";
 import { searchMissingPlaceDataCached, type PlaceWebSearchResult } from "@/lib/place-web-search";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +25,16 @@ export async function POST(request: Request) {
     let normalizedPlace = mergePlaceData(resolution.normalizedPlace, null).normalizedPlace;
     let webSearch: PlaceWebSearchResult | null = null;
     let webSearchError = "";
+    let webSearchAcceptedFields: PlaceDraftField[] = [];
+    let webSearchNeedsReviewFields: PlaceDraftField[] = [];
 
     if (missingFields.length > 0 && process.env.OPENAI_API_KEY?.trim()) {
       try {
         webSearch = await searchMissingPlaceDataCached(providerDraft, missingFields);
-        normalizedPlace = mergePlaceData(normalizedPlace, webSearch.data).normalizedPlace;
+        const mergeResult = mergePlaceData(normalizedPlace, webSearch.data);
+        normalizedPlace = mergeResult.normalizedPlace;
+        webSearchAcceptedFields = mergeResult.acceptedFields;
+        webSearchNeedsReviewFields = mergeResult.needsReviewFields;
       } catch (error) {
         webSearchError = error instanceof Error ? error.message : "Web Search 보완에 실패했습니다.";
         // Provider facts remain usable when web search is unavailable.
@@ -44,9 +49,15 @@ export async function POST(request: Request) {
 
     const webSearchNotice = webSearchError
       ? `Web Search 보완 실패: ${webSearchError} Provider 정보만 사용합니다.`
-      : webSearch?.needsReviewFields.length
-        ? `Web Search 결과 중 ${webSearch.needsReviewFields.join(", ")}는 신뢰도가 낮아 자동 반영하지 않았습니다.`
-        : "";
+      : webSearchNeedsReviewFields.length
+        ? `Web Search에서 ${webSearchAcceptedFields.length}개 필드를 보완했습니다. ${webSearchNeedsReviewFields.join(", ")}는 근거 또는 신뢰도가 부족해 반영하지 않았습니다.`
+        : webSearch
+          ? webSearchAcceptedFields.length
+            ? `Web Search에서 ${webSearchAcceptedFields.join(", ")} 정보를 보완했습니다.`
+            : "Web Search를 실행했지만 추가로 확인된 정보가 없습니다."
+          : missingFields.length > 0 && !process.env.OPENAI_API_KEY?.trim()
+            ? "OPENAI_API_KEY가 없어 Web Search 보완을 실행하지 않았습니다."
+            : "";
     const providerLookup = {
       ...resolution.providerLookup,
       message: [resolution.providerLookup.message, webSearchNotice].filter(Boolean).join(" "),
@@ -106,6 +117,8 @@ export async function POST(request: Request) {
       missingFields,
       webSearch,
       webSearchError,
+      webSearchAcceptedFields,
+      webSearchNeedsReviewFields,
       adminSummary,
       adminSummaryError,
       koreanContent,

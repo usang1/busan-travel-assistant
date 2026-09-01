@@ -7,7 +7,7 @@ import type {
   WebSearchFact,
   WebSearchEnrichmentData,
 } from "@/lib/place-draft";
-import { WEB_SEARCH_VOLATILE_CONFIDENCE } from "@/lib/place-draft";
+import { placeDraftFields, WEB_SEARCH_VOLATILE_CONFIDENCE } from "@/lib/place-draft";
 
 const defaultModel = "gpt-5.6-luna";
 const requestTimeoutMs = 25_000;
@@ -28,6 +28,7 @@ export async function searchMissingPlaceDataCached(place: PlaceDraft, missingFie
     provider: place.provider,
     placeId: place.providerPlaceId,
     sourceUrl: place.sourceUrl,
+    lookupQuery: place.lookupQuery,
     name: place.name,
     address: place.roadAddress ?? place.address,
     category: place.category,
@@ -73,6 +74,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
           content: [
             "You research only the missing factual fields for a specific place in South Korea.",
             "Provider data is authoritative. Never change or repeat provider values as web facts.",
+            "The provider lookup query is not the place name. Use the provider place ID, source URL, address, and reliable sources to identify the exact business.",
             "Use official website, official social account, or official business page first; then major map or business pages; then trustworthy booking or travel platforms; use blogs only as a last resort.",
             "Do not search for or return images. Do not infer atmosphere, popularity, taste, menu quality, views, or recommendations.",
             "Return null with confidence 0 when a fact cannot be verified. If sources conflict or may be stale, return the candidate with confidence below 0.75 so it will not be auto-applied.",
@@ -88,6 +90,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
             provider: place.provider,
             providerSourceUrl: place.sourceUrl,
             providerPlaceId: place.providerPlaceId,
+            providerLookupQuery: place.lookupQuery,
             missingFields,
           }, null, 2)}`,
         },
@@ -112,7 +115,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
     const searchedAt = new Date().toISOString();
     const needsReviewFields = missingFields.filter((field) => {
       const candidate = data[field];
-      const threshold = ["openingHours", "closedDays", "menu", "priceRange", "parking"].includes(field)
+      const threshold = ["coordinates", "openingHours", "closedDays", "menu", "priceRange", "parking"].includes(field)
         ? WEB_SEARCH_VOLATILE_CONFIDENCE
         : 0.75;
       return Boolean(candidate?.value !== null && candidate?.value !== undefined && (candidate.confidence ?? 0) < threshold);
@@ -147,6 +150,25 @@ const nullableBooleanFactSchema = {
   additionalProperties: false,
   properties: {
     value: { type: ["boolean", "null"] },
+    confidence: { type: "number" },
+    sourceUrls: { type: "array", items: { type: "string" } },
+  },
+  required: ["value", "confidence", "sourceUrls"],
+} as const;
+
+const coordinatesFactSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    value: {
+      type: ["object", "null"],
+      additionalProperties: false,
+      properties: {
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+      },
+      required: ["latitude", "longitude"],
+    },
     confidence: { type: "number" },
     sourceUrls: { type: "array", items: { type: "string" } },
   },
@@ -198,6 +220,11 @@ const webSearchSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    name: factSchema,
+    category: factSchema,
+    address: factSchema,
+    roadAddress: factSchema,
+    coordinates: coordinatesFactSchema,
     phone: factSchema,
     openingHours: factSchema,
     closedDays: factSchema,
@@ -220,7 +247,7 @@ const webSearchSchema = {
       },
     },
   },
-  required: ["phone", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl", "sources"],
+  required: ["name", "category", "address", "roadAddress", "coordinates", "phone", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl", "sources"],
 } as const;
 
 function parseJson(value: string) {
@@ -234,9 +261,7 @@ function parseJson(value: string) {
 
 function normalizeWebSearchData(value: Record<string, unknown>, responseSources: PlaceSourceCitation[]): WebSearchEnrichmentData {
   const data: WebSearchEnrichmentData = { sources: normalizeSources(value.sources, responseSources) };
-  const fields: PlaceDraftField[] = ["phone", "openingHours", "closedDays", "menu", "priceRange", "parking", "description", "websiteUrl"];
-
-  for (const field of fields) {
+  for (const field of placeDraftFields) {
     const raw = value[field];
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
     const record = raw as Record<string, unknown>;

@@ -4,6 +4,11 @@ export const WEB_SEARCH_AUTO_ACCEPT_CONFIDENCE = 0.75;
 export const WEB_SEARCH_VOLATILE_CONFIDENCE = 0.85;
 
 export const placeDraftFields = [
+  "name",
+  "category",
+  "address",
+  "roadAddress",
+  "coordinates",
   "phone",
   "openingHours",
   "closedDays",
@@ -15,7 +20,7 @@ export const placeDraftFields = [
 ] as const;
 
 export type PlaceDraftField = (typeof placeDraftFields)[number];
-export type PlaceFieldKey = PlaceDraftField | "name" | "category" | "address" | "coordinates" | "providerPlaceId" | "sourceUrl" | "images" | "priceLevel";
+export type PlaceFieldKey = PlaceDraftField | "providerPlaceId" | "sourceUrl" | "images" | "priceLevel";
 export type PlaceFactSource = "PROVIDER" | "WEB_SEARCH" | "MANUAL";
 
 export type PlaceFactMetadata = {
@@ -42,11 +47,13 @@ export type PlaceDraft = {
   providerPlaceId?: string;
   sourceUrl: string;
   finalResolvedUrl?: string;
+  lookupQuery?: string;
   name?: string;
   address?: string;
   roadAddress?: string;
   latitude?: number;
   longitude?: number;
+  coordinates?: { latitude: number; longitude: number };
   category?: string;
   phone?: string;
   openingHours?: string | string[];
@@ -80,6 +87,7 @@ export type PlaceDraftMergeResult = {
 
 export function createPlaceDraft(place: NormalizedPlace): PlaceDraft {
   const openingHours = place.openingHours ?? place.currentOpeningHours;
+  const coordinates = normalizeDraftCoordinates(place.latitude, place.longitude);
   const priceRange = place.priceRange ?? (
     place.priceMin !== undefined || place.priceMax !== undefined
       ? { min: place.priceMin, max: place.priceMax, currency: "KRW" }
@@ -90,11 +98,13 @@ export function createPlaceDraft(place: NormalizedPlace): PlaceDraft {
     providerPlaceId: place.providerPlaceId,
     sourceUrl: place.sourceUrl,
     finalResolvedUrl: place.finalResolvedUrl,
+    lookupQuery: place.lookupQuery,
     name: place.name,
     address: place.addressKo ?? place.formattedAddress,
     roadAddress: place.roadAddressKo,
     latitude: place.latitude,
     longitude: place.longitude,
+    coordinates,
     category: place.category,
     phone: place.phone,
     openingHours,
@@ -110,10 +120,6 @@ export function createPlaceDraft(place: NormalizedPlace): PlaceDraft {
   };
 
   const providerFields: Partial<Record<PlaceFieldKey, unknown>> = {
-    name: place.name,
-    category: place.category,
-    address: draft.address,
-    coordinates: place.latitude !== undefined && place.longitude !== undefined ? true : undefined,
     providerPlaceId: place.providerPlaceId,
     sourceUrl: place.sourceUrl,
     images: draft.images.length ? draft.images : undefined,
@@ -209,6 +215,13 @@ export function formatPlaceFactSource(value: unknown) {
 function applyDraftToNormalizedPlace(providerData: NormalizedPlace, draft: PlaceDraft): NormalizedPlace {
   const next: NormalizedPlace = {
     ...providerData,
+    name: draft.name,
+    category: draft.category,
+    addressKo: draft.address,
+    roadAddressKo: draft.roadAddress,
+    formattedAddress: draft.roadAddress ?? draft.address ?? providerData.formattedAddress,
+    latitude: draft.coordinates?.latitude,
+    longitude: draft.coordinates?.longitude,
     openingHours: draft.openingHours,
     closedDays: draft.closedDays,
     menu: draft.menu,
@@ -234,6 +247,13 @@ function hasDraftValue(value: unknown) {
 }
 
 function normalizeFieldValue(field: PlaceDraftField, value: unknown) {
+  if (field === "coordinates") {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const record = value as Record<string, unknown>;
+    const latitude = typeof record.latitude === "number" ? record.latitude : Number.NaN;
+    const longitude = typeof record.longitude === "number" ? record.longitude : Number.NaN;
+    return normalizeDraftCoordinates(latitude, longitude);
+  }
   if (field === "parking") return typeof value === "boolean" ? value : undefined;
   if (field === "menu") {
     if (!Array.isArray(value)) return undefined;
@@ -268,7 +288,19 @@ function normalizeConfidence(value: unknown) {
 }
 
 function isVolatileField(field: PlaceDraftField) {
-  return field === "openingHours" || field === "closedDays" || field === "menu" || field === "priceRange" || field === "parking";
+  return field === "coordinates" || field === "openingHours" || field === "closedDays" || field === "menu" || field === "priceRange" || field === "parking";
+}
+
+function normalizeDraftCoordinates(latitude: unknown, longitude: unknown) {
+  if (
+    typeof latitude === "number" && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+    typeof longitude === "number" && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180 &&
+    !(latitude === 0 && longitude === 0)
+  ) {
+    return { latitude, longitude };
+  }
+
+  return undefined;
 }
 
 function normalizeSourceUrls(urls: unknown, fallback: PlaceSourceCitation[]) {

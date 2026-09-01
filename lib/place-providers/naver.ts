@@ -25,11 +25,12 @@ export const naverMapsProvider: PlaceProvider = {
     if (!clientId || !clientSecret) return null;
 
     const naverUrls = context.parsedUrls.filter((item) => item.provider === "naver");
-    const parsed = [...naverUrls].reverse().find((item) => item.title?.trim() && item.placeId)
-      ?? [...naverUrls].reverse().find((item) => item.title?.trim())
+    const parsed = [...naverUrls].reverse().find((item) => (item.searchQuery?.trim() || item.title?.trim()) && item.placeId)
+      ?? [...naverUrls].reverse().find((item) => item.searchQuery?.trim() || item.title?.trim())
       ?? [...naverUrls].reverse().find((item) => item.placeId);
     const coordinateUrl = [...naverUrls].reverse().find((item) => item.latitude !== undefined && item.longitude !== undefined);
-    const query = [...naverUrls].reverse().find((item) => item.title?.trim())?.title?.trim();
+    const queryUrl = [...naverUrls].reverse().find((item) => item.searchQuery?.trim() || item.title?.trim());
+    const query = queryUrl?.searchQuery?.trim() || queryUrl?.title?.trim();
     const placeId = [...naverUrls].reverse().find((item) => item.placeId)?.placeId;
     if (!parsed || !query) return null;
 

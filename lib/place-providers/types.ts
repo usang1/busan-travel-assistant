@@ -19,6 +19,7 @@ export type NormalizedPlace = {
   providerPlaceId?: string;
   sourceUrl: string;
   finalResolvedUrl?: string;
+  lookupQuery?: string;
   name?: string;
   category?: string;
   types?: string[];
