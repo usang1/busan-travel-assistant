@@ -98,9 +98,9 @@ export const categoryLabels = {
 
 export const ui = {
   zh: {
-    siteName: "釜山旅行助手",
+    siteName: "韩国旅行助手",
     siteDescription: siteConfig.description,
-    region: "广安里",
+    region: "釜山・首尔・济州",
     nav: {
       home: "首页",
       nearby: "附近",
@@ -224,9 +224,9 @@ export const ui = {
     },
   },
   en: {
-    siteName: "Busan Travel Assistant",
-    siteDescription: "A Busan Gwangalli travel tool for food, photo spots, luggage storage, Korean phrases, and routes.",
-    region: "Gwangalli",
+    siteName: "Korea Travel Assistant",
+    siteDescription: "A Korea travel tool for food, photo spots, luggage storage, Korean phrases, and routes across Busan, Seoul, and Jeju.",
+    region: "Busan · Seoul · Jeju",
     nav: {
       home: "Home",
       nearby: "Nearby",
@@ -350,9 +350,9 @@ export const ui = {
     },
   },
   ja: {
-    siteName: "釜山旅行アシスタント",
-    siteDescription: "釜山・広安里のグルメ、写真スポット、荷物預かり、韓国語フレーズ、旅程をまとめた旅行ツール。",
-    region: "広安里",
+    siteName: "韓国旅行アシスタント",
+    siteDescription: "釜山・ソウル・済州のグルメ、写真スポット、荷物預かり、韓国語フレーズ、旅程をまとめた旅行ツール。",
+    region: "釜山・ソウル・済州",
     nav: {
       home: "ホーム",
       nearby: "近く",
@@ -476,9 +476,9 @@ export const ui = {
     },
   },
   ko: {
-    siteName: "부산 여행 어시스턴트",
-    siteDescription: "부산 광안리 맛집, 사진스팟, 짐보관, 한국어 안내 문장, 여행 코스를 정리한 여행 도구입니다.",
-    region: "광안리",
+    siteName: "한국 여행 어시스턴트",
+    siteDescription: "부산·서울·제주의 맛집, 사진스팟, 짐보관, 한국어 안내 문장, 여행 코스를 정리한 여행 도구입니다.",
+    region: "부산 · 서울 · 제주",
     nav: {
       home: "홈",
       nearby: "주변",

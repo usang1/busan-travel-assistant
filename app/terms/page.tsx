@@ -2,7 +2,7 @@ import { LegalPage, legalMetadata } from "@/components/LegalPage";
 
 export const metadata = legalMetadata(
   "使用条款",
-  "釜山旅行助手 이용약관 임시 초안",
+  "韩国旅行助手 이용약관 임시 초안",
   "/terms",
 );
 

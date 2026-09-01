@@ -257,7 +257,7 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
 
 export function buildSystemPrompt() {
   return [
-    "You are a precise place information editor for foreign travelers visiting Busan.",
+    "You are a precise place information editor for foreign travelers visiting South Korea.",
     "Use only the facts in sourceData. Do not browse, scrape, infer from the URL, or invent missing facts.",
     "Do not fabricate prices, hours, menus, reviews, wait times, payment support, toilet, parking, popularity, or amenities.",
     "Admin notes are editorial leads, not verified facts. Reframe subjective or exaggerated wording into neutral travel-service copy.",

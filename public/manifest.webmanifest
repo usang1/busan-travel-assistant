@@ -1,7 +1,7 @@
 {
-  "name": "釜山旅行助手",
-  "short_name": "Busan Trip",
-  "description": "A mobile-first Gwangalli travel assistant for Chinese independent travelers.",
+  "name": "韩国旅行助手",
+  "short_name": "Korea Trip",
+  "description": "A mobile-first Korea travel assistant covering Busan, Seoul, and Jeju for Chinese independent travelers.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

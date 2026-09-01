@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "관리자",
-  description: "釜山旅行助手 관리자 페이지",
+  description: "韩国旅行助手 관리자 페이지",
   robots: {
     index: false,
     follow: false,
@@ -21,7 +21,7 @@ export default function AdminPage() {
           <ShieldCheck size={16} aria-hidden="true" />
           관리자
         </div>
-        <h1 className="mt-4 text-3xl font-black tracking-normal">釜山旅行助手 관리자</h1>
+        <h1 className="mt-4 text-3xl font-black tracking-normal">韩国旅行助手 관리자</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
           사용자 장소 제보를 검수하고, 부족한 데이터를 보완해 최종 장소로 등록합니다.
         </p>

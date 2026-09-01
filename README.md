@@ -1,4 +1,4 @@
-# 釜山旅行助手 Busan Travel Assistant
+# 韩国旅行助手 Korea Travel Assistant
 
 중국인 자유여행객이 부산 광안리에서 바로 쓸 수 있는 모바일 중심 여행 도구 MVP입니다.
 

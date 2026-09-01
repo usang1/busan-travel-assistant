@@ -36,7 +36,7 @@ export function Header() {
           </span>
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold text-slate-950">{copy.siteName}</span>
-            <span className="block text-[11px] text-slate-500">Busan Travel Assistant</span>
+            <span className="block text-[11px] text-slate-500">Korea Travel Assistant</span>
           </span>
         </Link>
         <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">

@@ -12,8 +12,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: "釜山旅行助手｜Busan Travel Assistant",
-    template: "%s｜釜山旅行助手",
+    default: `${siteConfig.name}｜${siteConfig.englishName}`,
+    template: `%s｜${siteConfig.name}`,
   },
   description: siteConfig.description,
   manifest: "/manifest.webmanifest",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     languages: localeAlternates("/"),
   },
   openGraph: {
-    title: "釜山旅行助手｜广安里自由行工具",
+    title: `${siteConfig.name}｜釜山・首尔・济州自由行工具`,
     description: siteConfig.description,
     url: absoluteUrl("/"),
     siteName: siteConfig.name,

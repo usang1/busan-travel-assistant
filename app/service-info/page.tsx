@@ -2,7 +2,7 @@ import { LegalPage, legalMetadata } from "@/components/LegalPage";
 
 export const metadata = legalMetadata(
   "服务说明",
-  "釜山旅行助手 MVP 服务范围、数据来源和使用限制 안내",
+  "韩国旅行助手 MVP 服务范围、数据来源和使用限制 안내",
   "/service-info",
 );
 
@@ -11,7 +11,7 @@ export default function ServiceInfoPage() {
     <LegalPage
       titleZh="服务说明"
       titleKo="서비스 안내"
-      description="釜山旅行助手는 중국인 자유여행객이 광안리에서 빠르게 의사결정할 수 있도록 돕는 모바일 웹서비스입니다."
+      description="韩国旅行助手는 중국인 자유여행객이 부산·서울·제주에서 빠르게 의사결정할 수 있도록 돕는 모바일 웹서비스입니다."
       sections={[
         {
           title: "服务范围",

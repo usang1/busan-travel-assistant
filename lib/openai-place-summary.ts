@@ -67,7 +67,7 @@ export async function generatePlaceSummaryDraft(analysis: MapLinkAnalysisResult)
         {
           role: "system",
           content:
-            "You write concise, practical place descriptions for a Busan travel admin. Use only the provided facts. Do not invent hours, menu, price, reviews, popularity, or amenities. Return valid JSON only.",
+            "You write concise, practical place descriptions for a South Korea travel admin. Use only the provided facts. Do not invent hours, menu, price, reviews, popularity, or amenities. Return valid JSON only.",
         },
         {
           role: "user",
@@ -122,7 +122,7 @@ export async function generateAdminPlaceTranslations(fields: Partial<AdminTransl
         {
           role: "system",
           content:
-            "You localize place fields for a Busan travel service. Reframe subjective admin wording into neutral travel copy, preserve proper nouns and address numbers, add no facts, and return valid JSON only.",
+            "You localize place fields for a South Korea travel service. Reframe subjective admin wording into neutral travel copy, preserve proper nouns and address numbers, add no facts, and return valid JSON only.",
         },
         {
           role: "user",
