@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ExternalLink, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, Pencil, RefreshCw, XCircle } from "lucide-react";
 import { categoryLabels, type PlaceCorrectionRecord, type PlaceCorrectionStatus } from "@/types/database";
 
 type AdminCorrectionWorkflowProps = {
@@ -12,7 +12,7 @@ type AdminCorrectionWorkflowProps = {
 const statuses: PlaceCorrectionStatus[] = ["pending", "accepted", "rejected"];
 const statusLabels: Record<PlaceCorrectionStatus, string> = {
   pending: "대기",
-  accepted: "처리 완료",
+  accepted: "승인",
   rejected: "거절",
 };
 
@@ -25,6 +25,7 @@ const fieldLabels: Record<string, string> = {
   phone: "전화번호",
   website: "홈페이지/공식 SNS",
   address: "주소",
+  location: "위치/주소",
   menu: "메뉴/대표 메뉴",
   parking: "주차 정보",
   reservation: "예약 정보",
@@ -83,7 +84,7 @@ export function AdminCorrectionWorkflow({ accessToken }: AdminCorrectionWorkflow
 
       const body = (await response.json()) as { correction: PlaceCorrectionRecord };
       setCorrections((current) => current.map((correction) => (correction.id === id ? body.correction : correction)));
-      setStatus(`${statusLabels[nextStatus]} 상태로 변경했습니다. 장소 수정은 아래 장소 관리에서 반영하세요.`);
+      setStatus(`${statusLabels[nextStatus]} 상태로 변경했습니다. 제보 내용은 장소 데이터에 자동 반영되지 않습니다.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "수정 요청 처리 중 오류가 발생했습니다.");
     } finally {
@@ -180,6 +181,15 @@ export function AdminCorrectionWorkflow({ accessToken }: AdminCorrectionWorkflow
                 </dl>
 
                 <div className="mt-4 flex flex-wrap gap-2">
+                  {place ? (
+                    <a
+                      href={`/admin?place=${encodeURIComponent(place.id)}#place-manager`}
+                      className="inline-flex h-10 items-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-black text-white"
+                    >
+                      <Pencil size={16} aria-hidden="true" />
+                      장소 수정
+                    </a>
+                  ) : null}
                   <button
                     type="button"
                     disabled={savingId === correction.id}
@@ -187,7 +197,7 @@ export function AdminCorrectionWorkflow({ accessToken }: AdminCorrectionWorkflow
                     className="inline-flex h-10 items-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white disabled:opacity-60"
                   >
                     <CheckCircle2 size={16} aria-hidden="true" />
-                    처리 완료
+                    승인
                   </button>
                   <button
                     type="button"

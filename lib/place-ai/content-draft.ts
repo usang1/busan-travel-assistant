@@ -8,6 +8,7 @@ import type {
 import type { PlaceFactTristate, PlacePayload, PlaceCategory } from "@/types/database";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
+import { createEmptyTravelerInsights, normalizeTravelerInsights } from "@/lib/traveler-insights";
 
 const emptyContent: PlaceAiGeneratedContent = {
   description_ko: "",
@@ -122,6 +123,7 @@ export function buildPlaceSourceData(payload: PlacePayload, options: { adminNote
     toilet: chinaInfo?.toilet_available ?? "unknown",
     card_payment: chinaInfo?.foreign_card ?? booleanToTristate(payload.card_payment),
     solo_friendly: chinaInfo?.solo_friendly ?? booleanToTristate(payload.solo_friendly),
+    traveler_insights: normalizeTravelerInsights(chinaInfo?.traveler_insights),
     waiting_info: payload.waiting_info_ko || payload.waiting_info_zh || chinaInfo?.waiting_level || "",
     admin_notes: options.adminNotes?.trim() || "",
     provider_metadata: payload.source?.raw_metadata ?? null,
@@ -178,6 +180,7 @@ export function buildPlaceSourceDataFromNormalizedPlace(place: NormalizedPlace):
     toilet: place.amenities?.restroom === true ? "yes" : "unknown",
     card_payment: "unknown",
     solo_friendly: "unknown",
+    traveler_insights: createEmptyTravelerInsights(),
     waiting_info: "",
     admin_notes: "",
     provider_metadata: {

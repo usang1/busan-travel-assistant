@@ -18,6 +18,7 @@ import {
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
+import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
@@ -211,6 +212,8 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
         priceText={priceText}
       />
 
+      <TravelerInsightsPanel place={place} locale="zh" />
+
       <section className="mt-6 space-y-3">
         <SectionTitle title="推荐菜单" subtitle="추천 메뉴" />
         {place.menu_items.length > 0 ? (
@@ -292,7 +295,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           price_range: priceText,
           phone: place.phone ?? "",
           website: place.website ?? "",
-          address: place.address_zh || place.address_ko || place.address,
+          location: place.address_zh || place.address_ko || place.address,
         }}
       />
       <PlaceLocationPanel place={place} />

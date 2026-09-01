@@ -20,6 +20,39 @@ export type ChinaMinimumOrderPolicy = "unknown" | "none" | "two_plus" | "three_p
 
 export type PlaceVerificationStatus = "unverified" | "pending" | "verified" | "needs_review";
 
+export type TravelerInsightOrderingMethod = "unknown" | "kiosk" | "staff" | "both";
+
+export type TravelerInsightReservation = "unknown" | "not_needed" | "recommended" | "required";
+
+export type TravelerInsightWaiting = "unknown" | "none" | "some" | "high";
+
+export type TravelerInsightToilet = "unknown" | "available" | "inside" | "none";
+
+export type TravelerInsightIntensity = "unknown" | "normal" | "strong";
+
+export type TravelerInsightPossibility = "unknown" | "no" | "possible";
+
+export type TravelerInsightPortion = "unknown" | "regular" | "large";
+
+export type TravelerInsights = {
+  solo_dining?: PlaceFactTristate;
+  card_payment?: PlaceFactTristate;
+  cash_required?: PlaceFactTristate;
+  chinese_menu?: PlaceFactTristate;
+  english_menu?: PlaceFactTristate;
+  ordering_method?: TravelerInsightOrderingMethod;
+  reservation?: TravelerInsightReservation;
+  waiting?: TravelerInsightWaiting;
+  luggage_storage?: PlaceFactTristate;
+  toilet?: TravelerInsightToilet;
+  spicy?: TravelerInsightIntensity;
+  cilantro?: TravelerInsightPossibility;
+  spice_intensity?: TravelerInsightIntensity;
+  portion?: TravelerInsightPortion;
+  greasiness?: TravelerInsightPossibility;
+  tourist_friendly?: PlaceFactTristate;
+};
+
 export type PlaceRecord = {
   id: string;
   slug: string;
@@ -120,6 +153,7 @@ export type PlaceChinaInfoRecord = {
   subway_walk_minutes: number | null;
   manual_summary_override?: string | null;
   manual_warning_override?: string | null;
+  traveler_insights?: TravelerInsights | null;
   verification_status: PlaceVerificationStatus;
   verified_at?: string | null;
   created_at: string;

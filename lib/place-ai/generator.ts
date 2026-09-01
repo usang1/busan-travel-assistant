@@ -3,6 +3,7 @@ import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { normalizePlaceAiGeneratedContent, toPlaceAiGenerationApiContent } from "@/lib/place-ai/content-draft";
 import { validateLocaleText } from "@/lib/place-ai/locale-validation";
 import type { PlaceAiGeneratedContent, PlaceAiGenerationRequest, PlaceAiGenerationResponse, PlaceAiLocaleResult, PlaceContentLocale, PlaceSourceData } from "@/types/place-ai";
+import { hasVisibleTravelerInsights, normalizeTravelerInsights } from "@/lib/traveler-insights";
 import { placeCategories, type PlaceCategory, type PlaceFactTristate, type PlaceSourceProvider } from "@/types/database";
 
 const defaultPlaceModel = "gpt-5.6-luna";
@@ -241,6 +242,7 @@ function normalizeSourceData(sourceData: Partial<PlaceSourceData> & Record<strin
     toilet: normalizeTristate(sourceData.toilet),
     card_payment: normalizeTristate(rawCardPayment),
     solo_friendly: normalizeTristate(rawSoloFriendly),
+    traveler_insights: normalizeTravelerInsights(sourceData.traveler_insights ?? sourceData.travelerInsights),
     waiting_info: normalizeText(rawWaitingInfo, 180),
     admin_notes: normalizeText(rawAdminNotes, 1_200),
     provider_metadata: asRecord(rawProviderMetadata),
@@ -266,6 +268,7 @@ export function buildSystemPrompt() {
     "Generate Korean, Simplified Chinese, English, and Japanese. Do not mix languages.",
     "Chinese must be natural Simplified Chinese for mainland Chinese independent travelers.",
     "If a fact is unknown or an unchecked boolean, omit it completely. Never turn missing information into a warning or a negative claim.",
+    "traveler_insights contains admin-verified structured facts. You may reference only its non-unknown values, and you must never infer, rewrite, or contradict those values.",
     "Do not mention solo suitability or advise solo visitors to confirm conditions unless solo_friendly is explicitly yes or no in sourceData.",
     "Separate business-provided facts from travel-editor judgment. Make judgment modest and based only on provided facts.",
     "When present, use location convenience, price, menu, portion, greasiness, spiciness, smell, wait, solo dining, card payment, toilet, parking, and cautions.",
@@ -479,6 +482,7 @@ function hasMinimumUsefulFacts(sourceData: PlaceSourceData) {
       sourceData.toilet !== "unknown" ||
       sourceData.card_payment !== "unknown" ||
       sourceData.solo_friendly !== "unknown" ||
+      hasVisibleTravelerInsights(sourceData.traveler_insights) ||
       sourceData.waiting_info,
   );
 }

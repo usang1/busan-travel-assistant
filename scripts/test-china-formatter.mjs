@@ -190,16 +190,21 @@ const localeValidation = loadTsModule("lib/place-ai/locale-validation.ts");
 const databaseRuntime = {
   placeCategories: ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"],
 };
+const travelerInsights = loadTsModule("lib/traveler-insights.ts", {
+  "@/types/database": databaseRuntime,
+});
 const contentDraft = loadTsModule("lib/place-ai/content-draft.ts", {
   "@/types/place-ai": placeAiTypes,
   "@/types/database": databaseRuntime,
   "@/lib/place-ai/map-source": mapSource,
+  "@/lib/traveler-insights": travelerInsights,
 });
 const generator = loadTsModule("lib/place-ai/generator.ts", {
   openai: { default: class OpenAI {} },
   "@/lib/place-ai/map-source": mapSource,
   "@/lib/place-ai/content-draft": contentDraft,
   "@/lib/place-ai/locale-validation": localeValidation,
+  "@/lib/traveler-insights": travelerInsights,
   "@/types/place-ai": placeAiTypes,
   "@/types/database": databaseRuntime,
 });

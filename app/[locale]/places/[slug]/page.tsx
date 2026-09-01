@@ -20,6 +20,7 @@ import {
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
+import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
@@ -283,6 +284,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         />
       ) : null}
 
+      <TravelerInsightsPanel place={place} locale={locale} />
+
       <section className="mt-6 space-y-3">
         <SectionTitle title={copy.placeDetail.menu} />
         {place.menu_items.length > 0 ? (
@@ -365,7 +368,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           price_range: priceText,
           phone: place.phone ?? "",
           website: place.website ?? "",
-          address: content.address,
+          location: content.address,
         }}
       />
       <PlaceLocationPanel place={place} locale={locale} />

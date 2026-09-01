@@ -7,6 +7,7 @@ import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
+import { TravelerInsightsEditor } from "@/components/TravelerInsightsEditor";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
@@ -27,6 +28,7 @@ import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/p
 import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
+import { createEmptyTravelerInsights, normalizeTravelerInsights, travelerInsightsFromPlaceInfo } from "@/lib/traveler-insights";
 import {
   categoryLabels,
   placeCategories,
@@ -230,6 +232,7 @@ function createEmptyChinaInfo(): ChinaInfoForm {
     manual_warning_override: "",
     verification_status: "unverified",
     verified_at: "",
+    traveler_insights: createEmptyTravelerInsights(),
   };
 }
 
@@ -364,6 +367,7 @@ function toForm(place: PlaceWithRelations): FormState {
     })),
     china_info: {
       ...chinaInfo,
+      traveler_insights: travelerInsightsFromPlaceInfo(place.china_info),
       waiting_minutes_min: chinaInfo.waiting_minutes_min?.toString() ?? "",
       waiting_minutes_max: chinaInfo.waiting_minutes_max?.toString() ?? "",
       minimum_order_people: chinaInfo.minimum_order_people?.toString() ?? "",
@@ -430,8 +434,21 @@ function nullableInteger(value: string) {
 }
 
 function toChinaInfoPayload(form: ChinaInfoForm): PlaceChinaInfoPayload {
+  const travelerInsights = normalizeTravelerInsights(form.traveler_insights);
   return {
     ...form,
+    traveler_insights: travelerInsights,
+    solo_friendly: preferStructuredTristate(travelerInsights.solo_dining, form.solo_friendly),
+    foreign_card: preferStructuredTristate(travelerInsights.card_payment, form.foreign_card),
+    chinese_menu: preferStructuredTristate(travelerInsights.chinese_menu, form.chinese_menu),
+    luggage_friendly: preferStructuredTristate(travelerInsights.luggage_storage, form.luggage_friendly),
+    toilet_available: travelerInsights.toilet === "unknown"
+      ? form.toilet_available
+      : travelerInsights.toilet === "none" ? "no" : "yes",
+    reservation_required: travelerInsights.reservation === "required"
+      ? "yes"
+      : travelerInsights.reservation === "not_needed" ? "no" : form.reservation_required,
+    waiting_level: form.waiting_level === "unknown" ? travelerWaitingToLegacy(travelerInsights.waiting) : form.waiting_level,
     waiting_minutes_min: nullableInteger(form.waiting_minutes_min),
     waiting_minutes_max: nullableInteger(form.waiting_minutes_max),
     minimum_order_people: nullableInteger(form.minimum_order_people),
@@ -441,6 +458,17 @@ function toChinaInfoPayload(form: ChinaInfoForm): PlaceChinaInfoPayload {
     manual_warning_override: form.manual_warning_override?.trim() || null,
     verified_at: form.verified_at || null,
   };
+}
+
+function preferStructuredTristate(value: PlaceFactTristate, fallback: PlaceFactTristate) {
+  return value === "unknown" ? fallback : value;
+}
+
+function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPayload["traveler_insights"]>>["waiting"]): ChinaWaitingLevel {
+  if (value === "none") return "none";
+  if (value === "some") return "moderate";
+  if (value === "high") return "long";
+  return "unknown";
 }
 
 function toPayload(form: FormState): PlacePayload {
@@ -628,6 +656,7 @@ function buildAiInputFingerprint(form: FormState) {
     price_max: form.price_max,
     nearest_station: form.nearest_station,
     source_metadata: form.source_metadata,
+    traveler_insights: normalizeTravelerInsights(form.china_info.traveler_insights),
   });
 }
 
@@ -956,6 +985,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setPlaces(initialPlaces);
   }, [initialPlaces]);
 
+  useEffect(() => {
+    const requestedPlaceId = new URLSearchParams(window.location.search).get("place");
+    const requestedPlace = requestedPlaceId ? initialPlaces.find((place) => place.id === requestedPlaceId) : null;
+    if (requestedPlace) setForm(toForm(requestedPlace));
+  }, [initialPlaces]);
+
   function persistLocal(nextPlaces: PlaceWithRelations[]) {
     setPlaces(nextPlaces);
     window.localStorage.setItem(localStorageKey, JSON.stringify(nextPlaces));
@@ -1114,6 +1149,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       china_info: {
         ...current.china_info,
         [key]: value,
+      },
+    }));
+  }
+
+  function updateTravelerVerificationStatus(value: PlaceChinaInfoPayload["verification_status"]) {
+    setForm((current) => ({
+      ...current,
+      china_info: {
+        ...current.china_info,
+        verification_status: value,
+        verified_at: value === "verified" && !current.china_info.verified_at
+          ? new Date().toISOString().slice(0, 10)
+          : current.china_info.verified_at,
       },
     }));
   }
@@ -1575,7 +1623,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+    <div id="place-manager" className="scroll-mt-24 grid gap-6 lg:grid-cols-[360px_1fr]">
       <aside className="space-y-4">
         <div className="grid grid-cols-3 gap-2">
           <Stat label="전체" value={places.length.toString()} />
@@ -1763,6 +1811,17 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           </section>
 
           <AdminReviewSummary form={form} locale={previewLocale} providerLookupNotice={providerLookupNotice} onLocaleChange={setPreviewLocale} />
+
+          <section className="border-b border-slate-200 pb-6">
+            <TravelerInsightsEditor
+              value={form.china_info.traveler_insights}
+              verificationStatus={form.china_info.verification_status}
+              verifiedAt={form.china_info.verified_at}
+              onChange={(value) => updateChinaField("traveler_insights", value)}
+              onVerificationStatusChange={updateTravelerVerificationStatus}
+              onVerifiedAtChange={(value) => updateChinaField("verified_at", value)}
+            />
+          </section>
 
           <section className="border-b border-slate-200 pb-6">
             <button

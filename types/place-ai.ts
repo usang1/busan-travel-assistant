@@ -1,4 +1,4 @@
-import type { PlaceCategory, PlaceFactTristate, PlaceSourceProvider } from "@/types/database";
+import type { PlaceCategory, PlaceFactTristate, PlaceSourceProvider, TravelerInsights } from "@/types/database";
 
 export type PlaceMapSourceType = "naver" | "kakao" | "google" | "unknown";
 export type PlaceContentLocale = "ko" | "zh" | "en" | "ja";
@@ -43,6 +43,7 @@ export type PlaceSourceData = {
   toilet: PlaceFactTristate;
   card_payment: PlaceFactTristate;
   solo_friendly: PlaceFactTristate;
+  traveler_insights: TravelerInsights;
   waiting_info: string;
   admin_notes: string;
   provider_metadata: Record<string, unknown> | null;
