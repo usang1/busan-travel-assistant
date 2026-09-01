@@ -4,27 +4,13 @@ import { useMemo, useState } from "react";
 import { Languages, Volume2, X } from "lucide-react";
 import { touristPhrases, translatorCategories, type TouristPhrase, type TranslatorCategory } from "@/data/translator-phrases";
 
-function demoTranslate(input: string) {
-  const trimmed = input.trim();
-
-  if (!trimmed) {
-    return "번역할 중국어를 입력해 주세요.";
-  }
-
-  const matched = touristPhrases.find((phrase) => trimmed.includes(phrase.zh.replace(/[。？]/g, "")) || trimmed.includes(phrase.titleZh));
-
-  if (matched) {
-    return matched.ko;
-  }
-
-  return `데모 번역: ${trimmed}`;
-}
-
 export function TranslatorTool() {
   const [category, setCategory] = useState<TranslatorCategory>("restaurant");
   const [selectedPhrase, setSelectedPhrase] = useState<TouristPhrase | null>(null);
   const [customText, setCustomText] = useState("");
   const [customKorean, setCustomKorean] = useState("");
+  const [translationError, setTranslationError] = useState("");
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const phrases = useMemo(() => touristPhrases.filter((phrase) => phrase.category === category), [category]);
 
@@ -38,6 +24,43 @@ export function TranslatorTool() {
     utterance.lang = "ko-KR";
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
+  }
+
+  async function translateCustomText() {
+    const sourceText = customText.trim();
+
+    if (!sourceText) {
+      setTranslationError("번역할 외국어 문장을 입력해 주세요.");
+      return;
+    }
+
+    setIsTranslating(true);
+    setTranslationError("");
+    setCustomKorean("");
+
+    try {
+      const response = await fetch("/api/translate-to-korean", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: sourceText }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { translation?: unknown; message?: unknown };
+
+      if (!response.ok) {
+        throw new Error(typeof body.message === "string" ? body.message : "한국어 번역에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+
+      if (typeof body.translation !== "string" || !body.translation.trim()) {
+        throw new Error("번역 결과를 받지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+
+      setSelectedPhrase(null);
+      setCustomKorean(body.translation.trim());
+    } catch (error) {
+      setTranslationError(error instanceof Error ? error.message : "한국어 번역 중 오류가 발생했습니다.");
+    } finally {
+      setIsTranslating(false);
+    }
   }
 
   const bigText = selectedPhrase?.ko ?? customKorean;
@@ -81,25 +104,31 @@ export function TranslatorTool() {
       </div>
 
       <section className="mt-6 rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-lg font-black text-slate-950">中国어 직접 입력</h2>
-        <p className="mt-1 text-sm text-slate-500">임시 데모 번역입니다. 실제 AI API는 아직 연결하지 않았습니다.</p>
+        <h2 className="text-lg font-black text-slate-950">외국어 문장 직접 입력</h2>
+        <p className="mt-1 text-sm text-slate-500">중국어 등 외국어 문장을 GPT로 자연스러운 한국어로 번역합니다.</p>
         <textarea
           value={customText}
-          onChange={(event) => setCustomText(event.target.value)}
+          onChange={(event) => {
+            setCustomText(event.target.value);
+            setTranslationError("");
+          }}
+          maxLength={1000}
           placeholder="例如：请问这里可以寄存行李吗？"
           className="mt-4 min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
         />
         <button
           type="button"
-          onClick={() => {
-            const translated = demoTranslate(customText);
-            setCustomKorean(translated);
-            setSelectedPhrase(null);
-          }}
-          className="mt-3 h-12 w-full rounded-2xl bg-teal-700 px-4 text-base font-black text-white"
+          onClick={() => void translateCustomText()}
+          disabled={isTranslating || !customText.trim()}
+          className="mt-3 h-12 w-full rounded-2xl bg-teal-700 px-4 text-base font-black text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          데모 번역 보기
+          {isTranslating ? "GPT 번역 중..." : "한국어로 번역"}
         </button>
+        {translationError ? (
+          <p role="alert" className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 ring-1 ring-rose-100">
+            {translationError}
+          </p>
+        ) : null}
         {customKorean ? (
           <button
             type="button"

@@ -52,6 +52,7 @@ NAVER_SEARCH_CLIENT_SECRET=
 KAKAO_REST_API_KEY=
 OPENAI_API_KEY=
 OPENAI_PLACE_MODEL=
+OPENAI_TRANSLATION_MODEL=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
@@ -63,6 +64,7 @@ OPENAI_PLACE_MODEL=
 - `KAKAO_REST_API_KEY`: Kakao 로컬 키워드 검색 API의 서버 인증 정보입니다.
 - `OPENAI_API_KEY`: provider 사실 기반 AI 장소 요약과 관리자 다국어 설명/여행팁 생성에 서버에서만 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
 - `OPENAI_PLACE_MODEL`: 관리자 장소 설명 생성 모델입니다. 비우면 코드 기본값 `gpt-5.6-luna`를 사용합니다.
+- `OPENAI_TRANSLATION_MODEL`: 사용자용 외국어 → 한국어 GPT 번역 모델입니다. 비우면 `OPENAI_PLACE_MODEL`, 그것도 비어 있으면 `gpt-5-mini`를 사용합니다.
 
 관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
 
