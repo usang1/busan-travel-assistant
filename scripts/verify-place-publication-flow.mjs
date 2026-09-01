@@ -75,3 +75,8 @@ assert.equal(nearbyEligible, true);
 const migration = fs.readFileSync("supabase/migrations/012_place_publication_defaults.sql", "utf8");
 assert.match(migration, /alter column is_active set default true/i);
 assert.match(migration, /alter column status set default 'ACTIVE'/i);
+
+const approvalRoute = fs.readFileSync("app/api/admin/submissions/[id]/approve/route.ts", "utf8");
+assert.match(approvalRoute, /createPlace\(payload, client\)/);
+assert.doesNotMatch(approvalRoute, /is_active:\s*false/);
+assert.doesNotMatch(approvalRoute, /status:\s*["']DRAFT["']/);

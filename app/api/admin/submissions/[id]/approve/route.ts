@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
-import { archivePlace, createPlace, updatePlace } from "@/lib/place-store";
+import { archivePlace, createPlace } from "@/lib/place-store";
 import type { PlacePayload } from "@/types/database";
 
 type RouteContext = {
@@ -31,16 +31,14 @@ export async function POST(request: Request, { params }: RouteContext) {
       return NextResponse.json({ message: "이미 승인 처리된 제보입니다." }, { status: 409 });
     }
 
-    const finalIsActive = payload.is_active;
-    const draftPayload = { ...payload, is_active: false, status: "DRAFT" };
-    const draftPlace = await createPlace(draftPayload, client);
-    createdPlaceId = draftPlace.id;
+    const place = await createPlace(payload, client);
+    createdPlaceId = place.id;
 
     const { data: submission, error } = await client
       .from("place_submissions")
       .update({
         status: "approved",
-        place_id: draftPlace.id,
+        place_id: place.id,
         reviewed_by: user.id,
         reviewed_at: new Date().toISOString(),
       })
@@ -53,10 +51,6 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (error) {
       throw new Error(error.message);
     }
-
-    const place = finalIsActive
-      ? await updatePlace(draftPlace.id, { ...payload, is_active: true, status: "ACTIVE" }, client)
-      : draftPlace;
 
     return NextResponse.json({ place, submission });
   } catch (error) {
