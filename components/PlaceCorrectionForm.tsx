@@ -12,6 +12,7 @@ type PlaceCorrectionFormProps = {
   placeId: string;
   locale: Locale;
   currentValues?: Partial<Record<PlaceCorrectionField, string>>;
+  presentation?: "accordion" | "standalone";
 };
 
 export type PlaceCorrectionField =
@@ -56,7 +57,7 @@ const correctionCopy: Record<Locale, {
   ko: { trigger: "정보가 달라요", title: "장소 정보 수정 제보", description: "폐업, 영업시간, 가격, 메뉴, 위치, 기타 중 사유를 선택해 주세요. 관리자 승인 전에는 장소 정보에 반영되지 않습니다.", loginTitle: "정보가 잘못되었나요?", loginDescription: "로그인 후 장소 정보 수정 요청을 제출할 수 있습니다.", field: "제보 사유", current: "현재 등록 정보", suggestion: "수정할 내용", source: "출처 URL (선택)", sourceHelp: "공식 홈페이지, 지도, 메뉴 페이지 등", notes: "추가 메모 (선택)", notesPlaceholder: "확인 날짜나 참고사항을 입력해 주세요", submit: "수정 제보", submitting: "접수 중…", success: "제보가 접수되었습니다. 관리자 확인 후 반영합니다.", loading: "불러오는 중…" },
 };
 
-export function PlaceCorrectionForm({ placeId, locale, currentValues = {} }: PlaceCorrectionFormProps) {
+export function PlaceCorrectionForm({ placeId, locale, currentValues = {}, presentation = "accordion" }: PlaceCorrectionFormProps) {
   const { user, loading } = useAuth();
   const copy = correctionCopy[locale];
   const [fieldName, setFieldName] = useState<PlaceCorrectionField>(fieldOptions[0].value);
@@ -101,10 +102,14 @@ export function PlaceCorrectionForm({ placeId, locale, currentValues = {} }: Pla
   }
 
   if (loading) {
-    return <div id="place-correction" className="mt-6 scroll-mt-28 text-sm font-semibold text-slate-500">{copy.loading}</div>;
+    return <div id="place-correction" className={presentation === "accordion" ? "mt-6 scroll-mt-28 text-sm font-semibold text-slate-500" : "text-sm font-semibold text-slate-500"}>{copy.loading}</div>;
   }
 
   if (!user) {
+    if (presentation === "standalone") {
+      return <div id="place-correction"><AuthRequiredPanel title={copy.loginTitle} description={copy.loginDescription} locale={locale} /></div>;
+    }
+
     return (
       <details id="place-correction" className="group mt-6 scroll-mt-28">
         <CorrectionTrigger label={copy.trigger} />
@@ -113,10 +118,8 @@ export function PlaceCorrectionForm({ placeId, locale, currentValues = {} }: Pla
     );
   }
 
-  return (
-    <details id="place-correction" className="group mt-6 scroll-mt-28">
-      <CorrectionTrigger label={copy.trigger} />
-      <section className="mt-3 rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+  const form = (
+    <section className={`rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200 ${presentation === "accordion" ? "mt-3" : ""}`}>
         <h2 className="text-xl font-black text-slate-950">{copy.title}</h2>
         <p className="mt-1 text-sm leading-6 text-slate-500">{copy.description}</p>
         <form className="mt-4 space-y-4" onSubmit={submit}>
@@ -145,7 +148,17 @@ export function PlaceCorrectionForm({ placeId, locale, currentValues = {} }: Pla
         </button>
         </form>
         {status ? <p role="status" className="mt-4 rounded-2xl bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800">{status}</p> : null}
-      </section>
+    </section>
+  );
+
+  if (presentation === "standalone") {
+    return <div id="place-correction">{form}</div>;
+  }
+
+  return (
+    <details id="place-correction" className="group mt-6 scroll-mt-28">
+      <CorrectionTrigger label={copy.trigger} />
+      {form}
     </details>
   );
 }

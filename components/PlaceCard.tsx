@@ -22,6 +22,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const content = getPlaceContent(place, locale);
   const copy = ui[locale];
   const placeHref = withLocale(`/places/${place.slug}`, locale);
+  const correctionHref = withLocale(`/places/${place.slug}/report`, locale);
   const opening = formatOpeningStatus(place.opening_hours, locale);
   const chinaTags = locale === "zh" ? getChinaDiscoveryTags(place, locale, 4) : [];
   const correctionLabel = { zh: "补充商家信息", en: "Update info", ja: "店舗情報を報告", ko: "영업정보 제보" }[locale];
@@ -99,7 +100,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           ))}
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <Link href={`${placeHref}#place-correction`} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
+          <Link href={correctionHref} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
             <MessageSquarePlus size={15} aria-hidden="true" />
             {correctionLabel}
           </Link>

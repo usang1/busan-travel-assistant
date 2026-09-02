@@ -92,6 +92,8 @@ assert.match(verificationDateLabel("2026-08-29T00:00:00Z", "ko"), /정보 확인
 const migration = readFileSync(new URL("../supabase/migrations/016_traveler_insights_and_verification.sql", import.meta.url), "utf8");
 const detailPanel = readFileSync(new URL("../components/TravelerInsightsPanel.tsx", import.meta.url), "utf8");
 const correctionForm = readFileSync(new URL("../components/PlaceCorrectionForm.tsx", import.meta.url), "utf8");
+const placeCard = readFileSync(new URL("../components/PlaceCard.tsx", import.meta.url), "utf8");
+const correctionPage = readFileSync(new URL("../components/PlaceCorrectionPageView.tsx", import.meta.url), "utf8");
 const adminCorrections = readFileSync(new URL("../components/AdminCorrectionWorkflow.tsx", import.meta.url), "utf8");
 const aiGenerator = readFileSync(new URL("../lib/place-ai/generator.ts", import.meta.url), "utf8");
 
@@ -103,6 +105,10 @@ assert.match(detailPanel, /최근 정보가 오래되었습니다/);
 assert.match(correctionForm, /정보가 달라요/);
 assert.match(correctionForm, /"closed"/);
 assert.match(correctionForm, /"location"/);
+assert.match(correctionForm, /presentation === "standalone"/);
+assert.match(placeCard, /`\/places\/\$\{place\.slug\}\/report`/);
+assert.doesNotMatch(placeCard, /placeHref}#place-correction/);
+assert.match(correctionPage, /presentation="standalone"/);
 assert.match(adminCorrections, /장소 수정/);
 assert.match(adminCorrections, /"accepted"/);
 assert.match(aiGenerator, /traveler_insights contains admin-verified structured facts/);

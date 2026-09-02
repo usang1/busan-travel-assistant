@@ -56,7 +56,8 @@ for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[sl
 }
 
 const placeCardSource = readFileSync(new URL("../components/PlaceCard.tsx", import.meta.url), "utf8");
-assert.match(placeCardSource, /href=\{`\$\{placeHref\}#place-correction`\}/, "place cards must link directly to the business information report form");
+assert.match(placeCardSource, /`\/places\/\$\{place\.slug\}\/report`/, "place cards must link directly to the dedicated business information report page");
+assert.doesNotMatch(placeCardSource, /placeHref}#place-correction/, "place cards must not detour through the collapsed correction section");
 assert.match(placeCardSource, /영업정보 제보/, "place cards must expose the Korean business information report label");
 
 const correctionFormSource = readFileSync(new URL("../components/PlaceCorrectionForm.tsx", import.meta.url), "utf8");
