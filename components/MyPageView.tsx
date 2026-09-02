@@ -5,6 +5,7 @@ import { CalendarDays, LogOut, Mail, ShieldCheck, UserRound, type LucideIcon } f
 import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
 import { MySubmissionsView } from "@/components/MySubmissionsView";
 import { SavedItemsView } from "@/components/SavedItemsView";
+import { TripPlannerEntryLink } from "@/components/TripPlannerEntryLink";
 import { useAuth } from "@/components/AuthProvider";
 import { getSupabaseClient } from "@/lib/supabase";
 import { type Locale, ui, withLocale } from "@/lib/i18n";
@@ -78,6 +79,10 @@ export function MyPageView({ locale }: MyPageViewProps) {
         <p className="mt-4 inline-flex rounded-full bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-700 ring-1 ring-slate-200">
           {copy.mypage.role}: {profile?.role ?? "user"}
         </p>
+      </section>
+
+      <section>
+        <TripPlannerEntryLink locale={locale} context="mypage" />
       </section>
 
       <section>

@@ -8,6 +8,7 @@ import { QuickActionCard } from "@/components/QuickActionCard";
 import { SearchBar } from "@/components/SearchBar";
 import { SectionTitle } from "@/components/SectionTitle";
 import { StructuredData } from "@/components/StructuredData";
+import { TripPlannerEntryLink } from "@/components/TripPlannerEntryLink";
 import { quickActions } from "@/data/places";
 import { getPlaces } from "@/lib/place-store";
 import { getPlaceRankings } from "@/lib/place-recommendations";
@@ -102,6 +103,9 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
           {quickActions.map((action) => (
             <QuickActionCard key={action.title.zh} action={action} locale={locale} />
           ))}
+        </div>
+        <div className="mt-3">
+          <TripPlannerEntryLink locale={locale} context="home" />
         </div>
       </section>
 

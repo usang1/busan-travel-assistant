@@ -11,6 +11,7 @@ import { getPlaces } from "@/lib/place-store";
 import { getPlaceRankings } from "@/lib/place-recommendations";
 import { absoluteUrl, siteConfig } from "@/config/site";
 import { StructuredData } from "@/components/StructuredData";
+import { TripPlannerEntryLink } from "@/components/TripPlannerEntryLink";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,9 @@ export default async function Home() {
           {quickActions.map((action) => (
             <QuickActionCard key={action.title.zh} action={action} />
           ))}
+        </div>
+        <div className="mt-3">
+          <TripPlannerEntryLink locale="zh" context="home" />
         </div>
       </section>
 

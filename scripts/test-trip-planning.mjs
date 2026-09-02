@@ -56,6 +56,10 @@ const tripStore = readFileSync(new URL("../lib/trip-store.ts", import.meta.url),
 const savedItems = readFileSync(new URL("../components/SavedItemsView.tsx", import.meta.url), "utf8");
 const sharedViewer = readFileSync(new URL("../components/SharedTripViewer.tsx", import.meta.url), "utf8");
 const rootItineraryPage = readFileSync(new URL("../app/itinerary/page.tsx", import.meta.url), "utf8");
+const rootHomePage = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const localizedHomePage = readFileSync(new URL("../app/[locale]/page.tsx", import.meta.url), "utf8");
+const myPageView = readFileSync(new URL("../components/MyPageView.tsx", import.meta.url), "utf8");
+const tripEntryLink = readFileSync(new URL("../components/TripPlannerEntryLink.tsx", import.meta.url), "utf8");
 
 assert.match(migration, /create table if not exists public\.trips/);
 assert.match(migration, /create table if not exists public\.trip_places/);
@@ -77,5 +81,9 @@ assert.match(savedItems, /<AddToTripButton placeId=\{place\.id\}/);
 assert.match(sharedViewer, /<CopySharedTripButton/);
 assert.match(rootItineraryPage, /<TripPlanner locale="zh"/);
 assert.doesNotMatch(rootItineraryPage, /ItineraryPlanner/);
+assert.match(rootHomePage, /<TripPlannerEntryLink locale="zh" context="home"/);
+assert.match(localizedHomePage, /<TripPlannerEntryLink locale=\{locale\} context="home"/);
+assert.match(myPageView, /<TripPlannerEntryLink locale=\{locale\} context="mypage"/);
+assert.match(tripEntryLink, /withLocale\("\/itinerary", locale\)/);
 
 console.log("Trip planning tests passed (dates, rule layout, numbered map, sharing RPC, copy, and RLS contracts).");
