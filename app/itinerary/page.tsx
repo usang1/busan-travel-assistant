@@ -1,28 +1,24 @@
 import type { Metadata } from "next";
-import { ItineraryPlanner } from "@/components/ItineraryPlanner";
+import { TripPlanner } from "@/components/TripPlanner";
 import { absoluteUrl } from "@/config/site";
-import { getPlaces } from "@/lib/place-store";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "釜山广安里旅行路线生成｜AI-ready 行程助手",
-  description: "根据旅行天数、人数、预算和喜好，用已登记地点生成广安里旅行路线。",
+  title: "旅行计划｜保存地点行程助手",
+  description: "把保存的韩国旅行地点按日期整理，并通过链接分享旅行计划。",
   alternates: { canonical: absoluteUrl("/itinerary") },
   openGraph: {
-    title: "釜山广安里旅行路线生成",
-    description: "基于已登记地点的旅行路线生成工具。",
+    title: "韩国旅行计划",
+    description: "将保存的地点按日期安排并分享旅行计划。",
     url: absoluteUrl("/itinerary"),
   },
 };
 
 export default async function ItineraryPage() {
-  const { places, error } = await getPlaces({ activeOnly: true, locale: "zh", debugLabel: "itinerary" });
-
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      {error ? <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
-      <ItineraryPlanner places={places} />
+      <TripPlanner locale="zh" />
     </main>
   );
 }

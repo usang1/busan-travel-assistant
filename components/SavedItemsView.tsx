@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { LogIn, Trash2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
+import { AddToTripButton } from "@/components/AddToTripButton";
 import { RecentPlacesView } from "@/components/RecentPlacesView";
 import { SectionTitle } from "@/components/SectionTitle";
 import { useAuth } from "@/components/AuthProvider";
@@ -248,25 +249,23 @@ function SavedPlaceCard({
   const href = withLocale(`/places/${place.slug}`, locale);
 
   return (
-    <article className="grid grid-cols-[96px_1fr_auto] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
+    <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
       <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-        <Image src={place.thumbnail_url} alt={content.name} fill sizes="96px" className="object-cover" />
+        <Image src={place.thumbnail_url} alt={content.name} fill sizes="88px" className="object-cover" />
       </Link>
-      <Link href={href} className="min-w-0 py-1">
-        <p className="truncate text-base font-black text-slate-950">{content.name}</p>
-        {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
-        <p className="mt-3 text-xs font-semibold text-teal-700">
-          {categoryLabels[place.category][locale]} · {place.save_count ?? 0}
-        </p>
-      </Link>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="grid size-9 place-items-center rounded-full bg-rose-50 text-rose-700 transition active:scale-95"
-        aria-label="저장 취소"
-      >
-        <Trash2 size={16} aria-hidden="true" />
-      </button>
+      <div className="min-w-0 py-1">
+        <Link href={href} className="block min-w-0">
+          <p className="truncate text-base font-black text-slate-950">{content.name}</p>
+          {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
+          <p className="mt-2 text-xs font-semibold text-teal-700">{categoryLabels[place.category][locale]} · {place.save_count ?? 0}</p>
+        </Link>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <AddToTripButton placeId={place.id} locale={locale} />
+          <button type="button" onClick={onRemove} className="grid size-10 place-items-center rounded-xl bg-rose-50 text-rose-700 ring-1 ring-rose-100 transition active:scale-95" aria-label="저장 취소">
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
     </article>
   );
 }

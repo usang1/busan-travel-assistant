@@ -16,6 +16,7 @@ export type MapMarker = {
   price?: string;
   recommendation?: string;
   tags?: string[];
+  sequence?: number;
 };
 
 export type MapBounds = {

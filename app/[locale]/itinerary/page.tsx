@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ItineraryPlanner } from "@/components/ItineraryPlanner";
-import { getPlaces } from "@/lib/place-store";
+import { TripPlanner } from "@/components/TripPlanner";
 import { isLocale, localeAlternates, localizedCanonical, type Locale, ui } from "@/lib/i18n";
 
 type LocalizedItineraryPageProps = {
@@ -38,12 +37,10 @@ export async function generateMetadata({ params }: LocalizedItineraryPageProps):
 
 export default async function LocalizedItineraryPage({ params }: LocalizedItineraryPageProps) {
   const locale = await getLocale(params);
-  const { places, error } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-itinerary" });
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      {error ? <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
-      <ItineraryPlanner places={places} locale={locale} />
+      <TripPlanner locale={locale} />
     </main>
   );
 }

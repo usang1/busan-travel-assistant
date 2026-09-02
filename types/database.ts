@@ -177,6 +177,43 @@ export type PlaceRankingCollection = {
   error?: string;
 };
 
+export type TripVisibility = "private" | "unlisted";
+
+export type TripRecord = {
+  id: string;
+  user_id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  visibility: TripVisibility;
+  share_slug: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TripPlaceRecord = {
+  id: string;
+  trip_id: string;
+  place_id: string;
+  day_number: number;
+  sort_order: number;
+  memo: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TripPlaceWithPlace = TripPlaceRecord & {
+  place: PlaceWithRelations;
+};
+
+export type TripWithPlaces = TripRecord & {
+  trip_places: TripPlaceWithPlace[];
+};
+
+export type SharedTripWithPlaces = Omit<TripRecord, "user_id"> & {
+  trip_places: TripPlaceWithPlace[];
+};
+
 export type PlaceSourceRecord = {
   id: string;
   place_id: string;

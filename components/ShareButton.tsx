@@ -25,7 +25,7 @@ export function ShareButton({ title, text, url, className, placeId, locale }: Sh
   const copy = shareCopy[currentLocale];
 
   async function share() {
-    const shareUrl = url ?? window.location.href;
+    const shareUrl = url ? new URL(url, window.location.origin).toString() : window.location.href;
 
     try {
       if (navigator.share) {

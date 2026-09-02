@@ -949,7 +949,7 @@ function FallbackTravelMap({
                   active ? "ring-slate-950" : "ring-white/85",
                 )}
               >
-                <MapPin size={19} fill="currentColor" aria-hidden="true" />
+                {marker.sequence ? <span className="text-sm font-black">{marker.sequence}</span> : <MapPin size={19} fill="currentColor" aria-hidden="true" />}
               </span>
               {active ? (
                 <span className="absolute left-1/2 top-11 max-w-40 -translate-x-1/2 truncate rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white shadow-lg">
@@ -1113,7 +1113,9 @@ function naverMarkerHtml(marker: MapMarker, active: boolean) {
   return [
     `<div title="${escapeHtml(marker.title)}" style="position:relative;width:36px;height:44px;transform:translateY(-2px);">`,
     `<div style="display:grid;place-items:center;width:36px;height:36px;border-radius:999px;background:${color};color:white;box-shadow:0 12px 28px rgba(15,23,42,0.28);border:4px solid ${ring};">`,
-    '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>',
+    marker.sequence
+      ? `<span style="font-size:14px;font-weight:900;line-height:1;">${marker.sequence}</span>`
+      : '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>',
     "</div>",
     active ? `<div style="position:absolute;left:50%;top:40px;max-width:150px;transform:translateX(-50%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:999px;background:#0f172a;padding:4px 10px;font-size:12px;font-weight:800;color:white;box-shadow:0 10px 24px rgba(15,23,42,0.22);">${escapeHtml(marker.title)}</div>` : "",
     "</div>",
@@ -1179,7 +1181,7 @@ function screenStyle(point: WorldPoint) {
 }
 
 function clusterMarkers(items: Array<{ marker: MapMarker; point: WorldPoint }>, zoom: number): Cluster[] {
-  if (zoom >= 2.4 || items.length < 18) {
+  if (zoom >= 2.4 || items.length < 18 || items.some((item) => item.marker.sequence !== undefined)) {
     return items.map((item) => ({
       id: item.marker.id,
       point: item.point,

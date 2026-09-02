@@ -330,7 +330,7 @@ export async function getPlaces(
 }
 
 export async function getPublicPlacesByIds(ids: string[], client?: SupabaseClient): Promise<PlaceWithRelations[]> {
-  const uniqueIds = Array.from(new Set(ids)).filter(Boolean).slice(0, 24);
+  const uniqueIds = Array.from(new Set(ids)).filter(Boolean).slice(0, 80);
   if (uniqueIds.length === 0) return [];
 
   const resolvedClient = resolveClient(client);
