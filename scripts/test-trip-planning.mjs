@@ -59,6 +59,7 @@ const rootItineraryPage = readFileSync(new URL("../app/itinerary/page.tsx", impo
 const rootHomePage = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const localizedHomePage = readFileSync(new URL("../app/[locale]/page.tsx", import.meta.url), "utf8");
 const myPageView = readFileSync(new URL("../components/MyPageView.tsx", import.meta.url), "utf8");
+const myTripsPanel = readFileSync(new URL("../components/MyTripsPanel.tsx", import.meta.url), "utf8");
 const tripEntryLink = readFileSync(new URL("../components/TripPlannerEntryLink.tsx", import.meta.url), "utf8");
 
 assert.match(migration, /create table if not exists public\.trips/);
@@ -83,7 +84,10 @@ assert.match(rootItineraryPage, /<TripPlanner locale="zh"/);
 assert.doesNotMatch(rootItineraryPage, /ItineraryPlanner/);
 assert.match(rootHomePage, /<TripPlannerEntryLink locale="zh" context="home"/);
 assert.match(localizedHomePage, /<TripPlannerEntryLink locale=\{locale\} context="home"/);
-assert.match(myPageView, /<TripPlannerEntryLink locale=\{locale\} context="mypage"/);
+assert.match(myPageView, /<MyTripsPanel locale=\{locale\}/);
+assert.match(myTripsPanel, /getUserTrips\(user\.id\)/);
+assert.match(myTripsPanel, /\?trip=\$\{encodeURIComponent\(trip\.id\)\}/);
+assert.match(myTripsPanel, /trip\.start_date/);
 assert.match(tripEntryLink, /withLocale\("\/itinerary", locale\)/);
 
 console.log("Trip planning tests passed (dates, rule layout, numbered map, sharing RPC, copy, and RLS contracts).");

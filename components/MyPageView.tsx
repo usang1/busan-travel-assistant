@@ -4,8 +4,8 @@ import Link from "next/link";
 import { CalendarDays, LogOut, Mail, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
 import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
 import { MySubmissionsView } from "@/components/MySubmissionsView";
+import { MyTripsPanel } from "@/components/MyTripsPanel";
 import { SavedItemsView } from "@/components/SavedItemsView";
-import { TripPlannerEntryLink } from "@/components/TripPlannerEntryLink";
 import { useAuth } from "@/components/AuthProvider";
 import { getSupabaseClient } from "@/lib/supabase";
 import { type Locale, ui, withLocale } from "@/lib/i18n";
@@ -81,9 +81,7 @@ export function MyPageView({ locale }: MyPageViewProps) {
         </p>
       </section>
 
-      <section>
-        <TripPlannerEntryLink locale={locale} context="mypage" />
-      </section>
+      <MyTripsPanel locale={locale} />
 
       <section>
         <h2 className="text-xl font-black text-slate-950">{copy.mypage.savedPlaces}</h2>
