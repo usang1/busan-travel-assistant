@@ -20,24 +20,31 @@ type PlaceRankingRow = {
 
 export async function getPlaceRankings(options: { limit?: number; category?: PlaceCategory; region?: string } = {}): Promise<PlaceRankingCollection> {
   const client = getSupabaseClient();
-  if (!client) return { popular: [], trending: [], error: "Supabase가 설정되지 않았습니다." };
+  if (!client) return { popular: [], trending: [] };
 
   const limit = Math.max(1, Math.min(options.limit ?? 6, 12));
   const params = {
+    ranking_period: "all",
     result_limit: limit,
     category_filter: options.category ?? null,
     region_filter: options.region?.trim() || null,
   };
   const [popularResult, trendingResult] = await Promise.all([
-    client.rpc("get_place_rankings", { ...params, ranking_period: "all" }),
+    client.rpc("get_place_rankings", params),
     client.rpc("get_place_rankings", { ...params, ranking_period: "week" }),
-  ]);
+  ]).catch((error: unknown) => {
+    logRankingError(error);
+    return [null, null] as const;
+  });
 
-  const error = popularResult.error ?? trendingResult.error;
-  if (error) return { popular: [], trending: [], error: error.message };
+  const error = popularResult?.error ?? trendingResult?.error;
+  if (error) {
+    logRankingError(error);
+    return { popular: [], trending: [] };
+  }
 
-  const popularRows = normalizeRankingRows(popularResult.data);
-  const trendingRows = normalizeRankingRows(trendingResult.data);
+  const popularRows = normalizeRankingRows(popularResult?.data);
+  const trendingRows = normalizeRankingRows(trendingResult?.data);
   const placeIds = Array.from(new Set([...popularRows, ...trendingRows].map((row) => row.place_id)));
   const places = await getPublicPlacesByIds(placeIds, client);
   const byId = new Map(places.map((place) => [place.id, place]));
@@ -106,4 +113,11 @@ function finiteCount(value: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function logRankingError(error: unknown) {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[places:getPlaceRankings]", error);
+  }
 }

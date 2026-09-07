@@ -22,8 +22,8 @@ export function PhotoSpotDetailGate({ photoSpot, children }: { photoSpot: PhotoS
       <p className="mt-2 text-sm leading-6 text-slate-500">
         PRO 可查看全部照片点、完整拍照提示和详细站位。무료 사용자는 일부 사진스팟만 볼 수 있습니다.
       </p>
-      <Link href="/pricing" className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-teal-700 px-4 font-black text-white">
-        解锁 PRO
+      <Link href="/contact" className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-teal-700 px-4 font-black text-white">
+        문의하기
       </Link>
     </section>
   );

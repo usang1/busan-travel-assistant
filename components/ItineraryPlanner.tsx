@@ -228,7 +228,7 @@ export function ItineraryPlanner({ places, locale = "zh" }: ItineraryPlannerProp
         {proRequired && !isPro ? (
           <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">
             {copy.proRequired}
-            <Link href="/pricing" className="ml-2 underline">
+            <Link href="/contact" className="ml-2 underline">
               {copy.upgrade}
             </Link>
           </div>
@@ -379,7 +379,7 @@ const itineraryCopy: Record<Locale, {
 }> = {
   zh: {
     hero: "帮你安排广安里行程",
-    description: "目前使用 Supabase/demo 地点数据的规则引擎生成路线。",
+    description: "根据已登记地点数据生成路线。",
     proEnabled: "PRO 已启用",
     freePlan: "FREE · 1日行程",
     days: "旅行几天？",
@@ -412,7 +412,7 @@ const itineraryCopy: Record<Locale, {
   },
   en: {
     hero: "Plan a Gwangalli itinerary",
-    description: "Routes are generated from Supabase/demo place data using a rule engine.",
+    description: "Routes are generated from registered place data.",
     proEnabled: "PRO enabled",
     freePlan: "FREE · 1-day route",
     days: "Trip length",
@@ -445,7 +445,7 @@ const itineraryCopy: Record<Locale, {
   },
   ja: {
     hero: "広安里の旅程を作成",
-    description: "Supabase/demo のスポットデータを使うルールエンジンで生成します。",
+    description: "登録済みスポットデータを使って旅程を生成します。",
     proEnabled: "PRO 有効",
     freePlan: "FREE · 1日旅程",
     days: "旅行日数",
@@ -478,7 +478,7 @@ const itineraryCopy: Record<Locale, {
   },
   ko: {
     hero: "광안리 일정 짜기",
-    description: "Supabase/demo 장소 데이터만 사용하는 규칙 기반 일정 생성기입니다.",
+    description: "등록된 장소 데이터를 기준으로 일정을 생성합니다.",
     proEnabled: "PRO 활성화",
     freePlan: "FREE · 1일 일정",
     days: "여행 일수",
@@ -512,8 +512,8 @@ const itineraryCopy: Record<Locale, {
 };
 
 const localizedItineraryNotes: Record<Locale, string[]> = {
-  zh: ["路线只使用 Supabase/demo 中已登记的地点。", "不会推荐数据库中不存在的商家。"],
-  en: ["Routes only use places registered in Supabase/demo data.", "Businesses that are not in the database are not recommended."],
-  ja: ["旅程は Supabase/demo に登録済みのスポットだけで構成します。", "DB にない店舗名はおすすめしません。"],
-  ko: ["일정은 Supabase/demo 장소 데이터 안에서만 구성했습니다.", "DB에 없는 업체명은 추천하지 않습니다."],
+  zh: ["路线只使用已登记的地点。", "不会推荐数据库中不存在的商家。"],
+  en: ["Routes only use registered places.", "Businesses that are not in the database are not recommended."],
+  ja: ["旅程は登録済みスポットだけで構成します。", "DB にない店舗名はおすすめしません。"],
+  ko: ["일정은 등록된 장소 데이터 안에서만 구성합니다.", "DB에 없는 업체명은 추천하지 않습니다."],
 };

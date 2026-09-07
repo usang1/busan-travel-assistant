@@ -10,7 +10,6 @@ const routes = [
   "/itinerary",
   "/translator",
   "/luggage",
-  "/pricing",
   "/saved",
   "/service-info",
   "/privacy",

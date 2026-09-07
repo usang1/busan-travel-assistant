@@ -29,7 +29,6 @@ import { SectionTitle } from "@/components/SectionTitle";
 import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
-import { demoPlaces } from "@/data/demo-places";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
 import { formatOpeningStatus } from "@/lib/location";
@@ -60,12 +59,7 @@ export const dynamic = "force-dynamic";
 const getCachedPlaceBySlug = cache((slug: string) => getPlaceBySlug(slug));
 
 export function generateStaticParams() {
-  return demoPlaces.flatMap((place) => [
-    { locale: "zh", slug: place.slug },
-    { locale: "en", slug: place.slug },
-    { locale: "ja", slug: place.slug },
-    { locale: "ko", slug: place.slug },
-  ]);
+  return [];
 }
 
 async function getRouteParams(params: LocalizedPlaceDetailPageProps["params"]) {

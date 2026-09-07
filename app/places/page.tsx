@@ -37,7 +37,7 @@ export default async function PlacesPage({ searchParams }: PlacesPageProps) {
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title="附近推荐" subtitle={source === "demo" ? "Demo 데이터 표시 중" : "광안리 Supabase 장소"} />
+      <SectionTitle title="附近推荐" subtitle={source === "demo" ? "示例数据" : "已登记地点"} />
       {error ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
       <div className="mt-4">
         <PlacesExplorer places={places} initialCategory={params?.category} loadError={error} rankings={rankings} />

@@ -321,7 +321,7 @@ export type PlaceSubmissionRecord = {
 
 export type PlaceListResult = {
   places: PlaceWithRelations[];
-  source: "supabase" | "demo";
+  source: "supabase" | "demo" | "none";
   error?: string;
 };
 
@@ -348,7 +348,7 @@ export type PhotoSpotRecord = {
 
 export type PhotoSpotListResult = {
   photoSpots: PhotoSpotRecord[];
-  source: "supabase" | "demo";
+  source: "supabase" | "demo" | "none";
   error?: string;
 };
 

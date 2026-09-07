@@ -79,7 +79,7 @@ export default async function Home() {
       <section className="mt-8 space-y-4">
         <SectionTitle
           title="韩国本地人推荐"
-          subtitle={source === "demo" ? "Demo 데이터 표시 중" : "Supabase 추천 장소"}
+          subtitle={source === "demo" ? "示例数据" : "已登记地点"}
           action={
             <Link href="/places" className="inline-flex items-center gap-1 text-sm font-semibold text-teal-700">
               查看全部

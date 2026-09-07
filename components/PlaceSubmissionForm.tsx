@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ExternalLink, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { parseMapUrl } from "@/lib/map-url";
@@ -67,7 +67,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
     setSubmitting(false);
 
     if (error) {
-      setStatus(error.message);
+      setStatus(copy.submissions.submitFailed);
       return;
     }
 
@@ -115,11 +115,6 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
           />
         </label>
 
-        <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200">
-          <ExternalLink size={14} aria-hidden="true" />
-          Provider: {parsed.provider}
-        </div>
-
         <label className="block">
           <span className="text-sm font-bold text-slate-700">{copy.submissions.reason}</span>
           <textarea
@@ -150,7 +145,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionF
                 onChange={(event) => setCategory(event.target.value as PlaceCategory | "")}
                 className="mt-2 h-11 w-full rounded-2xl bg-white px-3 text-base outline-none ring-1 ring-slate-200"
               >
-                <option value="">{copy.common.noInfo}</option>
+                <option value="">{copy.submissions.categoryPlaceholder}</option>
                 {placeCategories.map((item) => (
                   <option key={item} value={item}>{categoryLabels[item][currentLocale]}</option>
                 ))}

@@ -1,45 +1,16 @@
 "use client";
 
-import { Check, Crown, RotateCcw } from "lucide-react";
-import { useState } from "react";
-import { freeFeatures, passProducts, proFeatures, type PassProduct } from "@/config/monetization";
+import Link from "next/link";
+import { Check, Crown } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { freeFeatures, proFeatures } from "@/config/monetization";
 import { useProEntitlement } from "@/components/ProEntitlementProvider";
-import { MockPaymentProvider } from "@/lib/payment/mock-provider";
-
-const mockPaymentProvider = new MockPaymentProvider();
+import { defaultLocale, getLocaleFromPath, withLocale } from "@/lib/i18n";
 
 export function PricingClient() {
-  const { isPro, entitlement, remainingDays, anonymousSessionId, activatePro, clearPro } = useProEntitlement();
-  const [payingProductId, setPayingProductId] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-
-  async function pay(product: PassProduct) {
-    setPayingProductId(product.id);
-    setMessage("");
-
-    try {
-      const result = await mockPaymentProvider.createPayment({
-        product,
-        anonymousSessionId,
-      });
-
-      if (!result.ok) {
-        setMessage("결제 시뮬레이션에 실패했습니다.");
-        return;
-      }
-
-      activatePro({
-        planId: product.id,
-        provider: result.provider,
-        transactionId: result.transactionId,
-        activatedAt: result.paidAt,
-        expirationAt: result.expirationAt,
-      });
-      setMessage(`${product.titleZh} 已启用。`);
-    } finally {
-      setPayingProductId(null);
-    }
-  }
+  const { isPro, entitlement, remainingDays } = useProEntitlement();
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname) ?? defaultLocale;
 
   return (
     <div className="space-y-6">
@@ -50,56 +21,28 @@ export function PricingClient() {
         </div>
         <h1 className="mt-4 text-3xl font-black tracking-normal">升级旅行助手</h1>
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          지금은 Mock 결제입니다. 실제 PG는 PaymentProvider 인터페이스로 교체할 수 있습니다.
+          유료 기능은 정식 결제와 운영 정책이 준비된 뒤 제공됩니다.
         </p>
         <div className="mt-5 rounded-[22px] bg-white/10 p-4">
           <p className="text-sm text-slate-300">当前状态</p>
           <p className="mt-1 text-2xl font-black">{isPro ? `PRO · 剩余 ${remainingDays} 天` : "FREE"}</p>
           {entitlement ? <p className="mt-2 text-xs text-slate-300">만료: {new Date(entitlement.expirationAt).toLocaleString("ko-KR")}</p> : null}
         </div>
-        {isPro ? (
-          <button
-            type="button"
-            onClick={() => {
-              clearPro();
-              setMessage("PRO 권한을 해제했습니다.");
-            }}
-            className="mt-4 inline-flex h-11 items-center gap-2 rounded-2xl bg-white/10 px-4 text-sm font-bold text-white"
-          >
-            <RotateCcw size={16} aria-hidden="true" />
-            PRO 해제
-          </button>
-        ) : null}
       </section>
-
-      {message ? <p className="rounded-2xl bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800">{message}</p> : null}
 
       <section className="grid gap-3 sm:grid-cols-2">
         <FeatureBox title="FREE" items={freeFeatures} />
         <FeatureBox title="PRO" items={proFeatures} pro />
       </section>
 
-      <section className="space-y-3">
-        {passProducts.map((product) => (
-          <article key={product.id} className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">{product.badge}</span>
-                <h2 className="mt-3 text-2xl font-black text-slate-950">{product.titleZh}</h2>
-                <p className="mt-1 text-sm text-slate-500">{product.titleKo}</p>
-              </div>
-              <p className="text-2xl font-black text-slate-950">¥{product.priceCny}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void pay(product)}
-              disabled={payingProductId === product.id}
-              className="mt-5 h-12 w-full rounded-2xl bg-slate-950 px-4 text-base font-black text-white transition hover:bg-slate-800 disabled:opacity-60"
-            >
-              {payingProductId === product.id ? "결제 시뮬레이션 중" : "Mock 결제로 PRO 활성화"}
-            </button>
-          </article>
-        ))}
+      <section className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h2 className="text-xl font-black text-slate-950">결제 준비 중</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          현재 공개 사이트에서는 결제 버튼을 제공하지 않습니다. 제휴 또는 서비스 문의는 문의 화면을 이용해 주세요.
+        </p>
+        <Link href={withLocale("/contact", locale)} className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-teal-700 px-4 text-sm font-black text-white">
+          문의하기
+        </Link>
       </section>
     </div>
   );

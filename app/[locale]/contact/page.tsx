@@ -48,10 +48,12 @@ export default async function LocalizedContactPage({ params }: LocalizedContactP
         <h1 className="text-3xl font-black tracking-normal">{copy.footerLinks.contact}</h1>
         <p className="mt-2 text-sm text-slate-300">{copy.submissions.description}</p>
       </section>
-      <section className="mt-5 rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-lg font-black text-slate-950">Email</h2>
-        <p className="mt-3 text-sm leading-7 text-slate-600">{siteConfig.contactEmail}</p>
-      </section>
+      {siteConfig.contactEmail ? (
+        <section className="mt-5 rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <h2 className="text-lg font-black text-slate-950">Email</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-600">{siteConfig.contactEmail}</p>
+        </section>
+      ) : null}
     </main>
   );
 }

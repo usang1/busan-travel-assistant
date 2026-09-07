@@ -28,7 +28,6 @@ import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { absoluteUrl, siteConfig } from "@/config/site";
-import { demoPlaces } from "@/data/demo-places";
 import { formatOpeningStatus } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
@@ -46,7 +45,7 @@ export const dynamic = "force-dynamic";
 const getCachedPlaceBySlug = cache((slug: string) => getPlaceBySlug(slug));
 
 export function generateStaticParams() {
-  return demoPlaces.map((place) => ({ slug: place.slug }));
+  return [];
 }
 
 export async function generateMetadata({ params }: PlaceDetailPageProps): Promise<Metadata> {

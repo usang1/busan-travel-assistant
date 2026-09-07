@@ -49,7 +49,7 @@ export function MySubmissionsView({ locale = defaultLocale }: MySubmissionsViewP
       }
 
       if (error) {
-        setStatus(error.message);
+        setStatus(copy.submissions.loadFailed);
         return;
       }
 
@@ -89,7 +89,6 @@ export function MySubmissionsView({ locale = defaultLocale }: MySubmissionsViewP
               </div>
               <p className="mt-4 text-sm leading-6 text-slate-700">{submission.recommendation_reason || submission.notes}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
-                <span className="rounded-full bg-slate-50 px-3 py-1.5 ring-1 ring-slate-200">{submission.provider}</span>
                 {submission.source_url ? (
                   <a
                     href={submission.source_url}

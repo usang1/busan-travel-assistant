@@ -16,7 +16,7 @@ type PhotoSpotCardProps = {
 export function PhotoSpotCard({ spot, priority = false }: PhotoSpotCardProps) {
   const { isPro } = useProEntitlement();
   const locked = spot.free_or_pro === "pro" && !isPro;
-  const href = locked ? "/pricing" : `/photo-spots/${spot.slug}`;
+  const href = locked ? "/contact" : `/photo-spots/${spot.slug}`;
 
   return (
     <article className={["overflow-hidden rounded-[26px] bg-white shadow-sm ring-1 ring-slate-200", locked ? "opacity-90" : ""].join(" ")}>
@@ -44,8 +44,8 @@ export function PhotoSpotCard({ spot, priority = false }: PhotoSpotCardProps) {
             <p className="mt-1 truncate text-sm text-slate-500">{spot.name_ko}</p>
           </Link>
           {locked ? (
-            <Link href="/pricing" className="rounded-full bg-slate-950 px-3 py-2 text-xs font-black text-white">
-              解锁
+            <Link href="/contact" className="rounded-full bg-slate-950 px-3 py-2 text-xs font-black text-white">
+              문의
             </Link>
           ) : (
             <SaveButton

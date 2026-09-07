@@ -114,7 +114,7 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
       <section className="mt-8 space-y-4">
         <SectionTitle
           title={copy.home.recommended}
-          subtitle={source === "demo" ? "Demo 데이터 표시 중" : "Supabase"}
+          subtitle={source === "demo" ? copy.common.sampleData : copy.common.registeredPlaces}
           action={
             <Link href={withLocale("/places", locale)} className="inline-flex items-center gap-1 text-sm font-semibold text-teal-700">
               {copy.common.viewAll}

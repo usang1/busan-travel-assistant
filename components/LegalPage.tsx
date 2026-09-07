@@ -37,9 +37,6 @@ export function LegalPage({
         <p className="mt-2 text-sm text-slate-300">{titleKo}</p>
         <p className="mt-4 text-sm leading-6 text-slate-300">{description}</p>
       </section>
-      <section className="mt-5 rounded-[24px] bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-        本页面为 MVP 发布前的临时草案。이 문서는 MVP용 임시 초안이며 실제 서비스 출시 전 법무/개인정보 검토가 필요합니다.
-      </section>
       <div className="mt-5 space-y-4">
         {sections.map((section) => (
           <section key={section.title} className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">

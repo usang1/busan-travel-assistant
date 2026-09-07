@@ -45,7 +45,7 @@ import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGeneration
 
 type AdminPlaceManagerProps = {
   initialPlaces: PlaceWithRelations[];
-  source: "supabase" | "demo";
+  source: "supabase" | "demo" | "none";
   error?: string;
   supabaseConfigured: boolean;
   adminAccessToken?: string;

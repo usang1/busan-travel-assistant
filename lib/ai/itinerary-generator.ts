@@ -65,7 +65,7 @@ export async function generateItineraryFromDb(
   preferences: ItineraryPreferences,
 ): Promise<GeneratedItinerary> {
   const usablePlaces = places.filter((place) => place.is_active);
-  const notes = ["일정은 Supabase/demo 장소 데이터 안에서만 구성했습니다.", "DB에 없는 업체명은 추천하지 않습니다."];
+  const notes = ["일정은 등록된 장소 데이터 안에서만 구성했습니다.", "DB에 없는 업체명은 추천하지 않습니다."];
   const days = Array.from({ length: preferences.days }, (_, index) =>
     generateDay(usablePlaces, preferences, index + 1),
   );

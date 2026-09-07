@@ -2,7 +2,7 @@ import { LegalPage, legalMetadata } from "@/components/LegalPage";
 
 export const metadata = legalMetadata(
   "服务说明",
-  "韩国旅行助手 MVP 服务范围、数据来源和使用限制 안내",
+  "韩国旅行助手 서비스 범위, 데이터 출처와 이용 안내",
   "/service-info",
 );
 
@@ -15,11 +15,11 @@ export default function ServiceInfoPage() {
       sections={[
         {
           title: "服务范围",
-          body: "현재 MVP는 부산 광안리 중심의 장소 검색, 주문 가이드, 사진스팟, 짐보관, 번역 문장, 위치 기반 추천, 일정 생성 기능을 제공합니다.",
+          body: "부산 광안리 중심의 장소 검색, 주문 가이드, 사진스팟, 짐보관, 번역 문장, 위치 기반 추천, 일정 생성 기능을 제공합니다.",
         },
         {
           title: "数据说明",
-          body: "실제 공개 환경에서는 관리자에 등록된 데이터만 노출합니다. Demo 표기가 있는 데이터는 개발 및 검증용이며 실제 업체 정보로 간주하지 않습니다.",
+          body: "공개 화면에는 관리자가 검수해 등록한 장소 정보를 노출합니다. 확인되지 않은 업체나 통계는 임의로 만들어 표시하지 않습니다.",
         },
         {
           title: "变动信息",

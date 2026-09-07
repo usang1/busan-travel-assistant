@@ -3,12 +3,13 @@ import { PricingClient } from "@/components/PricingClient";
 import { absoluteUrl } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "PRO 通行证｜韩国旅行助手",
-  description: "了解韩国旅行助手 FREE/PRO 功能分离、3日和7日通行证，以及 Mock 支付结构。",
+  title: "서비스 준비 중｜韩国旅行助手",
+  description: "유료 기능은 정식 결제와 운영 정책이 준비된 뒤 제공됩니다.",
   alternates: { canonical: absoluteUrl("/pricing") },
+  robots: { index: false, follow: false },
   openGraph: {
-    title: "PRO 通行证",
-    description: "解锁完整照片点、2日以上行程和行程保存。",
+    title: "서비스 준비 중",
+    description: "유료 기능은 정식 결제와 운영 정책이 준비된 뒤 제공됩니다.",
     url: absoluteUrl("/pricing"),
   },
 };

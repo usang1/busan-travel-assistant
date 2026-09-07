@@ -2,7 +2,7 @@ import { LegalPage, legalMetadata } from "@/components/LegalPage";
 
 export const metadata = legalMetadata(
   "隐私政策",
-  "韩国旅行助手 개인정보 처리 임시 안내",
+  "韩国旅行助手 개인정보 처리 안내",
   "/privacy",
 );
 
@@ -11,7 +11,7 @@ export default function PrivacyPage() {
     <LegalPage
       titleZh="隐私政策"
       titleKo="개인정보처리방침"
-      description="현재 MVP는 회원가입 없이 localStorage 기반 저장 및 PRO 권한 시뮬레이션을 사용합니다."
+      description="서비스 이용 과정에서 필요한 최소한의 정보만 처리하며, 저장 기능은 로그인 상태와 브라우저 설정에 따라 동작합니다."
       sections={[
         {
           title: "收集的信息",
@@ -19,11 +19,11 @@ export default function PrivacyPage() {
         },
         {
           title: "本地保存",
-          body: "收藏、Mock PRO 권한, 익명 세션 ID, 저장된 일정은 브라우저 localStorage에 저장될 수 있습니다. 사용자는 브라우저 데이터 삭제로 제거할 수 있습니다.",
+          body: "일부 화면 상태와 최근 이용 정보는 브라우저에 저장될 수 있습니다. 사용자는 브라우저 데이터 삭제로 이를 제거할 수 있습니다.",
         },
         {
           title: "第三方服务",
-          body: "Supabase, Vercel, 지도/결제 Provider를 연결할 경우 각 서비스의 개인정보 처리 조건을 별도로 검토해야 합니다.",
+          body: "지도, 인증, 호스팅 등 운영에 필요한 외부 서비스가 사용될 수 있으며, 각 서비스의 개인정보 처리 조건을 함께 적용받을 수 있습니다.",
         },
       ]}
     />

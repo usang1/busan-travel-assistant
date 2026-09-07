@@ -22,10 +22,10 @@
 - 짐보관 리스트
 - 위치 기반 주변 추천과 네이버 지도 연동
 - DB 기반 rule engine 여행 일정 생성
-- Mock 결제로 PRO 권한 활성화
+- 결제 준비 전 유료 기능 안내 비활성화
 - localStorage 저장/공유 기능
 - 한국어 관리자 장소 CRUD와 대시보드
-- locale별 SEO metadata, hreflang, sitemap, OpenGraph, robots, legal page 초안
+- locale별 SEO metadata, hreflang, sitemap, OpenGraph, robots, legal page
 
 ## 설치
 
@@ -44,6 +44,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_CONTACT_EMAIL=
 GOOGLE_MAPS_API_KEY=
 NAVER_API_HUB_CLIENT_ID=
 NAVER_API_HUB_CLIENT_SECRET=
@@ -58,6 +59,7 @@ OPENAI_TRANSLATION_MODEL=
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
+- `NEXT_PUBLIC_CONTACT_EMAIL`: 공개 문의 이메일입니다. 비워두면 문의 페이지에 이메일을 표시하지 않고 문의/제보 폼만 제공합니다.
 - `GOOGLE_MAPS_API_KEY`: Google Places API (New)의 Place Details/Text Search 서버 호출에 사용합니다.
 - `NAVER_API_HUB_CLIENT_ID`, `NAVER_API_HUB_CLIENT_SECRET`: NAVER API HUB 지역 검색의 서버 인증 정보입니다. 설정되어 있으면 legacy 키보다 우선합니다.
 - `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET`: 2027년 6월 30일까지 기존 신청자에게 제공되는 legacy Naver 지역 검색 API의 호환 인증 정보입니다.
@@ -97,6 +99,10 @@ supabase/migrations/012_place_publication_defaults.sql
 supabase/migrations/013_place_source_metadata.sql
 supabase/migrations/014_place_translation_addresses.sql
 supabase/migrations/015_place_admin_summary.sql
+supabase/migrations/016_traveler_insights_and_verification.sql
+supabase/migrations/017_place_rankings_and_recommendations.sql
+supabase/migrations/018_trip_planning_and_sharing.sql
+supabase/migrations/019_fix_place_rankings_signature.sql
 supabase/seed.sql
 ```
 

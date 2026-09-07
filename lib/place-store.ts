@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { demoPlaces } from "@/data/demo-places";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
 import { archivedPlaceStatus, normalizePlacePublicationForWrite } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
@@ -143,10 +142,10 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
-function withDemoFallback(error?: string): PlaceListResult {
+function emptyPlaceResult(error?: string): PlaceListResult {
   return {
-    places: demoPlaces.map((place) => ({ ...place, save_count: 0 })),
-    source: "demo",
+    places: [],
+    source: "none",
     error,
   };
 }
@@ -200,7 +199,7 @@ export async function getPlaces(
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
-    return withDemoFallback("Supabase 환경 변수가 없어 demo 데이터를 사용합니다.");
+    return emptyPlaceResult();
   }
 
   const activeFilters = buildPlaceQueryDebug(options);
@@ -296,7 +295,7 @@ export async function getPlaces(
         locale: options.locale,
       });
 
-      return withDemoFallback(legacyResult.error?.message ?? compatibleResult.error?.message ?? error?.message ?? "Supabase 데이터를 불러오지 못했습니다.");
+      return emptyPlaceResult("장소 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.");
     }
 
     const places = await addSaveCounts(mapPlaceRows(legacyResult.data));
@@ -335,9 +334,7 @@ export async function getPublicPlacesByIds(ids: string[], client?: SupabaseClien
 
   const resolvedClient = resolveClient(client);
   if (!resolvedClient) {
-    return demoPlaces
-      .filter((place) => uniqueIds.includes(place.id))
-      .map((place) => ({ ...place, save_count: 0 }));
+    return [];
   }
 
   return fetchBoundedPublicPlaces(resolvedClient, { ids: uniqueIds, limit: uniqueIds.length });
@@ -350,17 +347,7 @@ export async function getPublicPlacesInBounds(
 ): Promise<PlaceWithRelations[]> {
   const resolvedClient = resolveClient(client);
   if (!resolvedClient) {
-    return demoPlaces
-      .filter((place) => (
-        typeof place.latitude === "number" &&
-        typeof place.longitude === "number" &&
-        place.latitude >= bounds.minLatitude &&
-        place.latitude <= bounds.maxLatitude &&
-        place.longitude >= bounds.minLongitude &&
-        place.longitude <= bounds.maxLongitude
-      ))
-      .slice(0, limit)
-      .map((place) => ({ ...place, save_count: 0 }));
+    return [];
   }
 
   return fetchBoundedPublicPlaces(resolvedClient, { bounds, limit: Math.max(1, Math.min(limit, 80)) });
@@ -403,14 +390,13 @@ export async function getPlaceBySlug(
   slug: string,
   options: { activeOnly?: boolean; includeAdminRelations?: boolean } = {},
   client?: SupabaseClient,
-): Promise<{ place: PlaceWithRelations | null; source: "supabase" | "demo"; error?: string }> {
+): Promise<{ place: PlaceWithRelations | null; source: "supabase" | "demo" | "none"; error?: string }> {
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
     return {
-      place: demoPlaces.find((place) => place.slug === slug) ?? null,
-      source: "demo",
-      error: "Supabase 환경 변수가 없어 demo 데이터를 사용합니다.",
+      place: null,
+      source: "none",
     };
   }
 
@@ -493,12 +479,10 @@ export async function getPlaceBySlug(
       };
     }
 
-    const demoPlace = demoPlaces.find((place) => place.slug === slug) ?? null;
-
     return {
-      place: demoPlace ? { ...demoPlace, save_count: 0 } : null,
-      source: "demo",
-      error: legacyResult.error?.message ?? compatibleResult.error?.message ?? error?.message ?? "장소를 찾지 못했습니다.",
+      place: null,
+      source: "none",
+      error: "장소 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.",
     };
   }
 

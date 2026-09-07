@@ -1,4 +1,3 @@
-import { demoPhotoSpots } from "@/data/demo-photo-spots";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { PhotoSpotListResult, PhotoSpotRecord } from "@/types/database";
 
@@ -7,9 +6,8 @@ export async function getPhotoSpots(): Promise<PhotoSpotListResult> {
 
   if (!client) {
     return {
-      photoSpots: demoPhotoSpots,
-      source: "demo",
-      error: "Supabase 환경 변수가 없어 demo 사진스팟을 사용합니다.",
+      photoSpots: [],
+      source: "none",
     };
   }
 
@@ -21,9 +19,9 @@ export async function getPhotoSpots(): Promise<PhotoSpotListResult> {
 
   if (error || !data) {
     return {
-      photoSpots: demoPhotoSpots,
-      source: "demo",
-      error: error?.message ?? "사진스팟 데이터를 불러오지 못했습니다.",
+      photoSpots: [],
+      source: "none",
+      error: "사진스팟 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.",
     };
   }
 
@@ -33,14 +31,13 @@ export async function getPhotoSpots(): Promise<PhotoSpotListResult> {
   };
 }
 
-export async function getPhotoSpotBySlug(slug: string): Promise<{ photoSpot: PhotoSpotRecord | null; source: "supabase" | "demo"; error?: string }> {
+export async function getPhotoSpotBySlug(slug: string): Promise<{ photoSpot: PhotoSpotRecord | null; source: "supabase" | "demo" | "none"; error?: string }> {
   const client = getSupabaseClient();
 
   if (!client) {
     return {
-      photoSpot: demoPhotoSpots.find((spot) => spot.slug === slug) ?? null,
-      source: "demo",
-      error: "Supabase 환경 변수가 없어 demo 사진스팟을 사용합니다.",
+      photoSpot: null,
+      source: "none",
     };
   }
 
@@ -48,9 +45,9 @@ export async function getPhotoSpotBySlug(slug: string): Promise<{ photoSpot: Pho
 
   if (error || !data) {
     return {
-      photoSpot: demoPhotoSpots.find((spot) => spot.slug === slug) ?? null,
-      source: "demo",
-      error: error?.message ?? "사진스팟을 찾지 못했습니다.",
+      photoSpot: null,
+      source: "none",
+      error: "사진스팟 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.",
     };
   }
 

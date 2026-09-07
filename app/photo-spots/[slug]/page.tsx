@@ -9,7 +9,6 @@ import { SectionTitle } from "@/components/SectionTitle";
 import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
 import { absoluteUrl, siteConfig } from "@/config/site";
-import { demoPhotoSpots } from "@/data/demo-photo-spots";
 import { getPhotoSpotBySlug } from "@/lib/photo-spot-store";
 
 type PhotoSpotDetailPageProps = {
@@ -21,7 +20,7 @@ type PhotoSpotDetailPageProps = {
 export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
-  return demoPhotoSpots.map((spot) => ({ slug: spot.slug }));
+  return [];
 }
 
 export async function generateMetadata({ params }: PhotoSpotDetailPageProps): Promise<Metadata> {
