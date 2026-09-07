@@ -20,6 +20,14 @@ export type ChinaMinimumOrderPolicy = "unknown" | "none" | "two_plus" | "three_p
 
 export type PlaceVerificationStatus = "unverified" | "pending" | "verified" | "needs_review";
 
+export const placeWorkflowStatuses = ["DRAFT", "REVIEW", "PUBLISHED", "ARCHIVED"] as const;
+
+export type PlaceWorkflowStatus = (typeof placeWorkflowStatuses)[number];
+
+export type LegacyPlaceStatus = "ACTIVE" | "INACTIVE";
+
+export type PlaceStatus = PlaceWorkflowStatus | LegacyPlaceStatus;
+
 export type TravelerInsightOrderingMethod = "unknown" | "kiosk" | "staff" | "both";
 
 export type TravelerInsightReservation = "unknown" | "not_needed" | "recommended" | "required";
@@ -70,7 +78,9 @@ export type PlaceRecord = {
   phone?: string | null;
   website?: string | null;
   price_level?: number | null;
-  status?: string;
+  status?: PlaceStatus;
+  closed_days?: string;
+  last_verified_at?: string | null;
   nearest_station: string;
   nearest_exit: string;
   walking_minutes: number;
@@ -137,6 +147,7 @@ export type PlaceChinaInfoRecord = {
   waiting_minutes_min: number | null;
   waiting_minutes_max: number | null;
   chinese_menu: PlaceFactTristate;
+  chinese_service?: PlaceFactTristate;
   foreign_card: PlaceFactTristate;
   alipay: PlaceFactTristate;
   wechat_pay: PlaceFactTristate;
@@ -281,6 +292,9 @@ export type PlaceActionEventType =
   | "correction_submitted";
 
 export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at"> & {
+  status: PlaceStatus;
+  closed_days: string;
+  last_verified_at?: string | null;
   tags: Array<Pick<TagRecord, "label_zh" | "label_ko" | "slug">>;
   menu_items: Array<Omit<PlaceMenuItem, "id" | "place_id">>;
   translations?: Array<Pick<PlaceTranslationRecord, "locale" | "name" | "description" | "travel_tip" | "address">>;

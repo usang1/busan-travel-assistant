@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
-import { archivedPlaceStatus, normalizePlacePublicationForWrite } from "@/lib/place-publishing";
+import { archivedPlaceStatus, normalizePlacePublicationForWrite, publicReadablePlaceStatuses } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type {
@@ -32,6 +32,7 @@ const publicPlaceSelectWithTranslations: string = "*,place_translations(*),place
 const adminPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const adminPlaceSelectWithTranslations: string = "*,place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const legacyPlaceSelect: string = "*,place_tags(tags(*)),place_menu_items(*)";
+const publicStatusFilters = [...publicReadablePlaceStatuses];
 
 const priceLabels: Record<Locale, { free: string; unknown: string }> = {
   zh: { free: "免费", unknown: "价格未登记" },
@@ -153,7 +154,7 @@ function emptyPlaceResult(error?: string): PlaceListResult {
 function buildPlaceQueryDebug(options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean }) {
   return {
     activeOnly: options.activeOnly ?? true,
-    status: options.activeOnly ?? true ? "ACTIVE" : "any",
+    status: options.activeOnly ?? true ? publicStatusFilters.join(",") : "any",
     featuredOnly: Boolean(options.featuredOnly),
     includeAdminRelations: Boolean(options.includeAdminRelations),
   };
@@ -213,7 +214,7 @@ export async function getPlaces(
 
   if (options.activeOnly ?? true) {
     query = query.eq("is_active", true);
-    query = query.eq("status", "ACTIVE");
+    query = query.in("status", publicStatusFilters);
   }
 
   if (options.featuredOnly) {
@@ -238,7 +239,7 @@ export async function getPlaces(
 
     if (options.activeOnly ?? true) {
       compatibleQuery = compatibleQuery.eq("is_active", true);
-      compatibleQuery = compatibleQuery.eq("status", "ACTIVE");
+      compatibleQuery = compatibleQuery.in("status", publicStatusFilters);
     }
 
     if (options.featuredOnly) {
@@ -278,7 +279,7 @@ export async function getPlaces(
 
     if (options.activeOnly ?? true) {
       legacyQuery = legacyQuery.eq("is_active", true);
-      legacyQuery = legacyQuery.eq("status", "ACTIVE");
+      legacyQuery = legacyQuery.in("status", publicStatusFilters);
     }
 
     if (options.featuredOnly) {
@@ -368,7 +369,7 @@ async function fetchBoundedPublicPlaces(
       .from("places")
       .select(select)
       .eq("is_active", true)
-      .eq("status", "ACTIVE");
+      .in("status", publicStatusFilters);
 
     if (options.ids?.length) query = query.in("id", options.ids);
     if (options.bounds) {
@@ -409,7 +410,7 @@ export async function getPlaceBySlug(
 
   if (options.activeOnly ?? true) {
     query = query.eq("is_active", true);
-    query = query.eq("status", "ACTIVE");
+    query = query.in("status", publicStatusFilters);
   }
 
   const { data, error } = await query.limit(1).maybeSingle();
@@ -422,7 +423,7 @@ export async function getPlaceBySlug(
 
     if (options.activeOnly ?? true) {
       compatibleQuery = compatibleQuery.eq("is_active", true);
-      compatibleQuery = compatibleQuery.eq("status", "ACTIVE");
+      compatibleQuery = compatibleQuery.in("status", publicStatusFilters);
     }
 
     const compatibleResult = await compatibleQuery.limit(1).maybeSingle();
@@ -444,7 +445,7 @@ export async function getPlaceBySlug(
 
     if (options.activeOnly ?? true) {
       legacyQuery = legacyQuery.eq("is_active", true);
-      legacyQuery = legacyQuery.eq("status", "ACTIVE");
+      legacyQuery = legacyQuery.in("status", publicStatusFilters);
     }
 
     const legacyResult = await legacyQuery.limit(1).maybeSingle();

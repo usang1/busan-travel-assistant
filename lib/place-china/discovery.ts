@@ -1,4 +1,4 @@
-import { getOpeningStatus } from "@/lib/location";
+import { getOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import type { Locale } from "@/lib/i18n";
 import type { ChinaWaitingLevel, PlaceWithRelations } from "@/types/database";
@@ -100,8 +100,14 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
     queryKey: "subwayWalk5",
     label: { zh: "地铁步行5分钟以内", en: "Within 5 min from subway", ja: "駅徒歩5分以内", ko: "역 도보 5분 이내" },
     compactLabel: { zh: "地铁5分钟", en: "5 min subway", ja: "駅5分", ko: "역5분" },
-    match: (place) => (place.china_info?.subway_walk_minutes ?? place.walking_minutes) <= 5,
-    enabled: (places) => places.some((place) => (place.china_info?.subway_walk_minutes ?? place.walking_minutes) <= 5),
+    match: (place) => {
+      const minutes = subwayWalkingMinutes(place);
+      return minutes !== null && minutes <= 5;
+    },
+    enabled: (places) => places.some((place) => {
+      const minutes = subwayWalkingMinutes(place);
+      return minutes !== null && minutes <= 5;
+    }),
   },
   {
     key: "xiaohongshu",
@@ -137,6 +143,18 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
       ),
   },
 ];
+
+function subwayWalkingMinutes(place: PlaceWithRelations) {
+  if (typeof place.china_info?.subway_walk_minutes === "number" && place.china_info.subway_walk_minutes > 0) {
+    return place.china_info.subway_walk_minutes;
+  }
+
+  if (hasCoordinates(place) && place.walking_minutes > 0) {
+    return place.walking_minutes;
+  }
+
+  return null;
+}
 
 export const chinaQuickFilters: ChinaDiscoveryFilter[] = [
   "firstBusan",

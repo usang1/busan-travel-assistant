@@ -12,7 +12,7 @@ for (const file of editorFiles) {
   for (const label of [
     "1. 지도 링크",
     "2. 관리자 기본 입력",
-    "3. 자동수집 / AI 결과 미리보기",
+    "자동수집 / AI 결과 미리보기",
     "장소 정보 불러오기",
     "AI 콘텐츠 생성",
     "고급 편집 펼치기",

@@ -103,12 +103,13 @@ supabase/migrations/016_traveler_insights_and_verification.sql
 supabase/migrations/017_place_rankings_and_recommendations.sql
 supabase/migrations/018_trip_planning_and_sharing.sql
 supabase/migrations/019_fix_place_rankings_signature.sql
+supabase/migrations/020_place_quality_workflow.sql
 supabase/seed.sql
 ```
 
 테이블:
 
-- `places`: 장소 기본 정보, 가격, 위치, 운영시간, 시설, 추천 문구
+- `places`: 장소 기본 정보, 공개 상태, 가격, 위치, 운영시간/휴무일, 마지막 확인일, 시설, 추천 문구
 - `place_translations`: 장소명, 주소, 설명, 여행 팁의 locale별 번역
 - `place_sources`: NAVER/KAKAO/GOOGLE/MANUAL 공식 소스 연결용 참조
 - `tags`: 중국어/한국어 태그
@@ -136,7 +137,7 @@ supabase/seed.sql
 - `chinese_taste_score`: 중국인 추천도 1~5
 - `spicy_level`, `greasy_level`, `smell_level`, `portion_level`, `ordering_difficulty`: 맛/양/주문 난이도 1~5
 - `waiting_level`: `none`, `short`, `moderate`, `long`, `extreme`, `varies`, `unknown`
-- `chinese_menu`, `foreign_card`, `alipay`, `wechat_pay`, `solo_friendly`, `luggage_friendly`, `toilet_available`, `reservation_required`: `yes` / `no` / `unknown`
+- `chinese_menu`, `chinese_service`, `foreign_card`, `alipay`, `wechat_pay`, `solo_friendly`, `luggage_friendly`, `toilet_available`, `reservation_required`: `yes` / `no` / `unknown`
 - `minimum_order_policy`: `none`, `two_plus`, `three_plus`, `other`, `unknown`
 - `xiaohongshu_popular`, `photo_recommended`, `tourism_recommended`: 중국인 관광 목적 태그용 tri-state
 - `manual_summary_override`, `manual_warning_override`: 자동 문장을 덮어쓰거나 우선 노출할 때만 입력
@@ -176,8 +177,9 @@ npm run build
 9. 중국인 특화 영역에서 별점, yes/no/unknown, 웨이팅, 최소주문을 선택합니다.
 10. Preview에서 실제 중국어 summary, 태그, warning을 확인합니다.
 11. 직접 문장 수정은 특이사항이 있을 때만 `manual_*_override`에 입력합니다.
-12. 활성/비활성, 추천 장소 여부를 설정합니다.
-13. 저장하면 `/places`, `/nearby`, 상세 페이지에 바로 반영됩니다.
+12. 상태는 `DRAFT`, `REVIEW`, `PUBLISHED`, `ARCHIVED` 중 하나로 관리합니다.
+13. `PUBLISHED` 저장은 장소명, 번역명, 카테고리, 주소, 정상 좌표, 대표사진, 대표 설명, 영업시간, 정보 출처, 마지막 확인일 등 필수 품질 항목이 모두 채워져야 가능합니다.
+14. 저장하면 `PUBLISHED` 장소만 `/places`, `/nearby`, 상세 페이지에 반영됩니다.
 
 Supabase 환경 변수가 없으면 관리자 CRUD는 브라우저 localStorage 기반 Demo 모드로 동작합니다.
 

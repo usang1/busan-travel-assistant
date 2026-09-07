@@ -28,7 +28,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { absoluteUrl, siteConfig } from "@/config/site";
-import { formatOpeningStatus } from "@/lib/location";
+import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
@@ -95,6 +95,11 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
   ].filter((label): label is string => Boolean(label));
   const opening = formatOpeningStatus(place.opening_hours, "zh");
   const priceText = formatPriceRange(place);
+  const placeHasCoordinates = hasCoordinates(place);
+  const walkingText = placeHasCoordinates && place.walking_minutes > 0 ? `步行 ${place.walking_minutes}分钟` : "未登记";
+  const directionsText = placeHasCoordinates && place.walking_minutes > 0
+    ? `${[place.nearest_station, place.nearest_exit].filter(Boolean).join(" ")} · ${walkingText}`
+    : "未登记";
   const currentMenuText = place.menu_items.map((item) => (
     [item.name_zh || item.name_ko, item.price === null ? "" : formatWon(item.price)].filter(Boolean).join(" · ")
   )).join("\n");
@@ -111,7 +116,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           url: absoluteUrl(`/places/${place.slug}`),
           address: place.address_ko,
           geo:
-            place.latitude && place.longitude
+            placeHasCoordinates
               ? {
                   "@type": "GeoCoordinates",
                   latitude: place.latitude,
@@ -170,7 +175,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
                 titleKo: place.name_ko,
                 href: `/places/${place.slug}`,
                 imageUrl: place.thumbnail_url,
-                meta: `${categoryLabels[place.category].zh} · 步行 ${place.walking_minutes}分钟`,
+                meta: [categoryLabels[place.category].zh, placeHasCoordinates ? walkingText : ""].filter(Boolean).join(" · "),
               }}
             />
           </div>
@@ -186,7 +191,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <InfoTile icon={WalletCards} label="价格" value={priceText} />
-            <InfoTile icon={Clock3} label="距离" value={`步行 ${place.walking_minutes}分钟`} />
+            <InfoTile icon={Clock3} label="距离" value={walkingText} />
             <InfoTile icon={Route} label="营业" value={place.opening_hours ? opening.text : "未登记"} />
           </div>
 
@@ -265,7 +270,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           icon={MapPin}
           title="怎么去？"
           subtitle="가는 방법"
-          zh={`${place.nearest_station} ${place.nearest_exit} · 步行 ${place.walking_minutes}分钟`}
+          zh={directionsText}
           ko={`${place.address_ko} / ${place.address_zh}`}
         />
       </section>
@@ -281,7 +286,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
 
       <section className="mt-6 grid grid-cols-2 gap-3">
         <InfoTile icon={CreditCard} label="付款" value={place.card_payment ? "可以刷卡" : "现金确认"} />
-        <InfoTile icon={MapPin} label="坐标" value={place.latitude && place.longitude ? `${place.latitude}, ${place.longitude}` : "未登记"} />
+        <InfoTile icon={MapPin} label="坐标" value={placeHasCoordinates ? `${place.latitude}, ${place.longitude}` : "未登记"} />
       </section>
 
       <section className="mt-6 rounded-[24px] bg-amber-50 p-4 text-sm leading-6 text-amber-900">

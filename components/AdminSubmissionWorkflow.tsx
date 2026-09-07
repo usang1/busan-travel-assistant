@@ -12,11 +12,12 @@ import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder"
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
+import { publishedPlaceStatus } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
-import { categoryLabels, placeCategories, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type SubmissionStatus } from "@/types/database";
+import { categoryLabels, placeCategories, placeWorkflowStatuses, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type PlaceWorkflowStatus, type SubmissionStatus } from "@/types/database";
 import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
 
 type AdminSubmissionWorkflowProps = {
@@ -80,6 +81,9 @@ type PublishForm = {
   provider_amenities: string;
   source_metadata: Record<string, unknown> | null;
   source_fetched_at: string;
+  status: PlaceWorkflowStatus;
+  closed_days: string;
+  last_verified_at: string;
   nearest_station: string;
   nearest_exit: string;
   walking_minutes: string;
@@ -90,8 +94,13 @@ type PublishForm = {
   is_active: boolean;
 };
 
-const defaultImage = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
 const statuses: SubmissionStatus[] = ["pending", "reviewing", "approved", "rejected", "duplicate"];
+const workflowStatusLabels: Record<PlaceWorkflowStatus, string> = {
+  DRAFT: "초안",
+  REVIEW: "검수 대기",
+  PUBLISHED: "공개",
+  ARCHIVED: "보관",
+};
 const statusLabels: Record<SubmissionStatus, string> = {
   pending: "대기",
   reviewing: "검토중",
@@ -255,27 +264,30 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     provider_amenities: "",
     source_metadata: null,
     source_fetched_at: "",
+    status: "REVIEW",
+    closed_days: "",
+    last_verified_at: "",
     nearest_station: "",
     nearest_exit: "",
     walking_minutes: "",
     solo_friendly: false,
     luggage_friendly: false,
     chinese_menu: false,
-    card_payment: true,
-    is_active: true,
+    card_payment: false,
+    is_active: false,
   };
 }
 
 function buildPayload(form: PublishForm): PlacePayload {
   const category = form.category as PlaceCategory;
   const zh: TranslationDraft = {
-    name: form.name_zh || form.name_ko,
+    name: form.name_zh.trim(),
     description: form.description_zh,
     travel_tip: form.tips_zh,
     address: form.address_zh,
   };
   const ko: TranslationDraft = {
-    name: form.name_ko || form.name_zh,
+    name: form.name_ko.trim(),
     description: form.description_ko,
     travel_tip: form.tips_ko,
     address: form.address_ko,
@@ -283,14 +295,14 @@ function buildPayload(form: PublishForm): PlacePayload {
 
   return {
     slug: form.slug || slugify(form.name_ko || form.name_zh),
-    name_zh: form.name_zh || form.name_ko,
-    name_ko: form.name_ko || form.name_zh,
+    name_zh: form.name_zh.trim(),
+    name_ko: form.name_ko.trim(),
     category,
     address: form.address_ko,
     phone: form.phone || null,
     website: form.website || null,
     price_level: nullableNumber(form.price_level),
-    status: form.is_active ? "ACTIVE" : "DRAFT",
+    status: form.status,
     short_description_zh: form.description_zh,
     short_description_ko: form.description_ko,
     admin_summary: form.admin_summary,
@@ -298,6 +310,8 @@ function buildPayload(form: PublishForm): PlacePayload {
     address_zh: form.address_zh,
     latitude: normalizeLatitude(form.latitude),
     longitude: normalizeLongitude(form.longitude),
+    closed_days: form.closed_days.trim(),
+    last_verified_at: form.last_verified_at || null,
     nearest_station: form.nearest_station,
     nearest_exit: form.nearest_exit,
     walking_minutes: Number(form.walking_minutes) || 0,
@@ -314,9 +328,9 @@ function buildPayload(form: PublishForm): PlacePayload {
     recommended_order_ko: form.recommended_order_ko,
     tips_zh: form.tips_zh,
     tips_ko: form.tips_ko,
-    thumbnail_url: form.thumbnail_url || defaultImage,
+    thumbnail_url: form.thumbnail_url.trim(),
     is_featured: false,
-    is_active: form.is_active,
+    is_active: form.status === publishedPlaceStatus,
     tags: [
       { label_zh: categoryLabels[category].zh, label_ko: categoryLabels[category].ko, slug: category },
     ],
@@ -643,7 +657,19 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   }
 
   function updateField<Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key === "status") {
+        const nextStatus = value as PlaceWorkflowStatus;
+        return { ...current, status: nextStatus, is_active: nextStatus === publishedPlaceStatus };
+      }
+
+      if (key === "is_active") {
+        const isActive = Boolean(value);
+        return { ...current, is_active: isActive, status: isActive ? publishedPlaceStatus : "REVIEW" };
+      }
+
+      return { ...current, [key]: value };
+    });
   }
 
   async function resolveCoordinatesForPublishForm(currentForm: PublishForm) {
@@ -1197,7 +1223,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-black text-slate-950">{selected.name || "지도 링크 제보"}</h3>
-                  <p className="mt-1 text-sm text-slate-500">제보자: {selected.user_id ?? "unknown"} · {new Date(selected.created_at).toLocaleString("ko-KR")}</p>
+                  <p className="mt-1 text-sm text-slate-500">제보자: {selected.user_id ?? "익명"} · {new Date(selected.created_at).toLocaleString("ko-KR")}</p>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700 ring-1 ring-slate-200">{statusLabels[selected.status]}</span>
               </div>
@@ -1430,7 +1456,19 @@ function PublishFormView({
               </select>
             </Field>
           ) : null}
-          <CheckField label={form.is_active ? "공개" : "비공개"} checked={form.is_active} onChange={(checked) => onFieldChange("is_active", checked)} />
+          <Field label="상태">
+            <select value={form.status} onChange={(event) => onFieldChange("status", event.target.value as PlaceWorkflowStatus)} className={inputClass}>
+              {placeWorkflowStatuses.map((workflowStatus) => (
+                <option key={workflowStatus} value={workflowStatus}>{workflowStatusLabels[workflowStatus]}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="마지막 확인일">
+            <input type="date" value={form.last_verified_at} onChange={(event) => onFieldChange("last_verified_at", event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="휴무일">
+            <input value={form.closed_days} onChange={(event) => onFieldChange("closed_days", event.target.value)} className={inputClass} />
+          </Field>
           <div className="sm:col-span-2">
             <Field label="AI 장소 요약">
               <textarea value={form.admin_summary} onChange={(event) => onFieldChange("admin_summary", event.target.value)} className={textareaClass} />
@@ -1517,6 +1555,13 @@ function PublishFormView({
         </div>
         <Field label="지도 장소 ID"><input value={form.source_external_id} onChange={(event) => onFieldChange("source_external_id", event.target.value)} className={inputClass} /></Field>
         <Field label="URL 주소명"><input value={form.slug} onChange={(event) => onFieldChange("slug", slugify(event.target.value))} className={inputClass} /></Field>
+        <Field label="상태">
+          <select value={form.status} onChange={(event) => onFieldChange("status", event.target.value as PlaceWorkflowStatus)} className={inputClass}>
+            {placeWorkflowStatuses.map((workflowStatus) => (
+              <option key={workflowStatus} value={workflowStatus}>{workflowStatusLabels[workflowStatus]}</option>
+            ))}
+          </select>
+        </Field>
         <Field label="카테고리">
           <select value={form.category} onChange={(event) => onFieldChange("category", event.target.value as PlaceCategory)} className={inputClass}>
             <option value="">선택 필요</option>
@@ -1556,6 +1601,8 @@ function PublishFormView({
         <Field label="전화"><input value={form.phone} onChange={(event) => onFieldChange("phone", event.target.value)} className={inputClass} /></Field>
         <Field label="웹사이트"><input value={form.website} onChange={(event) => onFieldChange("website", event.target.value)} className={inputClass} /></Field>
         <Field label="영업시간"><input value={form.opening_hours} onChange={(event) => onFieldChange("opening_hours", event.target.value)} className={inputClass} /></Field>
+        <Field label="휴무일"><input value={form.closed_days} onChange={(event) => onFieldChange("closed_days", event.target.value)} className={inputClass} /></Field>
+        <Field label="마지막 확인일"><input type="date" value={form.last_verified_at} onChange={(event) => onFieldChange("last_verified_at", event.target.value)} className={inputClass} /></Field>
         <Field label="가격대(0-4)"><input value={form.price_level} onChange={(event) => onFieldChange("price_level", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
         <Field label="최소 가격"><input value={form.price_min} onChange={(event) => onFieldChange("price_min", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
         <Field label="최대 가격"><input value={form.price_max} onChange={(event) => onFieldChange("price_max", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
@@ -1594,7 +1641,6 @@ function PublishFormView({
             <CheckField label="캐리어 가능" checked={form.luggage_friendly} onChange={(checked) => onFieldChange("luggage_friendly", checked)} />
             <CheckField label="중국어 메뉴" checked={form.chinese_menu} onChange={(checked) => onFieldChange("chinese_menu", checked)} />
             <CheckField label="카드 가능" checked={form.card_payment} onChange={(checked) => onFieldChange("card_payment", checked)} />
-            <CheckField label="즉시 공개" checked={form.is_active} onChange={(checked) => onFieldChange("is_active", checked)} />
           </div>
         </div>
       </details>

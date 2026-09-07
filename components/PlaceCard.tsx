@@ -4,7 +4,7 @@ import { Clock3, MapPin, MessageSquarePlus } from "lucide-react";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
-import { formatDistance, formatOpeningStatus, type Coordinates } from "@/lib/location";
+import { formatDistance, formatOpeningStatus, hasCoordinates, type Coordinates } from "@/lib/location";
 import { getChinaDiscoveryTags, getChinaRecommendationLabel } from "@/lib/place-china/discovery";
 import { formatPriceRange } from "@/lib/place-store";
 import { defaultLocale, getLocalizedTag, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
@@ -26,10 +26,12 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const opening = formatOpeningStatus(place.opening_hours, locale);
   const chinaTags = locale === "zh" ? getChinaDiscoveryTags(place, locale, 4) : [];
   const correctionLabel = { zh: "补充商家信息", en: "Update info", ja: "店舗情報を報告", ko: "영업정보 제보" }[locale];
-  const coordinates: Coordinates | null =
-    typeof place.latitude === "number" && typeof place.longitude === "number"
-      ? { latitude: place.latitude, longitude: place.longitude }
-      : null;
+  const coordinates: Coordinates | null = hasCoordinates(place)
+    ? { latitude: place.latitude, longitude: place.longitude }
+    : null;
+  const walkingText = coordinates && place.walking_minutes > 0
+    ? `${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`
+    : null;
 
   return (
     <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -64,16 +66,18 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
               titleKo: place.name_ko,
               href: placeHref,
               imageUrl: place.thumbnail_url,
-              meta: `${categoryLabels[place.category][locale]} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
+              meta: [categoryLabels[place.category][locale], walkingText].filter(Boolean).join(" · "),
             }}
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
           <span className="font-semibold text-slate-900">{copy.common.perPerson} {formatPriceRange(place, locale)}</span>
-          <span className="inline-flex items-center gap-1">
-            <Clock3 size={14} aria-hidden="true" />
-            {copy.common.walk} {place.walking_minutes}{copy.common.minutes}
-          </span>
+          {walkingText ? (
+            <span className="inline-flex items-center gap-1">
+              <Clock3 size={14} aria-hidden="true" />
+              {walkingText}
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-1">
             <MapPin size={14} aria-hidden="true" />
             {place.nearest_station}

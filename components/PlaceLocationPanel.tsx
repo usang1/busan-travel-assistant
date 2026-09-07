@@ -9,6 +9,7 @@ import {
   estimateWalkingMinutes,
   formatDistance,
   formatOpeningStatus,
+  hasCoordinates,
   type Coordinates,
 } from "@/lib/location";
 import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
@@ -25,15 +26,19 @@ export function PlaceLocationPanel({ place, locale = defaultLocale }: PlaceLocat
   const content = getPlaceContent(place, locale);
   const copy = ui[locale];
 
-  const hasCoordinate = typeof place.latitude === "number" && typeof place.longitude === "number";
-  const placeCoordinate = hasCoordinate
+  const placeCoordinate = hasCoordinates(place)
     ? {
-        latitude: place.latitude as number,
-        longitude: place.longitude as number,
+        latitude: place.latitude,
+        longitude: place.longitude,
       }
     : null;
   const distance = userLocation && placeCoordinate ? calculateDistanceMeters(userLocation, placeCoordinate) : null;
   const walkingMinutes = estimateWalkingMinutes(distance);
+  const walkingValue = walkingMinutes !== null
+    ? `${walkingMinutes}${copy.common.minutes}`
+    : placeCoordinate && place.walking_minutes > 0
+      ? `${place.walking_minutes}${copy.common.minutes}`
+      : copy.common.noInfo;
   const opening = formatOpeningStatus(place.opening_hours, locale);
 
   function requestLocation() {
@@ -81,7 +86,7 @@ export function PlaceLocationPanel({ place, locale = defaultLocale }: PlaceLocat
         <div className="rounded-2xl bg-slate-50 p-3">
           <MapPin size={17} className="text-teal-700" aria-hidden="true" />
           <p className="mt-2 text-xs text-slate-500">{copy.placeDetail.walkingApprox}</p>
-          <p className="text-lg font-black text-slate-950">{walkingMinutes === null ? `${place.walking_minutes}${copy.common.minutes}` : `${walkingMinutes}${copy.common.minutes}`}</p>
+          <p className="text-lg font-black text-slate-950">{walkingValue}</p>
         </div>
       </div>
 

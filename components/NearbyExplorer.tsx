@@ -281,7 +281,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
         },
         href: withLocale(`/places/${place.slug}`, locale),
         imageUrl: place.thumbnail_url,
-        meta: `${formatDistance(distance)} · ${copy.placeDetail.walkingApprox} ${walkingMinutes ?? place.walking_minutes}${copy.common.minutes}`,
+        meta: `${formatDistance(distance)} · ${walkingMinutes === null ? copy.common.noInfo : `${copy.placeDetail.walkingApprox} ${walkingMinutes}${copy.common.minutes}`}`,
         description: content.description,
         detailLabel: localizedCopy.detail,
         saveCount: place.save_count ?? 0,
@@ -846,6 +846,7 @@ function PlaceListCard({
   const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
   const chinaTags = getChinaDiscoveryTags(place, locale, 4);
   const recommendation = getChinaRecommendationLabel(place);
+  const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
 
   return (
     <article
@@ -864,7 +865,7 @@ function PlaceListCard({
           <span className="mt-3 flex flex-wrap gap-1.5">
             <TagChip tone={openingStatus === "unknown" ? "blue" : opening.tone}>{opening.text}</TagChip>
             <TagChip tone="blue">
-              {formatDistance(distance)} · {walkingMinutes ?? place.walking_minutes}{copy.common.minutes}
+              {formatDistance(distance)} · {walkingLabel}
             </TagChip>
             {locale === "zh" ? <TagChip tone="amber">推荐度 {recommendation}</TagChip> : null}
           </span>
@@ -924,6 +925,7 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
   const localizedCopy = nearbyCopy[locale];
   const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
   const chinaTags = getChinaDiscoveryTags(place, locale, 4);
+  const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
 
   return (
     <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
@@ -935,8 +937,7 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
           <p className="truncate text-base font-black text-slate-950">{content.name}</p>
           {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
           <p className="mt-2 text-xs font-bold text-teal-700">
-            {categoryLabels[place.category][locale]} · {formatDistance(distance)} · {walkingMinutes ?? place.walking_minutes}
-            {copy.common.minutes}
+            {categoryLabels[place.category][locale]} · {formatDistance(distance)} · {walkingLabel}
           </p>
           {locale === "zh" ? (
             <p className="mt-1 text-xs font-bold text-slate-500">

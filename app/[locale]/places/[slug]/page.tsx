@@ -31,7 +31,7 @@ import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
-import { formatOpeningStatus } from "@/lib/location";
+import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   buildLocalizedMetadata,
@@ -140,6 +140,13 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     ko: "여기에서 가장 인기 있는 메뉴를 추천해주실 수 있나요?",
   }[locale];
   const websiteHref = safeExternalUrl(place.website);
+  const placeHasCoordinates = hasCoordinates(place);
+  const walkingText = placeHasCoordinates && place.walking_minutes > 0
+    ? `${place.walking_minutes}${copy.common.minutes}`
+    : copy.common.notRegistered;
+  const directionsText = placeHasCoordinates && place.walking_minutes > 0
+    ? `${[place.nearest_station, place.nearest_exit].filter(Boolean).join(" ")} · ${copy.common.walk} ${walkingText}`
+    : copy.common.notRegistered;
   const factLabels = {
     zh: { address: "地址", phone: "电话", website: "网站" },
     en: { address: "Address", phone: "Phone", website: "Website" },
@@ -159,7 +166,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           url: localizedCanonical(`/places/${place.slug}`, locale),
           address: content.address,
           geo:
-            place.latitude && place.longitude
+            placeHasCoordinates
               ? {
                   "@type": "GeoCoordinates",
                   latitude: place.latitude,
@@ -219,7 +226,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
                 titleKo: place.name_ko,
                 href: placeHref,
                 imageUrl: place.thumbnail_url,
-                meta: `${categoryLabels[place.category][locale]} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
+                meta: [categoryLabels[place.category][locale], placeHasCoordinates ? `${copy.common.walk} ${walkingText}` : ""].filter(Boolean).join(" · "),
               }}
             />
           </div>
@@ -235,7 +242,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <InfoTile icon={WalletCards} label={copy.placeDetail.payment} value={priceText} />
-            <InfoTile icon={Clock3} label={copy.common.walk} value={`${place.walking_minutes}${copy.common.minutes}`} />
+            <InfoTile icon={Clock3} label={copy.common.walk} value={walkingText} />
             <InfoTile icon={Route} label={localizedHoursLabel} value={place.opening_hours ? opening.text : copy.common.notRegistered} />
           </div>
 
@@ -324,7 +331,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         <InfoPanel
           icon={MapPin}
           title={copy.placeDetail.directions}
-          body={`${place.nearest_station} ${place.nearest_exit} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`}
+          body={directionsText}
         />
       </section>
 
@@ -338,7 +345,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
       <section className="mt-6 grid grid-cols-2 gap-3">
         <InfoTile icon={CreditCard} label={copy.placeDetail.payment} value={place.card_payment ? facilityTags[3]?.[locale] ?? "OK" : copy.common.noInfo} />
-        <InfoTile icon={MapPin} label={copy.placeDetail.coordinates} value={place.latitude && place.longitude ? `${place.latitude}, ${place.longitude}` : copy.common.notRegistered} />
+        <InfoTile icon={MapPin} label={copy.placeDetail.coordinates} value={placeHasCoordinates ? `${place.latitude}, ${place.longitude}` : copy.common.notRegistered} />
       </section>
 
       <section className="mt-6 rounded-[24px] bg-amber-50 p-4 text-sm leading-6 text-amber-900">

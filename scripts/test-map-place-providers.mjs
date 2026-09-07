@@ -185,8 +185,17 @@ const duplicates = loadTsModule("lib/place-duplicates.ts", {
   "@/lib/location": location,
   "@/lib/place-providers/normalize": normalize,
 });
+const publishing = loadTsModule("lib/place-publishing.ts", {
+  "@/types/database": databaseRuntime,
+});
+const quality = loadTsModule("lib/place-quality.ts", {
+  "@/lib/location": location,
+  "@/types/database": databaseRuntime,
+});
 const validation = loadTsModule("lib/place-validation.ts", {
   "@/lib/place-providers/normalize": normalize,
+  "@/lib/place-quality": quality,
+  "@/lib/place-publishing": publishing,
   "@/types/database": databaseRuntime,
 });
 class FakeOpenAI {}
@@ -933,10 +942,10 @@ const validPayload = {
   price_max: null,
 };
 assert.doesNotThrow(() => validation.validatePlacePayloadForSave(validPayload));
-assert.throws(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: null }), /좌표가 없어/);
-assert.throws(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: Number.NaN }), /좌표가 없어/);
-assert.throws(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: 0, longitude: 0 }), /좌표가 없어/);
-assert.throws(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: 95 }), /좌표가 없어/);
+assert.doesNotThrow(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: null, longitude: null }));
+assert.throws(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: Number.NaN }), /정상 범위/);
+assert.throws(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: 0, longitude: 0 }), /정상 범위/);
+assert.throws(() => validation.validatePlacePayloadForSave({ ...validPayload, latitude: 95 }), /정상 범위/);
 
 const duplicatePayload = {
   ...validPayload,

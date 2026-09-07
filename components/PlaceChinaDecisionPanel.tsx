@@ -14,6 +14,7 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
+import { hasCoordinates } from "@/lib/location";
 import {
   buildChinaPlaceSummary,
   minimumOrderLabel,
@@ -50,7 +51,11 @@ export function PlaceChinaDecisionPanel({ place, openingText, priceText }: Place
   const chinaSummary = buildChinaPlaceSummary(info);
   const recommendation = chinaSummary.ratings.find((rating) => rating.key === "chinese_taste_score");
   const tasteRatings = chinaSummary.ratings.filter((rating) => rating.key !== "chinese_taste_score");
-  const walkMinutes = info?.subway_walk_minutes ?? place.walking_minutes;
+  const walkMinutes = info?.subway_walk_minutes && info.subway_walk_minutes > 0
+    ? info.subway_walk_minutes
+    : hasCoordinates(place) && place.walking_minutes > 0
+      ? place.walking_minutes
+      : null;
   const minimumOrder = minimumOrderLabel(info?.minimum_order_policy, info?.minimum_order_note);
   const supplementalUnknownFacts = chinaSummary.unknownFacts.filter((fact) => !isCoreUnknownFact(fact));
 
@@ -77,7 +82,7 @@ export function PlaceChinaDecisionPanel({ place, openingText, priceText }: Place
           <TopMetric icon={MapPin} label="最近地铁" value={`${place.nearest_station} ${place.nearest_exit}`} />
           <TopMetric icon={Star} label="收藏" value={`${place.save_count ?? 0}`} />
         </div>
-        <p className="mt-3 text-sm font-semibold text-slate-300">从地铁站步行约 {walkMinutes} 分钟</p>
+        {walkMinutes ? <p className="mt-3 text-sm font-semibold text-slate-300">从地铁站步行约 {walkMinutes} 分钟</p> : null}
       </div>
 
       <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200">

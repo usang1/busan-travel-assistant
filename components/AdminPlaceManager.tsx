@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronDown, Eye, EyeOff, Languages, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Eye, EyeOff, Languages, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { EmptyState } from "@/components/EmptyState";
@@ -21,7 +21,8 @@ import {
 } from "@/lib/place-china/format";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
-import { isPublicPlace, nextPlacePublicationIsActive } from "@/lib/place-publishing";
+import { evaluatePlaceQuality, type PlaceQualityResult } from "@/lib/place-quality";
+import { isPublicPlace, nextPlacePublicationStatus, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
@@ -32,6 +33,7 @@ import { createEmptyTravelerInsights, normalizeTravelerInsights, travelerInsight
 import {
   categoryLabels,
   placeCategories,
+  placeWorkflowStatuses,
   type ChinaMinimumOrderPolicy,
   type ChinaWaitingLevel,
   type PlaceCategory,
@@ -39,6 +41,7 @@ import {
   type PlaceFactTristate,
   type PlacePayload,
   type PlaceSourceProvider,
+  type PlaceWorkflowStatus,
   type PlaceWithRelations,
 } from "@/types/database";
 import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
@@ -105,6 +108,9 @@ type FormState = {
   provider_amenities: string;
   source_metadata: Record<string, unknown> | null;
   source_fetched_at: string;
+  status: PlaceWorkflowStatus;
+  closed_days: string;
+  last_verified_at: string;
   is_featured: boolean;
   is_active: boolean;
   tags_text: string;
@@ -132,6 +138,7 @@ type TriStateConfig = {
   key: keyof Pick<
     ChinaInfoForm,
     | "chinese_menu"
+    | "chinese_service"
     | "foreign_card"
     | "alipay"
     | "wechat_pay"
@@ -147,8 +154,9 @@ type TriStateConfig = {
   help: string;
 };
 
+type QualityFilter = "all" | "missing" | "review" | "stale";
+
 const localStorageKey = "busan-travel-assistant-admin-places";
-const defaultImage = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
 const scoreOptions = [1, 2, 3, 4, 5] as const;
 
 const ratingControls: RatingConfig[] = [
@@ -162,6 +170,7 @@ const ratingControls: RatingConfig[] = [
 
 const convenienceControls: TriStateConfig[] = [
   { key: "chinese_menu", label: "중국어 메뉴", help: "메뉴판이나 키오스크에 중국어 지원이 있는지" },
+  { key: "chinese_service", label: "중국어 응대", help: "직원 응대나 전화/채팅에서 중국어 지원이 있는지" },
   { key: "foreign_card", label: "해외카드", help: "중국/해외 발급 카드 결제 가능 여부" },
   { key: "alipay", label: "Alipay", help: "支付宝 결제 가능 여부" },
   { key: "wechat_pay", label: "WeChat Pay", help: "微信支付 가능 여부" },
@@ -202,6 +211,20 @@ const mapProviderLabels: Record<PlaceSourceProvider, string> = {
   MANUAL: "수동 입력",
 };
 
+const workflowStatusLabels: Record<PlaceWorkflowStatus, string> = {
+  DRAFT: "초안",
+  REVIEW: "검수 대기",
+  PUBLISHED: "공개",
+  ARCHIVED: "보관",
+};
+
+const qualityFilterOptions: Array<{ value: QualityFilter; label: string }> = [
+  { value: "all", label: "전체" },
+  { value: "missing", label: "누락 있음" },
+  { value: "review", label: "검수 대기" },
+  { value: "stale", label: "오래됨" },
+];
+
 function createEmptyChinaInfo(): ChinaInfoForm {
   return {
     chinese_taste_score: null,
@@ -214,6 +237,7 @@ function createEmptyChinaInfo(): ChinaInfoForm {
     waiting_minutes_min: "",
     waiting_minutes_max: "",
     chinese_menu: "unknown",
+    chinese_service: "unknown",
     foreign_card: "unknown",
     alipay: "unknown",
     wechat_pay: "unknown",
@@ -281,8 +305,11 @@ function createEmptyForm(): FormState {
     provider_amenities: "",
     source_metadata: null,
     source_fetched_at: "",
+    status: "DRAFT",
+    closed_days: "",
+    last_verified_at: "",
     is_featured: false,
-    is_active: true,
+    is_active: false,
     tags_text: "",
     menu_items: [],
     china_info: createEmptyChinaInfo(),
@@ -354,8 +381,11 @@ function toForm(place: PlaceWithRelations): FormState {
     provider_amenities: formatProviderAmenities(sourceMetadata?.amenities),
     source_metadata: sourceMetadata,
     source_fetched_at: source?.last_synced_at ?? "",
+    status: normalizePlaceStatusForWrite(place),
+    closed_days: place.closed_days ?? "",
+    last_verified_at: place.last_verified_at?.slice(0, 10) ?? "",
     is_featured: place.is_featured,
-    is_active: place.is_active,
+    is_active: isPublicPlace(place),
     tags_text: place.tags.map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
     menu_items: place.menu_items.map((item) => ({
       name_ko: item.name_ko,
@@ -491,14 +521,14 @@ function toPayload(form: FormState): PlacePayload {
 
   return {
     slug: form.slug || slugify(form.name_ko || form.name_zh),
-    name_zh: form.name_zh || form.name_ko,
-    name_ko: form.name_ko || form.name_zh,
+    name_zh: form.name_zh.trim(),
+    name_ko: form.name_ko.trim(),
     category: form.category as PlaceCategory,
     address: form.address_ko,
     phone: form.phone.trim() || null,
     website: form.website.trim() || null,
     price_level: nullableNumber(form.price_level),
-    status: form.is_active ? "ACTIVE" : "DRAFT",
+    status: form.status,
     short_description_zh: form.short_description_zh,
     short_description_ko: form.short_description_ko,
     admin_summary: form.admin_summary,
@@ -506,6 +536,8 @@ function toPayload(form: FormState): PlacePayload {
     address_zh: form.address_zh,
     latitude: normalizeLatitude(form.latitude),
     longitude: normalizeLongitude(form.longitude),
+    closed_days: form.closed_days.trim(),
+    last_verified_at: form.last_verified_at || null,
     nearest_station: form.nearest_station,
     nearest_exit: form.nearest_exit,
     walking_minutes: Number(form.walking_minutes) || 0,
@@ -522,9 +554,9 @@ function toPayload(form: FormState): PlacePayload {
     recommended_order_ko: form.recommended_order_ko,
     tips_zh: form.tips_zh,
     tips_ko: form.tips_ko,
-    thumbnail_url: form.thumbnail_url || defaultImage,
+    thumbnail_url: form.thumbnail_url.trim(),
     is_featured: form.is_featured,
-    is_active: form.is_active,
+    is_active: form.status === publishedPlaceStatus,
     tags,
     menu_items: form.menu_items
       .filter((item) => item.name_ko.trim() || item.name_zh.trim())
@@ -539,14 +571,14 @@ function toPayload(form: FormState): PlacePayload {
     translations: [
       {
         locale: "zh",
-        name: form.name_zh || form.name_ko,
+        name: form.name_zh.trim(),
         description: form.short_description_zh,
         travel_tip: form.tips_zh,
         address: form.address_zh,
       },
       {
         locale: "ko",
-        name: form.name_ko || form.name_zh,
+        name: form.name_ko.trim(),
         description: form.short_description_ko,
         travel_tip: form.tips_ko,
         address: form.address_ko,
@@ -908,7 +940,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [lastAiFingerprint, setLastAiFingerprint] = useState("");
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
+  const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info)), [form.china_info]);
+  const formQuality = useMemo(() => evaluatePlaceQuality(toPayload(form)), [form]);
   const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
   const aiCurrentContent = useMemo(
     () => ({
@@ -928,18 +962,25 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const featuredCount = useMemo(() => places.filter((place) => place.is_featured).length, [places]);
   const visiblePlaces = useMemo(() => {
     const lowered = query.trim().toLowerCase();
+    const qualityFiltered = places.filter((place) => {
+      const quality = evaluatePlaceQuality(place);
+      if (qualityFilter === "missing") return quality.missingRequired.length > 0;
+      if (qualityFilter === "review") return place.status === "REVIEW";
+      if (qualityFilter === "stale") return quality.isStale;
+      return true;
+    });
 
     if (!lowered) {
-      return places;
+      return qualityFiltered;
     }
 
-    return places.filter((place) =>
+    return qualityFiltered.filter((place) =>
       [place.name_ko, place.name_zh, place.slug, place.address_ko, place.address_zh, place.nearest_station]
         .join(" ")
         .toLowerCase()
         .includes(lowered),
     );
-  }, [places, query]);
+  }, [places, qualityFilter, query]);
 
   function adminHeaders() {
     return {
@@ -997,7 +1038,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   function updateField<Key extends keyof FormState>(key: Key, value: FormState[Key]) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key === "status") {
+        const nextStatus = value as PlaceWorkflowStatus;
+        return { ...current, status: nextStatus, is_active: nextStatus === publishedPlaceStatus };
+      }
+
+      if (key === "is_active") {
+        const isActive = Boolean(value);
+        return { ...current, is_active: isActive, status: isActive ? publishedPlaceStatus : "DRAFT" };
+      }
+
+      return { ...current, [key]: value };
+    });
   }
 
   function updateSourceUrl(value: string) {
@@ -1590,8 +1643,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   async function togglePlace(place: PlaceWithRelations, key: "is_active" | "is_featured") {
-    const nextValue = key === "is_active" ? nextPlacePublicationIsActive(place) : !place[key];
-    await savePlace({ ...toForm(place), [key]: nextValue });
+    if (key === "is_active") {
+      await savePlace({ ...toForm(place), status: nextPlacePublicationStatus(place), is_active: !isPublicPlace(place) });
+      return;
+    }
+
+    await savePlace({ ...toForm(place), is_featured: !place.is_featured });
   }
 
   function addMenu() {
@@ -1651,9 +1708,29 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           placeholder="장소 검색"
           className="h-11 w-full rounded-2xl bg-white px-3 text-sm outline-none ring-1 ring-slate-200"
         />
+        <div className="grid grid-cols-2 gap-2">
+          {qualityFilterOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setQualityFilter(option.value)}
+              className={[
+                "min-h-10 rounded-2xl px-3 text-xs font-black ring-1 transition",
+                qualityFilter === option.value
+                  ? "bg-slate-950 text-white ring-slate-950"
+                  : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <div className="rounded-[24px] bg-white p-2 shadow-sm ring-1 ring-slate-200">
           {visiblePlaces.length > 0 ? (
-            visiblePlaces.map((place) => (
+            visiblePlaces.map((place) => {
+              const quality = evaluatePlaceQuality(place);
+              const workflowStatus = normalizePlaceStatusForWrite(place);
+              return (
               <div key={place.id} className="rounded-[20px] p-3 transition hover:bg-slate-50">
                 <button type="button" onClick={() => {
                   setForm(toForm(place));
@@ -1673,11 +1750,21 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                         {categoryLabels[place.category].ko}
                       </span>
                       <span className={["rounded-full px-2 py-1 text-[11px] font-black", isPublicPlace(place) ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-800"].join(" ")}>
-                        {isPublicPlace(place) ? "공개" : place.status === "DRAFT" ? "비공개 초안" : "비공개"}
+                        {workflowStatusLabels[workflowStatus]}
+                      </span>
+                      <span className={["rounded-full px-2 py-1 text-[11px] font-black", quality.canPublish ? "bg-teal-50 text-teal-700" : "bg-rose-50 text-rose-700"].join(" ")}>
+                        완성도 {quality.score}%
                       </span>
                     </div>
                   </div>
                 </button>
+                {quality.missingRequired.length ? (
+                  <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-rose-700">
+                    공개 불가: {quality.missingRequired.map((item) => item.label).join(", ")}
+                  </p>
+                ) : quality.isStale ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">마지막 확인일이 오래되었습니다.</p>
+                ) : null}
                 <div className="mt-3 flex gap-2">
                   <IconButton label="수정" onClick={() => {
                     setForm(toForm(place));
@@ -1687,12 +1774,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                     setAdminSummaryErrorMessage("");
                     setProviderLookupNotice("");
                   }} icon={Pencil} />
-                  <PublicationButton published={isPublicPlace(place)} onClick={() => void togglePlace(place, "is_active")} />
+                  <PublicationButton published={isPublicPlace(place)} canPublish={quality.canPublish} blockReason={formatQualityBlockText(quality)} onClick={() => void togglePlace(place, "is_active")} />
                   <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
                   <IconButton label="비공개" onClick={() => void deleteSelected(place)} icon={Trash2} danger />
                 </div>
               </div>
-            ))
+              );
+            })
           ) : (
             <EmptyState title="등록된 장소 없음" description="새 장소를 추가해 주세요." />
           )}
@@ -1789,7 +1877,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </select>
                 </Field>
               ) : null}
-              <CheckField label={form.is_active ? "공개" : "비공개"} checked={form.is_active} onChange={(checked) => updateField("is_active", checked)} />
+              <Field label="상태">
+                <select value={form.status} onChange={(event) => updateField("status", event.target.value as PlaceWorkflowStatus)} className={inputClass}>
+                  {placeWorkflowStatuses.map((workflowStatus) => (
+                    <option key={workflowStatus} value={workflowStatus}>{workflowStatusLabels[workflowStatus]}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="마지막 확인일">
+                <input type="date" value={form.last_verified_at} onChange={(event) => updateField("last_verified_at", event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="휴무일">
+                <input value={form.closed_days} onChange={(event) => updateField("closed_days", event.target.value)} className={inputClass} placeholder="예: 매주 월요일 / 확인 필요" />
+              </Field>
               <div className="sm:col-span-2">
                 <Field label="AI 장소 요약">
                   <textarea value={form.admin_summary} onChange={(event) => updateField("admin_summary", event.target.value)} className={textareaClass} />
@@ -1809,6 +1909,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               </div>
             </div>
           </section>
+
+          <PlaceQualityPanel result={formQuality} />
+          <MobilePlacePreview form={form} quality={formQuality} />
 
           <AdminReviewSummary form={form} locale={previewLocale} providerLookupNotice={providerLookupNotice} onLocaleChange={setPreviewLocale} />
 
@@ -1925,6 +2028,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="URL 주소명">
                 <input value={form.slug} onChange={(event) => updateField("slug", slugify(event.target.value))} className={inputClass} />
               </Field>
+              <Field label="상태">
+                <select value={form.status} onChange={(event) => updateField("status", event.target.value as PlaceWorkflowStatus)} className={inputClass}>
+                  {placeWorkflowStatuses.map((workflowStatus) => (
+                    <option key={workflowStatus} value={workflowStatus}>{workflowStatusLabels[workflowStatus]}</option>
+                  ))}
+                </select>
+              </Field>
               <Field label="카테고리">
                 <select value={form.category} onChange={(event) => updateField("category", event.target.value as PlaceCategory)} className={inputClass}>
                   <option value="">선택 필요</option>
@@ -2037,6 +2147,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="운영시간">
                 <input value={form.opening_hours} onChange={(event) => updateField("opening_hours", event.target.value)} className={inputClass} />
               </Field>
+              <Field label="휴무일">
+                <input value={form.closed_days} onChange={(event) => updateField("closed_days", event.target.value)} className={inputClass} />
+              </Field>
+              <Field label="마지막 확인일">
+                <input type="date" value={form.last_verified_at} onChange={(event) => updateField("last_verified_at", event.target.value)} className={inputClass} />
+              </Field>
               <Field label="대표 이미지 URL">
                 <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} />
               </Field>
@@ -2050,7 +2166,6 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <input value={form.provider_amenities} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} />
               </Field>
               <CheckField label="추천 장소" checked={form.is_featured} onChange={(checked) => updateField("is_featured", checked)} />
-              <CheckField label="즉시 공개" checked={form.is_active} onChange={(checked) => updateField("is_active", checked)} />
             </FormSection>
 
             <FormSection title="2. 중국인 입맛 평가">
@@ -2262,6 +2377,96 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
   );
 }
 
+function formatQualityBlockText(result: PlaceQualityResult) {
+  return result.missingRequired.map((item) => `${item.label}: ${item.reason}`).join("\n");
+}
+
+function PlaceQualityPanel({ result }: { result: PlaceQualityResult }) {
+  return (
+    <section className="border-b border-slate-200 pb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-black text-slate-950">3. 공개 품질 점검</h3>
+          <p className="mt-1 text-sm text-slate-500">필수 항목을 모두 채워야 PUBLISHED 상태로 저장할 수 있습니다.</p>
+        </div>
+        <div className={["rounded-2xl px-4 py-3 text-center ring-1", result.canPublish ? "bg-teal-50 text-teal-800 ring-teal-100" : "bg-rose-50 text-rose-800 ring-rose-100"].join(" ")}>
+          <p className="text-xs font-bold">완성도</p>
+          <p className="text-xl font-black">{result.score}%</p>
+        </div>
+      </div>
+      {!result.canPublish ? (
+        <div className="mt-4 rounded-2xl bg-rose-50 p-4 text-sm font-semibold leading-6 text-rose-800 ring-1 ring-rose-100">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <p>공개 불가능: {result.missingRequired.map((item) => item.label).join(", ")}</p>
+          </div>
+        </div>
+      ) : null}
+      {result.isStale ? (
+        <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 ring-1 ring-amber-100">
+          마지막 확인일이 없거나 180일을 넘었습니다.
+        </p>
+      ) : null}
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <QualityChecklist title="필수 공개 항목" items={result.required} />
+        <QualityChecklist title="선택 품질 항목" items={result.optional} />
+      </div>
+    </section>
+  );
+}
+
+function QualityChecklist({ title, items }: { title: string; items: PlaceQualityResult["required"] }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-sm font-black text-slate-900">{title}</p>
+      <div className="mt-3 grid gap-2">
+        {items.map((item) => (
+          <div key={item.key} className="flex items-start gap-2 text-sm">
+            {item.ok ? <Check size={16} className="mt-0.5 shrink-0 text-teal-700" aria-hidden="true" /> : <X size={16} className="mt-0.5 shrink-0 text-rose-600" aria-hidden="true" />}
+            <div>
+              <p className={item.ok ? "font-bold text-slate-800" : "font-bold text-rose-800"}>{item.label}</p>
+              {!item.ok ? <p className="mt-0.5 text-xs leading-5 text-slate-500">{item.reason}</p> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MobilePlacePreview({ form, quality }: { form: FormState; quality: PlaceQualityResult }) {
+  return (
+    <section className="border-b border-slate-200 pb-6">
+      <h3 className="text-base font-black text-slate-950">4. 공개 전 모바일 카드 미리보기</h3>
+      <div className="mt-4 max-w-[360px] overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200">
+        <div
+          className="flex aspect-[16/10] items-center justify-center bg-slate-100 bg-cover bg-center text-sm font-bold text-slate-400"
+          style={form.thumbnail_url.trim() ? { backgroundImage: `url(${form.thumbnail_url.trim()})` } : undefined}
+        >
+          {form.thumbnail_url.trim() ? null : "대표사진 필요"}
+        </div>
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold text-slate-950">{form.name_zh.trim() || form.name_ko.trim() || "장소명 필요"}</p>
+              {form.name_ko.trim() ? <p className="mt-0.5 truncate text-sm text-slate-500">{form.name_ko}</p> : null}
+            </div>
+            <span className={["shrink-0 rounded-full px-2.5 py-1 text-xs font-black", quality.canPublish ? "bg-teal-50 text-teal-800" : "bg-rose-50 text-rose-800"].join(" ")}>
+              {quality.canPublish ? "공개 가능" : "공개 불가"}
+            </span>
+          </div>
+          <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{form.short_description_zh.trim() || form.short_description_ko.trim() || "대표 설명 필요"}</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-600">
+            <span>{form.category ? categoryLabels[form.category].ko : "카테고리 필요"}</span>
+            <span>{form.opening_hours.trim() || "영업시간 필요"}</span>
+            <span>{form.price_min || form.price_max || form.price_level ? "가격 입력됨" : "가격대 필요"}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AdminReviewSummary({
   form,
   locale,
@@ -2322,7 +2527,7 @@ function AdminReviewSummary({
 
   return (
     <section className="border-b border-slate-200 pb-6">
-      <h3 className="text-base font-black text-slate-950">3. 자동수집 / AI 결과 미리보기</h3>
+      <h3 className="text-base font-black text-slate-950">5. 자동수집 / AI 결과 미리보기</h3>
       <div className="mt-4 grid gap-5 lg:grid-cols-2">
         <div>
           <p className="text-sm font-black text-slate-800">자동 수집</p>
@@ -2635,22 +2840,34 @@ function IconButton({ label, onClick, icon: Icon, danger = false }: IconButtonPr
   );
 }
 
-function PublicationButton({ published, onClick }: { published: boolean; onClick: () => void }) {
+function PublicationButton({
+  published,
+  canPublish = true,
+  blockReason = "",
+  onClick,
+}: {
+  published: boolean;
+  canPublish?: boolean;
+  blockReason?: string;
+  onClick: () => void;
+}) {
   const Icon = published ? EyeOff : Eye;
+  const disabled = !published && !canPublish;
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={[
-        "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-black ring-1 transition active:scale-95",
+        "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-black ring-1 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60",
         published
           ? "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
           : "bg-teal-50 text-teal-800 ring-teal-200 hover:bg-teal-100",
       ].join(" ")}
-      title={published ? "사용자 화면에서 숨기기" : "사용자 화면에 공개하기"}
+      title={published ? "사용자 화면에서 숨기기" : disabled ? blockReason || "공개 필수 정보가 부족합니다." : "사용자 화면에 공개하기"}
     >
       <Icon size={15} aria-hidden="true" />
-      {published ? "비공개 전환" : "공개하기"}
+      {published ? "비공개 전환" : disabled ? "공개 불가" : "공개하기"}
     </button>
   );
 }
