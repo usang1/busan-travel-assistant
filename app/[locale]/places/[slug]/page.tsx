@@ -34,12 +34,11 @@ import { getRelatedPlaces } from "@/lib/place-recommendations";
 import { formatOpeningStatus } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
+  buildLocalizedMetadata,
   getPlaceContent,
   getLocalizedMenuItem,
   getLocalizedTag,
   isLocale,
-  localeAlternates,
-  localeMeta,
   localizedCanonical,
   type Locale,
   ui,
@@ -78,18 +77,17 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
   const copy = ui[locale];
 
   if (!place) {
-    return {
+    return buildLocalizedMetadata({
+      locale,
       title: copy.placeDetail.titleFallback,
       description: copy.places.description,
-      alternates: {
-        canonical: localizedCanonical(`/places/${slug}`, locale),
-        languages: localeAlternates(`/places/${slug}`),
-      },
-    };
+      path: `/places/${slug}`,
+      type: "article",
+    });
   }
 
   const content = getPlaceContent(place, locale);
-  const title = `${content.name} | ${content.secondaryName}`;
+  const title = content.secondaryName ? `${content.name} | ${content.secondaryName}` : content.name;
   const chinaSummary = buildChinaPlaceSummary(place.china_info);
   const zhFeatureText = chinaSummary.tags.slice(0, 3).join("、");
   const description =
@@ -97,23 +95,14 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
       ? `${content.name}: 釜山${categoryLabels[place.category].zh}，${zhFeatureText ? `${zhFeatureText}。` : ""}${chinaSummary.summary}`
       : `${content.name}: ${content.description}`;
 
-  return {
+  return buildLocalizedMetadata({
+    locale,
     title,
     description,
-    alternates: {
-      canonical: localizedCanonical(`/places/${slug}`, locale),
-      languages: localeAlternates(`/places/${slug}`),
-    },
-    openGraph: {
-      title,
-      description,
-      url: localizedCanonical(`/places/${slug}`, locale),
-      siteName: copy.siteName,
-      locale: localeMeta[locale].openGraphLocale,
-      type: "article",
-      images: place.thumbnail_url ? [{ url: place.thumbnail_url }] : undefined,
-    },
-  };
+    path: `/places/${slug}`,
+    type: "article",
+    images: place.thumbnail_url ? [{ url: place.thumbnail_url }] : undefined,
+  });
 }
 
 export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlaceDetailPageProps) {

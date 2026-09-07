@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TripPlanner } from "@/components/TripPlanner";
-import { isLocale, localeAlternates, localizedCanonical, type Locale, ui } from "@/lib/i18n";
+import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
 type LocalizedItineraryPageProps = {
   params: Promise<{
@@ -25,14 +25,12 @@ export async function generateMetadata({ params }: LocalizedItineraryPageProps):
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
+  return buildLocalizedMetadata({
+    locale,
     title: copy.nav.itinerary,
     description: copy.home.description,
-    alternates: {
-      canonical: localizedCanonical("/itinerary", locale),
-      languages: localeAlternates("/itinerary"),
-    },
-  };
+    path: "/itinerary",
+  });
 }
 
 export default async function LocalizedItineraryPage({ params }: LocalizedItineraryPageProps) {

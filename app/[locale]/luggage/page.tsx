@@ -5,12 +5,9 @@ import { LuggageExplorer } from "@/components/LuggageExplorer";
 import { SectionTitle } from "@/components/SectionTitle";
 import { getPlaces } from "@/lib/place-store";
 import {
+  buildLocalizedMetadata,
   isLocale,
-  localeAlternates,
-  localizedCanonical,
-  localeMeta,
   type Locale,
-  ui,
 } from "@/lib/i18n";
 
 type LocalizedLuggagePageProps = {
@@ -79,24 +76,14 @@ async function getLocale(params: LocalizedLuggagePageProps["params"]): Promise<L
 
 export async function generateMetadata({ params }: LocalizedLuggagePageProps): Promise<Metadata> {
   const locale = await getLocale(params);
-  const copy = ui[locale];
   const luggageCopy = luggageLabels[locale];
 
-  return {
-    title: `${luggageCopy.title} | ${copy.siteName}`,
+  return buildLocalizedMetadata({
+    locale,
+    title: luggageCopy.title,
     description: luggageCopy.description,
-    alternates: {
-      canonical: localizedCanonical("/luggage", locale),
-      languages: localeAlternates("/luggage"),
-    },
-    openGraph: {
-      title: luggageCopy.title,
-      description: luggageCopy.description,
-      url: localizedCanonical("/luggage", locale),
-      siteName: copy.siteName,
-      locale: localeMeta[locale].openGraphLocale,
-    },
-  };
+    path: "/luggage",
+  });
 }
 
 export default async function LocalizedLuggagePage({ params }: LocalizedLuggagePageProps) {

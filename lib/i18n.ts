@@ -73,17 +73,80 @@ export function withLocale(path: string, locale: Locale) {
   return `/${locale}${basePath}`;
 }
 
-export function localeAlternates(path: string): NonNullable<Metadata["alternates"]>["languages"] {
+export function localeAlternates(path: string): Record<string, string> {
   const basePath = withoutLocale(path);
-
-  return locales.reduce<Record<string, string>>((acc, locale) => {
+  const languages = locales.reduce<Record<string, string>>((acc, locale) => {
     acc[localeMeta[locale].languageTag] = absoluteUrl(withLocale(basePath, locale));
     return acc;
   }, {});
+
+  languages["x-default"] = absoluteUrl(withLocale(basePath, defaultLocale));
+
+  return languages;
 }
 
 export function localizedCanonical(path: string, locale: Locale) {
-  return absoluteUrl(withLocale(path, locale));
+  return absoluteUrl(withLocale(withoutLocale(path), locale));
+}
+
+export function localizedTitle(title: string, locale: Locale) {
+  const siteName = ui[locale].siteName;
+  return title.includes(siteName) ? title : `${title} | ${siteName}`;
+}
+
+type LocalizedMetadataOptions = {
+  title: string;
+  description: string;
+  path: string;
+  locale: Locale;
+  type?: "website" | "article";
+  noIndex?: boolean;
+  follow?: boolean;
+  images?: NonNullable<NonNullable<Metadata["openGraph"]>["images"]>;
+};
+
+export function buildLocalizedMetadata({
+  title,
+  description,
+  path,
+  locale,
+  type = "website",
+  noIndex = false,
+  follow = true,
+  images,
+}: LocalizedMetadataOptions): Metadata {
+  const url = localizedCanonical(path, locale);
+  const fullTitle = localizedTitle(title, locale);
+
+  return {
+    title: fullTitle,
+    description,
+    alternates: {
+      canonical: url,
+      languages: localeAlternates(path),
+    },
+    robots: noIndex ? { index: false, follow } : undefined,
+    openGraph: {
+      title: fullTitle,
+      description,
+      url,
+      siteName: ui[locale].siteName,
+      locale: localeMeta[locale].openGraphLocale,
+      type,
+      images,
+    },
+    twitter: {
+      card: "summary",
+      title: fullTitle,
+      description,
+      images,
+    },
+    appleWebApp: {
+      capable: true,
+      title: ui[locale].siteName,
+      statusBarStyle: "default",
+    },
+  };
 }
 
 export const categoryLabels = {

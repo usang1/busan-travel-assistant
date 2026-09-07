@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MyPageView } from "@/components/MyPageView";
-import { isLocale, localeAlternates, localizedCanonical, type Locale, ui } from "@/lib/i18n";
+import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
 type LocalizedMyPageProps = {
   params: Promise<{
@@ -25,15 +25,13 @@ export async function generateMetadata({ params }: LocalizedMyPageProps): Promis
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
+  return buildLocalizedMetadata({
+    locale,
     title: copy.mypage.title,
     description: copy.mypage.subtitle,
-    alternates: {
-      canonical: localizedCanonical("/mypage", locale),
-      languages: localeAlternates("/mypage"),
-    },
-    robots: { index: false, follow: true },
-  };
+    path: "/mypage",
+    noIndex: true,
+  });
 }
 
 export default async function LocalizedMyPage({ params }: LocalizedMyPageProps) {

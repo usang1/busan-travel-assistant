@@ -1521,7 +1521,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           : [localPlace, ...places];
         persistLocal(nextPlaces);
         setForm(toForm(localPlace));
-        setStatus(`Supabase 미설정 상태라 브라우저 demo 저장소에 저장했습니다. ${buildAdminPlaceVisibilityNotice(localPlace)}`);
+        setStatus(`서버 저장소 미설정 상태라 브라우저 임시 저장소에 저장했습니다. ${buildAdminPlaceVisibilityNotice(localPlace)}`);
         return;
       }
 
@@ -1704,7 +1704,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           <div>
             <h2 className="text-xl font-black text-slate-950">{form.id ? "장소 수정" : "장소 추가"}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              현재 데이터 소스: {source === "supabase" ? "Supabase" : "Demo fallback"}
+              현재 데이터 소스: {source === "supabase" ? "서버 저장소" : "임시 저장소"}
             </p>
           </div>
         </div>

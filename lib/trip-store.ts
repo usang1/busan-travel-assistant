@@ -18,7 +18,7 @@ export type TripInput = {
 };
 
 export async function getUserTrips(userId: string, client = getSupabaseClient()) {
-  if (!client) return { trips: [] as TripRecord[], error: "Supabase가 설정되지 않았습니다." };
+  if (!client) return { trips: [] as TripRecord[], error: "일정 저장 서비스를 사용할 수 없습니다." };
   const { data, error } = await client
     .from("trips")
     .select("*")
@@ -107,7 +107,7 @@ export async function getSavedPlacesForTrip(userId: string, client = getSupabase
 }
 
 export async function createTrip(userId: string, input: TripInput, client = getSupabaseClient()) {
-  if (!client) return { trip: null, error: "Supabase가 설정되지 않았습니다." };
+  if (!client) return { trip: null, error: "일정 저장 서비스를 사용할 수 없습니다." };
   const { data, error } = await client
     .from("trips")
     .insert({
@@ -124,7 +124,7 @@ export async function createTrip(userId: string, input: TripInput, client = getS
 }
 
 export async function updateTrip(tripId: string, input: TripInput, client = getSupabaseClient()) {
-  if (!client) return { trip: null, error: "Supabase가 설정되지 않았습니다." };
+  if (!client) return { trip: null, error: "일정 저장 서비스를 사용할 수 없습니다." };
   const { data, error } = await client
     .from("trips")
     .update({
@@ -140,13 +140,13 @@ export async function updateTrip(tripId: string, input: TripInput, client = getS
 }
 
 export async function deleteTrip(tripId: string, client = getSupabaseClient()) {
-  if (!client) return "Supabase가 설정되지 않았습니다.";
+  if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
   const { error } = await client.from("trips").delete().eq("id", tripId);
   return error?.message;
 }
 
 export async function addPlaceToTrip(tripId: string, placeId: string, dayNumber = 1, client = getSupabaseClient()) {
-  if (!client) return "Supabase가 설정되지 않았습니다.";
+  if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
   const { data: lastRows } = await client
     .from("trip_places")
     .select("sort_order")
@@ -169,7 +169,7 @@ export async function saveTripLayout(
   layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string }>,
   client = getSupabaseClient(),
 ) {
-  if (!client) return "Supabase가 설정되지 않았습니다.";
+  if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
   if (!layout.length) return undefined;
   const { error } = await client.from("trip_places").upsert(
     layout.map((item) => ({
@@ -189,19 +189,19 @@ export async function updateTripPlace(
   patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo">>,
   client = getSupabaseClient(),
 ) {
-  if (!client) return "Supabase가 설정되지 않았습니다.";
+  if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
   const { error } = await client.from("trip_places").update(patch).eq("id", id);
   return error?.message;
 }
 
 export async function removeTripPlace(id: string, client = getSupabaseClient()) {
-  if (!client) return "Supabase가 설정되지 않았습니다.";
+  if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
   const { error } = await client.from("trip_places").delete().eq("id", id);
   return error?.message;
 }
 
 export async function copySharedTrip(shareSlug: string, title: string, client = getSupabaseClient()) {
-  if (!client) return { tripId: null, error: "Supabase가 설정되지 않았습니다." };
+  if (!client) return { tripId: null, error: "일정 저장 서비스를 사용할 수 없습니다." };
   const { data, error } = await client.rpc("copy_shared_trip", {
     source_share_slug: shareSlug,
     requested_title: title.trim() || null,

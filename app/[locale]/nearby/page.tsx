@@ -3,9 +3,8 @@ import { notFound } from "next/navigation";
 import { NearbyExplorer } from "@/components/NearbyExplorer";
 import { getPlaces } from "@/lib/place-store";
 import {
+  buildLocalizedMetadata,
   isLocale,
-  localeAlternates,
-  localizedCanonical,
   type Locale,
   ui,
 } from "@/lib/i18n";
@@ -32,14 +31,12 @@ export async function generateMetadata({ params }: LocalizedNearbyPageProps): Pr
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
-    title: `${copy.nav.nearby} | ${copy.siteName}`,
+  return buildLocalizedMetadata({
+    locale,
+    title: copy.nav.nearby,
     description: copy.places.description,
-    alternates: {
-      canonical: localizedCanonical("/nearby", locale),
-      languages: localeAlternates("/nearby"),
-    },
-  };
+    path: "/nearby",
+  });
 }
 
 export default async function LocalizedNearbyPage({ params }: LocalizedNearbyPageProps) {

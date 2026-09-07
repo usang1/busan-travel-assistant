@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SavedItemsView } from "@/components/SavedItemsView";
 import { SectionTitle } from "@/components/SectionTitle";
-import { isLocale, localeAlternates, localizedCanonical, type Locale, ui } from "@/lib/i18n";
+import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
 type LocalizedSavedPageProps = {
   params: Promise<{
@@ -24,15 +24,13 @@ export async function generateMetadata({ params }: LocalizedSavedPageProps): Pro
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
+  return buildLocalizedMetadata({
+    locale,
     title: copy.mypage.savedPlaces,
     description: copy.mypage.savedEmptyDescription,
-    alternates: {
-      canonical: localizedCanonical("/saved", locale),
-      languages: localeAlternates("/saved"),
-    },
-    robots: { index: false, follow: true },
-  };
+    path: "/saved",
+    noIndex: true,
+  });
 }
 
 export default async function LocalizedSavedPage({ params }: LocalizedSavedPageProps) {

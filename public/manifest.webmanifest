@@ -1,9 +1,9 @@
 {
   "name": "韩国旅行助手",
-  "short_name": "Korea Trip",
+  "short_name": "韩国旅行",
   "description": "A mobile-first Korea travel assistant covering Busan, Seoul, and Jeju for Chinese independent travelers.",
-  "id": "/",
-  "start_url": "/",
+  "id": "/zh",
+  "start_url": "/zh",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f8fafc",

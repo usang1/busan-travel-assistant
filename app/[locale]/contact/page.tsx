@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PlaceSubmissionForm } from "@/components/PlaceSubmissionForm";
 import { siteConfig } from "@/config/site";
-import { isLocale, localeAlternates, localizedCanonical, type Locale, ui } from "@/lib/i18n";
+import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
 type LocalizedContactPageProps = {
   params: Promise<{
@@ -24,15 +24,12 @@ export async function generateMetadata({ params }: LocalizedContactPageProps): P
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
-    title: copy.submissions.title,
+  return buildLocalizedMetadata({
+    locale,
+    title: copy.footerLinks.contact,
     description: copy.submissions.description,
-    alternates: {
-      canonical: localizedCanonical("/contact", locale),
-      languages: localeAlternates("/contact"),
-    },
-    robots: { index: false, follow: true },
-  };
+    path: "/contact",
+  });
 }
 
 export default async function LocalizedContactPage({ params }: LocalizedContactPageProps) {

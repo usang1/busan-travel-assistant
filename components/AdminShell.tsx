@@ -107,7 +107,7 @@ export function AdminShell() {
 
   if (!session) {
     return (
-      <AdminState title="로그인이 필요합니다" description="관리자 영역은 Supabase Auth 로그인 후 접근할 수 있습니다.">
+      <AdminState title="로그인이 필요합니다" description="관리자 영역은 운영자 로그인 후 접근할 수 있습니다.">
         <Link href="/login?next=/admin" className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white">
           <LogIn size={17} aria-hidden="true" />
           로그인

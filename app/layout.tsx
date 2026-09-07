@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { AuthProvider } from "@/components/AuthProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -6,15 +7,12 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { ProEntitlementProvider } from "@/components/ProEntitlementProvider";
 import { absoluteUrl, siteConfig } from "@/config/site";
-import { localeAlternates } from "@/lib/i18n";
+import { defaultLocale, getLocaleFromPath, localeAlternates, localeMeta } from "@/lib/i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
-  title: {
-    default: `${siteConfig.name}｜${siteConfig.englishName}`,
-    template: `%s｜${siteConfig.name}`,
-  },
+  title: `${siteConfig.name} | ${siteConfig.englishName}`,
   description: siteConfig.description,
   manifest: "/manifest.webmanifest",
   alternates: {
@@ -39,17 +37,20 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   themeColor: "#0f766e",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const currentHeaders = await headers();
+  const currentPathname = currentHeaders.get("x-current-pathname") ?? "";
+  const locale = getLocaleFromPath(currentPathname) ?? defaultLocale;
+
   return (
-    <html lang="zh-CN">
+    <html lang={localeMeta[locale].languageTag}>
       <body>
         <AuthProvider>
           <ProEntitlementProvider>

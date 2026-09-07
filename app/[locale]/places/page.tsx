@@ -6,10 +6,8 @@ import { getPlaces } from "@/lib/place-store";
 import { getPlaceRankings } from "@/lib/place-recommendations";
 import { placeCategories, type PlaceCategory } from "@/types/database";
 import {
+  buildLocalizedMetadata,
   isLocale,
-  localeAlternates,
-  localeMeta,
-  localizedCanonical,
   type Locale,
   ui,
 } from "@/lib/i18n";
@@ -40,21 +38,12 @@ export async function generateMetadata({ params }: LocalizedPlacesPageProps): Pr
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
+  return buildLocalizedMetadata({
+    locale,
     title: copy.places.title,
     description: copy.places.description,
-    alternates: {
-      canonical: localizedCanonical("/places", locale),
-      languages: localeAlternates("/places"),
-    },
-    openGraph: {
-      title: copy.places.title,
-      description: copy.places.description,
-      url: localizedCanonical("/places", locale),
-      siteName: copy.siteName,
-      locale: localeMeta[locale].openGraphLocale,
-    },
-  };
+    path: "/places",
+  });
 }
 
 export default async function LocalizedPlacesPage({ params, searchParams }: LocalizedPlacesPageProps) {

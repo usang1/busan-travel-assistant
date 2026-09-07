@@ -539,7 +539,7 @@ async function syncTags(placeId: string, tags: PlacePayload["tags"], client?: Su
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Place storage is not configured.");
   }
 
   await resolvedClient.from("place_tags").delete().eq("place_id", placeId);
@@ -579,7 +579,7 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Place storage is not configured.");
   }
 
   await resolvedClient.from("place_menu_items").delete().eq("place_id", placeId);
@@ -609,7 +609,7 @@ async function syncTranslations(placeId: string, payload: PlacePayload, client?:
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Place storage is not configured.");
   }
 
   const translations = payload.translations?.length
@@ -781,7 +781,7 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Place storage is not configured.");
   }
 
   validatePlacePayloadForSave(payload);
@@ -820,7 +820,7 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Place storage is not configured.");
   }
 
   validatePlacePayloadForSave(payload);
@@ -857,7 +857,7 @@ export async function deletePlace(id: string) {
   const client = getSupabaseClient();
 
   if (!client) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Place storage is not configured.");
   }
 
   const { error } = await client.from("places").delete().eq("id", id);
@@ -871,7 +871,7 @@ export async function archivePlace(id: string, client?: SupabaseClient) {
   const resolvedClient = resolveClient(client);
 
   if (!resolvedClient) {
-    throw new Error("Supabase is not configured.");
+    throw new Error("Place storage is not configured.");
   }
 
   const { error } = await resolvedClient
@@ -886,6 +886,6 @@ export async function archivePlace(id: string, client?: SupabaseClient) {
 
 export async function requireSupabase() {
   if (!isSupabaseConfigured || !getSupabaseClient()) {
-    throw new Error("Supabase 환경 변수가 설정되지 않았습니다.");
+    throw new Error("장소 저장 서비스 설정이 완료되지 않았습니다.");
   }
 }

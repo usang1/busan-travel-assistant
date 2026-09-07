@@ -13,8 +13,8 @@ import { quickActions } from "@/data/places";
 import { getPlaces } from "@/lib/place-store";
 import { getPlaceRankings } from "@/lib/place-recommendations";
 import {
+  buildLocalizedMetadata,
   isLocale,
-  localeAlternates,
   localeMeta,
   localizedCanonical,
   type Locale,
@@ -44,22 +44,12 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
+  return buildLocalizedMetadata({
+    locale,
     title: copy.home.title,
     description: copy.home.description,
-    alternates: {
-      canonical: localizedCanonical("/", locale),
-      languages: localeAlternates("/"),
-    },
-    openGraph: {
-      title: copy.home.title,
-      description: copy.home.description,
-      url: localizedCanonical("/", locale),
-      siteName: copy.siteName,
-      locale: localeMeta[locale].openGraphLocale,
-      type: "website",
-    },
-  };
+    path: "/",
+  });
 }
 
 export default async function LocalizedHome({ params }: LocalePageProps) {

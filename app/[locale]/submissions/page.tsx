@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MySubmissionsView } from "@/components/MySubmissionsView";
 import { SectionTitle } from "@/components/SectionTitle";
-import { isLocale, localeAlternates, localizedCanonical, type Locale, ui } from "@/lib/i18n";
+import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
 type LocalizedSubmissionsPageProps = {
   params: Promise<{
@@ -24,15 +24,13 @@ export async function generateMetadata({ params }: LocalizedSubmissionsPageProps
   const locale = await getLocale(params);
   const copy = ui[locale];
 
-  return {
+  return buildLocalizedMetadata({
+    locale,
     title: copy.submissions.myTitle,
     description: copy.submissions.loginDescription,
-    alternates: {
-      canonical: localizedCanonical("/submissions", locale),
-      languages: localeAlternates("/submissions"),
-    },
-    robots: { index: false, follow: true },
-  };
+    path: "/submissions",
+    noIndex: true,
+  });
 }
 
 export default async function LocalizedSubmissionsPage({ params }: LocalizedSubmissionsPageProps) {

@@ -34,7 +34,7 @@ export function LegalPage({
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
       <section className="rounded-[28px] bg-slate-950 p-5 text-white shadow-xl shadow-teal-900/10">
         <h1 className="text-3xl font-black tracking-normal">{titleZh}</h1>
-        <p className="mt-2 text-sm text-slate-300">{titleKo}</p>
+        {titleKo ? <p className="mt-2 text-sm text-slate-300">{titleKo}</p> : null}
         <p className="mt-4 text-sm leading-6 text-slate-300">{description}</p>
       </section>
       <div className="mt-5 space-y-4">

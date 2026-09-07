@@ -19,7 +19,7 @@ function adminHttpError(message: string, status: number): PublicAdminError {
 
 export function createServerSupabaseClient(accessToken: string) {
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Supabase 환경 변수가 설정되지 않았습니다.");
+    throw new Error("관리자 인증 서비스 설정이 완료되지 않았습니다.");
   }
 
   return createClient(supabaseUrl, supabaseAnonKey, {

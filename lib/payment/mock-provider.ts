@@ -2,7 +2,7 @@ import { addDays, type PaymentProvider, type PaymentRequest, type PaymentResult 
 
 export class MockPaymentProvider implements PaymentProvider {
   id = "mock" as const;
-  label = "Mock Payment";
+  label = "Payment unavailable";
 
   async createPayment(request: PaymentRequest): Promise<PaymentResult> {
     await new Promise((resolve) => window.setTimeout(resolve, 600));
