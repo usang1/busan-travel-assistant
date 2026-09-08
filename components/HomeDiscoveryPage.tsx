@@ -19,6 +19,7 @@ import { PlaceCard } from "@/components/PlaceCard";
 import { SectionTitle } from "@/components/SectionTitle";
 import { getHomeQuickFilters, type HomeQuickFilterKey } from "@/lib/home-discovery";
 import { type Locale, ui, withLocale } from "@/lib/i18n";
+import { distanceFromGwangalli, isNearGwangalli } from "@/lib/place-display";
 import type { PlaceWithRelations } from "@/types/database";
 
 type HomeDiscoveryPageProps = {
@@ -42,6 +43,7 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
   const copy = ui[locale];
   const filters = getHomeQuickFilters(places);
   const recommended = [...places]
+    .filter(isNearGwangalli)
     .sort((a, b) => Number(b.is_featured) - Number(a.is_featured) || (b.save_count ?? 0) - (a.save_count ?? 0))
     .slice(0, 4);
 
@@ -107,7 +109,7 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
             />
             <div className="grid gap-4 sm:grid-cols-2">
               {recommended.map((place, index) => (
-                <PlaceCard key={place.id} place={place} priority={index === 0} locale={locale} />
+                <PlaceCard key={place.id} place={place} priority={index === 0} locale={locale} distanceMeters={distanceFromGwangalli(place)} />
               ))}
             </div>
           </div>

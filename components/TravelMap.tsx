@@ -144,11 +144,13 @@ const mapCopy: Record<Locale, {
   zoomOut: string;
   you: string;
   places: string;
+  sdkFallback: string;
+  noPlaces: string;
 }> = {
-  zh: { currentLocation: "使用当前位置", loading: "地图加载中", searchArea: "搜索此区域", zoomIn: "放大地图", zoomOut: "缩小地图", you: "我", places: "地点" },
-  en: { currentLocation: "Use current location", loading: "Loading map", searchArea: "Search this area", zoomIn: "Zoom in", zoomOut: "Zoom out", you: "You", places: "places" },
-  ja: { currentLocation: "現在地を使う", loading: "地図を読み込み中", searchArea: "このエリアを検索", zoomIn: "地図を拡大", zoomOut: "地図を縮小", you: "現在地", places: "スポット" },
-  ko: { currentLocation: "현재 위치 사용", loading: "지도 로딩 중", searchArea: "이 지역에서 검색", zoomIn: "지도 확대", zoomOut: "지도 축소", you: "내 위치", places: "장소" },
+  zh: { currentLocation: "使用当前位置", loading: "地图加载中", searchArea: "搜索此区域", zoomIn: "放大地图", zoomOut: "缩小地图", you: "我", places: "地点", sdkFallback: "地图 SDK 无法加载，已切换为简易地图。", noPlaces: "没有可显示的地图坐标。" },
+  en: { currentLocation: "Use current location", loading: "Loading map", searchArea: "Search this area", zoomIn: "Zoom in", zoomOut: "Zoom out", you: "You", places: "places", sdkFallback: "The map SDK could not load. Showing the simple map instead.", noPlaces: "No map coordinates are available." },
+  ja: { currentLocation: "現在地を使う", loading: "地図を読み込み中", searchArea: "このエリアを検索", zoomIn: "地図を拡大", zoomOut: "地図を縮小", you: "現在地", places: "スポット", sdkFallback: "地図 SDK を読み込めないため簡易地図を表示しています。", noPlaces: "表示できる地図座標がありません。" },
+  ko: { currentLocation: "현재 위치 사용", loading: "지도 로딩 중", searchArea: "이 지역에서 검색", zoomIn: "지도 확대", zoomOut: "지도 축소", you: "내 위치", places: "장소", sdkFallback: "지도 SDK를 불러오지 못해 간이 지도로 표시합니다.", noPlaces: "지도에 표시할 좌표가 없습니다." },
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -437,7 +439,7 @@ function NaverTravelMap({
   }, [currentLocationFocusRequest, maps, userLocation]);
 
   if (scriptStatus === "error") {
-    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} currentLocationFocusRequest={currentLocationFocusRequest} locationPending={locationPending} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onRequestCurrentLocation={onRequestCurrentLocation} onViewportSettled={onViewportSettled} />;
+    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} currentLocationFocusRequest={currentLocationFocusRequest} locationPending={locationPending} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onRequestCurrentLocation={onRequestCurrentLocation} onViewportSettled={onViewportSettled} fallbackReason={localizedCopy.sdkFallback} />;
   }
 
   return (
@@ -484,6 +486,12 @@ function NaverTravelMap({
           {localizedCopy.loading}
         </div>
       ) : null}
+
+      {scriptStatus === "ready" && markers.length === 0 ? (
+        <div className="absolute inset-x-4 bottom-4 z-30 rounded-2xl bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200">
+          {localizedCopy.noPlaces}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -503,7 +511,8 @@ function FallbackTravelMap({
   onSelectMarker,
   onRequestCurrentLocation,
   onViewportSettled,
-}: TravelMapProps) {
+  fallbackReason,
+}: TravelMapProps & { fallbackReason?: string }) {
   const [mapView, setMapView] = useState<MapView>({ zoom: defaultZoom, center: { x: 50, y: 50 } });
   const [isDragging, setIsDragging] = useState(false);
   const pointersRef = useRef(new Map<number, PointerSnapshot>());
@@ -845,6 +854,12 @@ function FallbackTravelMap({
         <div className="absolute left-3 top-3 z-30 rounded-2xl bg-white/95 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 backdrop-blur">
           {provider.label} · {markers.length}
         </div>
+
+        {fallbackReason || markers.length === 0 ? (
+          <div className="absolute inset-x-3 bottom-3 z-30 rounded-2xl bg-white/95 px-4 py-3 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200">
+            {fallbackReason || localizedCopy.noPlaces}
+          </div>
+        ) : null}
 
         {searchAreaVisible ? (
           <button

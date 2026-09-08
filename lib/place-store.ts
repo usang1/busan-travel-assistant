@@ -35,10 +35,10 @@ const legacyPlaceSelect: string = "*,place_tags(tags(*)),place_menu_items(*)";
 const publicStatusFilters = [...publicReadablePlaceStatuses];
 
 const priceLabels: Record<Locale, { free: string; unknown: string }> = {
-  zh: { free: "免费", unknown: "价格未登记" },
-  en: { free: "Free", unknown: "Price not listed" },
-  ja: { free: "無料", unknown: "価格未登録" },
-  ko: { free: "무료", unknown: "가격 미등록" },
+  zh: { free: "免费", unknown: "价格确认中" },
+  en: { free: "Free", unknown: "Price needs checking" },
+  ja: { free: "無料", unknown: "価格確認中" },
+  ko: { free: "무료", unknown: "가격 확인 필요" },
 };
 
 function normalizePlaceTranslations(row: SupabasePlaceRow): PlaceTranslationRecord[] {

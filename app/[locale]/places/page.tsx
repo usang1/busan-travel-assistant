@@ -60,7 +60,6 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
       <SectionTitle title={copy.places.heading} subtitle={source === "demo" ? copy.common.sampleData : copy.common.registeredPlaces} />
-      {error ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
       <div className="mt-4">
         <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={rankings} />
       </div>

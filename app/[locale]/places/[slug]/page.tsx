@@ -23,6 +23,7 @@ import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
 import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
+import { PlaceVisitTools } from "@/components/PlaceVisitTools";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
 import { SectionTitle } from "@/components/SectionTitle";
@@ -107,7 +108,7 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
 
 export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlaceDetailPageProps) {
   const { locale, slug } = await getRouteParams(params);
-  const { place, source, error } = await getCachedPlaceBySlug(slug);
+  const { place, error } = await getCachedPlaceBySlug(slug);
   const copy = ui[locale];
 
   if (!place) {
@@ -141,12 +142,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   }[locale];
   const websiteHref = safeExternalUrl(place.website);
   const placeHasCoordinates = hasCoordinates(place);
+  const coordinates = placeHasCoordinates ? { latitude: place.latitude, longitude: place.longitude } : null;
+  const hasPhoto = Boolean(place.thumbnail_url?.trim());
+  const photoMissing = { zh: "照片确认中", en: "Photo needs checking", ja: "写真確認中", ko: "사진 확인 필요" }[locale];
   const walkingText = placeHasCoordinates && place.walking_minutes > 0
     ? `${place.walking_minutes}${copy.common.minutes}`
-    : copy.common.notRegistered;
+    : copy.common.noInfo;
   const directionsText = placeHasCoordinates && place.walking_minutes > 0
     ? `${[place.nearest_station, place.nearest_exit].filter(Boolean).join(" ")} · ${copy.common.walk} ${walkingText}`
-    : copy.common.notRegistered;
+    : copy.common.noInfo;
   const factLabels = {
     zh: { address: "地址", phone: "电话", website: "网站" },
     en: { address: "Address", phone: "Phone", website: "Website" },
@@ -196,16 +200,22 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
       <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
         <div className="relative aspect-[4/3] bg-slate-200">
-          <Image
-            src={place.thumbnail_url}
+          {hasPhoto ? (
+            <Image
+              src={place.thumbnail_url}
               alt={content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name}
-            fill
-            sizes="(max-width: 768px) 100vw, 720px"
-            className="object-cover"
-            priority
-          />
+              fill
+              sizes="(max-width: 768px) 100vw, 720px"
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="grid h-full place-items-center px-4 text-center text-sm font-black text-slate-500">
+              {photoMissing}
+            </div>
+          )}
           <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-sm backdrop-blur">
-            {categoryLabels[place.category][locale]} · {source === "demo" ? copy.common.demo : copy.common.live}
+            {categoryLabels[place.category][locale]}
           </div>
         </div>
         <div className="p-5">
@@ -269,6 +279,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
         </div>
       </section>
+
+      <PlaceVisitTools place={place} locale={locale} coordinates={coordinates} />
 
       {locale === "zh" ? (
         <PlaceChinaDecisionPanel

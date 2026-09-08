@@ -341,8 +341,8 @@ function InfoPanel({
       <Icon size={22} className="text-teal-700" aria-hidden="true" />
       <h2 className="mt-3 text-lg font-bold text-slate-950">{title}</h2>
       <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-700">{zh || "暂无信息"}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{ko || "정보가 아직 없습니다."}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-700">{zh || "信息确认中"}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-500">{ko || "정보 확인 필요"}</p>
     </div>
   );
 }

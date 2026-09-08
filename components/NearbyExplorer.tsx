@@ -39,6 +39,14 @@ import {
   type ChinaDiscoverySort,
   type ChinaPriceBucket,
 } from "@/lib/place-china/discovery";
+import {
+  getDistanceWarning,
+  getPerPersonPrice,
+  getRepresentativeMenu,
+  getSoloDisplay,
+  getTravelerAdvantage,
+  getWaitingDisplay,
+} from "@/lib/place-display";
 import { formatPriceRange } from "@/lib/place-store";
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
@@ -281,7 +289,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
         },
         href: withLocale(`/places/${place.slug}`, locale),
         imageUrl: place.thumbnail_url,
-        meta: `${formatDistance(distance)} · ${walkingMinutes === null ? copy.common.noInfo : `${copy.placeDetail.walkingApprox} ${walkingMinutes}${copy.common.minutes}`}`,
+        meta: `${formatDistance(distance, locale)} · ${walkingMinutes === null ? copy.common.noInfo : `${copy.placeDetail.walkingApprox} ${walkingMinutes}${copy.common.minutes}`}`,
         description: content.description,
         detailLabel: localizedCopy.detail,
         saveCount: place.save_count ?? 0,
@@ -397,7 +405,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
         setOriginMode("current");
         setLocationFocusRequest((current) => current + 1);
         clearAreaSearch();
-        setLocationStatus(`${localizedCopy.currentBase} ${localizedCopy.distanceToGwangalli} ${formatDistance(distanceToGwangalli)}.`);
+        setLocationStatus(`${localizedCopy.currentBase} ${localizedCopy.distanceToGwangalli} ${formatDistance(distanceToGwangalli, locale)}.`);
         setIsLocating(false);
       },
       () => {
@@ -847,30 +855,55 @@ function PlaceListCard({
   const chinaTags = getChinaDiscoveryTags(place, locale, 4);
   const recommendation = getChinaRecommendationLabel(place);
   const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
+  const menu = getRepresentativeMenu(place, locale);
+  const advantage = getTravelerAdvantage(place, locale);
+  const distanceWarning = getDistanceWarning(distance, locale);
+  const selectedLabel = { zh: "已选择", en: "Selected", ja: "選択中", ko: "선택됨" }[locale];
+  const menuLabel = { zh: "招牌", en: "Menu", ja: "代表", ko: "대표" }[locale];
+  const photoMissing = { zh: "照片确认中", en: "Photo needs checking", ja: "写真確認中", ko: "사진 확인 필요" }[locale];
+  const hasPhoto = Boolean(place.thumbnail_url?.trim());
 
   return (
     <article
+      aria-current={active ? "true" : undefined}
       className={cn(
-        "rounded-[24px] bg-white p-3 shadow-sm ring-1 transition",
-        active ? "ring-2 ring-slate-950" : "ring-slate-200 hover:ring-teal-200",
+        "rounded-[24px] p-3 shadow-sm ring-1 transition",
+        active ? "bg-teal-50 ring-2 ring-teal-700" : "bg-white ring-slate-200 hover:ring-teal-200",
       )}
     >
       <button type="button" onClick={onSelect} className="grid w-full grid-cols-[92px_1fr] gap-3 text-left">
         <span className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-          <Image src={place.thumbnail_url} alt={content.name} fill sizes="92px" className="object-cover" />
+          {hasPhoto ? (
+            <Image src={place.thumbnail_url} alt={content.name} fill sizes="92px" className="object-cover" />
+          ) : (
+            <span className="grid h-full place-items-center px-2 text-center text-[11px] font-black leading-4 text-slate-500">
+              {photoMissing}
+            </span>
+          )}
         </span>
         <span className="min-w-0 py-1">
           <span className="block truncate text-base font-black text-slate-950">{content.name}</span>
           {content.secondaryName ? <span className="mt-1 block truncate text-sm text-slate-500">{content.secondaryName}</span> : null}
+          {active ? <span className="mt-2 inline-flex rounded-full bg-teal-700 px-2.5 py-1 text-xs font-black text-white">{selectedLabel}</span> : null}
           <span className="mt-3 flex flex-wrap gap-1.5">
             <TagChip tone={openingStatus === "unknown" ? "blue" : opening.tone}>{opening.text}</TagChip>
             <TagChip tone="blue">
-              {formatDistance(distance)} · {walkingLabel}
+              {formatDistance(distance, locale)} · {walkingLabel}
             </TagChip>
+            <TagChip tone="amber">{getWaitingDisplay(place, locale)}</TagChip>
             {locale === "zh" ? <TagChip tone="amber">推荐度 {recommendation}</TagChip> : null}
           </span>
         </span>
       </button>
+      <div className="mt-3 grid gap-1.5 text-xs font-bold text-slate-600">
+        <p className="line-clamp-1">
+          {menuLabel} <span className="text-slate-950">{menu?.name ?? copy.common.noInfo}</span>
+          {menu?.price ? <span className="ml-1 text-slate-500">{menu.price}</span> : null}
+        </p>
+        <p>{copy.common.perPerson} <span className="text-slate-950">{getPerPersonPrice(place, locale)}</span> · {getSoloDisplay(place, locale)}</p>
+        <p className="line-clamp-2 leading-5">{advantage}</p>
+        {distanceWarning ? <p className="text-amber-700">{distanceWarning}</p> : null}
+      </div>
       {locale === "zh" && chinaTags.length ? (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {chinaTags.map((tag) => (
@@ -878,7 +911,7 @@ function PlaceListCard({
           ))}
         </div>
       ) : null}
-      {content.description ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{content.description}</p> : null}
+      {content.description && content.description !== advantage ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{content.description}</p> : null}
       {locale === "zh" ? (
         <p className="mt-2 text-xs font-bold text-slate-500">
           {formatPriceRange(place, locale)} · 收藏 {place.save_count ?? 0}
@@ -908,7 +941,7 @@ function PlaceListCard({
               titleKo: place.name_ko,
               href,
               imageUrl: place.thumbnail_url,
-              meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance)}`,
+              meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance, locale)}`,
             }}
           />
         </div>
@@ -926,18 +959,29 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
   const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
   const chinaTags = getChinaDiscoveryTags(place, locale, 4);
   const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
+  const menu = getRepresentativeMenu(place, locale);
+  const advantage = getTravelerAdvantage(place, locale);
+  const menuLabel = { zh: "招牌", en: "Menu", ja: "代表", ko: "대표" }[locale];
+  const photoMissing = { zh: "照片确认中", en: "Photo needs checking", ja: "写真確認中", ko: "사진 확인 필요" }[locale];
+  const hasPhoto = Boolean(place.thumbnail_url?.trim());
 
   return (
-    <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
+    <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-2 ring-teal-700">
       <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-        <Image src={place.thumbnail_url} alt={content.name} fill sizes="88px" className="object-cover" />
+        {hasPhoto ? (
+          <Image src={place.thumbnail_url} alt={content.name} fill sizes="88px" className="object-cover" />
+        ) : (
+          <span className="grid h-full place-items-center px-2 text-center text-[11px] font-black leading-4 text-slate-500">
+            {photoMissing}
+          </span>
+        )}
       </Link>
       <div className="min-w-0">
         <Link href={href} className="block min-w-0 py-1">
           <p className="truncate text-base font-black text-slate-950">{content.name}</p>
           {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
           <p className="mt-2 text-xs font-bold text-teal-700">
-            {categoryLabels[place.category][locale]} · {formatDistance(distance)} · {walkingLabel}
+            {categoryLabels[place.category][locale]} · {formatDistance(distance, locale)} · {walkingLabel}
           </p>
           {locale === "zh" ? (
             <p className="mt-1 text-xs font-bold text-slate-500">
@@ -945,6 +989,10 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
             </p>
           ) : null}
         </Link>
+        <p className="mt-1 line-clamp-1 text-xs font-bold text-slate-600">
+          {menuLabel} <span className="text-slate-950">{menu?.name ?? copy.common.noInfo}</span>
+          {menu?.price ? <span className="ml-1 text-slate-500">{menu.price}</span> : null}
+        </p>
         {locale === "zh" && chinaTags.length ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {chinaTags.map((tag) => (
@@ -952,7 +1000,7 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
             ))}
           </div>
         ) : null}
-        {content.description ? <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{content.description}</p> : null}
+        <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{advantage}</p>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <Link href={href} className="inline-flex min-h-10 items-center gap-1 rounded-xl px-2 text-sm font-black text-teal-700 transition hover:bg-teal-50">
             {localizedCopy.detail}
@@ -978,7 +1026,7 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
                 titleKo: place.name_ko,
                 href,
                 imageUrl: place.thumbnail_url,
-                meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance)}`,
+                meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance, locale)}`,
               }}
             />
           </div>

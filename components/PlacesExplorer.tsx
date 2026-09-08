@@ -11,6 +11,7 @@ import {
   calculateDistanceMeters,
   formatDistance,
   formatOpeningStatus,
+  gwangalliCenter,
   type Coordinates,
 } from "@/lib/location";
 import {
@@ -107,10 +108,12 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   }, [activeChinaFilters, category, pathname, priceBucket, query, region, router, searchParams, showChinaFilters, sortMode]);
 
   const enrichedPlaces = useMemo(() => {
+    const origin = userLocation ?? gwangalliCenter;
+
     return places.map((place) => ({
       place,
-      distance: userLocation && typeof place.latitude === "number" && typeof place.longitude === "number"
-        ? calculateDistanceMeters(userLocation, { latitude: place.latitude, longitude: place.longitude })
+      distance: typeof place.latitude === "number" && typeof place.longitude === "number"
+        ? calculateDistanceMeters(origin, { latitude: place.latitude, longitude: place.longitude })
         : null,
     }));
   }, [places, userLocation]);

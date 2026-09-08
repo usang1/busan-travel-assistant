@@ -57,9 +57,14 @@ export function calculateDistanceMeters(from: Coordinates, to: Coordinates) {
   return Math.round(earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine)));
 }
 
-export function formatDistance(meters: number | null) {
+export function formatDistance(meters: number | null, locale: Locale = "zh") {
   if (meters === null) {
-    return "距离未知";
+    return {
+      zh: "距离确认中",
+      en: "Distance needs checking",
+      ja: "距離確認中",
+      ko: "거리 확인 필요",
+    }[locale];
   }
 
   if (meters < 1000) {

@@ -8,6 +8,7 @@ const homeDiscovery = readFileSync(new URL("../components/HomeDiscoveryPage.tsx"
 const homeSearchForm = readFileSync(new URL("../components/HomeSearchForm.tsx", import.meta.url), "utf8");
 const travelMap = readFileSync(new URL("../components/TravelMap.tsx", import.meta.url), "utf8");
 const locationSource = readFileSync(new URL("../lib/location.ts", import.meta.url), "utf8");
+const directionsSource = readFileSync(new URL("../lib/directions.ts", import.meta.url), "utf8");
 
 const compiledLocation = ts.transpileModule(locationSource, {
   compilerOptions: {
@@ -21,13 +22,28 @@ new Function("module", "exports", "require", compiledLocation)(locationModule, l
   throw new Error("location.ts must not have runtime imports");
 });
 
-const { calculateDistanceMeters, isValidCoordinates } = locationModule.exports;
+const compiledDirections = ts.transpileModule(directionsSource, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+  },
+}).outputText;
+const directionsModule = { exports: {} };
+
+new Function("module", "exports", "require", compiledDirections)(directionsModule, directionsModule.exports, () => {
+  throw new Error("directions.ts must not have runtime imports");
+});
+
+const { calculateDistanceMeters, formatDistance, isValidCoordinates } = locationModule.exports;
+const { buildDirectionsUrl } = directionsModule.exports;
 
 assert.equal(isValidCoordinates({ latitude: 35.15, longitude: 129.11 }), true);
 assert.equal(isValidCoordinates({ latitude: null, longitude: 129.11 }), false);
 assert.equal(isValidCoordinates({ latitude: Number.NaN, longitude: 129.11 }), false);
 assert.equal(isValidCoordinates({ latitude: 0, longitude: 0 }), false);
 assert.equal(isValidCoordinates({ latitude: 91, longitude: 129.11 }), false);
+assert.equal(formatDistance(null, "ko"), "거리 확인 필요");
+assert.equal(formatDistance(null, "en"), "Distance needs checking");
 
 const roughlyHalfKilometer = calculateDistanceMeters(
   { latitude: 35.15, longitude: 129.11 },
@@ -35,7 +51,28 @@ const roughlyHalfKilometer = calculateDistanceMeters(
 );
 assert.ok(roughlyHalfKilometer >= 490 && roughlyHalfKilometer <= 510);
 
+const coordinates = { latitude: 35.1532, longitude: 129.1186 };
+assert.equal(
+  buildDirectionsUrl({ provider: "google", name: "광안리해수욕장", address: "부산 수영구 광안해변로", coordinates }),
+  "https://www.google.com/maps/dir/?api=1&destination=35.1532%2C129.1186&travelmode=walking",
+);
+assert.equal(
+  buildDirectionsUrl({ provider: "kakao", name: "광안리해수욕장", coordinates }),
+  "https://map.kakao.com/link/to/%EA%B4%91%EC%95%88%EB%A6%AC%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5,35.1532,129.1186",
+);
+assert.match(
+  buildDirectionsUrl({ provider: "naver", name: "광안리해수욕장", coordinates }),
+  /^nmap:\/\/route\/walk\?dlat=35\.1532&dlng=129\.1186&dname=/,
+);
+assert.match(
+  buildDirectionsUrl({ provider: "google", name: "광안리해수욕장", address: "부산 수영구 광안해변로", coordinates: null }),
+  /destination=%EA%B4%91%EC%95%88%EB%A6%AC%ED%95%B4%EC%88%98%EC%9A%95%EC%9E%A5%20%EB%B6%80%EC%82%B0%20%EC%88%98%EC%98%81%EA%B5%AC/,
+);
+
 assert.match(nearbyExplorer, /type MapCategoryFilter = [^;]*"saved"/);
+assert.match(nearbyExplorer, /useSearchParams\(\)/);
+assert.match(nearbyExplorer, /new URLSearchParams\(\)/);
+assert.match(nearbyExplorer, /router\.replace\(nextQuery \? `\$\{pathname\}\?\$\{nextQuery\}` : pathname, \{ scroll: false \}\)/);
 assert.match(nearbyExplorer, /\.from\("place_saves"\)[\s\S]*\.select\("place_id"\)[\s\S]*\.eq\("user_id", user\.id\)/);
 assert.match(nearbyExplorer, /savedPlaceIds\.has\(item\.place\.id\)/);
 assert.match(nearbyExplorer, /distanceFromUser !== null && distanceFromUser <= distanceLimit/);
@@ -51,6 +88,8 @@ assert.match(travelMap, /currentLocationFocusRequest <= lastFocusedLocationReque
 assert.match(travelMap, /lastFocusedLocationRequestRef\.current = currentLocationFocusRequest/);
 assert.match(travelMap, /onRequestCurrentLocation/);
 assert.match(travelMap, /mapCopy\[locale\]/);
+assert.match(travelMap, /scriptStatus === "error"[\s\S]*<FallbackTravelMap/);
+assert.match(travelMap, /fallbackReason \|\| markers\.length === 0/);
 assert.doesNotMatch(travelMap, />\s*我\s*</);
 
 console.log("Map discovery tests passed (saved/category filters, coordinate validation, distance calculation, and explicit location focus)." );

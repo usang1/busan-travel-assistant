@@ -20,10 +20,17 @@ type DirectionsButtonProps = {
 };
 
 const providers: Array<{ id: DirectionsProvider; label: string }> = [
-  { id: "naver", label: "Naver" },
-  { id: "kakao", label: "Kakao" },
-  { id: "google", label: "Google" },
+  { id: "naver", label: "Naver Map" },
+  { id: "kakao", label: "KakaoMap" },
+  { id: "google", label: "Google Maps" },
 ];
+
+const copy: Record<Locale, { directions: string; searchOnly: string }> = {
+  zh: { directions: "打开地图", searchOnly: "坐标未确认，将用名称搜索。" },
+  en: { directions: "Open map", searchOnly: "Coordinates need checking, so this will search by name." },
+  ja: { directions: "地図を開く", searchOnly: "座標未確認のため名称で検索します。" },
+  ko: { directions: "지도 열기", searchOnly: "좌표 확인이 필요해 장소명으로 검색합니다." },
+};
 
 export function DirectionsButton({
   placeId,
@@ -36,10 +43,9 @@ export function DirectionsButton({
 }: DirectionsButtonProps) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const text = copy[locale];
 
-  function openProvider(provider: DirectionsProvider) {
-    const url = buildDirectionsUrl({ provider, name, address, coordinates });
-
+  function recordProvider(provider: DirectionsProvider) {
     void recordPlaceEvent({
       eventType: "directions_click",
       placeId,
@@ -47,8 +53,6 @@ export function DirectionsButton({
       userId: user?.id,
       metadata: { provider },
     });
-
-    window.open(url, "_blank", "noopener,noreferrer");
     setOpen(false);
   }
 
@@ -63,21 +67,24 @@ export function DirectionsButton({
         )}
       >
         <Navigation size={compact ? 15 : 18} aria-hidden="true" />
-        길찾기
+        {text.directions}
       </button>
 
       {open ? (
-        <div className="absolute bottom-full right-0 z-50 mb-2 w-40 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
+        <div className="absolute bottom-full right-0 z-50 mb-2 w-52 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
+          {!coordinates ? <p className="px-3 py-2 text-xs font-semibold leading-4 text-slate-500">{text.searchOnly}</p> : null}
           {providers.map((provider) => (
-            <button
+            <a
               key={provider.id}
-              type="button"
-              onClick={() => openProvider(provider.id)}
+              href={buildDirectionsUrl({ provider: provider.id, name, address, coordinates })}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => recordProvider(provider.id)}
               className="flex h-11 w-full items-center justify-between px-3 text-sm font-black text-slate-800 transition hover:bg-slate-50"
             >
               {provider.label}
               <ExternalLink size={14} aria-hidden="true" />
-            </button>
+            </a>
           ))}
         </div>
       ) : null}
