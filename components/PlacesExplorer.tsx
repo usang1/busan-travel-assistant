@@ -66,7 +66,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const [locationMessage, setLocationMessage] = useState("");
   const copy = ui[locale];
   const explorerCopy = placesExplorerCopy[locale];
-  const showChinaFilters = locale === "zh";
+  const showChinaFilters = true;
   const availableChinaFilters = useMemo(() => (showChinaFilters ? getEnabledChinaFilters(places) : []), [places, showChinaFilters]);
   const availableQuickFilters = useMemo(
     () => availableChinaFilters.filter((filter) => chinaQuickFilters.includes(filter.key)),

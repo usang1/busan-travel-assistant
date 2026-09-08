@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, LogOut, Mail, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Flag, LogOut, Mail, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
 import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
 import { MySubmissionsView } from "@/components/MySubmissionsView";
 import { MyTripsPanel } from "@/components/MyTripsPanel";
@@ -60,6 +60,13 @@ export function MyPageView({ locale }: MyPageViewProps) {
                 {copy.auth.admin}
               </Link>
             ) : null}
+            <Link
+              href={withLocale("/contact", locale)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-teal-50 px-4 text-sm font-black text-teal-700 ring-1 ring-teal-100 transition active:scale-95"
+            >
+              <Flag size={16} aria-hidden="true" />
+              {copy.common.submitPlace}
+            </Link>
             <button
               type="button"
               onClick={() => void signOut()}

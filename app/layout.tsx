@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     languages: localeAlternates("/"),
   },
   openGraph: {
-    title: `${siteConfig.name}｜釜山・首尔・济州自由行工具`,
+    title: `${siteConfig.name}｜釜山广安里 Beta 自由行工具`,
     description: siteConfig.description,
     url: absoluteUrl("/"),
     siteName: siteConfig.name,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flag, Languages, LogIn, LogOut, MapPin, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { Languages, LogIn, LogOut, MapPin, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, getLocaleFromPath, localeMeta, locales, ui, withLocale, withoutLocale } from "@/lib/i18n";
@@ -84,13 +84,6 @@ export function Header() {
               <span className="whitespace-nowrap">{copy.auth.login}</span>
             </Link>
           )}
-          <Link
-            href={withLocale("/contact", currentLocale)}
-            className="hidden h-9 items-center justify-center gap-1.5 rounded-full bg-teal-700 px-3 text-sm font-black text-white shadow-sm transition hover:bg-teal-800 active:scale-95 sm:inline-flex"
-          >
-            <Flag size={16} aria-hidden="true" />
-            {copy.common.submitPlace}
-          </Link>
           <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Language">
             <Languages size={15} className="ml-2 text-slate-500" aria-hidden="true" />
             {locales.map((locale) => (

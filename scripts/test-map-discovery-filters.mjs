@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 
 const nearbyExplorer = readFileSync(new URL("../components/NearbyExplorer.tsx", import.meta.url), "utf8");
+const bottomNavigation = readFileSync(new URL("../components/BottomNavigation.tsx", import.meta.url), "utf8");
+const homeDiscovery = readFileSync(new URL("../components/HomeDiscoveryPage.tsx", import.meta.url), "utf8");
+const homeSearchForm = readFileSync(new URL("../components/HomeSearchForm.tsx", import.meta.url), "utf8");
 const travelMap = readFileSync(new URL("../components/TravelMap.tsx", import.meta.url), "utf8");
 const locationSource = readFileSync(new URL("../lib/location.ts", import.meta.url), "utf8");
 
@@ -38,6 +41,11 @@ assert.match(nearbyExplorer, /savedPlaceIds\.has\(item\.place\.id\)/);
 assert.match(nearbyExplorer, /distanceFromUser !== null && distanceFromUser <= distanceLimit/);
 assert.match(nearbyExplorer, /initialSelectionAppliedRef/);
 assert.doesNotMatch(nearbyExplorer, /filteredItems\.find\([^\n]+\) \?\? filteredItems\[0\]/);
+assert.match(bottomNavigation, /key: "itinerary", href: "\/itinerary"/);
+assert.doesNotMatch(bottomNavigation, /key: "submit"/);
+assert.match(homeDiscovery, /getHomeQuickFilters\(places\)/);
+assert.match(homeSearchForm, /role="search"/);
+assert.match(homeSearchForm, /withLocale\("\/places", locale\)/);
 
 assert.match(travelMap, /currentLocationFocusRequest <= lastFocusedLocationRequestRef\.current/);
 assert.match(travelMap, /lastFocusedLocationRequestRef\.current = currentLocationFocusRequest/);

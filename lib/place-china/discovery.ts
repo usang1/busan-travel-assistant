@@ -4,6 +4,7 @@ import type { Locale } from "@/lib/i18n";
 import type { ChinaWaitingLevel, PlaceWithRelations } from "@/types/database";
 
 export type ChinaDiscoveryFilter =
+  | "openNow"
   | "chineseMenu"
   | "foreignCard"
   | "alipay"
@@ -13,6 +14,9 @@ export type ChinaDiscoveryFilter =
   | "lowWait"
   | "nonSpicy"
   | "subwayWalk5"
+  | "subwayWalk10"
+  | "oceanView"
+  | "rainyDay"
   | "xiaohongshu"
   | "openNight"
   | "firstBusan";
@@ -31,6 +35,21 @@ export type ChinaDiscoveryFilterOption = {
 };
 
 export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
+  {
+    key: "openNow",
+    queryKey: "openNow",
+    label: { zh: "现在营业", en: "Open now", ja: "現在営業中", ko: "지금 영업 중" },
+    compactLabel: { zh: "营业中", en: "Open", ja: "営業中", ko: "영업중" },
+    match: (place) => {
+      const status = getOpeningStatus(place.opening_hours);
+      return status === "open" || status === "closing_soon";
+    },
+    enabled: (places) =>
+      places.some((place) => {
+        const status = getOpeningStatus(place.opening_hours);
+        return status === "open" || status === "closing_soon";
+      }),
+  },
   {
     key: "chineseMenu",
     queryKey: "chineseMenu",
@@ -110,6 +129,36 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
     }),
   },
   {
+    key: "subwayWalk10",
+    queryKey: "subwayWalk10",
+    label: { zh: "地铁步行10分钟以内", en: "Within 10 min from subway", ja: "駅徒歩10分以内", ko: "역 도보 10분 이내" },
+    compactLabel: { zh: "地铁10分钟", en: "10 min subway", ja: "駅10分", ko: "역10분" },
+    match: (place) => {
+      const minutes = subwayWalkingMinutes(place);
+      return minutes !== null && minutes <= 10;
+    },
+    enabled: (places) => places.some((place) => {
+      const minutes = subwayWalkingMinutes(place);
+      return minutes !== null && minutes <= 10;
+    }),
+  },
+  {
+    key: "oceanView",
+    queryKey: "oceanView",
+    label: { zh: "海景", en: "Ocean view", ja: "海が見える", ko: "바다 전망" },
+    compactLabel: { zh: "海景", en: "Ocean", ja: "海", ko: "바다" },
+    match: (place) => placeTextIncludes(place, ["海景", "看海", "海边", "广安大桥", "ocean", "sea view", "beach", "바다", "오션", "광안대교", "海が見える"]),
+    enabled: (places) => places.some((place) => placeTextIncludes(place, ["海景", "看海", "海边", "广安大桥", "ocean", "sea view", "beach", "바다", "오션", "광안대교", "海が見える"])),
+  },
+  {
+    key: "rainyDay",
+    queryKey: "rainyDay",
+    label: { zh: "雨天也适合", en: "Rainy day", ja: "雨の日向き", ko: "비 오는 날" },
+    compactLabel: { zh: "雨天", en: "Rain", ja: "雨の日", ko: "비오는날" },
+    match: (place) => placeTextIncludes(place, ["下雨", "雨天", "rain", "rainy", "비", "우천", "雨の日"]),
+    enabled: (places) => places.some((place) => placeTextIncludes(place, ["下雨", "雨天", "rain", "rainy", "비", "우천", "雨の日"])),
+  },
+  {
     key: "xiaohongshu",
     queryKey: "xiaohongshu",
     label: { zh: "小红书热门", en: "Xiaohongshu popular", ja: "小紅書人気", ko: "샤오홍슈 인기" },
@@ -157,13 +206,14 @@ function subwayWalkingMinutes(place: PlaceWithRelations) {
 }
 
 export const chinaQuickFilters: ChinaDiscoveryFilter[] = [
-  "firstBusan",
+  "openNow",
+  "lowWait",
   "solo",
   "luggage",
-  "nonSpicy",
-  "lowWait",
-  "xiaohongshu",
-  "openNight",
+  "oceanView",
+  "rainyDay",
+  "subwayWalk10",
+  "chineseMenu",
 ];
 
 export const chinaPriceBuckets: Array<{
@@ -336,4 +386,35 @@ function maxKnownPrice(place: PlaceWithRelations) {
   }
 
   return place.price_min;
+}
+
+function placeTextIncludes(place: PlaceWithRelations, keywords: string[]) {
+  const haystack = [
+    place.name_zh,
+    place.name_ko,
+    place.short_description_zh,
+    place.short_description_ko,
+    place.address,
+    place.address_zh,
+    place.address_ko,
+    place.recommended_order_zh,
+    place.recommended_order_ko,
+    place.tips_zh,
+    place.tips_ko,
+    place.admin_summary,
+    place.nearest_station,
+    place.nearest_exit,
+    ...place.tags.flatMap((tag) => [tag.slug, tag.label_zh, tag.label_ko]),
+    ...(place.translations ?? []).flatMap((translation) => [
+      translation.name,
+      translation.description,
+      translation.travel_tip,
+      translation.address,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return keywords.some((keyword) => haystack.includes(keyword.toLowerCase()));
 }

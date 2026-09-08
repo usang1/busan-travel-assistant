@@ -121,7 +121,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const origin = originMode === "current" && userLocation ? userLocation : gwangalliCenter;
   const provider = getPreferredMapProvider();
   const copy = ui[locale];
-  const showChinaFilters = locale === "zh";
+  const showChinaFilters = true;
   const availableChinaFilters = useMemo(() => (showChinaFilters ? getEnabledChinaFilters(places) : []), [places, showChinaFilters]);
   const availableQuickFilters = useMemo(
     () => availableChinaFilters.filter((filter) => chinaQuickFilters.includes(filter.key)),

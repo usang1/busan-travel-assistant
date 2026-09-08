@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, Flag, Home, MapPinned, UserRound } from "lucide-react";
+import { Bookmark, CalendarDays, Home, MapPinned, UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { defaultLocale, getLocaleFromPath, ui, withLocale, withoutLocale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { key: "home", href: "/", icon: Home },
   { key: "nearby", href: "/nearby", icon: MapPinned },
-  { key: "submit", href: "/contact", icon: Flag },
+  { key: "itinerary", href: "/itinerary", icon: CalendarDays },
   { key: "saved", href: "/saved", icon: Bookmark },
   { key: "mypage", href: "/mypage", icon: UserRound },
 ] as const;
