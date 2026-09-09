@@ -28,6 +28,7 @@ import {
 } from "@/lib/place-china/discovery";
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
+import { readPlacesSearchQuery } from "@/lib/place-search-url";
 import { categoryLabels, type PlaceCategory, type PlaceRankingCollection, type PlaceWithRelations } from "@/types/database";
 
 type PlacesExplorerProps = {
@@ -55,7 +56,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [query, setQuery] = useState(() => readPlacesSearchQuery(searchParams));
   const [category, setCategory] = useState<PlaceCategory | "all">(
     getInitialCategory(searchParams, initialCategory),
   );
@@ -83,7 +84,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   useEffect(() => {
     const nextParams = new URLSearchParams();
 
-    if (query.trim()) nextParams.set("q", query.trim());
+    if (query.trim()) nextParams.set("search", query.trim());
     if (category !== "all") nextParams.set("category", category);
     if (region !== "all") nextParams.set("region", region);
     if (priceBucket !== "all") nextParams.set("price", priceBucket);

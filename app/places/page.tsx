@@ -21,6 +21,8 @@ export const metadata: Metadata = {
 
 type PlacesPageProps = {
   searchParams?: Promise<{
+    search?: string;
+    q?: string;
     category?: string;
     region?: string;
   }>;

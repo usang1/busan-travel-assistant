@@ -17,6 +17,8 @@ type LocalizedPlacesPageProps = {
     locale: string;
   }>;
   searchParams?: Promise<{
+    search?: string;
+    q?: string;
     category?: string;
     region?: string;
   }>;
