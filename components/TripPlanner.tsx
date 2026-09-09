@@ -256,12 +256,17 @@ export function TripPlanner({ locale }: TripPlannerProps) {
 
   async function handleAdd(placeId: string) {
     if (!activeTrip) return;
+    if (placedIds.has(placeId)) {
+      setStatus(text.alreadyAdded);
+      return;
+    }
+
     setBusy(true);
     const error = user ? await addPlaceToTrip(activeTrip.id, placeId, activeDay) : undefined;
-    if (!user) addGuestPlaceToTrip(activeTrip.id, placeId, activeDay);
+    const guestResult = user ? null : addGuestPlaceToTrip(activeTrip.id, placeId, activeDay);
     await refreshTripPlaces();
     setBusy(false);
-    setStatus(error ?? text.placeAdded);
+    setStatus(error ?? (guestResult?.status === "duplicate" ? text.alreadyAdded : text.placeAdded));
   }
 
   async function handleAutoArrange() {

@@ -10,6 +10,10 @@ export type GuestTripStore = {
   tripPlaces: TripPlaceRecord[];
 };
 
+export type GuestTripPlaceAddResult =
+  | { status: "added"; item: TripPlaceRecord }
+  | { status: "duplicate"; item: TripPlaceRecord };
+
 export function readGuestTripStore(): GuestTripStore {
   if (typeof window === "undefined") return emptyGuestTripStore();
 
@@ -92,8 +96,10 @@ export function getGuestTripPlaces(tripId: string) {
 
 export function addGuestPlaceToTrip(tripId: string, placeId: string, dayNumber = 1) {
   const store = readGuestTripStore();
-  if (store.tripPlaces.some((item) => item.trip_id === tripId && item.place_id === placeId)) {
-    return;
+  const existing = store.tripPlaces.find((item) => item.trip_id === tripId && item.place_id === placeId);
+
+  if (existing) {
+    return { status: "duplicate", item: existing } satisfies GuestTripPlaceAddResult;
   }
 
   const now = new Date().toISOString();
@@ -115,6 +121,7 @@ export function addGuestPlaceToTrip(tripId: string, placeId: string, dayNumber =
   };
 
   writeGuestTripStore({ ...store, tripPlaces: [...store.tripPlaces, item] });
+  return { status: "added", item } satisfies GuestTripPlaceAddResult;
 }
 
 export function saveGuestTripLayout(

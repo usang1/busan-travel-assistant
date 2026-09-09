@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Camera, List, Map, Trash2 } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { AddToTripButton } from "@/components/AddToTripButton";
 import { TravelMap } from "@/components/TravelMap";
@@ -55,6 +55,7 @@ const filters: Array<{ value: SavedRegion; label: Record<Locale, string> }> = [
 
 export function SavedItemsView({ locale, compact = false }: SavedItemsViewProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const currentLocale = locale ?? getLocaleFromPath(pathname) ?? defaultLocale;
   const copy = ui[currentLocale];
   const { user, loading } = useAuth();
@@ -64,6 +65,7 @@ export function SavedItemsView({ locale, compact = false }: SavedItemsViewProps)
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const nextPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
   useEffect(() => {
     let mounted = true;
@@ -224,7 +226,7 @@ export function SavedItemsView({ locale, compact = false }: SavedItemsViewProps)
       {!user ? (
         <section className="rounded-[24px] bg-teal-50 p-4 text-sm font-semibold leading-6 text-teal-900 ring-1 ring-teal-100">
           {text.guestHint}
-          <Link href={`${withLocale("/login", currentLocale)}?next=${encodeURIComponent(withLocale("/saved", currentLocale))}`} className="ml-2 font-black underline">
+          <Link href={`${withLocale("/login", currentLocale)}?next=${encodeURIComponent(nextPath)}`} className="ml-2 font-black underline">
             {copy.auth.login}
           </Link>
         </section>
@@ -423,10 +425,10 @@ async function withTimeout<T, F>(promise: PromiseLike<T>, timeoutMs: number, fal
 }
 
 const savedCopy: Record<Locale, { guestHint: string; loadFailed: string; list: string; map: string; detail: string }> = {
-  zh: { guestHint: "未登录也可以在此设备收藏地点和路线。登录后会自动合并到账号，失败时不会删除本机收藏。", loadFailed: "无法载入收藏的地点。请稍后再试。", list: "清单", map: "地图", detail: "查看地点" },
-  en: { guestHint: "You can save places and courses on this device without signing in. They merge after sign-in; local saves stay if merging fails.", loadFailed: "Saved places could not be loaded. Please try again.", list: "List", map: "Map", detail: "View place" },
-  ja: { guestHint: "ログインしなくてもこの端末にスポットとコースを保存できます。ログイン後に統合し、失敗した場合は端末内の保存を残します。", loadFailed: "保存したスポットを読み込めませんでした。時間をおいて再試行してください。", list: "リスト", map: "地図", detail: "スポット詳細" },
-  ko: { guestHint: "로그인하지 않아도 이 기기에 장소와 코스를 저장할 수 있습니다. 로그인하면 계정에 병합하며, 실패해도 기기 저장 데이터는 지우지 않습니다.", loadFailed: "저장한 장소를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", list: "리스트", map: "지도", detail: "장소 보기" },
+  zh: { guestHint: "未登录也可以在此设备收藏地点和旅行计划。登录后会自动合并到账号，失败时不会删除本机收藏。", loadFailed: "无法载入收藏的地点。请稍后再试。", list: "清单", map: "地图", detail: "查看地点" },
+  en: { guestHint: "You can save places and trips on this device without signing in. They merge after sign-in; local saves stay if merging fails.", loadFailed: "Saved places could not be loaded. Please try again.", list: "List", map: "Map", detail: "View place" },
+  ja: { guestHint: "ログインしなくてもこの端末にスポットと旅行プランを保存できます。ログイン後に統合し、失敗した場合は端末内の保存を残します。", loadFailed: "保存したスポットを読み込めませんでした。時間をおいて再試行してください。", list: "リスト", map: "地図", detail: "スポット詳細" },
+  ko: { guestHint: "로그인하지 않아도 이 기기에 장소와 일정을 저장할 수 있습니다. 로그인하면 계정에 병합하며, 실패해도 기기 저장 데이터는 지우지 않습니다.", loadFailed: "저장한 장소를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", list: "리스트", map: "지도", detail: "장소 보기" },
 };
 
 function getSavedPlaceRegion(place: PlaceWithRelations): SavedRegion {
