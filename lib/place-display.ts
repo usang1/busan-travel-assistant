@@ -86,7 +86,7 @@ export function getTravelerAdvantage(place: PlaceWithRelations, locale: Locale) 
     return positive;
   }
 
-  return getPlaceContent(place, locale).description || ui[locale].common.noInfo;
+  return ui[locale].common.noInfo;
 }
 
 export function getDistanceWarning(distanceMeters: number | null, locale: Locale) {

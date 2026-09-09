@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft, Camera, MapPin } from "lucide-react";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import {
   getLocalizedMenuItem,
@@ -9,11 +9,13 @@ import {
   withLocale,
 } from "@/lib/i18n";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
+import { getPlacePhotoDisplay } from "@/lib/place-trust";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 
 export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRelations; locale: Locale }) {
   const copy = pageCopy[locale];
   const content = getPlaceContent(place, locale);
+  const photo = getPlacePhotoDisplay(place, locale);
   const currentMenuText = place.menu_items.map((item) => {
     const menu = getLocalizedMenuItem(item, locale);
     return [menu.name, item.price === null ? "" : formatWon(item.price, locale)].filter(Boolean).join(" · ");
@@ -33,7 +35,14 @@ export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRel
 
       <section className="my-5 flex items-center gap-4 rounded-[20px] bg-slate-50 p-3 ring-1 ring-slate-200">
         <div className="relative size-20 shrink-0 overflow-hidden rounded-2xl bg-slate-200">
-          <Image src={place.thumbnail_url} alt={content.name} fill sizes="80px" className="object-cover" />
+          {photo.kind === "image" ? (
+            <Image src={photo.url} alt={content.name} fill sizes="80px" className="object-cover" />
+          ) : (
+            <div className="grid h-full place-items-center bg-slate-100 text-slate-400">
+              <Camera size={22} aria-hidden="true" />
+              <span className="sr-only">{photo.title}</span>
+            </div>
+          )}
         </div>
         <div className="min-w-0">
           <p className="truncate text-lg font-black text-slate-950">{content.name}</p>

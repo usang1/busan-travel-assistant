@@ -5,8 +5,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  BadgeCheck,
+  CalendarCheck2,
+  Camera,
   Clock3,
   CreditCard,
+  FileSearch,
   MapPin,
   MessageSquareText,
   Route,
@@ -32,6 +36,17 @@ import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
+import {
+  getLastVerifiedLabel,
+  getPlacePhotoDisplay,
+  getPlaceTrustCopy,
+  getPublicPlaceDescription,
+  getPublicTravelTip,
+  getSourceSummary,
+  getTrustedPlaceImageUrl,
+  getVerificationStatus,
+  getVerificationStatusLabel,
+} from "@/lib/place-trust";
 import { categoryLabels } from "@/types/database";
 
 type PlaceDetailPageProps = {
@@ -58,6 +73,7 @@ export async function generateMetadata({ params }: PlaceDetailPageProps): Promis
   const description = place
     ? `${place.name_zh}：釜山${categoryLabels[place.category].zh}，${featureText ? `${featureText}。` : ""}${chinaSummary.summary}`
     : "釜山广安里地点详情。";
+  const trustedImageUrl = place ? getTrustedPlaceImageUrl(place) : "";
 
   return {
     title,
@@ -70,7 +86,7 @@ export async function generateMetadata({ params }: PlaceDetailPageProps): Promis
       siteName: siteConfig.name,
       locale: siteConfig.locale,
       type: "article",
-      images: place?.thumbnail_url ? [{ url: place.thumbnail_url }] : undefined,
+      images: trustedImageUrl ? [{ url: trustedImageUrl }] : undefined,
     },
   };
 }
@@ -84,6 +100,13 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
   }
 
   const relatedPlaces = await getRelatedPlaces(place);
+  const trustCopy = getPlaceTrustCopy("zh");
+  const publicDescription = getPublicPlaceDescription(place, "zh");
+  const publicTravelTip = getPublicTravelTip(place, "zh");
+  const photo = getPlacePhotoDisplay(place, "zh");
+  const trustedImageUrl = getTrustedPlaceImageUrl(place);
+  const verificationStatus = getVerificationStatus(place);
+  const recommendationDescription = publicDescription || trustCopy.noPublicDescription;
 
   const recommendedMenus = place.menu_items.filter((item) => item.is_recommended);
   const otherMenus = place.menu_items.filter((item) => !item.is_recommended);
@@ -111,8 +134,8 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           "@context": "https://schema.org",
           "@type": "TouristAttraction",
           name: `${place.name_zh} / ${place.name_ko}`,
-          description: place.short_description_zh,
-          image: place.thumbnail_url,
+          description: publicDescription,
+          image: trustedImageUrl || undefined,
           url: absoluteUrl(`/places/${place.slug}`),
           address: place.address_ko,
           geo:
@@ -133,7 +156,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           title: place.name_zh,
           subtitle: place.name_ko,
           href: `/places/${place.slug}`,
-          imageUrl: place.thumbnail_url,
+          imageUrl: trustedImageUrl,
           category: place.category,
         }}
       />
@@ -146,14 +169,24 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
 
       <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
         <div className="relative aspect-[4/3] bg-slate-200">
-          <Image
-            src={place.thumbnail_url}
-            alt={`${place.name_zh} / ${place.name_ko}`}
-            fill
-            sizes="(max-width: 768px) 100vw, 720px"
-            className="object-cover"
-            priority
-          />
+          {photo.kind === "image" ? (
+            <Image
+              src={photo.url}
+              alt={`${place.name_zh} / ${place.name_ko}`}
+              fill
+              sizes="(max-width: 768px) 100vw, 720px"
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="grid h-full place-items-center bg-slate-100 px-5 text-center">
+              <div>
+                <Camera size={32} className="mx-auto text-slate-400" aria-hidden="true" />
+                <p className="mt-3 text-base font-black text-slate-700">{photo.title}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">{photo.detail}</p>
+              </div>
+            </div>
+          )}
           <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-sm backdrop-blur">
             {categoryLabels[place.category].zh} · {source === "demo" ? "Demo" : "Live"}
           </div>
@@ -174,7 +207,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
                 titleZh: place.name_zh,
                 titleKo: place.name_ko,
                 href: `/places/${place.slug}`,
-                imageUrl: place.thumbnail_url,
+                imageUrl: trustedImageUrl,
                 meta: [categoryLabels[place.category].zh, placeHasCoordinates ? walkingText : ""].filter(Boolean).join(" · "),
               }}
             />
@@ -182,7 +215,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
           <div className="mt-4">
             <ShareButton
               title={place.name_zh}
-              text={`${place.name_zh} / ${place.name_ko} - ${place.short_description_zh}`}
+              text={`${place.name_zh} / ${place.name_ko} - ${recommendationDescription}`}
               url={absoluteUrl(`/places/${place.slug}`)}
               placeId={place.id}
               locale="zh"
@@ -197,8 +230,13 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
 
           <section className="mt-6">
             <SectionTitle title="推荐理由" subtitle="추천 이유" />
-            <p className="mt-3 text-base leading-7 text-slate-700">{place.short_description_zh}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{place.short_description_ko}</p>
+            <p className="mt-3 text-base leading-7 text-slate-700">{recommendationDescription}</p>
+          </section>
+
+          <section className="mt-5 grid gap-2 rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-100 sm:grid-cols-3">
+            <TrustFact icon={BadgeCheck} label="验证状态" value={getVerificationStatusLabel(verificationStatus, "zh")} />
+            <TrustFact icon={FileSearch} label="信息来源" value={getSourceSummary(place, "zh")} />
+            <TrustFact icon={CalendarCheck2} label="最后确认" value={getLastVerifiedLabel(place, "zh")} />
           </section>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -279,8 +317,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
         <SectionTitle title="旅行小贴士" subtitle="여행 팁" />
         <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <Soup size={22} className="text-teal-700" aria-hidden="true" />
-          <p className="mt-3 text-base leading-7 text-slate-700">{place.tips_zh}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-500">{place.tips_ko}</p>
+          <p className="mt-3 text-base leading-7 text-slate-700">{publicTravelTip || "旅行提示准备中。"}</p>
         </div>
       </section>
 
@@ -310,6 +347,16 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
       />
       <PlaceLocationPanel place={place} />
     </main>
+  );
+}
+
+function TrustFact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <Icon size={17} className="text-teal-700" aria-hidden="true" />
+      <p className="mt-2 text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-black leading-5 text-slate-950">{value}</p>
+    </div>
   );
 }
 

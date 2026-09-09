@@ -164,6 +164,15 @@ assert.equal(completeQuality.canPublish, true);
 assert.equal(completeQuality.missingRequired.length, 0);
 assert.doesNotThrow(() => validatePlacePayloadForSave(completePayload));
 
+const completeWithExplicitPlaceholder = {
+  ...completePayload,
+  thumbnail_url: "",
+};
+const placeholderQuality = evaluatePlaceQuality(completeWithExplicitPlaceholder, new Date("2026-09-07T00:00:00.000Z"));
+assert.equal(placeholderQuality.canPublish, true);
+assert.ok(placeholderQuality.required.some((item) => item.key === "visual_asset" && item.ok));
+assert.doesNotThrow(() => validatePlacePayloadForSave(completeWithExplicitPlaceholder));
+
 const missingDescription = {
   ...completePayload,
   short_description_zh: "",

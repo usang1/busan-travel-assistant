@@ -1891,10 +1891,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <input value={form.closed_days} onChange={(event) => updateField("closed_days", event.target.value)} className={inputClass} placeholder="예: 매주 월요일 / 확인 필요" />
               </Field>
               <div className="sm:col-span-2">
-                <Field label="AI 장소 요약">
+                <Field label="AI 장소 요약 (관리자 내부 메모)">
                   <textarea value={form.admin_summary} onChange={(event) => updateField("admin_summary", event.target.value)} className={textareaClass} />
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs font-semibold text-slate-500">지도에서 가져온 사실정보를 기반으로 자동 생성됩니다. 필요하면 직접 수정할 수 있습니다.</p>
+                    <p className="text-xs font-semibold text-slate-500">공개 추천 설명과 분리된 내부 참고용 요약입니다. 공개 화면의 설명 fallback으로 사용하지 않습니다.</p>
                     <button
                       type="button"
                       onClick={() => void regenerateAdminSummary()}
@@ -2066,16 +2066,16 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="일본어 장소명">
                 <input value={form.name_ja} onChange={(event) => updateField("name_ja", event.target.value)} className={inputClass} />
               </Field>
-              <Field label="중국어 짧은 설명">
+              <Field label="중국어 공개 추천 설명">
                 <textarea value={form.short_description_zh} onChange={(event) => updateField("short_description_zh", event.target.value)} className={textareaClass} />
               </Field>
-              <Field label="한국어 짧은 설명">
+              <Field label="한국어 공개 추천 설명">
                 <textarea value={form.short_description_ko} onChange={(event) => updateField("short_description_ko", event.target.value)} className={textareaClass} />
               </Field>
-              <Field label="영어 짧은 설명">
+              <Field label="영어 공개 추천 설명">
                 <textarea value={form.short_description_en} onChange={(event) => updateField("short_description_en", event.target.value)} className={textareaClass} />
               </Field>
-              <Field label="일본어 짧은 설명">
+              <Field label="일본어 공개 추천 설명">
                 <textarea value={form.short_description_ja} onChange={(event) => updateField("short_description_ja", event.target.value)} className={textareaClass} />
               </Field>
               <Field label="한국어 주소">
@@ -2443,7 +2443,7 @@ function MobilePlacePreview({ form, quality }: { form: FormState; quality: Place
           className="flex aspect-[16/10] items-center justify-center bg-slate-100 bg-cover bg-center text-sm font-bold text-slate-400"
           style={form.thumbnail_url.trim() ? { backgroundImage: `url(${form.thumbnail_url.trim()})` } : undefined}
         >
-          {form.thumbnail_url.trim() ? null : "대표사진 필요"}
+          {form.thumbnail_url.trim() ? null : "사진 준비 중"}
         </div>
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
@@ -2485,7 +2485,7 @@ function AdminReviewSummary({
     { field: "coordinates", label: "좌표", available: hasValidFormCoordinates(form) },
     { field: "phone", label: "전화번호", available: Boolean(form.phone.trim()) },
     { field: "openingHours", label: "영업시간", available: Boolean(form.opening_hours.trim()) },
-    { field: "photos", label: "사진", available: Boolean(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) },
+    { field: "photos", label: "실제 사진 또는 명시적 플레이스홀더", available: true },
     { field: "priceLevel", label: "가격대", available: Boolean(form.price_level.trim()) },
     { field: "rating", label: "평점", available: Boolean(form.provider_rating.trim()) },
     { field: "reviewCount", label: "리뷰 수", available: Boolean(form.provider_review_count.trim()) },
@@ -2547,7 +2547,7 @@ function AdminReviewSummary({
           <p className="text-sm font-black text-slate-800">AI 콘텐츠</p>
           <div className="mt-2 flex min-h-9 items-center gap-2 text-sm font-semibold text-slate-700">
             {form.admin_summary.trim() ? <Check size={17} className="text-teal-700" aria-hidden="true" /> : <X size={17} className="text-rose-500" aria-hidden="true" />}
-            AI 장소 요약{form.admin_summary.trim() ? " 생성 완료" : " 없음"}
+            관리자 내부 메모{form.admin_summary.trim() ? " 생성 완료" : " 없음"}
           </div>
           <div className="mt-2 grid grid-cols-4 gap-2">
             {(["ko", "zh", "en", "ja"] as const).map((item) => {

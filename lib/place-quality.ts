@@ -20,7 +20,7 @@ export type PlaceQualityItemKey =
   | "category"
   | "address"
   | "coordinates"
-  | "thumbnail"
+  | "visual_asset"
   | "description"
   | "opening_hours"
   | "recommended_menu"
@@ -160,7 +160,7 @@ export function evaluatePlaceQuality(place: QualityPlace, now = new Date()): Pla
     qualityItem("category", "카테고리", true, Boolean(place.category), "카테고리를 선택해야 합니다."),
     qualityItem("address", "주소", true, Boolean(text(place.address_ko) || text(place.address_zh) || text(place.address)), "주소가 필요합니다."),
     qualityItem("coordinates", "위도·경도", true, isValidCoordinates({ latitude: place.latitude, longitude: place.longitude }), "정상 범위의 위도·경도가 필요합니다."),
-    qualityItem("thumbnail", "대표사진", true, Boolean(text(place.thumbnail_url)), "대표 사진 URL이 필요합니다."),
+    qualityItem("visual_asset", "사진 또는 플레이스홀더", true, true, "실제 사진이 없으면 공개 화면에서 명시적 플레이스홀더를 표시합니다."),
     qualityItem("description", "대표 설명", true, Boolean(text(place.short_description_ko) && text(place.short_description_zh)), "한국어와 중국어 대표 설명이 필요합니다."),
     qualityItem("opening_hours", "영업시간", true, Boolean(text(place.opening_hours)), "영업시간이 필요합니다."),
     qualityItem("source", "정보 출처", true, hasAnySource(place), "지도 링크, 외부 ID, 공식 웹사이트 중 하나가 필요합니다."),

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { List, Map, Trash2 } from "lucide-react";
+import { Camera, List, Map, Trash2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { AddToTripButton } from "@/components/AddToTripButton";
@@ -14,6 +14,7 @@ import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
 import { recordPlaceEvent } from "@/lib/place-events";
 import { getPlaceSaveCounts } from "@/lib/place-saves";
 import { getPublicPlacesByIds } from "@/lib/place-store";
+import { getPlacePhotoDisplay, getPlaceTrustCopy, getPublicPlaceDescription, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import { getSavedPlaceIds, removeSavedItem, savedItemsChangeEvent } from "@/lib/saved-items";
 import { getSupabaseClient } from "@/lib/supabase";
 import { defaultLocale, getLocaleFromPath, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
@@ -304,9 +305,9 @@ function SavedPlacesMap({ places, locale }: { places: PlaceWithRelations[]; loca
       category: place.category,
       position: { latitude: place.latitude, longitude: place.longitude },
       href,
-      imageUrl: place.thumbnail_url,
+      imageUrl: getTrustedPlaceImageUrl(place),
       meta: [categoryLabels[place.category][locale], content.address].filter(Boolean).join(" · "),
-      description: content.description,
+      description: getPublicPlaceDescription(place, locale) || getPlaceTrustCopy(locale).noPublicDescription,
       detailLabel: text.detail,
       saveCount: place.save_count ?? 0,
     };
@@ -332,16 +333,15 @@ function SavedMapSelection({ place, locale }: { place: PlaceWithRelations; local
   const content = getPlaceContent(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const text = savedCopy[locale];
+  const description = getPublicPlaceDescription(place, locale) || getPlaceTrustCopy(locale).noPublicDescription;
 
   return (
     <article className="grid grid-cols-[76px_1fr] gap-3 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
-      <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-        <Image src={place.thumbnail_url} alt={content.name} fill sizes="76px" className="object-cover" />
-      </Link>
+      <SavedPlaceThumb place={place} locale={locale} href={href} contentName={content.name} size="76px" />
       <div className="min-w-0">
         <p className="truncate text-base font-black text-slate-950">{content.name}</p>
         <p className="mt-1 text-xs font-bold text-teal-700">{categoryLabels[place.category][locale]}</p>
-        <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{content.description}</p>
+        <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{description}</p>
         <Link href={href} className="mt-2 inline-flex min-h-10 items-center rounded-full bg-teal-700 px-4 text-sm font-black text-white">
           {text.detail}
         </Link>
@@ -364,9 +364,7 @@ function SavedPlaceCard({
 
   return (
     <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
-      <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-        <Image src={place.thumbnail_url} alt={content.name} fill sizes="88px" className="object-cover" />
-      </Link>
+      <SavedPlaceThumb place={place} locale={locale} href={href} contentName={content.name} size="88px" />
       <div className="min-w-0 py-1">
         <Link href={href} className="block min-w-0">
           <p className="truncate text-base font-black text-slate-950">{content.name}</p>
@@ -381,6 +379,37 @@ function SavedPlaceCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function SavedPlaceThumb({
+  place,
+  locale,
+  href,
+  contentName,
+  size,
+}: {
+  place: PlaceWithRelations;
+  locale: Locale;
+  href: string;
+  contentName: string;
+  size: string;
+}) {
+  const photo = getPlacePhotoDisplay(place, locale);
+
+  return (
+    <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
+      {photo.kind === "image" ? (
+        <Image src={photo.url} alt={contentName} fill sizes={size} className="object-cover" />
+      ) : (
+        <div className="grid h-full place-items-center bg-slate-100 text-center">
+          <div>
+            <Camera size={20} className="mx-auto text-slate-400" aria-hidden="true" />
+            <span className="sr-only">{photo.title}</span>
+          </div>
+        </div>
+      )}
+    </Link>
   );
 }
 

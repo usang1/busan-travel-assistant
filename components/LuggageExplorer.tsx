@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Clock3, Luggage, MapPin, Search, WalletCards, type LucideIcon } from "lucide-react";
+import { Camera, Clock3, Luggage, MapPin, Search, WalletCards, type LucideIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { formatPriceRange } from "@/lib/place-store";
+import { getPlacePhotoDisplay, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 
 type LuggageExplorerProps = {
@@ -62,44 +63,7 @@ export function LuggageExplorer({ places, locale = defaultLocale }: LuggageExplo
       {filtered.length > 0 ? (
         <div className="mt-4 space-y-4">
           {filtered.map((place) => (
-            <article key={place.id} className="overflow-hidden rounded-[26px] bg-white shadow-sm ring-1 ring-slate-200">
-              <div className="grid grid-cols-[112px_1fr] gap-0">
-                <Link href={withLocale(`/places/${place.slug}`, locale)} className="relative min-h-40 bg-slate-200">
-                  <Image src={place.thumbnail_url} alt={getPlaceContent(place, locale).name} fill sizes="112px" className="object-cover" />
-                </Link>
-                <div className="min-w-0 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <Link href={withLocale(`/places/${place.slug}`, locale)} className="min-w-0">
-                      <h2 className="truncate text-lg font-black text-slate-950">{getPlaceContent(place, locale).name}</h2>
-                      {getPlaceContent(place, locale).secondaryName ? (
-                        <p className="mt-1 truncate text-sm text-slate-500">{getPlaceContent(place, locale).secondaryName}</p>
-                      ) : null}
-                    </Link>
-                    <SaveButton
-                      initialSaveCount={place.save_count ?? 0}
-                      locale={locale}
-                      item={{
-                        id: place.id,
-                        type: "place",
-                        titleZh: place.name_zh,
-                        titleKo: place.name_ko,
-                        href: withLocale(`/places/${place.slug}`, locale),
-                        imageUrl: place.thumbnail_url,
-                        meta: `${categoryLabels.luggage[locale]} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
-                      }}
-                    />
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <Info icon={MapPin} label={copy.placeDetail.location} value={`${place.nearest_station} ${place.nearest_exit}`} />
-                    <Info icon={Clock3} label={luggageCopy.hours} value={place.opening_hours || copy.common.notRegistered} />
-                    <Info icon={WalletCards} label={copy.placeDetail.payment} value={formatPriceRange(place, locale)} />
-                    <Info icon={Luggage} label={luggageCopy.largeBag} value={place.luggage_friendly ? luggageCopy.available : luggageCopy.confirm} />
-                  </div>
-                  <p className="mt-3 text-sm font-semibold text-teal-700">{copy.common.walk} {place.walking_minutes}{copy.common.minutes}</p>
-                  <p className="mt-1 text-xs text-slate-500">{luggageCopy.storageNote}</p>
-                </div>
-              </div>
-            </article>
+            <LuggagePlaceCard key={place.id} place={place} locale={locale} copy={copy} luggageCopy={luggageCopy} />
           ))}
         </div>
       ) : (
@@ -108,6 +72,73 @@ export function LuggageExplorer({ places, locale = defaultLocale }: LuggageExplo
         </div>
       )}
     </div>
+  );
+}
+
+function LuggagePlaceCard({
+  place,
+  locale,
+  copy,
+  luggageCopy,
+}: {
+  place: PlaceWithRelations;
+  locale: Locale;
+  copy: (typeof ui)[Locale];
+  luggageCopy: (typeof luggageExplorerCopy)[Locale];
+}) {
+  const content = getPlaceContent(place, locale);
+  const href = withLocale(`/places/${place.slug}`, locale);
+  const photo = getPlacePhotoDisplay(place, locale);
+  const trustedImageUrl = getTrustedPlaceImageUrl(place);
+
+  return (
+    <article className="overflow-hidden rounded-[26px] bg-white shadow-sm ring-1 ring-slate-200">
+      <div className="grid grid-cols-[112px_1fr] gap-0">
+        <Link href={href} className="relative min-h-40 bg-slate-200">
+          {photo.kind === "image" ? (
+            <Image src={photo.url} alt={content.name} fill sizes="112px" className="object-cover" />
+          ) : (
+            <div className="grid h-full place-items-center bg-slate-100 px-2 text-center">
+              <div>
+                <Camera size={20} className="mx-auto text-slate-400" aria-hidden="true" />
+                <p className="mt-2 text-xs font-black leading-4 text-slate-500">{photo.title}</p>
+              </div>
+            </div>
+          )}
+        </Link>
+        <div className="min-w-0 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <Link href={href} className="min-w-0">
+              <h2 className="truncate text-lg font-black text-slate-950">{content.name}</h2>
+              {content.secondaryName ? (
+                <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p>
+              ) : null}
+            </Link>
+            <SaveButton
+              initialSaveCount={place.save_count ?? 0}
+              locale={locale}
+              item={{
+                id: place.id,
+                type: "place",
+                titleZh: place.name_zh,
+                titleKo: place.name_ko,
+                href,
+                imageUrl: trustedImageUrl,
+                meta: `${categoryLabels.luggage[locale]} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
+              }}
+            />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <Info icon={MapPin} label={copy.placeDetail.location} value={`${place.nearest_station} ${place.nearest_exit}`} />
+            <Info icon={Clock3} label={luggageCopy.hours} value={place.opening_hours || copy.common.notRegistered} />
+            <Info icon={WalletCards} label={copy.placeDetail.payment} value={formatPriceRange(place, locale)} />
+            <Info icon={Luggage} label={luggageCopy.largeBag} value={place.luggage_friendly ? luggageCopy.available : luggageCopy.confirm} />
+          </div>
+          <p className="mt-3 text-sm font-semibold text-teal-700">{copy.common.walk} {place.walking_minutes}{copy.common.minutes}</p>
+          <p className="mt-1 text-xs text-slate-500">{luggageCopy.storageNote}</p>
+        </div>
+      </div>
+    </article>
   );
 }
 

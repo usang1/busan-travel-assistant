@@ -1470,10 +1470,10 @@ function PublishFormView({
             <input value={form.closed_days} onChange={(event) => onFieldChange("closed_days", event.target.value)} className={inputClass} />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="AI 장소 요약">
+            <Field label="AI 장소 요약 (관리자 내부 메모)">
               <textarea value={form.admin_summary} onChange={(event) => onFieldChange("admin_summary", event.target.value)} className={textareaClass} />
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs font-semibold text-slate-500">지도에서 가져온 사실정보를 기반으로 자동 생성됩니다. 사용자 제보 원문과 별도로 저장됩니다.</p>
+                <p className="text-xs font-semibold text-slate-500">공개 추천 설명과 분리된 내부 참고용 요약입니다. 사용자 제보 원문과 별도로 저장됩니다.</p>
                 <button type="button" onClick={onRegenerateAdminSummary} disabled={generatingAdminSummary} className="min-h-11 shrink-0 rounded-lg bg-white px-3 text-xs font-black text-teal-800 ring-1 ring-teal-200 disabled:opacity-50">
                   {generatingAdminSummary ? "AI 요약 생성 중..." : "AI 요약 다시 생성"}
                 </button>
@@ -1740,7 +1740,7 @@ function SubmissionReviewSummary({
       </div>
       <div className="mt-3 flex min-h-9 items-center gap-2 text-sm font-semibold text-slate-700">
         {form.admin_summary.trim() ? <CheckCircle2 size={16} className="text-teal-700" aria-hidden="true" /> : <XCircle size={16} className="text-rose-500" aria-hidden="true" />}
-        AI 장소 요약{form.admin_summary.trim() ? " 생성 완료" : " 없음"}
+        관리자 내부 메모{form.admin_summary.trim() ? " 생성 완료" : " 없음"}
       </div>
       <div className="mt-4 grid grid-cols-4 gap-1 rounded-lg bg-slate-100 p-1">
         {(["ko", "zh", "en", "ja"] as const).map((item) => (

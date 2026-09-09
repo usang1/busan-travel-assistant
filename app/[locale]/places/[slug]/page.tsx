@@ -5,8 +5,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  BadgeCheck,
+  CalendarCheck2,
+  Camera,
   Clock3,
   CreditCard,
+  FileSearch,
   Globe2,
   MapPin,
   MessageSquareText,
@@ -36,6 +40,17 @@ import { getRelatedPlaces } from "@/lib/place-recommendations";
 import { getRelatedGuidesForPlace } from "@/lib/guide-store";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
+import {
+  getLastVerifiedLabel,
+  getPlacePhotoDisplay,
+  getPlaceTrustCopy,
+  getPublicPlaceDescription,
+  getPublicTravelTip,
+  getSourceSummary,
+  getTrustedPlaceImageUrl,
+  getVerificationStatus,
+  getVerificationStatusLabel,
+} from "@/lib/place-trust";
 import {
   buildLocalizedMetadata,
   getPlaceContent,
@@ -90,13 +105,15 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
   }
 
   const content = getPlaceContent(place, locale);
+  const publicDescription = getPublicPlaceDescription(place, locale);
   const title = content.secondaryName ? `${content.name} | ${content.secondaryName}` : content.name;
   const chinaSummary = buildChinaPlaceSummary(place.china_info);
   const zhFeatureText = chinaSummary.tags.slice(0, 3).join("、");
   const description =
     locale === "zh"
       ? `${content.name}: 釜山${categoryLabels[place.category].zh}，${zhFeatureText ? `${zhFeatureText}。` : ""}${chinaSummary.summary}`
-      : `${content.name}: ${content.description}`;
+      : `${content.name}: ${publicDescription || copy.places.description}`;
+  const trustedImageUrl = getTrustedPlaceImageUrl(place);
 
   return buildLocalizedMetadata({
     locale,
@@ -104,7 +121,7 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
     description,
     path: `/places/${slug}`,
     type: "article",
-    images: place.thumbnail_url ? [{ url: place.thumbnail_url }] : undefined,
+    images: trustedImageUrl ? [{ url: trustedImageUrl }] : undefined,
   });
 }
 
@@ -126,6 +143,12 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   });
 
   const content = getPlaceContent(place, locale);
+  const trustCopy = getPlaceTrustCopy(locale);
+  const publicDescription = getPublicPlaceDescription(place, locale);
+  const publicTravelTip = getPublicTravelTip(place, locale);
+  const photo = getPlacePhotoDisplay(place, locale);
+  const trustedImageUrl = getTrustedPlaceImageUrl(place);
+  const verificationStatus = getVerificationStatus(place);
   const recommendedMenus = place.menu_items.filter((item) => item.is_recommended);
   const otherMenus = place.menu_items.filter((item) => !item.is_recommended);
   const facilityTags = [
@@ -151,8 +174,6 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   const websiteHref = safeExternalUrl(place.website);
   const placeHasCoordinates = hasCoordinates(place);
   const coordinates = placeHasCoordinates ? { latitude: place.latitude, longitude: place.longitude } : null;
-  const hasPhoto = Boolean(place.thumbnail_url?.trim());
-  const photoMissing = { zh: "照片确认中", en: "Photo needs checking", ja: "写真確認中", ko: "사진 확인 필요" }[locale];
   const walkingText = placeHasCoordinates && place.walking_minutes > 0
     ? `${place.walking_minutes}${copy.common.minutes}`
     : copy.common.noInfo;
@@ -160,11 +181,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     ? `${[place.nearest_station, place.nearest_exit].filter(Boolean).join(" ")} · ${copy.common.walk} ${walkingText}`
     : copy.common.noInfo;
   const factLabels = {
-    zh: { address: "地址", phone: "电话", website: "网站" },
-    en: { address: "Address", phone: "Phone", website: "Website" },
-    ja: { address: "住所", phone: "電話", website: "ウェブサイト" },
-    ko: { address: "주소", phone: "전화", website: "웹사이트" },
+    zh: { address: "地址", phone: "电话", website: "网站", verification: "验证状态", source: "信息来源", lastChecked: "最后确认" },
+    en: { address: "Address", phone: "Phone", website: "Website", verification: "Verification", source: "Source", lastChecked: "Last checked" },
+    ja: { address: "住所", phone: "電話", website: "ウェブサイト", verification: "確認状態", source: "情報源", lastChecked: "最終確認" },
+    ko: { address: "주소", phone: "전화", website: "웹사이트", verification: "검증 상태", source: "정보 출처", lastChecked: "마지막 확인일" },
   }[locale];
+  const detailStatus = getVerificationStatusLabel(verificationStatus, locale);
+  const detailSource = getSourceSummary(place, locale);
+  const detailLastChecked = getLastVerifiedLabel(place, locale);
+  const recommendationDescription = publicDescription || trustCopy.noPublicDescription;
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -173,8 +198,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           "@context": "https://schema.org",
           "@type": "TouristAttraction",
           name: content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name,
-          description: content.description,
-          image: place.thumbnail_url,
+          description: publicDescription,
+          image: trustedImageUrl || undefined,
           url: localizedCanonical(`/places/${place.slug}`, locale),
           address: content.address,
           geo:
@@ -195,7 +220,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           title: content.name,
           subtitle: content.secondaryName,
           href: placeHref,
-          imageUrl: place.thumbnail_url,
+          imageUrl: trustedImageUrl,
           category: place.category,
           area: getPlaceAreaText(place),
         }}
@@ -209,9 +234,9 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
       <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
         <div className="relative aspect-[4/3] bg-slate-200">
-          {hasPhoto ? (
+          {photo.kind === "image" ? (
             <Image
-              src={place.thumbnail_url}
+              src={photo.url}
               alt={content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name}
               fill
               sizes="(max-width: 768px) 100vw, 720px"
@@ -219,8 +244,12 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
               priority
             />
           ) : (
-            <div className="grid h-full place-items-center px-4 text-center text-sm font-black text-slate-500">
-              {photoMissing}
+            <div className="grid h-full place-items-center bg-slate-100 px-5 text-center">
+              <div>
+                <Camera size={32} className="mx-auto text-slate-400" aria-hidden="true" />
+                <p className="mt-3 text-base font-black text-slate-700">{photo.title}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">{photo.detail}</p>
+              </div>
             </div>
           )}
           <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-sm backdrop-blur">
@@ -245,7 +274,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
                 titleZh: place.name_zh,
                 titleKo: place.name_ko,
                 href: placeHref,
-                imageUrl: place.thumbnail_url,
+                imageUrl: trustedImageUrl,
                 meta: [categoryLabels[place.category][locale], placeHasCoordinates ? `${copy.common.walk} ${walkingText}` : ""].filter(Boolean).join(" · "),
               }}
             />
@@ -253,7 +282,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           <div className="mt-4">
             <ShareButton
               title={content.name}
-              text={`${content.name}${content.secondaryName ? ` / ${content.secondaryName}` : ""} - ${content.description}`}
+              text={`${content.name}${content.secondaryName ? ` / ${content.secondaryName}` : ""} - ${recommendationDescription}`}
               url={localizedCanonical(`/places/${place.slug}`, locale)}
               placeId={place.id}
               locale={locale}
@@ -268,7 +297,13 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
           <section className="mt-6">
             <SectionTitle title={copy.placeDetail.recommendation} />
-            <p className="mt-3 text-base leading-7 text-slate-700">{content.description}</p>
+            <p className="mt-3 text-base leading-7 text-slate-700">{recommendationDescription}</p>
+          </section>
+
+          <section className="mt-5 grid gap-2 rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-100 sm:grid-cols-3">
+            <TrustFact icon={BadgeCheck} label={factLabels.verification} value={detailStatus} />
+            <TrustFact icon={FileSearch} label={factLabels.source} value={detailSource} />
+            <TrustFact icon={CalendarCheck2} label={factLabels.lastChecked} value={detailLastChecked} />
           </section>
 
           <div className="mt-5 divide-y divide-slate-100 border-y border-slate-100">
@@ -361,7 +396,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         <SectionTitle title={copy.placeDetail.travelTip} />
         <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <Soup size={22} className="text-teal-700" aria-hidden="true" />
-          <p className="mt-3 text-base leading-7 text-slate-700">{content.travelTip || copy.common.noInfo}</p>
+          <p className="mt-3 text-base leading-7 text-slate-700">{publicTravelTip || copy.common.noInfo}</p>
         </div>
       </section>
 
@@ -392,6 +427,16 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       />
       <PlaceLocationPanel place={place} locale={locale} />
     </main>
+  );
+}
+
+function TrustFact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <Icon size={17} className="text-teal-700" aria-hidden="true" />
+      <p className="mt-2 text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-black leading-5 text-slate-950">{value}</p>
+    </div>
   );
 }
 
