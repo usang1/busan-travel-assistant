@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { mergeGuestDataToAccount } from "@/lib/guest-sync";
 import { getSupabaseClient } from "@/lib/supabase";
-import type { Locale } from "@/lib/i18n";
+import { defaultLocale, getLocaleFromPath, type Locale } from "@/lib/i18n";
 
 export type UserProfile = {
   id: string;
@@ -21,7 +22,10 @@ type AuthContextValue = {
   profile: UserProfile | null;
   isAdmin: boolean;
   loading: boolean;
+  authError: string;
+  guestMergePending: boolean;
   refreshProfile: () => Promise<void>;
+  retryAuth: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue>({
@@ -30,13 +34,19 @@ const AuthContext = createContext<AuthContextValue>({
   profile: null,
   isAdmin: false,
   loading: true,
+  authError: "",
+  guestMergePending: false,
   refreshProfile: async () => undefined,
+  retryAuth: async () => undefined,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
+  const [guestMergePending, setGuestMergePending] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   async function loadProfile(userId: string) {
     const client = getSupabaseClient();
@@ -79,27 +89,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let mounted = true;
 
-    client.auth.getSession().then(({ data }) => {
-      if (!mounted) {
-        return;
-      }
+    setLoading(true);
+    setAuthError("");
 
-      setSession(data.session);
-      if (data.session?.user) {
-        void loadProfile(data.session.user.id).finally(() => {
-          if (mounted) {
-            setLoading(false);
-          }
-        });
-        return;
-      }
+    withTimeout(client.auth.getSession(), 8000)
+      .then(({ data }) => {
+        if (!mounted) {
+          return;
+        }
 
-      setProfile(null);
-      setLoading(false);
-    });
+        setSession(data.session);
+        if (data.session?.user) {
+          void loadProfile(data.session.user.id).finally(() => {
+            if (mounted) {
+              setLoading(false);
+            }
+          });
+          return;
+        }
+
+        setProfile(null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setSession(null);
+        setProfile(null);
+        setAuthError("로그인 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+        setLoading(false);
+      });
 
     const { data: listener } = client.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
       setSession(nextSession);
+      setAuthError("");
       if (nextSession?.user) {
         void loadProfile(nextSession.user.id).finally(() => {
           if (mounted) {
@@ -117,7 +140,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [retryNonce]);
+
+  useEffect(() => {
+    if (!session?.user || loading) return;
+
+    let cancelled = false;
+    const locale = getLocaleFromPath(window.location.pathname) ?? profile?.preferred_locale ?? defaultLocale;
+
+    setGuestMergePending(true);
+    void mergeGuestDataToAccount(session.user.id, locale)
+      .then((result) => {
+        if (!cancelled && result.error) {
+          setAuthError("저장한 게스트 데이터를 계정에 병합하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setGuestMergePending(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, profile?.preferred_locale, session?.user]);
 
   const value = useMemo(
     () => ({
@@ -126,9 +171,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       isAdmin: profile?.role === "admin",
       loading,
+      authError,
+      guestMergePending,
       refreshProfile,
+      retryAuth: async () => setRetryNonce((current) => current + 1),
     }),
-    [loading, profile, session],
+    [authError, guestMergePending, loading, profile, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -136,4 +184,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error("Auth request timed out.")), timeoutMs);
+    }),
+  ]);
 }

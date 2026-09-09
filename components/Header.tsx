@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, getLocaleFromPath, localeMeta, locales, ui, withLocale, withoutLocale } from "@/lib/i18n";
 import { getSupabaseClient } from "@/lib/supabase";
+import { guideCopy } from "@/lib/guide-copy";
 
 export function Header() {
   const pathname = usePathname();
@@ -105,6 +106,9 @@ export function Header() {
           </div>
         </div>
       </div>
+      <nav className="mx-auto mt-2 flex max-w-3xl flex-wrap gap-3" aria-label={guideCopy[currentLocale].title}>
+        <Link href={withLocale("/guides", currentLocale)} className="inline-flex min-h-10 items-center rounded-full bg-white px-3 text-sm font-bold text-teal-800 ring-1 ring-slate-200">{guideCopy[currentLocale].title}</Link>
+      </nav>
     </header>
   );
 }

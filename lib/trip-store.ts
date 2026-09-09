@@ -15,6 +15,7 @@ export type TripInput = {
   startDate: string;
   endDate: string;
   visibility: TripVisibility;
+  clientMergeKey?: string | null;
 };
 
 export async function getUserTrips(userId: string, client = getSupabaseClient()) {
@@ -108,7 +109,7 @@ export async function getSavedPlacesForTrip(userId: string, client = getSupabase
 
 export async function createTrip(userId: string, input: TripInput, client = getSupabaseClient()) {
   if (!client) return { trip: null, error: "일정 저장 서비스를 사용할 수 없습니다." };
-  const { data, error } = await client
+  let { data, error } = await client
     .from("trips")
     .insert({
       user_id: userId,
@@ -116,11 +117,33 @@ export async function createTrip(userId: string, input: TripInput, client = getS
       start_date: input.startDate,
       end_date: input.endDate,
       visibility: input.visibility,
+      client_merge_key: input.clientMergeKey ?? null,
     })
     .select("*")
     .single();
 
+  if (isMissingClientMergeKeyColumn(error)) {
+    const retry = await client
+      .from("trips")
+      .insert({
+        user_id: userId,
+        title: input.title.trim(),
+        start_date: input.startDate,
+        end_date: input.endDate,
+        visibility: input.visibility,
+      })
+      .select("*")
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
+
   return { trip: data as TripRecord | null, error: error?.message };
+}
+
+function isMissingClientMergeKeyColumn(error: { code?: string; message?: string } | null) {
+  const message = error?.message ?? "";
+  return error?.code === "PGRST204" || message.includes("client_merge_key");
 }
 
 export async function updateTrip(tripId: string, input: TripInput, client = getSupabaseClient()) {

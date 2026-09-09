@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LogIn, ShieldCheck } from "lucide-react";
 import { AdminCorrectionWorkflow } from "@/components/AdminCorrectionWorkflow";
 import { AdminDashboard } from "@/components/AdminDashboard";
+import { AdminGuideManager } from "@/components/AdminGuideManager";
 import { AdminPlaceManager } from "@/components/AdminPlaceManager";
 import { AdminSubmissionWorkflow } from "@/components/AdminSubmissionWorkflow";
 import { useAuth } from "@/components/AuthProvider";
@@ -122,7 +123,9 @@ export function AdminShell() {
 
   return (
     <div className="space-y-8">
+      <nav aria-label="관리자 메뉴"><a href="#guides" className="inline-flex min-h-11 items-center rounded-2xl bg-teal-700 px-4 text-sm font-bold text-white">여행 가이드 / 여행 코스 관리</a></nav>
       <AdminDashboard places={places} photoSpots={[] as PhotoSpotRecord[]} />
+      <AdminGuideManager accessToken={accessToken as string} places={places} />
       <AdminSubmissionWorkflow accessToken={accessToken as string} onPlaceCreated={loadPlaces} />
       <AdminCorrectionWorkflow accessToken={accessToken as string} />
       <AdminPlaceManager

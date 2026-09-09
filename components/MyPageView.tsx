@@ -5,6 +5,7 @@ import { CalendarDays, Flag, LogOut, Mail, ShieldCheck, UserRound, type LucideIc
 import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
 import { MySubmissionsView } from "@/components/MySubmissionsView";
 import { MyTripsPanel } from "@/components/MyTripsPanel";
+import { SavedGuides } from "@/components/SavedGuides";
 import { SavedItemsView } from "@/components/SavedItemsView";
 import { useAuth } from "@/components/AuthProvider";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -94,6 +95,7 @@ export function MyPageView({ locale }: MyPageViewProps) {
         <h2 className="text-xl font-black text-slate-950">{copy.mypage.savedPlaces}</h2>
         <div className="mt-4">
           <SavedItemsView locale={locale} compact />
+          <SavedGuides locale={locale} />
         </div>
       </section>
 

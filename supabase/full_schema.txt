@@ -48,12 +48,19 @@ begin
 
   if not exists (select 1 from pg_type where typname = 'place_action_event_type') then
     create type public.place_action_event_type as enum (
+      'guide_view',
       'place_view',
       'place_save',
       'place_unsave',
+      'guide_save',
+      'guide_unsave',
+      'guide_place_click',
+      'saved_list_view',
+      'saved_map_view',
       'marker_click',
       'directions_click',
       'share',
+      'share_click',
       'submission_created',
       'correction_submitted'
     );
@@ -74,6 +81,19 @@ begin
   if not exists (select 1 from pg_type where typname = 'china_minimum_order_policy') then
     create type public.china_minimum_order_policy as enum ('unknown', 'none', 'two_plus', 'three_plus', 'other');
   end if;
+end $$;
+
+do $$
+begin
+  alter type public.place_action_event_type add value if not exists 'guide_view';
+  alter type public.place_action_event_type add value if not exists 'guide_save';
+  alter type public.place_action_event_type add value if not exists 'guide_unsave';
+  alter type public.place_action_event_type add value if not exists 'guide_place_click';
+  alter type public.place_action_event_type add value if not exists 'saved_list_view';
+  alter type public.place_action_event_type add value if not exists 'saved_map_view';
+  alter type public.place_action_event_type add value if not exists 'share_click';
+exception
+  when duplicate_object then null;
 end $$;
 
 do $$

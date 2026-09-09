@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
+import { getPublishedGuides } from "@/lib/guide-store";
 import { getPlaces } from "@/lib/place-store";
 import {
   buildLocalizedMetadata,
@@ -45,7 +46,10 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
 export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
   const copy = ui[locale];
-  const { places } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-home" });
+  const [{ places }, { guides }] = await Promise.all([
+    getPlaces({ activeOnly: true, locale, debugLabel: "localized-home" }),
+    getPublishedGuides(),
+  ]);
 
   return (
     <>
@@ -59,7 +63,7 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
           description: copy.home.description,
         }}
       />
-      <HomeDiscoveryPage locale={locale} places={places} />
+      <HomeDiscoveryPage locale={locale} places={places} guides={guides} />
     </>
   );
 }

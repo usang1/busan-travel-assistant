@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { AuthProvider } from "@/components/AuthProvider";
+import { AnalyticsAttribution } from "@/components/AnalyticsAttribution";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -55,6 +56,7 @@ export default async function RootLayout({
         <AuthProvider>
           <ProEntitlementProvider>
             <Suspense fallback={null}>
+              <AnalyticsAttribution />
               <Header />
             </Suspense>
             {children}

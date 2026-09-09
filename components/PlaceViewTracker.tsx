@@ -16,6 +16,7 @@ type PlaceViewTrackerProps = {
     href: string;
     imageUrl: string;
     category: PlaceCategory;
+    area?: string;
   };
   locale: Locale;
 };
@@ -30,6 +31,11 @@ export function PlaceViewTracker({ place, locale }: PlaceViewTrackerProps) {
       locale,
       placeId: place.id,
       userId: user?.id,
+      metadata: {
+        category: place.category,
+        area: place.area,
+        slug: place.slug,
+      },
     });
   }, [locale, place, user?.id]);
 

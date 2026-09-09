@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { SavedItemsView } from "@/components/SavedItemsView";
+import { SavedGuides } from "@/components/SavedGuides";
 import { SectionTitle } from "@/components/SectionTitle";
 import { absoluteUrl } from "@/config/site";
+import { defaultLocale, ui } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "收藏｜保存的釜山旅行地点",
-  description: "查看已保存的广安里地点。",
+  title: ui[defaultLocale].mypage.savedPlaces,
+  description: ui[defaultLocale].mypage.savedEmptyDescription,
   alternates: { canonical: absoluteUrl("/saved") },
   robots: { index: false, follow: true },
 };
@@ -13,9 +15,10 @@ export const metadata: Metadata = {
 export default function SavedPage() {
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title="收藏" subtitle="저장한 장소와 최근 본 장소" />
+      <SectionTitle title={ui[defaultLocale].mypage.savedPlaces} subtitle={ui[defaultLocale].mypage.subtitle} />
       <div className="mt-5">
-        <SavedItemsView />
+        <SavedItemsView locale={defaultLocale} />
+        <SavedGuides locale={defaultLocale} />
       </div>
     </main>
   );

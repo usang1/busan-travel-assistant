@@ -15,9 +15,11 @@ type ShareButtonProps = {
   className?: string;
   placeId?: string;
   locale?: Locale;
+  label?: string;
+  metadata?: Record<string, unknown>;
 };
 
-export function ShareButton({ title, text, url, className, placeId, locale }: ShareButtonProps) {
+export function ShareButton({ title, text, url, className, placeId, locale, label, metadata = {} }: ShareButtonProps) {
   const [status, setStatus] = useState("");
   const pathname = usePathname();
   const currentLocale = locale ?? getLocaleFromPath(pathname) ?? defaultLocale;
@@ -26,6 +28,14 @@ export function ShareButton({ title, text, url, className, placeId, locale }: Sh
 
   async function share() {
     const shareUrl = url ? new URL(url, window.location.origin).toString() : window.location.href;
+
+    void recordPlaceEvent({
+      eventType: "share_click",
+      placeId,
+      locale: currentLocale,
+      userId: user?.id,
+      metadata: { ...metadata, shared_url: shareUrl },
+    });
 
     try {
       if (navigator.share) {
@@ -44,15 +54,6 @@ export function ShareButton({ title, text, url, className, placeId, locale }: Sh
         setStatus(copy.failed);
       }
     }
-
-    if (placeId) {
-      void recordPlaceEvent({
-        eventType: "share",
-        placeId,
-        locale: currentLocale,
-        userId: user?.id,
-      });
-    }
   }
 
   return (
@@ -66,7 +67,7 @@ export function ShareButton({ title, text, url, className, placeId, locale }: Sh
         )}
       >
         <Share2 size={17} aria-hidden="true" />
-        {copy.share}
+        {label ?? copy.share}
       </button>
       {status ? <span className="text-xs font-semibold text-teal-700">{status}</span> : null}
     </div>

@@ -22,6 +22,7 @@ import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
 import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
+import { RelatedGuidesSection } from "@/components/RelatedGuidesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceVisitTools } from "@/components/PlaceVisitTools";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
@@ -32,6 +33,7 @@ import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
+import { getRelatedGuidesForPlace } from "@/lib/guide-store";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
@@ -116,6 +118,12 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   }
 
   const relatedPlaces = await getRelatedPlaces(place);
+  const relatedGuides = await getRelatedGuidesForPlace({
+    placeId: place.id,
+    area: getPlaceAreaText(place),
+    category: place.category,
+    limit: 4,
+  });
 
   const content = getPlaceContent(place, locale);
   const recommendedMenus = place.menu_items.filter((item) => item.is_recommended);
@@ -189,6 +197,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           href: placeHref,
           imageUrl: place.thumbnail_url,
           category: place.category,
+          area: getPlaceAreaText(place),
         }}
       />
       <Link href={withLocale("/places", locale)} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
@@ -228,6 +237,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             <SaveButton
               className="h-11 px-3"
               initialSaveCount={place.save_count ?? 0}
+              label={placeSaveLabel[locale]}
               locale={locale}
               item={{
                 id: place.id,
@@ -365,6 +375,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       </section>
 
       <RelatedPlacesSection places={relatedPlaces} locale={locale} />
+      <RelatedGuidesSection guides={relatedGuides} locale={locale} />
 
       <PlaceCorrectionForm
         placeId={place.id}
@@ -382,6 +393,22 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       <PlaceLocationPanel place={place} locale={locale} />
     </main>
   );
+}
+
+const placeSaveLabel: Record<Locale, string> = {
+  zh: "加入釜山清单",
+  en: "Save to trip list",
+  ja: "釜山リストに保存",
+  ko: "여행 리스트에 저장",
+};
+
+function getPlaceAreaText(place: { address_ko?: string; address_zh?: string; nearest_station?: string; name_ko?: string; name_zh?: string }) {
+  const text = `${place.address_ko ?? ""} ${place.address_zh ?? ""} ${place.nearest_station ?? ""} ${place.name_ko ?? ""} ${place.name_zh ?? ""}`;
+  if (text.includes("광안") || text.includes("广安")) return "광안리";
+  if (text.includes("해운대") || text.includes("海云台") || text.includes("海雲台")) return "해운대";
+  if (text.includes("서면") || text.includes("西面")) return "서면";
+  if (text.includes("남포") || text.includes("南浦")) return "남포";
+  return "";
 }
 
 function InfoTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {

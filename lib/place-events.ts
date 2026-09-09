@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase";
+import { getAnalyticsMetadata } from "@/lib/analytics-source";
 import type { Locale } from "@/lib/i18n";
 import type { PlaceActionEventType } from "@/types/database";
 
@@ -29,7 +30,7 @@ export async function recordPlaceEvent({
       locale,
       place_id: placeId,
       user_id: userId,
-      metadata,
+      metadata: getAnalyticsMetadata(metadata),
     });
   } catch {
     // Analytics must never block the core user action.

@@ -2,14 +2,21 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Heart } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { pendingPlaceSaveStorageKey } from "@/lib/auth-flow";
 import { recordPlaceEvent } from "@/lib/place-events";
 import { getPlaceSaveCounts } from "@/lib/place-saves";
-import { savedItemsStorageKey, type SavedItem } from "@/lib/saved-items";
+import {
+  isItemSaved,
+  readSavedItems,
+  removeSavedItem,
+  savedItemsChangeEvent,
+  savedItemsStorageKey,
+  toggleSavedItem,
+  type SavedItem,
+} from "@/lib/saved-items";
 import { getSupabaseClient } from "@/lib/supabase";
-import { defaultLocale, getLocaleFromPath, type Locale, withLocale } from "@/lib/i18n";
+import { defaultLocale, getLocaleFromPath, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type SaveButtonProps = {
@@ -20,11 +27,11 @@ type SaveButtonProps = {
   locale?: Locale;
 };
 
-const saveLabels: Record<Locale, { save: string; saved: string; loginRequired: string }> = {
-  zh: { save: "保存", saved: "已保存", loginRequired: "登录后保存" },
-  en: { save: "Save", saved: "Saved", loginRequired: "Sign in to save" },
-  ja: { save: "保存", saved: "保存済み", loginRequired: "ログインして保存" },
-  ko: { save: "저장", saved: "저장됨", loginRequired: "로그인 후 저장" },
+const saveLabels: Record<Locale, { save: string; saved: string }> = {
+  zh: { save: "收藏", saved: "已收藏" },
+  en: { save: "Save", saved: "Saved" },
+  ja: { save: "保存", saved: "保存済み" },
+  ko: { save: "저장", saved: "저장됨" },
 };
 
 type PlaceSaveChangeDetail = {
@@ -37,19 +44,6 @@ type PlaceSaveStateRow = {
   saved: boolean;
   save_count: number | string;
 };
-
-function readItems() {
-  try {
-    return JSON.parse(window.localStorage.getItem(savedItemsStorageKey) ?? "[]") as SavedItem[];
-  } catch {
-    return [];
-  }
-}
-
-function writeItems(items: SavedItem[]) {
-  window.localStorage.setItem(savedItemsStorageKey, JSON.stringify(items));
-  window.dispatchEvent(new Event("saved-items-change"));
-}
 
 export function SaveButton({ item, initialSaveCount = 0, className, label, locale }: SaveButtonProps) {
   if (item.type === "place") {
@@ -68,7 +62,6 @@ export function SaveButton({ item, initialSaveCount = 0, className, label, local
 }
 
 function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: SaveButtonProps & { initialSaveCount: number }) {
-  const router = useRouter();
   const pathname = usePathname();
   const derivedLocale = locale ?? getLocaleFromPath(pathname) ?? defaultLocale;
   const text = saveLabels[derivedLocale];
@@ -82,19 +75,17 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
     let mounted = true;
 
     async function loadState() {
-      if (!client) {
-        return;
+      if (client) {
+        const counts = await getPlaceSaveCounts([item.id]);
+
+        if (mounted && counts.has(item.id)) {
+          setSaveCount(counts.get(item.id) ?? 0);
+        }
       }
 
-      const counts = await getPlaceSaveCounts([item.id]);
-
-      if (mounted && counts.has(item.id)) {
-        setSaveCount(counts.get(item.id) ?? 0);
-      }
-
-      if (!user) {
+      if (!user || !client) {
         if (mounted) {
-          setSaved(false);
+          setSaved(isItemSaved({ id: item.id, type: item.type }));
         }
         return;
       }
@@ -129,26 +120,16 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
     }
 
     window.addEventListener("place-save-change", handleSaveChange);
+    window.addEventListener(savedItemsChangeEvent, handleSaveChange);
+    window.addEventListener("storage", handleSaveChange);
 
     return () => {
       mounted = false;
       window.removeEventListener("place-save-change", handleSaveChange);
+      window.removeEventListener(savedItemsChangeEvent, handleSaveChange);
+      window.removeEventListener("storage", handleSaveChange);
     };
   }, [client, item.id, user]);
-
-  function redirectToLogin() {
-    const next = `${window.location.pathname}${window.location.search}`;
-
-    window.localStorage.setItem(
-      pendingPlaceSaveStorageKey,
-      JSON.stringify({
-        placeId: item.id,
-        locale: derivedLocale,
-        createdAt: new Date().toISOString(),
-      }),
-    );
-    router.push(`${withLocale("/login", derivedLocale)}?next=${encodeURIComponent(next)}`);
-  }
 
   async function toggleSaved() {
     if (loading || pending) {
@@ -156,7 +137,21 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
     }
 
     if (!client || !user) {
-      redirectToLogin();
+      const result = toggleSavedItem(item);
+      setSaved(result.saved);
+      void recordPlaceEvent({
+        eventType: result.saved ? "place_save" : "place_unsave",
+        placeId: item.id,
+        locale: derivedLocale,
+        metadata: { source: "save_button", item_type: item.type },
+      });
+      window.dispatchEvent(new CustomEvent<PlaceSaveChangeDetail>("place-save-change", {
+        detail: {
+          placeId: item.id,
+          saved: result.saved,
+          saveCount,
+        },
+      }));
       return;
     }
 
@@ -194,6 +189,7 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
         placeId: item.id,
         locale: derivedLocale,
         userId: user.id,
+        metadata: { source: "save_button", item_type: item.type },
       });
     }
 
@@ -205,7 +201,6 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
         saveCount: authoritativeState.saveCount,
       },
     }));
-    router.refresh();
   }
 
   const visibleLabel = saved ? text.saved : label ?? text.save;
@@ -221,8 +216,7 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
         className,
       )}
       aria-pressed={saved}
-      aria-label={user ? `${visibleLabel} ${item.titleZh}` : `${text.loginRequired} ${item.titleZh}`}
-      title={user ? undefined : text.loginRequired}
+      aria-label={`${visibleLabel} ${item.titleZh}`}
     >
       <Heart size={17} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
       <span>{visibleLabel}</span>
@@ -303,15 +297,15 @@ function LegacySaveButton({ item, className, label, locale }: SaveButtonProps) {
   const saved = items.some((savedItem) => savedItem.id === item.id && savedItem.type === item.type);
 
   function toggleSaved() {
-    const current = readItems();
+    const current = readSavedItems();
     const exists = current.some((savedItem) => savedItem.id === item.id && savedItem.type === item.type);
 
     if (exists) {
-      writeItems(current.filter((savedItem) => !(savedItem.id === item.id && savedItem.type === item.type)));
+      removeSavedItem(item);
       return;
     }
 
-    writeItems([{ ...item, savedAt: new Date().toISOString() }, ...current]);
+    toggleSavedItem(item);
   }
 
   return (

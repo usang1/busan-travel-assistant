@@ -198,6 +198,7 @@ export type TripRecord = {
   end_date: string;
   visibility: TripVisibility;
   share_slug: string;
+  client_merge_key?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -282,12 +283,19 @@ export type PlaceCorrectionRecord = {
 };
 
 export type PlaceActionEventType =
+  | "guide_view"
   | "place_view"
   | "place_save"
   | "place_unsave"
+  | "guide_save"
+  | "guide_unsave"
+  | "guide_place_click"
+  | "saved_list_view"
+  | "saved_map_view"
   | "marker_click"
   | "directions_click"
   | "share"
+  | "share_click"
   | "submission_created"
   | "correction_submitted";
 

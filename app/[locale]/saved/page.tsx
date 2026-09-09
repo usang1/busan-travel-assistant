@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SavedItemsView } from "@/components/SavedItemsView";
+import { SavedGuides } from "@/components/SavedGuides";
 import { SectionTitle } from "@/components/SectionTitle";
 import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
@@ -42,6 +43,7 @@ export default async function LocalizedSavedPage({ params }: LocalizedSavedPageP
       <SectionTitle title={copy.mypage.savedPlaces} subtitle={copy.mypage.subtitle} />
       <div className="mt-5">
         <SavedItemsView locale={locale} />
+        <SavedGuides locale={locale} />
       </div>
     </main>
   );
