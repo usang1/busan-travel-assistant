@@ -10,7 +10,7 @@ assert.match(travelMap, /disableAutoPan: true/);
 assert.doesNotMatch(travelMap, /contentSignature|lastFittedContentRef/);
 assert.doesNotMatch(travelMap, /focusRequest/);
 assert.doesNotMatch(nearbyExplorer, /focusRequest/);
-assert.match(nearbyExplorer, /description: content\.description/);
+assert.match(nearbyExplorer, /description: getPublicPlaceDescription\(place, locale\)/);
 assert.match(nearbyExplorer, /detailLabel: localizedCopy\.detail/);
 assert.match(nearbyExplorer, /<Link href=\{href\}[\s\S]*\{localizedCopy\.detail\}[\s\S]*<ArrowRight/);
 assert.match(travelMap, /marker\.description/);

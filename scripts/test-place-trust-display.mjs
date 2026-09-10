@@ -24,12 +24,34 @@ function loadTrustModule() {
           name: item[`name_${locale}`] || item.name_ko || item.name_zh || "",
           description: item[`description_${locale}`] || "",
         }),
+        getPlaceContent: (place, locale) => {
+          const translation = place.translations?.find((item) => item.locale === locale);
+          const name = translation?.name || (locale === "zh" ? place.name_zh : place.name_ko) || place.name_zh || place.name_ko || "";
+          return {
+            name,
+            secondaryName: locale === "ko" || name === place.name_ko ? "" : place.name_ko,
+          };
+        },
       };
     }
 
     if (specifier === "@/lib/traveler-insights") {
       return {
         verificationDateLabel: (value, locale) => value ? `${locale}:${value.slice(0, 10)}` : "",
+      };
+    }
+
+    if (specifier === "@/types/database") {
+      return {
+        categoryLabels: {
+          restaurant: { zh: "餐厅", en: "Restaurants", ja: "飲食店", ko: "음식점" },
+          cafe: { zh: "咖啡", en: "Cafes", ja: "カフェ", ko: "카페" },
+          bar: { zh: "酒吧", en: "Bars", ja: "バー", ko: "술집" },
+          attraction: { zh: "景点", en: "Attractions", ja: "観光", ko: "관광" },
+          shopping: { zh: "购物", en: "Shopping", ja: "ショッピング", ko: "쇼핑" },
+          photo_spot: { zh: "拍照", en: "Photo spots", ja: "写真スポット", ko: "사진" },
+          luggage: { zh: "行李寄存", en: "Luggage", ja: "荷物預かり", ko: "짐보관" },
+        },
       };
     }
 
@@ -45,6 +67,8 @@ const trust = loadTrustModule();
 const basePlace = {
   id: "place-1",
   slug: "trusted-cafe",
+  name_ko: "트러스티드 카페",
+  name_zh: "可信咖啡",
   category: "cafe",
   thumbnail_url: "https://example.com/cafe.jpg",
   website: "https://example.com/cafe",
@@ -176,6 +200,11 @@ assert.equal(sparseFacts.missingSummary, "세부 영업정보 준비 중");
 assert.equal(trust.getVerificationStatus(sparsePlace), "pending");
 assert.equal(trust.getSourceSummary(sparsePlace, "ko"), "출처 확인 중");
 assert.equal(trust.getLastVerifiedLabel(sparsePlace, "ko"), "확인일 준비 중");
+assert.equal(trust.getPlaceCategoryLabel("cafe", "en"), "Cafes");
+assert.equal(trust.getPlaceCategoryLabel("cafe", "ja"), "カフェ");
+assert.deepEqual({ ...trust.getLocalizedRecommendationDisplay(sparsePlace, "ko") }, { label: "추천도", value: "확인 중" });
+assert.deepEqual({ ...trust.getLocalizedRecommendationDisplay(sparsePlace, "zh") }, { label: "推荐度", value: "暂未确认" });
+assert.equal(trust.getPlaceNameDisplay(basePlace, "en").secondaryLabel, "Korean original name");
 
 const qualitySource = fs.readFileSync("lib/place-quality.ts", "utf8");
 assert.match(qualitySource, /"visual_asset"/);

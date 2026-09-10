@@ -784,6 +784,10 @@ export const ui = {
 
 type LocalizedValue = Partial<Record<Locale, string | null | undefined>>;
 
+export function getExactLocalizedValue(values: LocalizedValue, locale: Locale) {
+  return values[locale]?.trim() ?? "";
+}
+
 export function getLocalizedValue(values: LocalizedValue, locale: Locale, fallbackLocale: Locale = "ko") {
   const preferred = values[locale]?.trim();
 
@@ -826,11 +830,15 @@ export function getLocalizedField(place: PlaceWithRelations, field: "name" | "de
     return acc;
   }, {}) ?? {};
 
-  return getLocalizedValue({ ...legacyValues[field], ...translatedValues }, locale);
+  const values = { ...legacyValues[field], ...translatedValues };
+  return field === "name" ? getLocalizedValue(values, locale) : getExactLocalizedValue(values, locale);
 }
 
 export function getLocalizedTag(tag: { label_zh: string; label_ko: string }, locale: Locale) {
-  return getLocalizedValue({ zh: tag.label_zh, ko: tag.label_ko }, locale);
+  if (locale === "zh") return tag.label_zh.trim();
+  if (locale === "ko") return tag.label_ko.trim();
+
+  return "";
 }
 
 export function getLocalizedMenuItem(
@@ -863,7 +871,63 @@ export function getPlaceContent(place: PlaceWithRelations, locale: Locale) {
     description: getLocalizedField(place, "description", locale),
     travelTip: getLocalizedField(place, "travelTip", locale),
     address: localizedAddresses[locale]?.trim() || "",
-    waitingInfo: getLocalizedValue({ zh: place.waiting_info_zh, ko: place.waiting_info_ko }, locale),
-    recommendedOrder: getLocalizedValue({ zh: place.recommended_order_zh, ko: place.recommended_order_ko }, locale),
+    waitingInfo: getExactLocalizedValue({ zh: place.waiting_info_zh, ko: place.waiting_info_ko }, locale),
+    recommendedOrder: getExactLocalizedValue({ zh: place.recommended_order_zh, ko: place.recommended_order_ko }, locale),
   };
 }
+
+type DictionaryKeyDiff = {
+  locale: Locale;
+  missing: string[];
+  extra: string[];
+};
+
+export function getLocaleDictionaryKeyDiffs() {
+  const baseLocale: Locale = "ko";
+  const baseKeys = flattenObjectKeys(ui[baseLocale]);
+
+  return locales
+    .filter((locale) => locale !== baseLocale)
+    .map<DictionaryKeyDiff>((locale) => {
+      const keys = flattenObjectKeys(ui[locale]);
+      return {
+        locale,
+        missing: [...baseKeys].filter((key) => !keys.has(key)).sort(),
+        extra: [...keys].filter((key) => !baseKeys.has(key)).sort(),
+      };
+    })
+    .filter((diff) => diff.missing.length > 0 || diff.extra.length > 0);
+}
+
+export function warnMissingLocaleDictionaryKeys() {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const diffs = getLocaleDictionaryKeyDiffs();
+  if (!diffs.length) {
+    return;
+  }
+
+  // eslint-disable-next-line no-console
+  console.warn("[i18n] Locale dictionary key mismatch", diffs);
+}
+
+function flattenObjectKeys(value: unknown, prefix = ""): Set<string> {
+  if (!isPlainObject(value)) {
+    return new Set(prefix ? [prefix] : []);
+  }
+
+  const keys = new Set<string>();
+  Object.entries(value).forEach(([key, child]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    flattenObjectKeys(child, path).forEach((item) => keys.add(item));
+  });
+  return keys;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+warnMissingLocaleDictionaryKeys();

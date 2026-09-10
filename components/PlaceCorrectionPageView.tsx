@@ -9,12 +9,13 @@ import {
   withLocale,
 } from "@/lib/i18n";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
-import { getPlacePhotoDisplay } from "@/lib/place-trust";
-import { categoryLabels, type PlaceWithRelations } from "@/types/database";
+import { getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay } from "@/lib/place-trust";
+import type { PlaceWithRelations } from "@/types/database";
 
 export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRelations; locale: Locale }) {
   const copy = pageCopy[locale];
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const photo = getPlacePhotoDisplay(place, locale);
   const currentMenuText = place.menu_items.map((item) => {
     const menu = getLocalizedMenuItem(item, locale);
@@ -36,7 +37,7 @@ export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRel
       <section className="my-5 flex items-center gap-4 rounded-[20px] bg-slate-50 p-3 ring-1 ring-slate-200">
         <div className="relative size-20 shrink-0 overflow-hidden rounded-2xl bg-slate-200">
           {photo.kind === "image" ? (
-            <Image src={photo.url} alt={content.name} fill sizes="80px" className="object-cover" />
+            <Image src={photo.url} alt={nameDisplay.name} fill sizes="80px" className="object-cover" />
           ) : (
             <div className="grid h-full place-items-center bg-slate-100 text-slate-400">
               <Camera size={22} aria-hidden="true" />
@@ -45,9 +46,9 @@ export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRel
           )}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-lg font-black text-slate-950">{content.name}</p>
-          {content.secondaryName ? <p className="mt-0.5 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
-          <p className="mt-2 text-xs font-bold text-teal-700">{categoryLabels[place.category][locale]}</p>
+          <p className="truncate text-lg font-black text-slate-950">{nameDisplay.name}</p>
+          {nameDisplay.secondaryName ? <p className="mt-0.5 truncate text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
+          <p className="mt-2 text-xs font-bold text-teal-700">{getPlaceCategoryLabel(place.category, locale)}</p>
           {content.address ? <p className="mt-1 flex items-start gap-1 text-xs leading-5 text-slate-500"><MapPin size={13} className="mt-0.5 shrink-0" />{content.address}</p> : null}
         </div>
       </section>

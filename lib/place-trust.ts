@@ -1,6 +1,6 @@
-import { getLocalizedMenuItem, type Locale } from "@/lib/i18n";
+import { getLocalizedMenuItem, getPlaceContent, type Locale } from "@/lib/i18n";
 import { verificationDateLabel } from "@/lib/traveler-insights";
-import type { PlaceCategory, PlaceSourceProvider, PlaceVerificationStatus, PlaceWithRelations } from "@/types/database";
+import { categoryLabels, type PlaceCategory, type PlaceSourceProvider, type PlaceVerificationStatus, type PlaceWithRelations } from "@/types/database";
 
 export type PlacePhotoDisplay =
   | { kind: "image"; url: string }
@@ -10,6 +10,17 @@ export type PlaceCardFactKey = "menu" | "price" | "hours" | "solo" | "waiting";
 
 export type PlaceCardFact = {
   key: PlaceCardFactKey;
+  label: string;
+  value: string;
+};
+
+export type LocalizedPlaceNameDisplay = {
+  name: string;
+  secondaryName: string;
+  secondaryLabel: string;
+};
+
+export type LocalizedRecommendationDisplay = {
   label: string;
   value: string;
 };
@@ -27,6 +38,9 @@ const copy = {
     sourceUnknown: "来源确认中",
     officialSite: "官方网站",
     lastCheckedMissing: "确认日准备中",
+    originalNameLabel: "韩文原名",
+    recommendationLabel: "推荐度",
+    recommendationUnknown: "暂未确认",
     labels: { menu: "招牌", price: "价格", hours: "营业", solo: "单人", waiting: "等位" },
   },
   en: {
@@ -41,6 +55,9 @@ const copy = {
     sourceUnknown: "Source pending",
     officialSite: "Official site",
     lastCheckedMissing: "Last checked pending",
+    originalNameLabel: "Korean original name",
+    recommendationLabel: "Recommendation",
+    recommendationUnknown: "Not confirmed",
     labels: { menu: "Menu", price: "Price", hours: "Hours", solo: "Solo", waiting: "Wait" },
   },
   ja: {
@@ -55,6 +72,9 @@ const copy = {
     sourceUnknown: "出典確認中",
     officialSite: "公式サイト",
     lastCheckedMissing: "確認日準備中",
+    originalNameLabel: "韓国語原名",
+    recommendationLabel: "おすすめ度",
+    recommendationUnknown: "未確認",
     labels: { menu: "代表", price: "価格", hours: "営業時間", solo: "一人", waiting: "待ち" },
   },
   ko: {
@@ -69,6 +89,9 @@ const copy = {
     sourceUnknown: "출처 확인 중",
     officialSite: "공식 링크",
     lastCheckedMissing: "확인일 준비 중",
+    originalNameLabel: "원문명",
+    recommendationLabel: "추천도",
+    recommendationUnknown: "확인 중",
     labels: { menu: "대표", price: "가격", hours: "영업", solo: "혼밥", waiting: "웨이팅" },
   },
 } as const;
@@ -84,6 +107,30 @@ const sourceLabels: Record<PlaceSourceProvider, Record<Locale, string>> = {
 
 export function getPlaceTrustCopy(locale: Locale) {
   return copy[locale];
+}
+
+export function getPlaceCategoryLabel(category: PlaceCategory, locale: Locale) {
+  return categoryLabels[category][locale];
+}
+
+export function getPlaceNameDisplay(place: PlaceWithRelations, locale: Locale): LocalizedPlaceNameDisplay {
+  const content = getPlaceContent(place, locale);
+  const koreanOriginal = place.name_ko.trim();
+
+  return {
+    name: content.name,
+    secondaryName: content.secondaryName || (locale !== "ko" && content.name !== koreanOriginal ? koreanOriginal : ""),
+    secondaryLabel: locale === "ko" ? "" : copy[locale].originalNameLabel,
+  };
+}
+
+export function getLocalizedRecommendationDisplay(place: PlaceWithRelations, locale: Locale): LocalizedRecommendationDisplay {
+  const score = place.china_info?.chinese_taste_score;
+
+  return {
+    label: copy[locale].recommendationLabel,
+    value: typeof score === "number" && score >= 1 && score <= 5 ? `${score}/5` : copy[locale].recommendationUnknown,
+  };
 }
 
 export function getPlacePhotoDisplay(place: Pick<PlaceWithRelations, "thumbnail_url" | "category">, locale: Locale): PlacePhotoDisplay {

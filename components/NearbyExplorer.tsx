@@ -32,7 +32,6 @@ import {
   countActiveChinaFilters,
   filterPlacesForChineseTraveler,
   getChinaDiscoveryTags,
-  getChinaRecommendationLabel,
   getEnabledChinaFilters,
   sortPlacesForChineseTraveler,
   type ChinaDiscoveryFilter,
@@ -51,6 +50,15 @@ import { formatPriceRange } from "@/lib/place-store";
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { getPreferredMapProvider, type MapBounds, type MapMarker } from "@/lib/map-provider";
+import {
+  getLocalizedRecommendationDisplay,
+  getPlaceCategoryLabel,
+  getPlaceNameDisplay,
+  getPlacePhotoDisplay,
+  getPlaceTrustCopy,
+  getPublicPlaceDescription,
+  getTrustedPlaceImageUrl,
+} from "@/lib/place-trust";
 import { getSupabaseClient } from "@/lib/supabase";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 
@@ -261,7 +269,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           item.place.address_zh,
           item.place.address_ko,
           item.place.nearest_station,
-          categoryLabels[item.place.category][locale],
+          getPlaceCategoryLabel(item.place.category, locale),
           ...getChinaDiscoveryTags(item.place, locale, 6),
         ]
           .join(" ")
@@ -277,6 +285,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const markers: MapMarker[] = useMemo(() => {
     return filteredItems.map(({ place, distance, walkingMinutes }) => {
       const content = getPlaceContent(place, locale);
+      const recommendation = getLocalizedRecommendationDisplay(place, locale);
 
       return {
         id: place.id,
@@ -288,13 +297,14 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           longitude: place.longitude,
         },
         href: withLocale(`/places/${place.slug}`, locale),
-        imageUrl: place.thumbnail_url,
+        imageUrl: getTrustedPlaceImageUrl(place),
         meta: `${formatDistance(distance, locale)} · ${walkingMinutes === null ? copy.common.noInfo : `${copy.placeDetail.walkingApprox} ${walkingMinutes}${copy.common.minutes}`}`,
-        description: content.description,
+        description: getPublicPlaceDescription(place, locale) || getPlaceTrustCopy(locale).noPublicDescription,
         detailLabel: localizedCopy.detail,
         saveCount: place.save_count ?? 0,
         price: formatPriceRange(place, locale),
-        recommendation: getChinaRecommendationLabel(place),
+        recommendationLabel: recommendation.label,
+        recommendation: recommendation.value,
         tags: getChinaDiscoveryTags(place, locale, 4),
       };
     });
@@ -848,20 +858,21 @@ function PlaceListCard({
   const { place, distance, walkingMinutes, openingStatus } = item;
   const opening = formatOpeningStatus(place.opening_hours, locale);
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const copy = ui[locale];
   const localizedCopy = nearbyCopy[locale];
   const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
   const chinaTags = getChinaDiscoveryTags(place, locale, 4);
-  const recommendation = getChinaRecommendationLabel(place);
+  const recommendation = getLocalizedRecommendationDisplay(place, locale);
   const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
   const menu = getRepresentativeMenu(place, locale);
-  const advantage = getTravelerAdvantage(place, locale);
+  const publicDescription = getPublicPlaceDescription(place, locale);
+  const advantage = publicDescription || getTravelerAdvantage(place, locale);
   const distanceWarning = getDistanceWarning(distance, locale);
   const selectedLabel = { zh: "已选择", en: "Selected", ja: "選択中", ko: "선택됨" }[locale];
   const menuLabel = { zh: "招牌", en: "Menu", ja: "代表", ko: "대표" }[locale];
-  const photoMissing = { zh: "照片确认中", en: "Photo needs checking", ja: "写真確認中", ko: "사진 확인 필요" }[locale];
-  const hasPhoto = Boolean(place.thumbnail_url?.trim());
+  const photo = getPlacePhotoDisplay(place, locale);
 
   return (
     <article
@@ -873,17 +884,17 @@ function PlaceListCard({
     >
       <button type="button" onClick={onSelect} className="grid w-full grid-cols-[92px_1fr] gap-3 text-left">
         <span className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-          {hasPhoto ? (
-            <Image src={place.thumbnail_url} alt={content.name} fill sizes="92px" className="object-cover" />
+          {photo.kind === "image" ? (
+            <Image src={photo.url} alt={nameDisplay.name} fill sizes="92px" className="object-cover" />
           ) : (
             <span className="grid h-full place-items-center px-2 text-center text-[11px] font-black leading-4 text-slate-500">
-              {photoMissing}
+              {photo.title}
             </span>
           )}
         </span>
         <span className="min-w-0 py-1">
-          <span className="block truncate text-base font-black text-slate-950">{content.name}</span>
-          {content.secondaryName ? <span className="mt-1 block truncate text-sm text-slate-500">{content.secondaryName}</span> : null}
+          <span className="block truncate text-base font-black text-slate-950">{nameDisplay.name}</span>
+          {nameDisplay.secondaryName ? <span className="mt-1 block truncate text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</span> : null}
           {active ? <span className="mt-2 inline-flex rounded-full bg-teal-700 px-2.5 py-1 text-xs font-black text-white">{selectedLabel}</span> : null}
           <span className="mt-3 flex flex-wrap gap-1.5">
             <TagChip tone={openingStatus === "unknown" ? "blue" : opening.tone}>{opening.text}</TagChip>
@@ -891,7 +902,7 @@ function PlaceListCard({
               {formatDistance(distance, locale)} · {walkingLabel}
             </TagChip>
             <TagChip tone="amber">{getWaitingDisplay(place, locale)}</TagChip>
-            {locale === "zh" ? <TagChip tone="amber">推荐度 {recommendation}</TagChip> : null}
+            {locale === "zh" ? <TagChip tone="amber">{recommendation.label} {recommendation.value}</TagChip> : null}
           </span>
         </span>
       </button>
@@ -911,10 +922,10 @@ function PlaceListCard({
           ))}
         </div>
       ) : null}
-      {content.description && content.description !== advantage ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{content.description}</p> : null}
+      {publicDescription && publicDescription !== advantage ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{publicDescription}</p> : null}
       {locale === "zh" ? (
         <p className="mt-2 text-xs font-bold text-slate-500">
-          {formatPriceRange(place, locale)} · 收藏 {place.save_count ?? 0}
+          {formatPriceRange(place, locale)} · {localizedCopy.savedCount} {place.save_count ?? 0}
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
@@ -941,7 +952,7 @@ function PlaceListCard({
               titleKo: place.name_ko,
               href,
               imageUrl: place.thumbnail_url,
-              meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance, locale)}`,
+              meta: `${getPlaceCategoryLabel(place.category, locale)} · ${formatDistance(distance, locale)}`,
             }}
           />
         </div>
@@ -953,6 +964,7 @@ function PlaceListCard({
 function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListItem; locale: Locale; compact?: boolean }) {
   const { place, distance, walkingMinutes } = item;
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const copy = ui[locale];
   const localizedCopy = nearbyCopy[locale];
@@ -960,32 +972,33 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
   const chinaTags = getChinaDiscoveryTags(place, locale, 4);
   const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
   const menu = getRepresentativeMenu(place, locale);
-  const advantage = getTravelerAdvantage(place, locale);
+  const publicDescription = getPublicPlaceDescription(place, locale);
+  const advantage = publicDescription || getTravelerAdvantage(place, locale);
   const menuLabel = { zh: "招牌", en: "Menu", ja: "代表", ko: "대표" }[locale];
-  const photoMissing = { zh: "照片确认中", en: "Photo needs checking", ja: "写真確認中", ko: "사진 확인 필요" }[locale];
-  const hasPhoto = Boolean(place.thumbnail_url?.trim());
+  const photo = getPlacePhotoDisplay(place, locale);
+  const recommendation = getLocalizedRecommendationDisplay(place, locale);
 
   return (
     <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-2 ring-teal-700">
       <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-        {hasPhoto ? (
-          <Image src={place.thumbnail_url} alt={content.name} fill sizes="88px" className="object-cover" />
+        {photo.kind === "image" ? (
+          <Image src={photo.url} alt={nameDisplay.name} fill sizes="88px" className="object-cover" />
         ) : (
           <span className="grid h-full place-items-center px-2 text-center text-[11px] font-black leading-4 text-slate-500">
-            {photoMissing}
+            {photo.title}
           </span>
         )}
       </Link>
       <div className="min-w-0">
         <Link href={href} className="block min-w-0 py-1">
-          <p className="truncate text-base font-black text-slate-950">{content.name}</p>
-          {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
+          <p className="truncate text-base font-black text-slate-950">{nameDisplay.name}</p>
+          {nameDisplay.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
           <p className="mt-2 text-xs font-bold text-teal-700">
-            {categoryLabels[place.category][locale]} · {formatDistance(distance, locale)} · {walkingLabel}
+            {getPlaceCategoryLabel(place.category, locale)} · {formatDistance(distance, locale)} · {walkingLabel}
           </p>
           {locale === "zh" ? (
             <p className="mt-1 text-xs font-bold text-slate-500">
-              推荐度 {getChinaRecommendationLabel(place)} · {formatPriceRange(place, locale)} · 收藏 {place.save_count ?? 0}
+              {recommendation.label} {recommendation.value} · {formatPriceRange(place, locale)} · {localizedCopy.savedCount} {place.save_count ?? 0}
             </p>
           ) : null}
         </Link>
@@ -1025,8 +1038,8 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
                 titleZh: place.name_zh,
                 titleKo: place.name_ko,
                 href,
-                imageUrl: place.thumbnail_url,
-                meta: `${categoryLabels[place.category][locale]} · ${formatDistance(distance, locale)}`,
+                imageUrl: getTrustedPlaceImageUrl(place),
+                meta: `${getPlaceCategoryLabel(place.category, locale)} · ${formatDistance(distance, locale)}`,
               }}
             />
           </div>
@@ -1073,6 +1086,7 @@ const nearbyCopy: Record<Locale, {
   walkingEstimateNotice: string;
   savedLoginRequired: string;
   savedLoadFailed: string;
+  savedCount: string;
 }> = {
   zh: {
     gwangalliBase: "以广安里为基准显示。",
@@ -1111,6 +1125,7 @@ const nearbyCopy: Record<Locale, {
     walkingEstimateNotice: "步行时间仅为距离换算的大致参考。",
     savedLoginRequired: "登录后可以只查看已保存的地点。",
     savedLoadFailed: "无法读取已保存的地点，请稍后重试。",
+    savedCount: "收藏",
   },
   en: {
     gwangalliBase: "Showing results from Gwangalli.",
@@ -1149,6 +1164,7 @@ const nearbyCopy: Record<Locale, {
     walkingEstimateNotice: "Walking times are rough distance-based estimates, not live directions.",
     savedLoginRequired: "Sign in to show only your saved places.",
     savedLoadFailed: "Saved places could not be loaded. Please try again.",
+    savedCount: "Saved",
   },
   ja: {
     gwangalliBase: "広安里を基準に表示しています。",
@@ -1187,6 +1203,7 @@ const nearbyCopy: Record<Locale, {
     walkingEstimateNotice: "徒歩時間は距離換算による目安で、実際の経路時間ではありません。",
     savedLoginRequired: "ログインすると保存したスポットだけを表示できます。",
     savedLoadFailed: "保存したスポットを読み込めませんでした。時間をおいて再度お試しください。",
+    savedCount: "保存",
   },
   ko: {
     gwangalliBase: "광안리 기준으로 표시 중입니다.",
@@ -1225,6 +1242,7 @@ const nearbyCopy: Record<Locale, {
     walkingEstimateNotice: "도보 시간은 실제 경로 안내가 아닌 거리 기준의 대략적인 값입니다.",
     savedLoginRequired: "로그인하면 저장한 장소만 지도에서 볼 수 있습니다.",
     savedLoadFailed: "저장한 장소를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    savedCount: "저장",
   },
 };
 

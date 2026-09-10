@@ -7,8 +7,9 @@ import { CopySharedTripButton } from "@/components/CopySharedTripButton";
 import { ShareButton } from "@/components/ShareButton";
 import { TripDayMap } from "@/components/TripDayMap";
 import { getPlaceContent, type Locale, withLocale } from "@/lib/i18n";
+import { getPlaceCategoryLabel, getPlaceNameDisplay } from "@/lib/place-trust";
 import { getTripDayCount, getTripDayDate } from "@/lib/trip-planner";
-import { categoryLabels, type SharedTripWithPlaces } from "@/types/database";
+import type { SharedTripWithPlaces } from "@/types/database";
 
 export function SharedTripViewer({ trip, locale }: { trip: SharedTripWithPlaces; locale: Locale }) {
   const [activeDay, setActiveDay] = useState(1);
@@ -51,13 +52,14 @@ export function SharedTripViewer({ trip, locale }: { trip: SharedTripWithPlaces;
 
         <div className="mt-4 space-y-3">
           {dayItems.length ? dayItems.map((item, index) => {
-            const content = getPlaceContent(item.place, locale);
+            const nameDisplay = getPlaceNameDisplay(item.place, locale);
             return (
               <article key={item.id} className="flex items-start gap-3 rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-700 text-sm font-black text-white">{index + 1}</span>
                 <div className="min-w-0 flex-1">
-                  <Link href={withLocale(`/places/${item.place.slug}`, locale)} className="block truncate text-base font-black text-slate-950">{content.name}</Link>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">{categoryLabels[item.place.category][locale]}</p>
+                  <Link href={withLocale(`/places/${item.place.slug}`, locale)} className="block truncate text-base font-black text-slate-950">{nameDisplay.name}</Link>
+                  {nameDisplay.secondaryName ? <p className="mt-1 truncate text-xs text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{getPlaceCategoryLabel(item.place.category, locale)}</p>
                   {item.memo ? <p className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{item.memo}</p> : null}
                 </div>
               </article>

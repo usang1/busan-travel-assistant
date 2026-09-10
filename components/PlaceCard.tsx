@@ -15,6 +15,8 @@ import {
 import { defaultLocale, getLocalizedTag, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import {
   buildPlaceCardFacts,
+  getPlaceCategoryLabel,
+  getPlaceNameDisplay,
   getLastVerifiedLabel,
   getPlacePhotoDisplay,
   getPlaceTrustCopy,
@@ -24,7 +26,7 @@ import {
   getVerificationStatus,
   getVerificationStatusLabel,
 } from "@/lib/place-trust";
-import { categoryLabels, type PlaceWithRelations } from "@/types/database";
+import type { PlaceWithRelations } from "@/types/database";
 
 type PlaceCardProps = {
   place: PlaceWithRelations;
@@ -36,6 +38,7 @@ type PlaceCardProps = {
 
 export function PlaceCard({ place, priority = false, locale = defaultLocale, distanceMeters = null, compact = false }: PlaceCardProps) {
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const copy = ui[locale];
   const trustCopy = getPlaceTrustCopy(locale);
   const placeHref = withLocale(`/places/${place.slug}`, locale);
@@ -53,6 +56,9 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const cardFacts = buildPlaceCardFacts(place, locale);
   const verificationStatus = getVerificationStatus(place);
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
+  const localizedTags = place.tags
+    .map((tag) => ({ slug: tag.slug, label: getLocalizedTag(tag, locale) }))
+    .filter((tag) => tag.label);
 
   return (
     <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -61,7 +67,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           {photo.kind === "image" ? (
             <Image
               src={photo.url}
-              alt={content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name}
+              alt={nameDisplay.secondaryName ? `${nameDisplay.name} / ${nameDisplay.secondaryName}` : nameDisplay.name}
               fill
               sizes="(max-width: 768px) 100vw, 420px"
               className="object-cover"
@@ -77,15 +83,15 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
             </div>
           )}
           <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur">
-            {categoryLabels[place.category][locale]}
+            {getPlaceCategoryLabel(place.category, locale)}
           </div>
         </div>
       </Link>
       <div className={compact ? "p-3" : "p-4"}>
         <div className="flex items-start justify-between gap-3">
           <Link href={placeHref} className="min-w-0">
-            <h3 className={compact ? "truncate text-base font-bold text-slate-950" : "truncate text-lg font-bold text-slate-950"}>{content.name}</h3>
-            {content.secondaryName ? <p className="mt-0.5 text-sm text-slate-500">{content.secondaryName}</p> : null}
+            <h3 className={compact ? "truncate text-base font-bold text-slate-950" : "truncate text-lg font-bold text-slate-950"}>{nameDisplay.name}</h3>
+            {nameDisplay.secondaryName ? <p className="mt-0.5 text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
           </Link>
           <SaveButton
             initialSaveCount={place.save_count ?? 0}
@@ -97,7 +103,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
               titleKo: place.name_ko,
               href: placeHref,
               imageUrl: trustedImageUrl,
-              meta: [categoryLabels[place.category][locale], formatPlaceDistance(displayDistance, locale)].filter(Boolean).join(" · "),
+              meta: [getPlaceCategoryLabel(place.category, locale), formatPlaceDistance(displayDistance, locale)].filter(Boolean).join(" · "),
             }}
           />
         </div>
@@ -143,16 +149,16 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         {publicDescription && publicDescription !== travelerAdvantage ? (
           <p className="mt-2 line-clamp-1 text-xs font-semibold text-slate-500">{publicDescription}</p>
         ) : null}
-        {(chinaTags.length || place.tags.length) ? (
+        {(chinaTags.length || localizedTags.length) ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {chinaTags.map((tag) => (
               <TagChip key={tag} tone="blue">
                 {tag}
               </TagChip>
             ))}
-            {place.tags.slice(0, 3).map((tag) => (
+            {localizedTags.slice(0, 3).map((tag) => (
               <TagChip key={tag.slug} tone={place.is_active ? "green" : "amber"}>
-                {getLocalizedTag(tag, locale)}
+                {tag.label}
               </TagChip>
             ))}
           </div>

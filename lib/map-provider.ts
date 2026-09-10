@@ -14,6 +14,7 @@ export type MapMarker = {
   detailLabel?: string;
   saveCount?: number;
   price?: string;
+  recommendationLabel?: string;
   recommendation?: string;
   tags?: string[];
   sequence?: number;

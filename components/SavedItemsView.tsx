@@ -14,11 +14,11 @@ import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
 import { recordPlaceEvent } from "@/lib/place-events";
 import { getPlaceSaveCounts } from "@/lib/place-saves";
 import { getPublicPlacesByIds } from "@/lib/place-store";
-import { getPlacePhotoDisplay, getPlaceTrustCopy, getPublicPlaceDescription, getTrustedPlaceImageUrl } from "@/lib/place-trust";
+import { getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay, getPlaceTrustCopy, getPublicPlaceDescription, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import { getSavedPlaceIds, removeSavedItem, savedItemsChangeEvent } from "@/lib/saved-items";
 import { getSupabaseClient } from "@/lib/supabase";
 import { defaultLocale, getLocaleFromPath, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
-import { categoryLabels, type PlaceTranslationRecord, type PlaceWithRelations, type TagRecord } from "@/types/database";
+import type { PlaceTranslationRecord, PlaceWithRelations, TagRecord } from "@/types/database";
 
 type SavedPlace = {
   savedAt: string;
@@ -298,17 +298,18 @@ function SavedPlacesMap({ places, locale }: { places: PlaceWithRelations[]; loca
   const text = savedCopy[locale];
   const markers: MapMarker[] = mapPlaces.map((place) => {
     const content = getPlaceContent(place, locale);
+    const category = getPlaceCategoryLabel(place.category, locale);
     const href = withLocale(`/places/${place.slug}`, locale);
 
     return {
       id: place.id,
       title: content.name,
-      subtitle: categoryLabels[place.category][locale],
+      subtitle: category,
       category: place.category,
       position: { latitude: place.latitude, longitude: place.longitude },
       href,
       imageUrl: getTrustedPlaceImageUrl(place),
-      meta: [categoryLabels[place.category][locale], content.address].filter(Boolean).join(" · "),
+      meta: [category, content.address].filter(Boolean).join(" · "),
       description: getPublicPlaceDescription(place, locale) || getPlaceTrustCopy(locale).noPublicDescription,
       detailLabel: text.detail,
       saveCount: place.save_count ?? 0,
@@ -333,6 +334,7 @@ function SavedPlacesMap({ places, locale }: { places: PlaceWithRelations[]; loca
 
 function SavedMapSelection({ place, locale }: { place: PlaceWithRelations; locale: Locale }) {
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const text = savedCopy[locale];
   const description = getPublicPlaceDescription(place, locale) || getPlaceTrustCopy(locale).noPublicDescription;
@@ -341,8 +343,9 @@ function SavedMapSelection({ place, locale }: { place: PlaceWithRelations; local
     <article className="grid grid-cols-[76px_1fr] gap-3 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
       <SavedPlaceThumb place={place} locale={locale} href={href} contentName={content.name} size="76px" />
       <div className="min-w-0">
-        <p className="truncate text-base font-black text-slate-950">{content.name}</p>
-        <p className="mt-1 text-xs font-bold text-teal-700">{categoryLabels[place.category][locale]}</p>
+        <p className="truncate text-base font-black text-slate-950">{nameDisplay.name}</p>
+        {nameDisplay.secondaryName ? <p className="mt-1 truncate text-xs text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
+        <p className="mt-1 text-xs font-bold text-teal-700">{getPlaceCategoryLabel(place.category, locale)}</p>
         <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{description}</p>
         <Link href={href} className="mt-2 inline-flex min-h-10 items-center rounded-full bg-teal-700 px-4 text-sm font-black text-white">
           {text.detail}
@@ -362,16 +365,17 @@ function SavedPlaceCard({
   onRemove: () => void;
 }) {
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
 
   return (
     <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
-      <SavedPlaceThumb place={place} locale={locale} href={href} contentName={content.name} size="88px" />
+      <SavedPlaceThumb place={place} locale={locale} href={href} contentName={nameDisplay.name} size="88px" />
       <div className="min-w-0 py-1">
         <Link href={href} className="block min-w-0">
-          <p className="truncate text-base font-black text-slate-950">{content.name}</p>
-          {content.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p> : null}
-          <p className="mt-2 text-xs font-semibold text-teal-700">{categoryLabels[place.category][locale]} · {place.save_count ?? 0}</p>
+          <p className="truncate text-base font-black text-slate-950">{nameDisplay.name}</p>
+          {nameDisplay.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
+          <p className="mt-2 text-xs font-semibold text-teal-700">{getPlaceCategoryLabel(place.category, locale)} · {place.save_count ?? 0}</p>
         </Link>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <AddToTripButton placeId={place.id} locale={locale} />

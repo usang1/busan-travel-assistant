@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
 import { readPlacesSearchQuery } from "@/lib/place-search-url";
+import { getPlaceCategoryLabel } from "@/lib/place-trust";
 import { categoryLabels, type PlaceCategory, type PlaceRankingCollection, type PlaceWithRelations } from "@/types/database";
 
 type PlacesExplorerProps = {
@@ -227,7 +228,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
                 onClick={() => setCategory(filter.value)}
                 className={filterClass(active)}
               >
-                {filter.value === "all" ? copy.places.all : categoryLabels[filter.value][locale]}
+                {filter.value === "all" ? copy.places.all : getPlaceCategoryLabel(filter.value, locale)}
               </button>
             );
           })}

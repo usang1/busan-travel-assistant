@@ -31,6 +31,7 @@ import {
 } from "@/lib/guest-trips";
 import { getPlaceContent, type Locale, withLocale } from "@/lib/i18n";
 import { getPublicPlacesByIds } from "@/lib/place-store";
+import { getPlaceCategoryLabel, getPlaceNameDisplay } from "@/lib/place-trust";
 import { getSavedPlaceIds, savedItemsChangeEvent } from "@/lib/saved-items";
 import { autoArrangeTripPlaces, getTripDayCount, getTripDayDate } from "@/lib/trip-planner";
 import {
@@ -47,7 +48,7 @@ import {
   updateTripPlace,
   type TripInput,
 } from "@/lib/trip-store";
-import { categoryLabels, type PlaceWithRelations, type TripPlaceWithPlace, type TripRecord, type TripVisibility } from "@/types/database";
+import type { PlaceWithRelations, TripPlaceWithPlace, TripRecord, TripVisibility } from "@/types/database";
 
 type TripPlannerProps = { locale: Locale };
 
@@ -440,13 +441,15 @@ export function TripPlanner({ locale }: TripPlannerProps) {
             <div className="mt-4 space-y-3">
               {dayItems.length ? dayItems.map((item, index) => {
                 const content = getPlaceContent(item.place, locale);
+                const nameDisplay = getPlaceNameDisplay(item.place, locale);
                 return (
                     <article key={item.id} className={`rounded-[22px] bg-white p-4 shadow-sm ring-1 ${selectedMarkerId === item.place.id ? "ring-2 ring-teal-400" : "ring-slate-200"}`}>
                     <div className="flex items-start gap-3">
                       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-700 text-sm font-black text-white">{index + 1}</span>
                       <div className="min-w-0 flex-1">
-                        <Link href={withLocale(`/places/${item.place.slug}`, locale)} className="block truncate text-base font-black text-slate-950">{content.name}</Link>
-                        <p className="mt-1 text-xs font-semibold text-slate-500">{categoryLabels[item.place.category][locale]}</p>
+                        <Link href={withLocale(`/places/${item.place.slug}`, locale)} className="block truncate text-base font-black text-slate-950">{nameDisplay.name}</Link>
+                        {nameDisplay.secondaryName ? <p className="mt-1 truncate text-xs text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
+                        <p className="mt-1 text-xs font-semibold text-slate-500">{getPlaceCategoryLabel(item.place.category, locale)}</p>
                       </div>
                       <div className="flex gap-1">
                         <IconButton label={text.moveUp} disabled={busy || index === 0} onClick={() => void moveItem(item, -1)} icon={ChevronUp} />
@@ -493,6 +496,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
               <div className="mt-4 space-y-2">
                 {savedPlaces.map((place) => {
                   const content = getPlaceContent(place, locale);
+                  const nameDisplay = getPlaceNameDisplay(place, locale);
                   const placed = placedIds.has(place.id);
                   const selected = selectedSavedIds.has(place.id);
                   return (
@@ -506,8 +510,9 @@ export function TripPlanner({ locale }: TripPlannerProps) {
                           className="size-5 accent-teal-700"
                         />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-black text-slate-950">{content.name}</span>
-                          <span className="block text-xs text-slate-500">{categoryLabels[place.category][locale]}{placed ? ` · ${text.alreadyAdded}` : ""}</span>
+                          <span className="block truncate text-sm font-black text-slate-950">{nameDisplay.name}</span>
+                          {nameDisplay.secondaryName ? <span className="block truncate text-xs text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</span> : null}
+                          <span className="block text-xs text-slate-500">{getPlaceCategoryLabel(place.category, locale)}{placed ? ` · ${text.alreadyAdded}` : ""}</span>
                         </span>
                       </label>
                       {!placed ? (

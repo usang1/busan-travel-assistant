@@ -42,6 +42,8 @@ import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   getLastVerifiedLabel,
+  getPlaceCategoryLabel,
+  getPlaceNameDisplay,
   getPlacePhotoDisplay,
   getPlaceTrustCopy,
   getPublicPlaceDescription,
@@ -62,7 +64,6 @@ import {
   ui,
   withLocale,
 } from "@/lib/i18n";
-import { categoryLabels } from "@/types/database";
 
 type LocalizedPlaceDetailPageProps = {
   params: Promise<{
@@ -105,14 +106,15 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
   }
 
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const publicDescription = getPublicPlaceDescription(place, locale);
-  const title = content.secondaryName ? `${content.name} | ${content.secondaryName}` : content.name;
+  const title = nameDisplay.secondaryName ? `${nameDisplay.name} | ${nameDisplay.secondaryName}` : nameDisplay.name;
   const chinaSummary = buildChinaPlaceSummary(place.china_info);
   const zhFeatureText = chinaSummary.tags.slice(0, 3).join("、");
   const description =
     locale === "zh"
-      ? `${content.name}: 釜山${categoryLabels[place.category].zh}，${zhFeatureText ? `${zhFeatureText}。` : ""}${chinaSummary.summary}`
-      : `${content.name}: ${publicDescription || copy.places.description}`;
+      ? `${nameDisplay.name}: 釜山${getPlaceCategoryLabel(place.category, locale)}，${zhFeatureText ? `${zhFeatureText}。` : ""}${chinaSummary.summary}`
+      : `${nameDisplay.name}: ${publicDescription || copy.places.description}`;
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
 
   return buildLocalizedMetadata({
@@ -143,6 +145,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   });
 
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const trustCopy = getPlaceTrustCopy(locale);
   const publicDescription = getPublicPlaceDescription(place, locale);
   const publicTravelTip = getPublicTravelTip(place, locale);
@@ -171,6 +174,12 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     ja: "ここで一番人気のメニューをおすすめしてもらえますか？",
     ko: "여기에서 가장 인기 있는 메뉴를 추천해주실 수 있나요?",
   }[locale];
+  const koreanOrderLabel = {
+    zh: "给店员看的韩语原文",
+    en: "Korean phrase for staff",
+    ja: "店員に見せる韓国語原文",
+    ko: "직원에게 보여줄 한국어 문장",
+  }[locale];
   const websiteHref = safeExternalUrl(place.website);
   const placeHasCoordinates = hasCoordinates(place);
   const coordinates = placeHasCoordinates ? { latitude: place.latitude, longitude: place.longitude } : null;
@@ -190,6 +199,9 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   const detailSource = getSourceSummary(place, locale);
   const detailLastChecked = getLastVerifiedLabel(place, locale);
   const recommendationDescription = publicDescription || trustCopy.noPublicDescription;
+  const localizedTags = place.tags
+    .map((tag) => ({ slug: tag.slug, label: getLocalizedTag(tag, locale) }))
+    .filter((tag) => tag.label);
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
@@ -197,7 +209,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         data={{
           "@context": "https://schema.org",
           "@type": "TouristAttraction",
-          name: content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name,
+          name: nameDisplay.secondaryName ? `${nameDisplay.name} / ${nameDisplay.secondaryName}` : nameDisplay.name,
           description: publicDescription,
           image: trustedImageUrl || undefined,
           url: localizedCanonical(`/places/${place.slug}`, locale),
@@ -217,8 +229,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         place={{
           id: place.id,
           slug: place.slug,
-          title: content.name,
-          subtitle: content.secondaryName,
+          title: nameDisplay.name,
+          subtitle: nameDisplay.secondaryName ? `${nameDisplay.secondaryLabel} · ${nameDisplay.secondaryName}` : "",
           href: placeHref,
           imageUrl: trustedImageUrl,
           category: place.category,
@@ -237,7 +249,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           {photo.kind === "image" ? (
             <Image
               src={photo.url}
-              alt={content.secondaryName ? `${content.name} / ${content.secondaryName}` : content.name}
+              alt={nameDisplay.secondaryName ? `${nameDisplay.name} / ${nameDisplay.secondaryName}` : nameDisplay.name}
               fill
               sizes="(max-width: 768px) 100vw, 720px"
               className="object-cover"
@@ -253,15 +265,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             </div>
           )}
           <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-sm backdrop-blur">
-            {categoryLabels[place.category][locale]}
+            {getPlaceCategoryLabel(place.category, locale)}
           </div>
         </div>
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <TagChip tone={place.is_active ? "green" : "amber"}>{place.is_active ? copy.common.available : copy.common.unavailable}</TagChip>
-              <h1 className="mt-3 text-3xl font-black tracking-normal text-slate-950">{content.name}</h1>
-              {content.secondaryName ? <p className="mt-1 text-base text-slate-500">{content.secondaryName}</p> : null}
+              <h1 className="mt-3 text-3xl font-black tracking-normal text-slate-950">{nameDisplay.name}</h1>
+              {nameDisplay.secondaryName ? <p className="mt-1 text-base text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
             </div>
             <SaveButton
               className="h-11 px-3"
@@ -275,14 +287,14 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
                 titleKo: place.name_ko,
                 href: placeHref,
                 imageUrl: trustedImageUrl,
-                meta: [categoryLabels[place.category][locale], placeHasCoordinates ? `${copy.common.walk} ${walkingText}` : ""].filter(Boolean).join(" · "),
+                meta: [getPlaceCategoryLabel(place.category, locale), placeHasCoordinates ? `${copy.common.walk} ${walkingText}` : ""].filter(Boolean).join(" · "),
               }}
             />
           </div>
           <div className="mt-4">
             <ShareButton
-              title={content.name}
-              text={`${content.name}${content.secondaryName ? ` / ${content.secondaryName}` : ""} - ${recommendationDescription}`}
+              title={nameDisplay.name}
+              text={`${nameDisplay.name}${nameDisplay.secondaryName ? ` / ${nameDisplay.secondaryName}` : ""} - ${recommendationDescription}`}
               url={localizedCanonical(`/places/${place.slug}`, locale)}
               placeId={place.id}
               locale={locale}
@@ -313,8 +325,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            {place.tags.map((tag) => (
-              <TagChip key={tag.slug}>{getLocalizedTag(tag, locale)}</TagChip>
+            {localizedTags.map((tag) => (
+              <TagChip key={tag.slug}>{tag.label}</TagChip>
             ))}
             {facilityTags.map((label) => (
               <TagChip key={label.zh} tone="blue">
@@ -376,6 +388,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           <div className="rounded-[24px] bg-teal-700 p-5 text-white shadow-sm">
             <MessageSquareText size={22} aria-hidden="true" />
             <p className="mt-3 text-lg font-bold">{content.recommendedOrder || localizedOrderFallback}</p>
+            <p className="mt-3 text-xs font-bold text-teal-100">{koreanOrderLabel}</p>
             <p className="mt-3 rounded-2xl bg-white/12 p-3 text-sm leading-6 text-teal-50">
               {place.recommended_order_ko || "여기에서 가장 인기 있는 메뉴를 추천해주실 수 있나요?"}
             </p>

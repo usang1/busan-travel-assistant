@@ -12,7 +12,7 @@ import { getPublishedGuide, createPublicGuideClient, getRelatedGuidesForGuide } 
 import { getPublicPlacesByIds } from "@/lib/place-store";
 import { getRepresentativeMenu } from "@/lib/place-display";
 import { buildLocalizedMetadata, isLocale, getPlaceContent, withLocale, localizedCanonical, localeMeta } from "@/lib/i18n";
-import { categoryLabels } from "@/types/database";
+import { getPlaceCategoryLabel, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import { RelatedGuidesSection } from "@/components/RelatedGuidesSection";
 
 export const dynamic = "force-dynamic";
@@ -96,16 +96,16 @@ export default async function GuidePage({ params }: Props) {
         const nextStop = stops[i + 1];
         return <li key={stop.place_id} className="min-w-0">
           <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200">
-            {place.thumbnail_url ? <GuidePlaceLink href={href} guideId={guide.id} guideType={guide.guide_type} area={guide.area} placeId={place.id} locale={locale} position={i + 1}><img src={place.thumbnail_url} alt={placeContent.name} loading="lazy" className="aspect-[2/1] w-full object-cover" /></GuidePlaceLink> : null}
+            {getTrustedPlaceImageUrl(place) ? <GuidePlaceLink href={href} guideId={guide.id} guideType={guide.guide_type} area={guide.area} placeId={place.id} locale={locale} position={i + 1}><img src={getTrustedPlaceImageUrl(place)} alt={placeContent.name} loading="lazy" className="aspect-[2/1] w-full object-cover" /></GuidePlaceLink> : null}
             <div className="space-y-3 p-5">
-              <p className="text-xs font-bold text-teal-700">{i + 1} · {categoryLabels[place.category][locale]}</p>
+              <p className="text-xs font-bold text-teal-700">{i + 1} · {getPlaceCategoryLabel(place.category, locale)}</p>
               <h2 className="break-words text-xl font-black"><GuidePlaceLink href={href} guideId={guide.id} guideType={guide.guide_type} area={guide.area} placeId={place.id} locale={locale} position={i + 1}>{stop.custom_title[locale] || placeContent.name}</GuidePlaceLink></h2>
               {stop.custom_title[locale] ? <p className="text-sm text-slate-500">{placeContent.name}</p> : null}
               {menu ? <p className="text-sm font-bold">{menu.name}{menu.price ? ` · ${menu.price}` : ""}</p> : null}
               <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{stop.custom_description[locale] || placeContent.description}</p>
               {stop.stay_minutes !== null ? <p className="text-sm font-bold">{copy.stay}: {stop.stay_minutes} {copy.minutes}</p> : null}
               {stop.tip[locale] ? <p className="whitespace-pre-wrap break-words rounded-2xl bg-teal-50 p-3 text-sm leading-6 text-teal-900">{copy.tip}: {stop.tip[locale]}</p> : null}
-              <div className="flex flex-wrap items-center justify-between gap-3"><GuidePlaceLink href={href} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700" guideId={guide.id} guideType={guide.guide_type} area={guide.area} placeId={place.id} locale={locale} position={i + 1}>{copy.details} →</GuidePlaceLink><SaveButton locale={locale} initialSaveCount={place.save_count ?? 0} label={placeSaveLabel[locale]} item={{ id: place.id, type: "place", titleKo: place.name_ko, titleZh: place.name_zh, href, imageUrl: place.thumbnail_url, meta: categoryLabels[place.category][locale] }} /></div>
+              <div className="flex flex-wrap items-center justify-between gap-3"><GuidePlaceLink href={href} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700" guideId={guide.id} guideType={guide.guide_type} area={guide.area} placeId={place.id} locale={locale} position={i + 1}>{copy.details} →</GuidePlaceLink><SaveButton locale={locale} initialSaveCount={place.save_count ?? 0} label={placeSaveLabel[locale]} item={{ id: place.id, type: "place", titleKo: place.name_ko, titleZh: place.name_zh, href, imageUrl: getTrustedPlaceImageUrl(place), meta: getPlaceCategoryLabel(place.category, locale) }} /></div>
             </div>
           </article>
           {nextStop ? <div className="px-4 pt-5 text-sm text-slate-600"><span aria-hidden="true">↓ </span>{copy.next}{nextStop.sequence === stop.sequence + 1 && stop.transportation_note[locale] ? <p className="mt-1 whitespace-pre-wrap break-words font-bold">{stop.transportation_note[locale]}</p> : null}</div> : null}

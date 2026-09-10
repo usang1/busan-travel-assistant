@@ -299,7 +299,7 @@ export function getChinaDiscoveryTags(place: PlaceWithRelations, locale: Locale,
   const tags: string[] = [];
 
   if (locale !== "zh") {
-    return summary.tags.slice(0, limit);
+    return [];
   }
 
   if (typeof info?.spicy_level === "number" && info.spicy_level <= 2) tags.push("不辣");

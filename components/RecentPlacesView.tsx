@@ -6,7 +6,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { readRecentPlaces, recentPlacesStorageKey, type RecentPlace } from "@/lib/recent-places";
 import { defaultLocale, getLocaleFromPath, type Locale } from "@/lib/i18n";
-import { categoryLabels } from "@/types/database";
+import { getPlaceCategoryLabel } from "@/lib/place-trust";
 
 type RecentPlacesViewProps = {
   locale?: Locale;
@@ -51,7 +51,7 @@ function RecentPlaceCard({ place, locale }: { place: RecentPlace; locale: Locale
       <Link href={place.href} className="min-w-0 py-1">
         <p className="truncate text-base font-black text-slate-950">{place.title}</p>
         <p className="mt-1 truncate text-sm text-slate-500">{place.subtitle}</p>
-        <p className="mt-3 text-xs font-semibold text-teal-700">{categoryLabels[place.category][locale]}</p>
+        <p className="mt-3 text-xs font-semibold text-teal-700">{getPlaceCategoryLabel(place.category, locale)}</p>
       </Link>
     </article>
   );

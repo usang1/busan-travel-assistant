@@ -9,8 +9,8 @@ import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { formatPriceRange } from "@/lib/place-store";
-import { getPlacePhotoDisplay, getTrustedPlaceImageUrl } from "@/lib/place-trust";
-import { categoryLabels, type PlaceWithRelations } from "@/types/database";
+import { getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay, getTrustedPlaceImageUrl } from "@/lib/place-trust";
+import type { PlaceWithRelations } from "@/types/database";
 
 type LuggageExplorerProps = {
   places: PlaceWithRelations[];
@@ -87,6 +87,7 @@ function LuggagePlaceCard({
   luggageCopy: (typeof luggageExplorerCopy)[Locale];
 }) {
   const content = getPlaceContent(place, locale);
+  const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const photo = getPlacePhotoDisplay(place, locale);
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
@@ -96,7 +97,7 @@ function LuggagePlaceCard({
       <div className="grid grid-cols-[112px_1fr] gap-0">
         <Link href={href} className="relative min-h-40 bg-slate-200">
           {photo.kind === "image" ? (
-            <Image src={photo.url} alt={content.name} fill sizes="112px" className="object-cover" />
+            <Image src={photo.url} alt={nameDisplay.name} fill sizes="112px" className="object-cover" />
           ) : (
             <div className="grid h-full place-items-center bg-slate-100 px-2 text-center">
               <div>
@@ -109,9 +110,9 @@ function LuggagePlaceCard({
         <div className="min-w-0 p-4">
           <div className="flex items-start justify-between gap-3">
             <Link href={href} className="min-w-0">
-              <h2 className="truncate text-lg font-black text-slate-950">{content.name}</h2>
-              {content.secondaryName ? (
-                <p className="mt-1 truncate text-sm text-slate-500">{content.secondaryName}</p>
+              <h2 className="truncate text-lg font-black text-slate-950">{nameDisplay.name}</h2>
+              {nameDisplay.secondaryName ? (
+                <p className="mt-1 truncate text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p>
               ) : null}
             </Link>
             <SaveButton
@@ -124,7 +125,7 @@ function LuggagePlaceCard({
                 titleKo: place.name_ko,
                 href,
                 imageUrl: trustedImageUrl,
-                meta: `${categoryLabels.luggage[locale]} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
+                meta: `${getPlaceCategoryLabel("luggage", locale)} · ${copy.common.walk} ${place.walking_minutes}${copy.common.minutes}`,
               }}
             />
           </div>

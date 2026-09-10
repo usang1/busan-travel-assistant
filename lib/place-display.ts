@@ -76,11 +76,8 @@ export function getSoloDisplay(place: PlaceWithRelations, locale: Locale) {
 }
 
 export function getTravelerAdvantage(place: PlaceWithRelations, locale: Locale) {
-  const manual = place.china_info?.manual_summary_override?.trim();
-  if (manual) return manual;
-
   const summary = buildChinaPlaceSummary(place.china_info);
-  const positive = summary.tags.filter((tag) => tag !== "信息确认中").slice(0, 2).join(" · ");
+  const positive = locale === "zh" ? summary.tags.filter((tag) => tag !== "信息确认中").slice(0, 2).join(" · ") : "";
 
   if (positive) {
     return positive;

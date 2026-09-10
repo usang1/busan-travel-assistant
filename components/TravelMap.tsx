@@ -1096,7 +1096,7 @@ function openNaverInfoWindow(
         ? `<span style="display:-webkit-box;margin-top:7px;max-width:240px;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3;font-size:12px;line-height:1.5;color:#334155;">${escapeHtml(marker.description)}</span>`
         : "",
       marker.price || marker.recommendation
-        ? `<span style="display:block;margin-top:6px;font-size:12px;font-weight:700;color:#0f172a;">${escapeHtml([marker.price, marker.recommendation ? `推荐度 ${marker.recommendation}` : ""].filter(Boolean).join(" · "))}</span>`
+        ? `<span style="display:block;margin-top:6px;font-size:12px;font-weight:700;color:#0f172a;">${escapeHtml([marker.price, marker.recommendation ? [marker.recommendationLabel, marker.recommendation].filter(Boolean).join(" ") : ""].filter(Boolean).join(" · "))}</span>`
         : "",
       marker.tags?.length
         ? `<span style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">${marker.tags
