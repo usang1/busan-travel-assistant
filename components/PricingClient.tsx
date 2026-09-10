@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { Check, Crown } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { freeFeatures, proFeatures } from "@/config/monetization";
+import { pricingCopy } from "@/lib/pricing-copy";
 import { useProEntitlement } from "@/components/ProEntitlementProvider";
-import { defaultLocale, getLocaleFromPath, withLocale } from "@/lib/i18n";
+import { defaultLocale, getLocaleFromPath, localeMeta, withLocale } from "@/lib/i18n";
 
 export function PricingClient() {
   const { isPro, entitlement, remainingDays } = useProEntitlement();
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname) ?? defaultLocale;
+  const copy = pricingCopy[locale];
 
   return (
     <div className="space-y-6">
@@ -19,29 +20,29 @@ export function PricingClient() {
           <Crown size={16} aria-hidden="true" />
           FREE / PRO
         </div>
-        <h1 className="mt-4 text-3xl font-black tracking-normal">升级旅行助手</h1>
+        <h1 className="mt-4 text-3xl font-black tracking-normal">{copy.title}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          유료 기능은 정식 결제와 운영 정책이 준비된 뒤 제공됩니다.
+          {copy.description}
         </p>
         <div className="mt-5 rounded-[22px] bg-white/10 p-4">
-          <p className="text-sm text-slate-300">当前状态</p>
-          <p className="mt-1 text-2xl font-black">{isPro ? `PRO · 剩余 ${remainingDays} 天` : "FREE"}</p>
-          {entitlement ? <p className="mt-2 text-xs text-slate-300">만료: {new Date(entitlement.expirationAt).toLocaleString("ko-KR")}</p> : null}
+          <p className="text-sm text-slate-300">{copy.status}</p>
+          <p className="mt-1 text-2xl font-black">{isPro ? `PRO · ${copy.days}: ${remainingDays}` : "FREE"}</p>
+          {entitlement ? <p className="mt-2 text-xs text-slate-300">{copy.expires}: {new Date(entitlement.expirationAt).toLocaleString(localeMeta[locale].languageTag)}</p> : null}
         </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <FeatureBox title="FREE" items={freeFeatures} />
-        <FeatureBox title="PRO" items={proFeatures} pro />
+        <FeatureBox title="FREE" items={copy.free} />
+        <FeatureBox title="PRO" items={copy.pro} pro />
       </section>
 
       <section className="rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-xl font-black text-slate-950">결제 준비 중</h2>
+        <h2 className="text-xl font-black text-slate-950">{copy.pending}</h2>
         <p className="mt-3 text-sm leading-6 text-slate-600">
-          현재 공개 사이트에서는 결제 버튼을 제공하지 않습니다. 제휴 또는 서비스 문의는 문의 화면을 이용해 주세요.
+          {copy.note}
         </p>
         <Link href={withLocale("/contact", locale)} className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-teal-700 px-4 text-sm font-black text-white">
-          문의하기
+          {copy.contact}
         </Link>
       </section>
     </div>

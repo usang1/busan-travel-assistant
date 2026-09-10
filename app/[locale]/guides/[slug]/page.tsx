@@ -2,6 +2,9 @@ import Link from "next/link";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { StructuredData } from "@/components/StructuredData";
+import { GuidePlanningDetails } from "@/components/GuidePlanningDetails";
+import { breadcrumbSchema, translatedGuideLocales } from "@/lib/public-seo";
+import { guidePlanningCopy, guideQuestion } from "@/lib/guide-planning-copy";
 import { GuidePlaceLink } from "@/components/GuidePlaceLink";
 import { GuideSaveButton } from "@/components/GuideSaveButton";
 import { GuideViewTracker } from "@/components/GuideViewTracker";
@@ -11,7 +14,7 @@ import { guideContent, guideCopy } from "@/lib/guide-copy";
 import { getPublishedGuide, createPublicGuideClient, getRelatedGuidesForGuide } from "@/lib/guide-store";
 import { getPublicPlacesByIds } from "@/lib/place-store";
 import { getRepresentativeMenu } from "@/lib/place-display";
-import { buildLocalizedMetadata, isLocale, getPlaceContent, withLocale, localizedCanonical, localeMeta } from "@/lib/i18n";
+import { buildLocalizedMetadata, isLocale, getPlaceContent, withLocale, localizedCanonical, localeMeta, ui } from "@/lib/i18n";
 import { getPlaceCategoryLabel, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import { RelatedGuidesSection } from "@/components/RelatedGuidesSection";
 
@@ -24,37 +27,46 @@ export async function generateMetadata({ params }: Props) {
   const guide = await readGuide(slug);
   if (!guide) notFound();
   const content = guideContent(guide, locale);
-  return buildLocalizedMetadata({ locale, title: content.title, description: content.description.slice(0, 300), path: `/guides/${slug}`, type: "article", images: guide.cover_image ? [{ url: guide.cover_image }] : undefined });
+  return buildLocalizedMetadata({ locale, title: guide.editorial?.[locale]?.question || guideQuestion(content.title, locale), description: (guide.editorial?.[locale]?.answer || content.description).slice(0, 300), path: `/guides/${slug}`, type: "article", images: guide.cover_image ? [{ url: guide.cover_image }] : undefined, availableLocales: translatedGuideLocales(guide), noIndex: !translatedGuideLocales(guide).includes(locale) });
 }
 export default async function GuidePage({ params }: Props) {
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
   const guide = await readGuide(slug);
   if (!guide) notFound();
+  if (!translatedGuideLocales(guide).includes(locale)) notFound();
   const content = guideContent(guide, locale);
   const copy = guideCopy[locale];
+  const title = guide.editorial?.[locale]?.question || guideQuestion(content.title, locale);
+  const answer = guide.editorial?.[locale]?.answer || content.description;
   const client = createPublicGuideClient();
-  const places = client ? await getPublicPlacesByIds(guide.guide_places.map((stop) => stop.place_id), client) : [];
+  const places = client ? await getPublicPlacesByIds(guide.guide_places.map((stop) => stop.place_id), client).catch(() => []) : [];
   const stops = guide.guide_places.flatMap((stop) => {
     const place = places.find((place) => place.id === stop.place_id);
     return place ? [{ ...stop, place }] : [];
   });
-  const relatedGuides = await getRelatedGuidesForGuide(guide, 4);
+  const relatedGuides = await getRelatedGuidesForGuide(guide, 4).catch(() => []);
   const incomplete = stops.some((stop, i) => stop.sequence !== i) || stops.length !== guide.guide_places.length;
   return <main className="safe-bottom mx-auto max-w-3xl space-y-6 px-4 pb-6 pt-5">
     <GuideViewTracker guideId={guide.id} guideType={guide.guide_type} area={guide.area} locale={locale} />
-    <StructuredData data={{ "@context": "https://schema.org", "@type": "Article", headline: content.title, description: content.description,
+    <StructuredData data={{ "@context": "https://schema.org", "@type": "Article", headline: title, description: answer,
       inLanguage: localeMeta[locale].languageTag, mainEntityOfPage: localizedCanonical(`/guides/${slug}`, locale),
-      ...(guide.cover_image ? { image: guide.cover_image } : {}), datePublished: guide.published_at, dateModified: guide.updated_at,
+      ...(guide.cover_image ? { image: guide.cover_image } : {}), datePublished: guide.published_at || undefined, dateModified: guide.updated_at || undefined,
       mainEntity: { "@type": "ItemList", itemListOrder: "https://schema.org/ItemListOrderAscending", numberOfItems: stops.length, itemListElement: stops.map((stop, i) => ({ "@type": "ListItem", position: i + 1, name: getPlaceContent(stop.place, locale).name, url: localizedCanonical(`/places/${stop.place.slug}`, locale) })) },
     }} />
+    <StructuredData data={breadcrumbSchema([
+      { name: ui[locale].nav.home, url: localizedCanonical("/", locale) },
+      { name: copy.title, url: localizedCanonical("/guides", locale) },
+      { name: title, url: localizedCanonical(`/guides/${slug}`, locale) },
+    ])} />
     <Link href={withLocale("/guides", locale)} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700">← {copy.title}</Link>
-    <section className="min-w-0 overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
+    <section className="min-w-0 overflow-hidden">
       {guide.cover_image ? <img src={guide.cover_image} alt={content.title} className="aspect-video w-full object-cover" fetchPriority="high" /> : null}
       <div className="space-y-4 p-5 sm:p-6">
         <p className="text-sm font-bold text-teal-700">{copy.official} · {copy.types[guide.guide_type]}</p>
-        <h1 className="break-words text-2xl font-black text-slate-950 sm:text-3xl">{content.title}</h1>
-        <p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{content.description}</p>
+        <h1 className="break-words text-2xl font-black text-slate-950 sm:text-3xl">{title}</h1>
+        <p className="whitespace-pre-wrap break-words text-base leading-7 text-slate-700">{answer}</p>
+        {answer !== content.description ? <p className="whitespace-pre-wrap text-sm leading-7 text-slate-600">{content.description}</p> : null}
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           {guide.area ? <div><dt className="text-slate-500">{copy.area}</dt><dd className="font-bold">{guide.area}</dd></div> : null}
           {guide.estimated_duration !== null ? <div><dt className="text-slate-500">{copy.duration}</dt><dd className="font-bold">{guide.estimated_duration} {copy.minutes}</dd></div> : null}
@@ -86,6 +98,8 @@ export default async function GuidePage({ params }: Props) {
         <p className="text-sm font-bold text-teal-800">{copy.saveHint}</p>
       </div>
     </section>
+    <GuidePlanningDetails guide={guide} locale={locale} stops={stops} section="comparison" />
+    <h2 className="text-xl font-bold">{guidePlanningCopy[locale].route}</h2>
     {incomplete ? <p className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{copy.unavailableStop}</p> : null}
     <ol className="space-y-5">
       {stops.map((stop, i) => {
@@ -112,6 +126,7 @@ export default async function GuidePage({ params }: Props) {
         </li>;
       })}
     </ol>
+    <GuidePlanningDetails guide={guide} locale={locale} stops={stops} section="references" />
     <RelatedGuidesSection guides={relatedGuides} locale={locale} />
     <section className="rounded-[24px] bg-teal-50 p-5 ring-1 ring-teal-100">
       <p className="text-base font-black text-teal-950">{copy.saveHint}</p>

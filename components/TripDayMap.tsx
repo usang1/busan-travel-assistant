@@ -3,7 +3,7 @@
 import { TravelMap } from "@/components/TravelMap";
 import { getPlaceContent, type Locale, withLocale } from "@/lib/i18n";
 import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
-import { getPlaceCategoryLabel, getTrustedPlaceImageUrl } from "@/lib/place-trust";
+import { getPlaceCategoryLabel, getPlaceNameDisplay, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import type { TripPlaceWithPlace } from "@/types/database";
 
 type TripDayMapProps = {
@@ -27,7 +27,7 @@ export function TripDayMap({ items, locale, selectedId, onSelect }: TripDayMapPr
     const content = getPlaceContent(item.place, locale);
     return {
       id: item.place.id,
-      title: content.name,
+      title: getPlaceNameDisplay(item.place, locale).name,
       subtitle: content.address,
       category: item.place.category,
       position: { latitude: Number(item.place.latitude), longitude: Number(item.place.longitude) },

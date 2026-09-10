@@ -133,9 +133,10 @@ const overrideSummary = buildChinaPlaceSummary({
   ...baseInfo,
   manual_summary_override: "管理员直接写的说明。",
   manual_warning_override: "管理员直接写的提醒。",
-});
+}, { includeAdminNotes: true });
 assert.equal(overrideSummary.summary, "管理员直接写的说明。");
 assert.equal(overrideSummary.warnings[0], "管理员直接写的提醒。");
+assert.doesNotMatch(buildChinaPlaceSummary({ ...baseInfo, manual_summary_override: "존맛탱", manual_warning_override: "내부 메모" }).summary, /존맛탱|내부 메모/);
 
 const missingSummary = buildChinaPlaceSummary({});
 assert.doesNotThrow(() => buildChinaPlaceSummary(null));

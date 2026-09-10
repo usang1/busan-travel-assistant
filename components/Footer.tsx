@@ -17,16 +17,16 @@ export function Footer() {
   const copy = ui[locale];
 
   return (
-    <footer className="mx-auto max-w-3xl px-4 pb-[calc(env(safe-area-inset-bottom)+104px)] pt-10 text-sm text-slate-500">
-      <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <footer className="mx-auto max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+104px)] pt-10 text-sm text-slate-600 md:pb-8">
+      <div className="border-t border-slate-200 py-5">
         <p className="font-black text-slate-950">{copy.siteName}</p>
         <p className="mt-2 leading-6">{copy.siteDescription}</p>
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
           {legalLinks.map((link) => (
             <Link
               key={link.href}
               href={withLocale(link.href, locale)}
-              className="rounded-2xl bg-slate-50 px-3 py-3 text-slate-700 transition hover:bg-slate-100"
+              className="flex min-h-11 items-center break-words px-3 py-3 text-slate-700 transition hover:bg-slate-100"
             >
               <span className="block font-bold">{copy.footerLinks[link.key]}</span>
             </Link>

@@ -286,11 +286,12 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
     return filteredItems.map(({ place, distance, walkingMinutes }) => {
       const content = getPlaceContent(place, locale);
       const recommendation = getLocalizedRecommendationDisplay(place, locale);
+      const nameDisplay = getPlaceNameDisplay(place, locale);
 
       return {
         id: place.id,
-        title: content.name,
-        subtitle: content.secondaryName,
+        title: nameDisplay.name,
+        subtitle: nameDisplay.secondaryName ? `${nameDisplay.secondaryLabel} · ${nameDisplay.secondaryName}` : "",
         category: place.category,
         position: {
           latitude: place.latitude,
@@ -485,16 +486,17 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
 
   return (
     <div className="space-y-4">
+      <h1 className="text-2xl font-black text-slate-950">{localizedCopy.heading}</h1>
       <section className="lg:hidden">{searchControls}</section>
 
       {userLocation ? <NearbyPopularPlaces origin={userLocation} locale={locale} /> : null}
 
-      <section className="hidden min-h-[calc(100vh-150px)] grid-cols-[minmax(320px,38%)_minmax(0,1fr)] gap-4 lg:grid">
+      <section className="hidden min-h-[calc(100dvh-180px)] grid-cols-[minmax(320px,38%)_minmax(0,1fr)] gap-4 lg:grid">
         <aside className="flex min-h-0 flex-col rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
           <div className="border-b border-slate-100 p-4">{searchControls}</div>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">{list}</div>
         </aside>
-        <div className="sticky top-[88px] h-[calc(100vh-112px)] min-h-[560px]">
+        <div className="sticky top-[160px] h-[calc(100dvh-184px)] min-h-[360px]">
           <TravelMap
             center={origin}
             markers={markers}
@@ -520,7 +522,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       </section>
 
       <section className="lg:hidden">
-        <div className="relative h-[52vh] min-h-[360px]">
+        <div className={cn("relative h-[52dvh] min-h-[300px]", sheetOpen && "hidden")}>
           <TravelMap
             center={origin}
             markers={markers}
@@ -544,21 +546,20 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           />
         </div>
 
-        {selectedItem ? (
+        {selectedItem && !sheetOpen ? (
           <div className="mt-3">
             <SelectedPlaceCard item={selectedItem} locale={locale} compact />
           </div>
         ) : null}
 
         <section
-          className={cn(
-            "fixed inset-x-0 z-40 rounded-t-[28px] bg-white shadow-[0_-14px_40px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 transition-transform duration-200 lg:hidden",
-            sheetOpen ? "bottom-0 translate-y-0" : "bottom-[76px] translate-y-[calc(100%-64px)]",
-          )}
+          className="mt-3 border-t border-slate-200 bg-white lg:hidden"
         >
           <button
             type="button"
             onClick={() => setSheetOpen((current) => !current)}
+            aria-expanded={sheetOpen}
+            aria-controls="nearby-mobile-list"
             className="flex h-16 w-full items-center justify-between px-5 text-left"
           >
             <span>
@@ -567,7 +568,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
             </span>
             <ChevronUp className={cn("text-slate-500 transition", sheetOpen && "rotate-180")} size={20} aria-hidden="true" />
           </button>
-          <div className="max-h-[58vh] overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+96px)]">{list}</div>
+          <div id="nearby-mobile-list" hidden={!sheetOpen} className="px-4 pb-4">{list}</div>
         </section>
       </section>
 
@@ -639,7 +640,6 @@ function SearchAndFilters({
           <MapPinned size={16} aria-hidden="true" />
           {localizedCopy.origin}
         </div>
-        <h1 className="mt-3 text-2xl font-black tracking-normal lg:text-xl">{localizedCopy.heading}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-300 lg:text-slate-500">{locationStatus}</p>
       </div>
 

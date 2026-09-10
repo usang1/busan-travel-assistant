@@ -325,7 +325,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       <PlaceRankingSection rankings={rankings} locale={locale} />
 
       {filteredPlaces.length > 0 ? (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredPlaces.map(({ place, distance }, index) => (
             <PlaceCard key={place.id} place={place} priority={index === 0} locale={locale} distanceMeters={distance} />
           ))}

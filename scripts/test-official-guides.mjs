@@ -36,6 +36,11 @@ assert.equal(reordered.places[1].sequence, 1);
 assert.equal(reordered.id, undefined);
 const published = { ...base, status: "PUBLISHED", ...Object.fromEntries(["ko", "zh", "en", "ja"].flatMap((locale) => [[`title_${locale}`, locale], [`description_${locale}`, `Description ${locale}`]])) };
 assert.equal(validateGuidePayload(published).status, "PUBLISHED");
+const editorial = { ko: { question: "어떻게 여행할까요?", answer: "확인된 답변", faq: [{ question: "언제 가나요?", answer: "공식 영업시간을 확인하세요." }], sources: [{ label: "공식 출처", url: "https://example.com" }], last_checked: "2026-09-09" } };
+assert.equal(validateGuidePayload({ ...published, editorial }).editorial.ko.answer, "확인된 답변");
+assert.throws(() => validateGuidePayload({ ...published, editorial: { ko: { ...editorial.ko, sources: [{ label: "Bad", url: "javascript:alert(1)" }] } } }));
+assert.throws(() => validateGuidePayload({ ...published, editorial: { ko: { ...editorial.ko, last_checked: "2026-02-30" } } }));
+assert.throws(() => validateGuidePayload({ ...published, editorial: { ko: { ...editorial.ko, faq: [{ question: "Question?", answer: "" }] } } }));
 
 // Exercise every handler with authorization failures, verifying no DB mutation is reached.
 for (const status of [401, 403]) {

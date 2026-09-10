@@ -1,4 +1,4 @@
-import { guideTypes, type GuidePayload, type GuideText } from "@/types/guide";
+import { guideTypes, type GuideEditorial, type GuidePayload, type GuideText } from "@/types/guide";
 
 const languages = ["ko", "zh", "en", "ja"] as const;
 export const emptyGuideText = (): GuideText => ({ ko: "", zh: "", en: "", ja: "" });
@@ -61,8 +61,39 @@ export function validateGuidePayload(value: unknown): GuidePayload {
   if (typeof input.is_featured !== "boolean") throw guideInputError("추천 여부가 올바르지 않습니다.");
   return {
     ...copy, slug, status: input.status, guide_type: input.guide_type as GuidePayload["guide_type"],
+    ...(input.editorial === undefined ? {} : { editorial: validateGuideEditorial(input.editorial) }),
     cover_image: cover, area: text(input.area, 100), estimated_duration: integer(input.estimated_duration, 43200, true),
     recommended_for: translated(input.recommended_for), weather_type: input.weather_type as GuidePayload["weather_type"],
     sort_order: integer(input.sort_order, 100000) as number, is_featured: input.is_featured, places,
   };
+}
+
+export function validateGuideEditorial(value: unknown): GuidePayload["editorial"] {
+  const input = object(value);
+  const result: NonNullable<GuidePayload["editorial"]> = {};
+  for (const locale of languages) {
+    if (input[locale] === undefined) continue;
+    const entry = object(input[locale]);
+    const faq = entry.faq ?? [];
+    const sources = entry.sources ?? [];
+    if (!Array.isArray(faq) || faq.length > 20 || !Array.isArray(sources) || sources.length > 20) throw guideInputError("FAQ와 출처는 각각 20개 이내로 입력해주세요.");
+    const lastChecked = text(entry.last_checked, 10);
+    if (lastChecked && (!/^\d{4}-\d{2}-\d{2}$/.test(lastChecked) || !Number.isFinite(Date.parse(lastChecked)) || new Date(lastChecked).toISOString().slice(0, 10) !== lastChecked)) throw guideInputError("확인일 형식을 확인해주세요.");
+    const detail: GuideEditorial = {
+      question: text(entry.question, 200), answer: text(entry.answer, 1000),
+      not_recommended_for: text(entry.not_recommended_for), tips: text(entry.tips), last_checked: lastChecked,
+      faq: faq.map((item) => { const row = object(item); return { question: text(row.question, 200), answer: text(row.answer) }; }),
+      sources: sources.map((item) => {
+        const row = object(item);
+        const url = text(row.url, 2048);
+        try { if (!["https:", "http:"].includes(new URL(url).protocol)) throw new Error(); }
+        catch { throw guideInputError("출처에 유효한 HTTP 또는 HTTPS 링크를 입력해주세요."); }
+        return { label: text(row.label, 200), url };
+      }),
+    };
+    if (detail.question && !/[?？]$/.test(detail.question)) throw guideInputError("질문형 제목은 물음표로 끝나도록 입력해주세요.");
+    if (detail.faq.some((item) => !item.question || !item.answer) || detail.sources.some((item) => !item.label)) throw guideInputError("FAQ 질문·답변과 출처 이름을 모두 입력해주세요.");
+    result[locale] = detail;
+  }
+  return result;
 }

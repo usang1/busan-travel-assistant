@@ -30,6 +30,7 @@ export async function generateMetadata({ params }: LocalizedItineraryPageProps):
     title: copy.nav.itinerary,
     description: copy.home.description,
     path: "/itinerary",
+    noIndex: true,
   });
 }
 

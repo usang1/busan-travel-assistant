@@ -53,9 +53,9 @@ export default async function LocalizedTranslatorPage({ params }: LocalizedTrans
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title={copy.title} subtitle={copy.subtitle} />
+      <SectionTitle as="h1" title={copy.title} subtitle={copy.subtitle} />
       <div className="mt-5">
-        <TranslatorTool />
+        <TranslatorTool locale={locale} />
       </div>
     </main>
   );

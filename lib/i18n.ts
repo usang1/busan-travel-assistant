@@ -73,14 +73,15 @@ export function withLocale(path: string, locale: Locale) {
   return `/${locale}${basePath}`;
 }
 
-export function localeAlternates(path: string): Record<string, string> {
+export function localeAlternates(path: string, availableLocales: readonly Locale[] = locales): Record<string, string> {
   const basePath = withoutLocale(path);
-  const languages = locales.reduce<Record<string, string>>((acc, locale) => {
+  const languages = availableLocales.reduce<Record<string, string>>((acc, locale) => {
     acc[localeMeta[locale].languageTag] = absoluteUrl(withLocale(basePath, locale));
     return acc;
   }, {});
 
-  languages["x-default"] = absoluteUrl(withLocale(basePath, defaultLocale));
+  const fallback = availableLocales.includes(defaultLocale) ? defaultLocale : availableLocales[0];
+  if (fallback) languages["x-default"] = absoluteUrl(withLocale(basePath, fallback));
 
   return languages;
 }
@@ -103,6 +104,7 @@ type LocalizedMetadataOptions = {
   noIndex?: boolean;
   follow?: boolean;
   images?: NonNullable<NonNullable<Metadata["openGraph"]>["images"]>;
+  availableLocales?: readonly Locale[];
 };
 
 export function buildLocalizedMetadata({
@@ -114,6 +116,7 @@ export function buildLocalizedMetadata({
   noIndex = false,
   follow = true,
   images,
+  availableLocales = locales,
 }: LocalizedMetadataOptions): Metadata {
   const url = localizedCanonical(path, locale);
   const fullTitle = localizedTitle(title, locale);
@@ -123,7 +126,7 @@ export function buildLocalizedMetadata({
     description,
     alternates: {
       canonical: url,
-      languages: localeAlternates(path),
+      languages: noIndex ? {} : localeAlternates(path, availableLocales),
     },
     robots: noIndex ? { index: false, follow } : undefined,
     openGraph: {
@@ -133,13 +136,13 @@ export function buildLocalizedMetadata({
       siteName: ui[locale].siteName,
       locale: localeMeta[locale].openGraphLocale,
       type,
-      images,
+      images: images ?? [{ url: absoluteUrl("/og.png"), width: 1200, height: 630, alt: "Korea Travel Assistant - Busan" }],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: fullTitle,
       description,
-      images,
+      images: images ?? [absoluteUrl("/og.png")],
     },
     appleWebApp: {
       capable: true,

@@ -39,7 +39,7 @@ export default async function LocalizedSubmissionsPage({ params }: LocalizedSubm
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title={copy.submissions.myTitle} subtitle={copy.submissions.loginDescription} />
+      <SectionTitle as="h1" title={copy.submissions.myTitle} subtitle={copy.submissions.loginDescription} />
       <div className="mt-5">
         <MySubmissionsView locale={locale} />
       </div>

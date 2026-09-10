@@ -34,6 +34,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { SectionTitle } from "@/components/SectionTitle";
 import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
+import { breadcrumbSchema, placeSchema, translatedPlaceLocales } from "@/lib/public-seo";
 import { TagChip } from "@/components/TagChip";
 import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
@@ -102,6 +103,7 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
       description: copy.places.description,
       path: `/places/${slug}`,
       type: "article",
+      noIndex: true,
     });
   }
 
@@ -124,6 +126,8 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
     path: `/places/${slug}`,
     type: "article",
     images: trustedImageUrl ? [{ url: trustedImageUrl }] : undefined,
+    availableLocales: translatedPlaceLocales(place),
+    noIndex: !translatedPlaceLocales(place).includes(locale),
   });
 }
 
@@ -205,25 +209,12 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
-      <StructuredData
-        data={{
-          "@context": "https://schema.org",
-          "@type": "TouristAttraction",
-          name: nameDisplay.secondaryName ? `${nameDisplay.name} / ${nameDisplay.secondaryName}` : nameDisplay.name,
-          description: publicDescription,
-          image: trustedImageUrl || undefined,
-          url: localizedCanonical(`/places/${place.slug}`, locale),
-          address: content.address,
-          geo:
-            placeHasCoordinates
-              ? {
-                  "@type": "GeoCoordinates",
-                  latitude: place.latitude,
-                  longitude: place.longitude,
-                }
-              : undefined,
-        }}
-      />
+      <StructuredData data={placeSchema(place, locale)} />
+      <StructuredData data={breadcrumbSchema([
+        { name: copy.nav.home, url: localizedCanonical("/", locale) },
+        { name: copy.places.title, url: localizedCanonical("/places", locale) },
+        { name: nameDisplay.name, url: localizedCanonical(`/places/${place.slug}`, locale) },
+      ])} />
       <PlaceViewTracker
         locale={locale}
         place={{

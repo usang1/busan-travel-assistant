@@ -51,9 +51,9 @@ export async function generateMetadata({ params }: LocalizedPhotoSpotDetailPageP
   const { locale, slug } = await getRouteParams(params);
   const { photoSpot } = await getPhotoSpotBySlug(slug);
   const copy = photoSpotDetailSeo[locale];
-  const name = photoSpot ? (locale === "ko" ? photoSpot.name_ko : photoSpot.name_zh) : "";
+  const name = photoSpot ? (locale === "zh" ? photoSpot.name_zh : photoSpot.name_ko) : "";
   const title = photoSpot ? `${name} | ${copy.suffix}` : copy.fallbackTitle;
-  const description = photoSpot
+  const description = photoSpot && locale === "zh"
     ? `${name}: ${copy.bestTime} ${photoSpot.best_time}, ${copy.zoom} ${photoSpot.recommended_zoom}.`
     : copy.fallbackDescription;
 
@@ -63,6 +63,8 @@ export async function generateMetadata({ params }: LocalizedPhotoSpotDetailPageP
     description,
     path: `/photo-spots/${slug}`,
     type: "article",
+    availableLocales: photoSpot?.free_or_pro === "free" ? ["zh"] : [],
+    noIndex: locale !== "zh" || !photoSpot || photoSpot.free_or_pro !== "free",
     images: photoSpot?.thumbnail_url ? [{ url: photoSpot.thumbnail_url }] : undefined,
   });
 }

@@ -71,7 +71,7 @@ export default async function LocalizedPhotoSpotsPage({ params }: LocalizedPhoto
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title={pageCopy.heading} subtitle={source === "demo" ? copy.common.sampleData : pageCopy.subtitle} />
+      <SectionTitle as="h1" title={pageCopy.heading} subtitle={source === "demo" ? copy.common.sampleData : pageCopy.subtitle} />
       {error ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
       {photoSpots.length ? (
         <div className="mt-5 space-y-4">

@@ -40,7 +40,7 @@ export default async function LocalizedSavedPage({ params }: LocalizedSavedPageP
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title={copy.mypage.savedPlaces} subtitle={copy.mypage.subtitle} />
+      <SectionTitle as="h1" title={copy.mypage.savedPlaces} subtitle={copy.mypage.subtitle} />
       <div className="mt-5">
         <SavedItemsView locale={locale} />
         <SavedGuides locale={locale} />

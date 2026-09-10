@@ -60,8 +60,8 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   ]);
 
   return (
-    <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title={copy.places.heading} subtitle={source === "demo" ? copy.common.sampleData : copy.common.registeredPlaces} />
+    <main className="safe-bottom mx-auto max-w-6xl px-4 pb-6 pt-5">
+      <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : copy.common.registeredPlaces} />
       <div className="mt-4">
         <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={rankings} />
       </div>

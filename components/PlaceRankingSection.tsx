@@ -58,7 +58,7 @@ function RankingTab({ active, label, icon: Icon, onClick }: { active: boolean; l
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-black transition ${active ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-black transition ${active ? "bg-white text-slate-950 shadow-sm" : "text-slate-600"}`}
     >
       <Icon size={15} aria-hidden="true" />
       {label}

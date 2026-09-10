@@ -194,7 +194,7 @@ async function addSaveCounts(places: PlaceWithRelations[]) {
 }
 
 export async function getPlaces(
-  options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string } = {},
+  options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string; range?: { from: number; to: number } } = {},
   client?: SupabaseClient,
 ): Promise<PlaceListResult> {
   const resolvedClient = resolveClient(client);
@@ -221,6 +221,7 @@ export async function getPlaces(
     query = query.eq("is_featured", true);
   }
 
+  if (options.range) query = query.order("id").range(options.range.from, options.range.to);
   const { data, error } = await query;
 
   if (error || !data) {
@@ -246,6 +247,7 @@ export async function getPlaces(
       compatibleQuery = compatibleQuery.eq("is_featured", true);
     }
 
+    if (options.range) compatibleQuery = compatibleQuery.order("id").range(options.range.from, options.range.to);
     const compatibleResult = await compatibleQuery;
 
     if (!compatibleResult.error && compatibleResult.data) {
@@ -286,6 +288,7 @@ export async function getPlaces(
       legacyQuery = legacyQuery.eq("is_featured", true);
     }
 
+    if (options.range) legacyQuery = legacyQuery.order("id").range(options.range.from, options.range.to);
     const legacyResult = await legacyQuery;
 
     if (legacyResult.error || !legacyResult.data) {

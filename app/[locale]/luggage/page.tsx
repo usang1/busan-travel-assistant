@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Luggage, MessageSquareText } from "lucide-react";
 import { LuggageExplorer } from "@/components/LuggageExplorer";
-import { SectionTitle } from "@/components/SectionTitle";
 import { getPlaces } from "@/lib/place-store";
 import {
   buildLocalizedMetadata,
   isLocale,
   type Locale,
+  ui,
 } from "@/lib/i18n";
 
 type LocalizedLuggagePageProps = {
@@ -95,7 +95,6 @@ export default async function LocalizedLuggagePage({ params }: LocalizedLuggageP
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title={luggageCopy.title} subtitle="광안리 짐 보관" />
       <section className="mt-5 rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <div className="grid size-12 place-items-center rounded-2xl bg-amber-50 text-amber-700">
           <Luggage size={24} aria-hidden="true" />
@@ -108,11 +107,11 @@ export default async function LocalizedLuggagePage({ params }: LocalizedLuggageP
             {phraseCopy.title}
           </div>
           <p className="mt-3 text-lg font-bold">{phraseCopy.phrase}</p>
-          {phraseCopy.korean ? <p className="mt-2 text-sm text-slate-300">{phraseCopy.korean}</p> : null}
+          {phraseCopy.korean ? <p lang="ko" className="mt-2 text-sm text-slate-300">{phraseCopy.korean}</p> : null}
         </div>
       </section>
 
-      {error ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
+      {error ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{ui[locale].common.noInfo}</p> : null}
 
       <div className="mt-5">
         <LuggageExplorer places={luggagePlaces} locale={locale} />

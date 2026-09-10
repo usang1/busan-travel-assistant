@@ -3,6 +3,15 @@ import type { Locale } from "@/lib/i18n";
 export const guideTypes = ["AREA", "FOOD", "SITUATION", "ITINERARY", "PRACTICAL"] as const;
 export type GuideType = (typeof guideTypes)[number];
 export type GuideText = Record<Locale, string>;
+export type GuideEditorial = {
+  question: string;
+  answer: string;
+  not_recommended_for: string;
+  tips: string;
+  faq: { question: string; answer: string }[];
+  sources: { label: string; url: string }[];
+  last_checked: string;
+};
 export type GuideStop = {
   place_id: string;
   sequence: number;
@@ -13,6 +22,7 @@ export type GuideStop = {
   tip: GuideText;
 };
 export type GuidePayload = {
+  editorial?: Partial<Record<Locale, GuideEditorial>>;
   slug: string;
   status: "DRAFT" | "PUBLISHED";
   guide_type: GuideType;

@@ -39,6 +39,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#0f766e",
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({
@@ -51,7 +52,7 @@ export default async function RootLayout({
   const locale = getLocaleFromPath(currentPathname) ?? defaultLocale;
 
   return (
-    <html lang={localeMeta[locale].languageTag}>
+    <html lang={localeMeta[locale].languageTag} data-scroll-behavior="smooth">
       <body>
         <AuthProvider>
           <ProEntitlementProvider>

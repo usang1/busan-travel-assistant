@@ -9,7 +9,8 @@
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "test:guides": "node scripts/test-official-guides.mjs",
     "test:guides:db": "node scripts/test-official-guides-db.mjs",
-    "test:locale": "node scripts/test-locale-content-consistency.mjs",
+    "test:locale": "node scripts/test-locale-content-consistency.mjs && node scripts/test-public-seo.mjs",
+    "test:public": "node scripts/test-public-pages.mjs && node scripts/test-public-interactions.mjs",
     "test": "npm run test:locale && node scripts/test-china-formatter.mjs && node scripts/test-map-place-providers.mjs && node scripts/test-admin-place-editor-workflow.mjs && node scripts/test-map-focus-behavior.mjs && node scripts/test-home-intent-links.mjs && node scripts/test-map-discovery-filters.mjs && node scripts/test-place-trust-display.mjs && node scripts/test-guest-trip-add-flow.mjs && node scripts/test-gpt-translation-integration.mjs && node scripts/test-traveler-insights.mjs && node scripts/test-place-recommendations.mjs && node scripts/test-trip-planning.mjs && node scripts/test-place-quality-workflow.mjs && node scripts/verify-place-publication-flow.mjs"
   },
   "dependencies": {
@@ -24,12 +25,14 @@
   "devDependencies": {
     "@eslint/js": "9.39.5",
     "@tailwindcss/postcss": "latest",
-    "@typescript-eslint/parser": "8.67.0",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@typescript-eslint/parser": "8.67.0",
     "eslint": "latest",
     "globals": "16.4.0",
+    "lighthouse": "^13.4.1",
+    "playwright": "^1.63.0",
     "tailwindcss": "latest",
     "typescript": "latest"
   }

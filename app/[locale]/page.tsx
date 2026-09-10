@@ -61,6 +61,14 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
           url: localizedCanonical("/", locale),
           inLanguage: localeMeta[locale].languageTag,
           description: copy.home.description,
+          potentialAction: {
+            "@type": "SearchAction",
+            target: {
+              "@type": "EntryPoint",
+              urlTemplate: `${localizedCanonical("/places", locale)}?search={search_term_string}`,
+            },
+            "query-input": "required name=search_term_string",
+          },
         }}
       />
       <HomeDiscoveryPage locale={locale} places={places} guides={guides} />

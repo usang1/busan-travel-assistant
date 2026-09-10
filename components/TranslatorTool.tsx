@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Languages, Volume2, X } from "lucide-react";
 import { touristPhrases, translatorCategories, type TouristPhrase, type TranslatorCategory } from "@/data/translator-phrases";
+import { defaultLocale, type Locale } from "@/lib/i18n";
+import { translatedPhrase, translatorUi } from "@/lib/translator-copy";
 
-export function TranslatorTool() {
+export function TranslatorTool({ locale = defaultLocale }: { locale?: Locale }) {
+  const copy = translatorUi[locale];
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const [category, setCategory] = useState<TranslatorCategory>("restaurant");
   const [selectedPhrase, setSelectedPhrase] = useState<TouristPhrase | null>(null);
   const [customText, setCustomText] = useState("");
@@ -30,7 +34,7 @@ export function TranslatorTool() {
     const sourceText = customText.trim();
 
     if (!sourceText) {
-      setTranslationError("번역할 외국어 문장을 입력해 주세요.");
+      setTranslationError(copy.empty);
       return;
     }
 
@@ -47,24 +51,28 @@ export function TranslatorTool() {
       const body = (await response.json().catch(() => ({}))) as { translation?: unknown; message?: unknown };
 
       if (!response.ok) {
-        throw new Error(typeof body.message === "string" ? body.message : "한국어 번역에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        throw new Error(copy.error);
       }
 
       if (typeof body.translation !== "string" || !body.translation.trim()) {
-        throw new Error("번역 결과를 받지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        throw new Error(copy.error);
       }
 
       setSelectedPhrase(null);
       setCustomKorean(body.translation.trim());
-    } catch (error) {
-      setTranslationError(error instanceof Error ? error.message : "한국어 번역 중 오류가 발생했습니다.");
+    } catch {
+      setTranslationError(copy.error);
     } finally {
       setIsTranslating(false);
     }
   }
 
   const bigText = selectedPhrase?.ko ?? customKorean;
-  const smallText = selectedPhrase?.zh ?? customText;
+  const smallText = selectedPhrase ? translatedPhrase(selectedPhrase, locale) : customText;
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (bigText && dialog && !dialog.open) dialog.showModal();
+  }, [bigText]);
 
   return (
     <div>
@@ -79,8 +87,7 @@ export function TranslatorTool() {
               category === item.id ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
             ].join(" ")}
           >
-            {item.zh}
-            <span className="ml-1 text-xs opacity-70">{item.ko}</span>
+            {copy.categories[item.id]}
           </button>
         ))}
       </div>
@@ -95,17 +102,16 @@ export function TranslatorTool() {
           >
             <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
               <Languages size={14} aria-hidden="true" />
-              {phrase.titleZh}
+              {translatedPhrase(phrase, locale)}
             </div>
-            <p className="mt-4 text-lg font-bold text-slate-950">{phrase.zh}</p>
-            <p className="mt-2 text-base font-black text-slate-700">{phrase.ko}</p>
+            <p className="mt-4 text-xs text-slate-600">{copy.korean}</p>
+            <p lang="ko" className="mt-2 text-base font-black text-slate-700">{phrase.ko}</p>
           </button>
         ))}
       </div>
 
       <section className="mt-6 rounded-[26px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="text-lg font-black text-slate-950">외국어 문장 직접 입력</h2>
-        <p className="mt-1 text-sm text-slate-500">중국어 등 외국어 문장을 GPT로 자연스러운 한국어로 번역합니다.</p>
+        <h2 className="text-lg font-black text-slate-950">{copy.input}</h2>
         <textarea
           value={customText}
           onChange={(event) => {
@@ -113,7 +119,8 @@ export function TranslatorTool() {
             setTranslationError("");
           }}
           maxLength={1000}
-          placeholder="例如：请问这里可以寄存行李吗？"
+          aria-label={copy.input}
+          placeholder={copy.placeholder}
           className="mt-4 min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
         />
         <button
@@ -122,7 +129,7 @@ export function TranslatorTool() {
           disabled={isTranslating || !customText.trim()}
           className="mt-3 h-12 w-full rounded-2xl bg-teal-700 px-4 text-base font-black text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isTranslating ? "GPT 번역 중..." : "한국어로 번역"}
+          {isTranslating ? copy.busy : copy.translate}
         </button>
         {translationError ? (
           <p role="alert" className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 ring-1 ring-rose-100">
@@ -135,20 +142,20 @@ export function TranslatorTool() {
             onClick={() => setSelectedPhrase(null)}
             className="mt-3 w-full rounded-2xl bg-slate-950 p-4 text-left text-white"
           >
-            <p className="text-sm text-slate-300">한국어</p>
+            <p className="text-sm text-slate-300">{copy.korean}</p>
             <p className="mt-2 text-2xl font-black">{customKorean}</p>
           </button>
         ) : null}
       </section>
 
       {bigText ? (
-        <div className="fixed inset-0 z-50 bg-slate-950 p-4 text-white" role="dialog" aria-modal="true">
+        <dialog ref={dialogRef} onClose={() => { setSelectedPhrase(null); setCustomKorean(""); }} className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-y-auto border-0 bg-slate-950 p-4 pb-[calc(env(safe-area-inset-bottom)+24px)] text-white" aria-label={copy.korean}>
           <div className="absolute right-4 top-4 flex gap-2">
             <button
               type="button"
               onClick={() => speak(bigText)}
               className="grid size-12 place-items-center rounded-full bg-white/10 text-white"
-              aria-label="한국어 음성 읽기"
+              aria-label={copy.speak}
             >
               <Volume2 size={23} aria-hidden="true" />
             </button>
@@ -159,17 +166,17 @@ export function TranslatorTool() {
                 setCustomKorean("");
               }}
               className="grid size-12 place-items-center rounded-full bg-white/10 text-white"
-              aria-label="关闭"
+              aria-label={copy.close}
             >
               <X size={24} aria-hidden="true" />
             </button>
           </div>
-          <div className="flex min-h-full flex-col items-center justify-center text-center">
-            <p className="mb-6 rounded-full bg-teal-400/15 px-4 py-2 text-sm font-bold text-teal-100">请把这个画面给韩国人看</p>
-            <p className="max-w-3xl text-[44px] font-black leading-tight tracking-normal sm:text-7xl">{bigText}</p>
+          <div className="flex min-h-full flex-col items-center justify-center pb-8 pt-20 text-center">
+            <p className="mb-6 rounded-full bg-teal-400/15 px-4 py-2 text-sm font-bold text-teal-100">{copy.show}</p>
+            <p lang="ko" className="max-w-3xl break-words text-[44px] font-black leading-tight tracking-normal sm:text-7xl">{bigText}</p>
             <p className="mt-8 max-w-xl rounded-[24px] bg-white/10 p-5 text-xl font-bold leading-8 text-slate-100">{smallText}</p>
           </div>
-        </div>
+        </dialog>
       ) : null}
     </div>
   );

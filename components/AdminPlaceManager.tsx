@@ -941,7 +941,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
-  const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info)), [form.china_info]);
+  const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info), { includeAdminNotes: true }), [form.china_info]);
   const formQuality = useMemo(() => evaluatePlaceQuality(toPayload(form)), [form]);
   const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
   const aiCurrentContent = useMemo(

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { GuideEditorialFields } from "@/components/GuideEditorialFields";
 import { guideCopy } from "@/lib/guide-copy";
 import { emptyGuideText } from "@/lib/guide-validation";
 import { isPublicPlace } from "@/lib/place-publishing";
@@ -110,6 +111,7 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
             <label className="mt-3 block text-sm">제목<input className={inputStyle} maxLength={200} value={draft[`title_${locale}`]} onChange={(e) => update({ [`title_${locale}`]: e.target.value })} /></label>
             <label className="mt-3 block text-sm">설명<textarea className={inputStyle} rows={4} maxLength={4000} value={draft[`description_${locale}`]} onChange={(e) => update({ [`description_${locale}`]: e.target.value })} /></label>
             <label className="mt-3 block text-sm">추천 대상<input className={inputStyle} value={draft.recommended_for[locale] ?? ""} onChange={(e) => update({ recommended_for: { ...draft.recommended_for, [locale]: e.target.value } })} /></label>
+            <GuideEditorialFields value={draft.editorial?.[locale]} onChange={(entry) => update({ editorial: { ...draft.editorial, [locale]: entry } })} />
           </details>)}
           <div className="space-y-3"><h3 className="font-black">코스 장소 ({draft.places.length}/80)</h3>
             {draft.places.map((stop, index) => {

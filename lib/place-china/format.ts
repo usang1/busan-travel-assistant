@@ -139,15 +139,15 @@ const tristateFields: Array<{
   { key: "tourism_recommended", label: "观光适合度" },
 ];
 
-export function buildChinaPlaceSummary(info: ChinaPlaceInfoInput): ChinaPlaceSummary {
+export function buildChinaPlaceSummary(info: ChinaPlaceInfoInput, options: { includeAdminNotes?: boolean } = {}): ChinaPlaceSummary {
   const ratings = formatRatingDisplays(info);
   const paymentSummary = formatPaymentSummary(info);
   const convenienceSummary = formatConvenienceSummary(info);
   const waitingSummary = formatWaitingSummary(info);
   const automaticSummary = compactSentences([formatTasteSummary(info), waitingSummary, paymentSummary, convenienceSummary]);
-  const manualSummary = info?.manual_summary_override?.trim();
+  const manualSummary = options.includeAdminNotes ? info?.manual_summary_override?.trim() : "";
   const automaticWarnings = formatWarnings(info);
-  const manualWarning = info?.manual_warning_override?.trim();
+  const manualWarning = options.includeAdminNotes ? info?.manual_warning_override?.trim() : "";
 
   return {
     summary: manualSummary || automaticSummary,

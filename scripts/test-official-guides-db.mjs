@@ -26,6 +26,7 @@ await db.exec(`
   insert into places values ('11111111-1111-4111-8111-111111111111',true,'PUBLISHED'),('22222222-2222-4222-8222-222222222222',true,'PUBLISHED'),('33333333-3333-4333-8333-333333333333',false,'DRAFT');
 `);
 await db.exec(fs.readFileSync("supabase/migrations/022_official_guides.sql", "utf8"));
+await db.exec(fs.readFileSync("supabase/migrations/024_guide_editorial_content.sql", "utf8"));
 const admin = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const user = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const other = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -44,6 +45,10 @@ async function save(id, value, timestamp = null) {
 async function timestamp(id) { return (await db.query("select updated_at::text as t from guides where id=$1", [id])).rows[0].t; }
 await actor("authenticated", admin);
 const id = await save(null, payload);
+const editorial = { ko: { question: "어떻게 여행할까요?", answer: "공개된 두 장소를 순서대로 방문합니다.", faq: [], sources: [], last_checked: "2026-09-09" } };
+await save(id, { ...payload, editorial }, await timestamp(id));
+await save(id, payload, await timestamp(id));
+assert.equal((await db.query("select editorial->'ko'->>'question' as question from guides where id=$1", [id])).rows[0].question, editorial.ko.question, "Older clients must preserve editorial data");
 const draftId = await save(null, { ...payload, slug: "private-guide", status: "DRAFT" });
 assert.equal((await db.query("select * from guides")).rows.length, 2);
 let version = await timestamp(id);

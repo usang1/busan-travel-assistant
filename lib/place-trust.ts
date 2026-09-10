@@ -118,7 +118,7 @@ export function getPlaceNameDisplay(place: PlaceWithRelations, locale: Locale): 
   const koreanOriginal = place.name_ko.trim();
 
   return {
-    name: content.name,
+    name: locale !== "ko" && content.name === koreanOriginal ? `${content.name} (${copy[locale].originalNameLabel})` : content.name,
     secondaryName: content.secondaryName || (locale !== "ko" && content.name !== koreanOriginal ? koreanOriginal : ""),
     secondaryLabel: locale === "ko" ? "" : copy[locale].originalNameLabel,
   };
@@ -168,7 +168,7 @@ export function buildPlaceCardFacts(place: PlaceWithRelations, locale: Locale) {
   const missing: PlaceCardFactKey[] = [];
   const menu = getConfirmedRepresentativeMenu(place, locale);
   const price = getConfirmedPriceLabel(place, locale);
-  const hours = place.opening_hours.trim();
+  const hours = getPublicOpeningHours(place, locale);
   const solo = getConfirmedSoloLabel(place, locale);
   const waiting = getConfirmedWaitingLabel(place, locale);
 
@@ -183,6 +183,13 @@ export function buildPlaceCardFacts(place: PlaceWithRelations, locale: Locale) {
     missing,
     missingSummary: missing.length >= 2 ? copy[locale].infoPreparing : "",
   };
+}
+
+export function getPublicOpeningHours(place: Pick<PlaceWithRelations, "opening_hours">, locale: Locale) {
+  const hours = place.opening_hours?.trim() ?? "";
+  // Legacy business-hours prose has no translation field; numeric schedules are language-neutral.
+  if (locale !== "ko" && /\p{Letter}/u.test(hours)) return "";
+  return hours;
 }
 
 export function getVerificationStatus(place: PlaceWithRelations): PlaceVerificationStatus {

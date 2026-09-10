@@ -3,6 +3,10 @@ import { guideInputError, validateGuidePayload } from "@/lib/guide-validation";
 
 export async function saveOfficialGuide(client: SupabaseClient, id: string | null, value: unknown) {
   const payload = validateGuidePayload(value);
+  if (payload.editorial !== undefined) {
+    const { error } = await client.from("guides").select("editorial").limit(0);
+    if (error) throw guideInputError("가이드 상세 편집 기능의 DB migration(024)을 적용한 후 다시 저장해주세요.", 503);
+  }
   const expected = (value as Record<string, unknown>).updated_at;
   if (id && (typeof expected !== "string" || !Number.isFinite(Date.parse(expected)))) {
     throw guideInputError("최신 가이드를 다시 불러온 후 저장해주세요.", 409);

@@ -8,6 +8,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
 import { defaultLocale, type Locale, withLocale } from "@/lib/i18n";
 import type { PhotoSpotRecord } from "@/types/database";
+import { photoSpotCopy } from "@/lib/photo-spot-copy";
 
 type PhotoSpotCardProps = {
   spot: PhotoSpotRecord;
@@ -45,7 +46,7 @@ export function PhotoSpotCard({ spot, priority = false, locale = defaultLocale }
           />
           <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-800 backdrop-blur">
             {locked ? <Lock size={14} aria-hidden="true" /> : <Camera size={14} aria-hidden="true" />}
-            {spot.free_or_pro === "free" ? "Free" : "Pro"}
+            {spot.free_or_pro === "free" ? photoSpotCopy[locale].free : "Pro"}
           </div>
           {locked ? <div className="absolute inset-0 bg-slate-950/25 backdrop-blur-[1px]" /> : null}
         </div>
@@ -69,14 +70,14 @@ export function PhotoSpotCard({ spot, priority = false, locale = defaultLocale }
                 titleKo: spot.name_ko,
                 href,
                 imageUrl: spot.thumbnail_url,
-                meta: `${copy.bestTime} · ${spot.best_time}`,
+                meta: photoSpotCopy[locale].title,
               }}
             />
           )}
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <TagChip tone="blue">
-            <Clock3 size={13} aria-hidden="true" /> {spot.best_time}
+            <Clock3 size={13} aria-hidden="true" /> {locale === "zh" || !/\p{Letter}/u.test(spot.best_time) ? spot.best_time : photoSpotCopy[locale].pending}
           </TagChip>
           <TagChip tone="green">
             <ZoomIn size={13} aria-hidden="true" /> {spot.recommended_zoom}

@@ -16,7 +16,7 @@ html {
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   background:
     linear-gradient(180deg, rgba(240, 253, 250, 0.88) 0%, rgba(248, 250, 252, 0) 340px),
     #f8fafc;
@@ -38,4 +38,25 @@ input {
 
 .safe-bottom {
   padding-bottom: calc(env(safe-area-inset-bottom) + 92px);
+}
+
+:where(h1, h2, h3, p, dd, a, button) {
+  overflow-wrap: anywhere;
+}
+
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 3px;
+}
+
+:where(button, summary, select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])) {
+  min-height: 44px !important;
+}
+
+@media (min-width: 768px) {
+  .safe-bottom { padding-bottom: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
 }
