@@ -4,6 +4,7 @@ import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
 import { getPublishedGuides } from "@/lib/guide-store";
 import { getPlaces } from "@/lib/place-store";
+import { translatedPlaceLocales } from "@/lib/public-seo";
 import {
   buildLocalizedMetadata,
   isLocale,
@@ -46,10 +47,11 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
 export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
   const copy = ui[locale];
-  const [{ places }, { guides }] = await Promise.all([
+  const [{ places: publicPlaces }, { guides }] = await Promise.all([
     getPlaces({ activeOnly: true, locale, debugLabel: "localized-home" }),
     getPublishedGuides(),
   ]);
+  const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
 
   return (
     <>

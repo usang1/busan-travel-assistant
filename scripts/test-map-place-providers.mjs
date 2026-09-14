@@ -192,9 +192,14 @@ const quality = loadTsModule("lib/place-quality.ts", {
   "@/lib/location": location,
   "@/types/database": databaseRuntime,
 });
+const publicationQuality = loadTsModule("lib/place-publication-quality.ts", {
+  "@/lib/place-quality": quality,
+  "@/lib/place-publishing": publishing,
+});
 const validation = loadTsModule("lib/place-validation.ts", {
   "@/lib/place-providers/normalize": normalize,
   "@/lib/place-quality": quality,
+  "@/lib/place-publication-quality": publicationQuality,
   "@/lib/place-publishing": publishing,
   "@/types/database": databaseRuntime,
 });

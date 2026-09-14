@@ -25,13 +25,26 @@ const place = {
   name_ko: "테스트 카페", name_zh: "测试咖啡馆", short_description_ko: "지역의 대표 메뉴와 이용 정보를 확인한 공개 장소입니다.", short_description_zh: "这是一家提供咖啡与甜品的咖啡馆，出发前请确认营业信息。",
   tips_ko: "", tips_zh: "", waiting_info_ko: "", waiting_info_zh: "", recommended_order_ko: "", recommended_order_zh: "",
   address_ko: "부산 수영구", address_zh: "釜山水营区", opening_hours: "10:00-20:00",
-  price_min: null, price_max: null, latitude: 35.153, longitude: 129.118, phone: "", website: "",
-  thumbnail_url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e", menu_items: [], tags: [], sources: [],
+  price_level: 2, price_min: null, price_max: null, latitude: 35.153, longitude: 129.118, phone: "", website: "",
+  last_verified_at: "2026-09-01",
+  thumbnail_url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
+  menu_items: [{ name_ko: "아메리카노", name_zh: "美式咖啡", description_zh: "", price: 4500, is_recommended: true, sort_order: 1 }],
+  tags: [],
+  sources: [{ provider: "MANUAL", source_url: "https://example.com/source", external_id: "", last_synced_at: "2026-09-01T00:00:00.000Z" }],
+  china_info: { verification_status: "verified", verified_at: "2026-09-01T00:00:00.000Z", waiting_level: "short", foreign_card: "yes", solo_friendly: "yes" },
   translations: [{ locale: "en", name: "Fixture cafe", description: "A public cafe offering coffee and desserts with confirmed visitor information.", address: "Suyeong-gu, Busan" }],
 };
 assert.deepEqual(Array.from(seo.translatedPlaceLocales(place)).sort(), ["en", "ko", "zh"]);
 assert.equal(seo.translatedPlaceLocales({ ...place, status: "DRAFT" }).length, 0);
 assert.equal(seo.translatedPlaceLocales({ ...place, is_active: false }).length, 0);
+assert.equal(seo.translatedPlaceLocales({ ...place, short_description_zh: "" }).length, 0);
+const sitemapDetailUrls = [place, { ...place, id: "draft-place", slug: "draft-cafe", status: "DRAFT" }]
+  .flatMap((item) => seo.translatedPlaceLocales(item).map((locale) => `/${locale}/places/${item.slug}`))
+  .sort();
+const listDetailUrls = i18n.locales
+  .flatMap((locale) => [place].filter((item) => seo.translatedPlaceLocales(item).includes(locale)).map((item) => `/${locale}/places/${item.slug}`))
+  .sort();
+assert.equal(JSON.stringify(listDetailUrls), JSON.stringify(sitemapDetailUrls), "Locale place lists and sitemap detail URLs must use the same eligibility set");
 for (const [category, schemaType] of Object.entries({ restaurant: "Restaurant", cafe: "CafeOrCoffeeShop", bar: "BarOrPub", attraction: "TouristAttraction", photo_spot: "TouristAttraction", shopping: "Store", luggage: "SelfStorage" })) {
   const schema = seo.placeSchema({ ...place, category }, "en");
   assert.equal(schema["@type"], schemaType);

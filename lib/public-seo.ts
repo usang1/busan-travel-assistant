@@ -1,6 +1,6 @@
 import { getPlaceContent, locales, localizedCanonical, type Locale } from "@/lib/i18n";
 import { hasCoordinates } from "@/lib/location";
-import { isPublicPlace } from "@/lib/place-publishing";
+import { isPublishablePlace } from "@/lib/place-publication-quality";
 import { getPublicPlaceDescription, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import type { PlaceCategory, PlaceWithRelations } from "@/types/database";
 import type { Guide } from "@/types/guide";
@@ -12,7 +12,7 @@ export const placeSchemaTypes: Record<PlaceCategory, string> = {
 };
 
 export function translatedPlaceLocales(place: PlaceWithRelations): Locale[] {
-  if (!isPublicPlace(place)) return [];
+  if (!isPublishablePlace(place)) return [];
   return locales.filter((locale) => {
     const translatedName = place.translations?.find((item) => item.locale === locale)?.name?.trim();
     const name = translatedName || (locale === "ko" ? place.name_ko : locale === "zh" ? place.name_zh : "");

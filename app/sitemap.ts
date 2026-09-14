@@ -42,7 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             alternates: { languages: localeAlternates(`/places/${place.slug}`, available) },
           });
         }
-        if (result.places.length < 500) break;
+        if ((result.candidateCount ?? result.places.length) < 500) break;
       }
     } catch { /* Available public routes remain crawlable during a place-service outage. */ }
   }

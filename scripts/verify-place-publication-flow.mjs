@@ -93,6 +93,12 @@ assert.match(migration, /create or replace function public\.get_place_rankings/i
 assert.match(migration, /create or replace function public\.set_place_saved/i);
 assert.match(migration, /notify pgrst, 'reload schema'/i);
 
+const qualityMigration = fs.readFileSync("supabase/migrations/025_place_publication_quality.sql", "utf8");
+assert.match(qualityMigration, /Public can read active place sources/i);
+assert.match(qualityMigration, /places\.is_active = true/i);
+assert.match(qualityMigration, /places\.status in \('PUBLISHED', 'ACTIVE'\)/i);
+assert.match(qualityMigration, /notify pgrst, 'reload schema'/i);
+
 const approvalRoute = fs.readFileSync("app/api/admin/submissions/[id]/approve/route.ts", "utf8");
 assert.match(approvalRoute, /createPlace\(payload, client\)/);
 assert.doesNotMatch(approvalRoute, /is_active:\s*true/);
@@ -102,4 +108,13 @@ const adminManager = fs.readFileSync("components/AdminPlaceManager.tsx", "utf8")
 assert.match(adminManager, /PlaceQualityPanel/);
 assert.match(adminManager, /MobilePlacePreview/);
 assert.match(adminManager, /qualityFilterOptions/);
+assert.match(adminManager, /getPlacePublicationState/);
+assert.match(adminManager, /formatVerifiedBlockMessage/);
 assert.doesNotMatch(adminManager, /defaultImage/);
+
+const store = fs.readFileSync("lib/place-store.ts", "utf8");
+assert.match(store, /filterPublishablePlaces/);
+assert.match(store, /candidateCount/);
+
+const home = fs.readFileSync("components/HomeDiscoveryPage.tsx", "utf8");
+assert.match(home, /isVerifiedPlace/);

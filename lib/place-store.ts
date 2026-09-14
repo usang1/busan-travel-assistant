@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
+import { filterPublishablePlaces, isPublishablePlace } from "@/lib/place-publication-quality";
 import { archivedPlaceStatus, normalizePlacePublicationForWrite, publicReadablePlaceStatuses } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
@@ -27,8 +28,8 @@ type SupabasePlaceRow = PlaceRecord & {
 };
 
 type PlaceWriteRow = Omit<PlacePayload, "tags" | "menu_items" | "china_info">;
-const publicPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_tags(tags(*)),place_menu_items(*)";
-const publicPlaceSelectWithTranslations: string = "*,place_translations(*),place_tags(tags(*)),place_menu_items(*)";
+const publicPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
+const publicPlaceSelectWithTranslations: string = "*,place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const adminPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const adminPlaceSelectWithTranslations: string = "*,place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const legacyPlaceSelect: string = "*,place_tags(tags(*)),place_menu_items(*)";
@@ -193,6 +194,25 @@ async function addSaveCounts(places: PlaceWithRelations[]) {
   return withPlaceSaveCounts(places, counts);
 }
 
+async function finalizePlaceRows(rows: unknown, activeOnly: boolean): Promise<{ places: PlaceWithRelations[]; candidateCount: number }> {
+  const mapped = mapPlaceRows(rows);
+  const places = await addSaveCounts(activeOnly ? filterPublishablePlaces(mapped) : mapped);
+
+  return {
+    places,
+    candidateCount: mapped.length,
+  };
+}
+
+async function finalizePlace(place: PlaceWithRelations, activeOnly: boolean) {
+  if (activeOnly && !isPublishablePlace(place)) {
+    return null;
+  }
+
+  const counts = await getPlaceSaveCounts([place.id]);
+  return { ...place, save_count: counts.get(place.id) ?? 0 };
+}
+
 export async function getPlaces(
   options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string; range?: { from: number; to: number } } = {},
   client?: SupabaseClient,
@@ -251,18 +271,19 @@ export async function getPlaces(
     const compatibleResult = await compatibleQuery;
 
     if (!compatibleResult.error && compatibleResult.data) {
-      const places = await addSaveCounts(mapPlaceRows(compatibleResult.data));
+      const { places, candidateCount } = await finalizePlaceRows(compatibleResult.data, options.activeOnly ?? true);
       debugPlaceList("compatible", {
         label: options.debugLabel,
         filters: activeFilters,
         locale: options.locale,
-        rawCount: compatibleResult.data.length,
+        rawCount: candidateCount,
         finalCount: places.length,
       });
 
       return {
         places,
         source: "supabase",
+        candidateCount,
       };
     }
 
@@ -302,33 +323,35 @@ export async function getPlaces(
       return emptyPlaceResult("장소 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.");
     }
 
-    const places = await addSaveCounts(mapPlaceRows(legacyResult.data));
+    const { places, candidateCount } = await finalizePlaceRows(legacyResult.data, options.activeOnly ?? true);
     debugPlaceList("legacy", {
       label: options.debugLabel,
       filters: activeFilters,
       locale: options.locale,
-      rawCount: legacyResult.data.length,
+      rawCount: candidateCount,
       finalCount: places.length,
     });
 
     return {
       places,
       source: "supabase",
+      candidateCount,
     };
   }
 
-  const places = await addSaveCounts(mapPlaceRows(data));
+  const { places, candidateCount } = await finalizePlaceRows(data, options.activeOnly ?? true);
   debugPlaceList("primary", {
     label: options.debugLabel,
     filters: activeFilters,
     locale: options.locale,
-    rawCount: data.length,
+    rawCount: candidateCount,
     finalCount: places.length,
   });
 
   return {
     places,
     source: "supabase",
+    candidateCount,
   };
 }
 
@@ -384,7 +407,10 @@ async function fetchBoundedPublicPlaces(
     }
 
     const { data, error } = await query.limit(options.limit);
-    if (!error && data) return addSaveCounts(mapPlaceRows(data));
+    if (!error && data) {
+      const { places } = await finalizePlaceRows(data, true);
+      return places;
+    }
   }
 
   return [];
@@ -433,10 +459,17 @@ export async function getPlaceBySlug(
 
     if (!compatibleResult.error && compatibleResult.data) {
       const place = mapPlaceRow(compatibleResult.data);
-      const counts = await getPlaceSaveCounts([place.id]);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true);
+
+      if (!publicPlace) {
+        return {
+          place: null,
+          source: "none",
+        };
+      }
 
       return {
-        place: { ...place, save_count: counts.get(place.id) ?? 0 },
+        place: publicPlace,
         source: "supabase",
       };
     }
@@ -455,10 +488,17 @@ export async function getPlaceBySlug(
 
     if (!legacyResult.error && legacyResult.data) {
       const place = mapPlaceRow(legacyResult.data);
-      const counts = await getPlaceSaveCounts([place.id]);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true);
+
+      if (!publicPlace) {
+        return {
+          place: null,
+          source: "none",
+        };
+      }
 
       return {
-        place: { ...place, save_count: counts.get(place.id) ?? 0 },
+        place: publicPlace,
         source: "supabase",
       };
     }
@@ -491,10 +531,17 @@ export async function getPlaceBySlug(
   }
 
   const place = mapPlaceRow(data);
-  const counts = await getPlaceSaveCounts([place.id]);
+  const publicPlace = await finalizePlace(place, options.activeOnly ?? true);
+
+  if (!publicPlace) {
+    return {
+      place: null,
+      source: "none",
+    };
+  }
 
   return {
-    place: { ...place, save_count: counts.get(place.id) ?? 0 },
+    place: publicPlace,
     source: "supabase",
   };
 }

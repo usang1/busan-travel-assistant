@@ -344,6 +344,7 @@ export type PlaceSubmissionRecord = {
 export type PlaceListResult = {
   places: PlaceWithRelations[];
   source: "supabase" | "demo" | "none";
+  candidateCount?: number;
   error?: string;
 };
 

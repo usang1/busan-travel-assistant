@@ -23,6 +23,7 @@ import { getProblemGuides, resolveHomeIntentCards, type ResolvedHomeIntentCard }
 import { guideCopy } from "@/lib/guide-copy";
 import { type Locale, ui, withLocale } from "@/lib/i18n";
 import { distanceFromGwangalli, isNearGwangalli } from "@/lib/place-display";
+import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import type { PlaceWithRelations } from "@/types/database";
 import type { Guide } from "@/types/guide";
 
@@ -51,7 +52,7 @@ export function HomeDiscoveryPage({ locale, places, guides }: HomeDiscoveryPageP
   const filters = getHomeQuickFilters(places);
   const intentCards = resolveHomeIntentCards({ guides, places, locale });
   const recommended = [...places]
-    .filter(isNearGwangalli)
+    .filter((place) => isNearGwangalli(place) && isVerifiedPlace(place))
     .sort((a, b) => Number(b.is_featured) - Number(a.is_featured) || (b.save_count ?? 0) - (a.save_count ?? 0))
     .slice(0, 4);
   const problemGuides = getProblemGuides(guides, locale).slice(0, 6);

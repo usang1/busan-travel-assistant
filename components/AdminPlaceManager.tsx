@@ -22,6 +22,11 @@ import {
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { evaluatePlaceQuality, type PlaceQualityResult } from "@/lib/place-quality";
+import {
+  formatVerifiedBlockMessage,
+  getPlacePublicationState,
+  isPublishablePlace,
+} from "@/lib/place-publication-quality";
 import { isPublicPlace, nextPlacePublicationStatus, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
@@ -216,6 +221,14 @@ const workflowStatusLabels: Record<PlaceWorkflowStatus, string> = {
   REVIEW: "검수 대기",
   PUBLISHED: "공개",
   ARCHIVED: "보관",
+};
+
+const publicationStateLabels: Record<ReturnType<typeof getPlacePublicationState>, string> = {
+  draft: "초안",
+  published: "공개",
+  verified: "검증됨",
+  needs_recheck: "재확인 필요",
+  archived: "보관",
 };
 
 const qualityFilterOptions: Array<{ value: QualityFilter; label: string }> = [
@@ -424,6 +437,13 @@ function nullableNumber(value: string) {
 function metadataNumber(metadata: Record<string, unknown> | null, key: string) {
   const value = metadata?.[key];
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function verificationTime(place: PlaceWithRelations) {
+  const value = place.last_verified_at || place.china_info?.verified_at || place.sources?.find((source) => source.last_synced_at)?.last_synced_at || "";
+  const time = Date.parse(value);
+
+  return Number.isFinite(time) ? time : 0;
 }
 
 function hasCoordinateInput(form: Pick<FormState, "latitude" | "longitude">) {
@@ -958,7 +978,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     [form.short_description_en, form.short_description_ja, form.short_description_ko, form.short_description_zh, form.tips_en, form.tips_ja, form.tips_ko, form.tips_zh],
   );
 
-  const activeCount = useMemo(() => places.filter(isPublicPlace).length, [places]);
+  const activeCount = useMemo(() => places.filter((place) => isPublishablePlace(place)).length, [places]);
   const featuredCount = useMemo(() => places.filter((place) => place.is_featured).length, [places]);
   const visiblePlaces = useMemo(() => {
     const lowered = query.trim().toLowerCase();
@@ -969,6 +989,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       if (qualityFilter === "stale") return quality.isStale;
       return true;
     });
+
+    if (qualityFilter === "stale") {
+      qualityFiltered.sort((a, b) => verificationTime(a) - verificationTime(b));
+    }
 
     if (!lowered) {
       return qualityFiltered;
@@ -1207,15 +1231,30 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   }
 
   function updateTravelerVerificationStatus(value: PlaceChinaInfoPayload["verification_status"]) {
+    const nextChinaInfo = {
+      ...form.china_info,
+      verification_status: value,
+      verified_at: value === "verified" && !form.china_info.verified_at
+        ? new Date().toISOString().slice(0, 10)
+        : form.china_info.verified_at,
+    };
+    const nextForm = {
+      ...form,
+      china_info: nextChinaInfo,
+    };
+
+    if (value === "verified") {
+      const quality = evaluatePlaceQuality(toPayload(nextForm));
+
+      if (!quality.canPublish || quality.isStale) {
+        setStatus(`검증 완료로 전환할 수 없습니다. 누락되었거나 오래된 검수 정보를 확인해 주세요.\n${formatVerifiedBlockMessage(toPayload(nextForm))}`);
+        return;
+      }
+    }
+
     setForm((current) => ({
       ...current,
-      china_info: {
-        ...current.china_info,
-        verification_status: value,
-        verified_at: value === "verified" && !current.china_info.verified_at
-          ? new Date().toISOString().slice(0, 10)
-          : current.china_info.verified_at,
-      },
+      china_info: nextChinaInfo,
     }));
   }
 
@@ -1730,6 +1769,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             visiblePlaces.map((place) => {
               const quality = evaluatePlaceQuality(place);
               const workflowStatus = normalizePlaceStatusForWrite(place);
+              const publicationState = getPlacePublicationState(place);
               return (
               <div key={place.id} className="rounded-[20px] p-3 transition hover:bg-slate-50">
                 <button type="button" onClick={() => {
@@ -1749,8 +1789,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
                         {categoryLabels[place.category].ko}
                       </span>
-                      <span className={["rounded-full px-2 py-1 text-[11px] font-black", isPublicPlace(place) ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-800"].join(" ")}>
-                        {workflowStatusLabels[workflowStatus]}
+                      <span className={["rounded-full px-2 py-1 text-[11px] font-black", isPublishablePlace(place) ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-800"].join(" ")}>
+                        {publicationStateLabels[publicationState] ?? workflowStatusLabels[workflowStatus]}
                       </span>
                       <span className={["rounded-full px-2 py-1 text-[11px] font-black", quality.canPublish ? "bg-teal-50 text-teal-700" : "bg-rose-50 text-rose-700"].join(" ")}>
                         완성도 {quality.score}%

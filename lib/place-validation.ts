@@ -1,5 +1,6 @@
 import { normalizeCoordinates } from "@/lib/place-providers/normalize";
 import { evaluatePlaceQuality, formatQualityBlockMessage } from "@/lib/place-quality";
+import { formatVerifiedBlockMessage } from "@/lib/place-publication-quality";
 import { isPublicPlace } from "@/lib/place-publishing";
 import { placeCategories, type PlacePayload } from "@/types/database";
 
@@ -30,6 +31,14 @@ export function validatePlacePayloadForSave(payload: PlacePayload) {
 
     if (!quality.canPublish) {
       throw validationError(`공개할 수 없습니다. 누락된 필수 정보를 확인해 주세요.\n${formatQualityBlockMessage(quality)}`);
+    }
+  }
+
+  if (payload.china_info?.verification_status === "verified") {
+    const quality = evaluatePlaceQuality(payload);
+
+    if (!quality.canPublish || quality.isStale) {
+      throw validationError(`검증 완료로 저장할 수 없습니다. 누락되었거나 오래된 검수 정보를 확인해 주세요.\n${formatVerifiedBlockMessage(payload)}`);
     }
   }
 }

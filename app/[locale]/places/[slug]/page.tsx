@@ -140,7 +140,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     notFound();
   }
 
-  const relatedPlaces = await getRelatedPlaces(place);
+  const relatedPlaces = (await getRelatedPlaces(place)).filter((relatedPlace) => translatedPlaceLocales(relatedPlace).includes(locale));
   const relatedGuides = await getRelatedGuidesForPlace({
     placeId: place.id,
     area: getPlaceAreaText(place),

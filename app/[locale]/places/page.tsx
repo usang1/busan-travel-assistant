@@ -4,6 +4,7 @@ import { PlacesExplorer } from "@/components/PlacesExplorer";
 import { SectionTitle } from "@/components/SectionTitle";
 import { getPlaces } from "@/lib/place-store";
 import { getPlaceRankings } from "@/lib/place-recommendations";
+import { translatedPlaceLocales } from "@/lib/public-seo";
 import { placeCategories, type PlaceCategory } from "@/types/database";
 import {
   buildLocalizedMetadata,
@@ -54,16 +55,22 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   const copy = ui[locale];
   const rankingCategory = parseRankingCategory(query?.category);
   const rankingRegion = query?.region && query.region !== "all" ? query.region : undefined;
-  const [{ places, source, error }, rankings] = await Promise.all([
+  const [{ places: publicPlaces, source, error }, rankings] = await Promise.all([
     getPlaces({ activeOnly: true, locale, debugLabel: "localized-places" }),
     getPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
   ]);
+  const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
+  const localeRankings = {
+    popular: rankings.popular.filter((place) => translatedPlaceLocales(place).includes(locale)),
+    trending: rankings.trending.filter((place) => translatedPlaceLocales(place).includes(locale)),
+    error: rankings.error,
+  };
 
   return (
     <main className="safe-bottom mx-auto max-w-6xl px-4 pb-6 pt-5">
       <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : copy.common.registeredPlaces} />
       <div className="mt-4">
-        <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={rankings} />
+        <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={localeRankings} />
       </div>
     </main>
   );

@@ -51,6 +51,12 @@ function loadTsModule(request, fromFile = path.resolve("scripts/test-place-quali
 }
 
 const { evaluatePlaceQuality } = loadTsModule("@/lib/place-quality");
+const {
+  getPlacePublicationState,
+  isPublishablePlace,
+  isVerifiedPlace,
+  needsPlaceRecheck,
+} = loadTsModule("@/lib/place-publication-quality");
 const { validatePlacePayloadForSave } = loadTsModule("@/lib/place-validation");
 
 const completePayload = {
@@ -163,6 +169,20 @@ const completeQuality = evaluatePlaceQuality(completePayload, new Date("2026-09-
 assert.equal(completeQuality.canPublish, true);
 assert.equal(completeQuality.missingRequired.length, 0);
 assert.doesNotThrow(() => validatePlacePayloadForSave(completePayload));
+assert.equal(isPublishablePlace(completePayload, new Date("2026-09-07T00:00:00.000Z")), true);
+assert.equal(isVerifiedPlace(completePayload, new Date("2026-09-07T00:00:00.000Z")), true);
+assert.equal(getPlacePublicationState(completePayload, new Date("2026-09-07T00:00:00.000Z")), "verified");
+
+const publishedButUnverified = {
+  ...completePayload,
+  china_info: {
+    ...completePayload.china_info,
+    verification_status: "pending",
+  },
+};
+assert.equal(isPublishablePlace(publishedButUnverified, new Date("2026-09-07T00:00:00.000Z")), true);
+assert.equal(isVerifiedPlace(publishedButUnverified, new Date("2026-09-07T00:00:00.000Z")), false);
+assert.equal(getPlacePublicationState(publishedButUnverified, new Date("2026-09-07T00:00:00.000Z")), "published");
 
 const completeWithExplicitPlaceholder = {
   ...completePayload,
@@ -181,6 +201,8 @@ const missingDescriptionQuality = evaluatePlaceQuality(missingDescription);
 assert.equal(missingDescriptionQuality.canPublish, false);
 assert.ok(missingDescriptionQuality.missingRequired.some((item) => item.key === "description"));
 assert.throws(() => validatePlacePayloadForSave(missingDescription), /대표 설명/);
+assert.equal(isPublishablePlace(missingDescription), false);
+assert.equal(getPlacePublicationState(missingDescription), "needs_recheck");
 
 const missingCoordinates = {
   ...completePayload,
@@ -196,11 +218,30 @@ const draftWithoutCoordinates = {
   ...missingCoordinates,
   status: "DRAFT",
   is_active: false,
+  china_info: {
+    ...missingCoordinates.china_info,
+    verification_status: "unverified",
+  },
 };
 assert.doesNotThrow(() => validatePlacePayloadForSave(draftWithoutCoordinates));
+assert.equal(isPublishablePlace(draftWithoutCoordinates), false);
+assert.equal(getPlacePublicationState(draftWithoutCoordinates), "draft");
+
+const archivedPayload = {
+  ...completePayload,
+  status: "ARCHIVED",
+  is_active: false,
+};
+assert.equal(isPublishablePlace(archivedPayload), false);
+assert.equal(getPlacePublicationState(archivedPayload), "archived");
 
 assert.throws(() => validatePlacePayloadForSave({ ...draftWithoutCoordinates, latitude: 0, longitude: 0 }), /정상 범위/);
 
-const staleQuality = evaluatePlaceQuality({ ...completePayload, last_verified_at: "2025-01-01" }, new Date("2026-09-07T00:00:00.000Z"));
+const stalePayload = { ...completePayload, last_verified_at: "2025-01-01" };
+const staleQuality = evaluatePlaceQuality(stalePayload, new Date("2026-09-07T00:00:00.000Z"));
 assert.equal(staleQuality.canPublish, true);
 assert.equal(staleQuality.isStale, true);
+assert.equal(needsPlaceRecheck(stalePayload, new Date("2026-09-07T00:00:00.000Z")), true);
+assert.equal(isVerifiedPlace(stalePayload, new Date("2026-09-07T00:00:00.000Z")), false);
+assert.equal(getPlacePublicationState(stalePayload, new Date("2026-09-07T00:00:00.000Z")), "needs_recheck");
+assert.throws(() => validatePlacePayloadForSave(stalePayload), /검증 완료로 저장할 수 없습니다/);
