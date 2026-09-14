@@ -9,12 +9,14 @@ import { AdminGuideManager } from "@/components/AdminGuideManager";
 import { AdminPlaceManager } from "@/components/AdminPlaceManager";
 import { AdminSubmissionWorkflow } from "@/components/AdminSubmissionWorkflow";
 import { useAuth } from "@/components/AuthProvider";
+import { defaultLocale, type Locale, ui, withLocale } from "@/lib/i18n";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type { PlaceListResult, PlaceWithRelations } from "@/types/database";
 import type { PhotoSpotRecord } from "@/types/database";
 
-export function AdminShell() {
+export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
   const { session, loading } = useAuth();
+  const copy = ui[locale].admin;
   const [authorized, setAuthorized] = useState(false);
   const [checking, setChecking] = useState(true);
   const [places, setPlaces] = useState<PlaceWithRelations[]>([]);
@@ -103,27 +105,29 @@ export function AdminShell() {
   }, [accessToken, adminFetch, loadPlaces, loading]);
 
   if (loading || checking) {
-    return <AdminState title="관리자 확인 중" description="로그인 세션과 관리자 권한을 확인하고 있습니다." />;
+    return <AdminState title={copy.checkingTitle} description={copy.checkingDescription} />;
   }
 
   if (!session) {
+    const adminPath = withLocale("/admin", locale);
+
     return (
-      <AdminState title="로그인이 필요합니다" description="관리자 영역은 운영자 로그인 후 접근할 수 있습니다.">
-        <Link href="/login?next=/admin" className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white">
+      <AdminState title={copy.loginTitle} description={copy.loginDescription}>
+        <Link href={`${withLocale("/login", locale)}?next=${encodeURIComponent(adminPath)}`} className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white">
           <LogIn size={17} aria-hidden="true" />
-          로그인
+          {ui[locale].auth.login}
         </Link>
       </AdminState>
     );
   }
 
   if (!authorized) {
-    return <AdminState title="접근할 수 없습니다" description={error || "관리자 권한이 필요합니다."} />;
+    return <AdminState title={copy.forbiddenTitle} description={error || copy.forbiddenDescription} />;
   }
 
   return (
     <div className="space-y-8">
-      <nav aria-label="관리자 메뉴"><a href="#guides" className="inline-flex min-h-11 items-center rounded-2xl bg-teal-700 px-4 text-sm font-bold text-white">여행 가이드 / 여행 코스 관리</a></nav>
+      <nav aria-label={copy.menu}><a href="#guides" className="inline-flex min-h-11 items-center rounded-2xl bg-teal-700 px-4 text-sm font-bold text-white">{copy.guides}</a></nav>
       <AdminDashboard places={places} photoSpots={[] as PhotoSpotRecord[]} />
       <AdminGuideManager accessToken={accessToken as string} places={places} />
       <AdminSubmissionWorkflow accessToken={accessToken as string} onPlaceCreated={loadPlaces} />
@@ -153,7 +157,7 @@ function AdminState({
       <div className="grid size-12 place-items-center rounded-2xl bg-slate-100 text-slate-700">
         <ShieldCheck size={22} aria-hidden="true" />
       </div>
-      <h1 className="mt-4 text-2xl font-black text-slate-950">{title}</h1>
+      <h2 className="mt-4 text-2xl font-black text-slate-950">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
       {children}
     </section>

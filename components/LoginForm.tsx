@@ -7,83 +7,12 @@ import { useAuth } from "@/components/AuthProvider";
 import { pendingPlaceSaveStorageKey, type PendingPlaceSave, getSafeNextPath } from "@/lib/auth-flow";
 import { recordPlaceEvent } from "@/lib/place-events";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
-import { defaultLocale, getLocaleFromPath, type Locale, withLocale } from "@/lib/i18n";
+import { defaultLocale, getLocaleFromPath, type Locale, ui, withLocale } from "@/lib/i18n";
 
 type AuthMode = "signin" | "signup";
-
-const copy: Record<
-  Locale,
-  {
-    title: string;
-    subtitle: string;
-    email: string;
-    password: string;
-    signin: string;
-    signup: string;
-    switchToSignup: string;
-    switchToSignin: string;
-    missingConfig: string;
-    confirmEmail: string;
-    emailRateLimited: string;
-    signedIn: string;
-  }
-> = {
-  zh: {
-    title: "登录",
-    subtitle: "登录后可以保存地点、查看我的收藏、提交地点和修改请求。",
-    email: "邮箱",
-    password: "密码",
-    signin: "登录",
-    signup: "注册",
-    switchToSignup: "没有账号？注册",
-    switchToSignin: "已有账号？登录",
-    missingConfig: "登录服务尚未完成配置。",
-    confirmEmail: "已发送注册确认邮件。请点击邮件中的确认链接后再登录。",
-    emailRateLimited: "注册确认邮件发送次数已达上限。请约 1 小时后再试，或配置自定义 SMTP 后提高发送限制。",
-    signedIn: "已登录，正在返回。",
-  },
-  en: {
-    title: "Sign in",
-    subtitle: "Sign in to save places, view your saved list, and send place updates.",
-    email: "Email",
-    password: "Password",
-    signin: "Sign in",
-    signup: "Create account",
-    switchToSignup: "No account? Sign up",
-    switchToSignin: "Have an account? Sign in",
-    missingConfig: "Sign-in is not configured yet.",
-    confirmEmail: "We sent a confirmation email. Open the link in that email, then sign in.",
-    emailRateLimited: "The signup email limit has been reached. Try again in about 1 hour, or configure custom SMTP to raise the limit.",
-    signedIn: "Signed in. Returning now.",
-  },
-  ja: {
-    title: "ログイン",
-    subtitle: "ログインするとスポット保存、保存一覧、情報提供、修正依頼が使えます。",
-    email: "メール",
-    password: "パスワード",
-    signin: "ログイン",
-    signup: "登録",
-    switchToSignup: "アカウントがない場合は登録",
-    switchToSignin: "アカウントがある場合はログイン",
-    missingConfig: "ログイン機能の設定が完了していません。",
-    confirmEmail: "登録確認メールを送信しました。メール内の確認リンクを開いてからログインしてください。",
-    emailRateLimited: "登録確認メールの送信上限に達しました。約1時間後に再試行するか、カスタムSMTPを設定して上限を引き上げてください。",
-    signedIn: "ログインしました。戻ります。",
-  },
-  ko: {
-    title: "로그인",
-    subtitle: "로그인하면 장소 저장, 내 저장, 장소 제보, 정보 수정 요청을 사용할 수 있습니다.",
-    email: "이메일",
-    password: "비밀번호",
-    signin: "로그인",
-    signup: "회원가입",
-    switchToSignup: "계정이 없나요? 회원가입",
-    switchToSignin: "계정이 있나요? 로그인",
-    missingConfig: "로그인 서비스 설정이 완료되지 않았습니다.",
-    confirmEmail: "회원가입 확인 메일을 보냈습니다. 메일의 확인 링크를 연 뒤 로그인해 주세요.",
-    emailRateLimited: "회원가입 확인 메일 발송 한도를 초과했습니다. 약 1시간 후 다시 시도하거나, 커스텀 SMTP를 설정해 발송 한도를 늘려 주세요.",
-    signedIn: "로그인되었습니다. 원래 화면으로 돌아갑니다.",
-  },
+const authAnalyticsEventNames: Record<AuthMode, string> = {
+  signin: "auth_signin_submit",
+  signup: "auth_signup_submit",
 };
 
 type AuthDisplayError = {
@@ -92,7 +21,7 @@ type AuthDisplayError = {
   status?: number;
 };
 
-function getAuthErrorMessage(error: AuthDisplayError, text: (typeof copy)[Locale]) {
+function getAuthErrorMessage(error: AuthDisplayError, text: (typeof ui)[Locale]["authFlow"], mode: AuthMode) {
   const message = error.message ?? "";
   const normalizedMessage = message.toLowerCase();
   const isEmailRateLimit =
@@ -101,7 +30,13 @@ function getAuthErrorMessage(error: AuthDisplayError, text: (typeof copy)[Locale
     normalizedMessage.includes("email rate limit") ||
     normalizedMessage.includes("rate limit exceeded");
 
-  return isEmailRateLimit ? text.emailRateLimited : message;
+  if (isEmailRateLimit) return text.emailRateLimited;
+  if (message.trim()) return message;
+  return mode === "signin" ? text.signinErrorFallback : text.signupErrorFallback;
+}
+
+function getModeFromSearch(searchParams: ReturnType<typeof useSearchParams>): AuthMode {
+  return searchParams.get("mode") === "signup" ? "signup" : "signin";
 }
 
 export function LoginForm() {
@@ -109,9 +44,9 @@ export function LoginForm() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const locale = getLocaleFromPath(pathname) ?? defaultLocale;
-  const text = copy[locale];
+  const text = ui[locale].authFlow;
   const { session, loading } = useAuth();
-  const [mode, setMode] = useState<AuthMode>("signin");
+  const [mode, setMode] = useState<AuthMode>(() => getModeFromSearch(searchParams));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -120,6 +55,30 @@ export function LoginForm() {
     () => getSafeNextPath(searchParams.get("next"), withLocale("/saved", locale)),
     [locale, searchParams],
   );
+  const title = mode === "signin" ? text.signinTitle : text.signupTitle;
+  const description = mode === "signin" ? text.signinDescription : text.signupDescription;
+  const submitLabel = mode === "signin" ? text.signinSubmit : text.signupSubmit;
+
+  useEffect(() => {
+    setMode(getModeFromSearch(searchParams));
+  }, [searchParams]);
+
+  function updateMode(nextMode: AuthMode) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextMode === "signup") {
+      params.set("mode", "signup");
+    } else {
+      params.delete("mode");
+    }
+    const query = params.toString();
+    setMode(nextMode);
+    setMessage("");
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  function recordAuthAnalyticsEvent(eventName: string) {
+    window.dispatchEvent(new CustomEvent("auth-flow-event", { detail: { eventName, mode, locale } }));
+  }
 
   const consumePendingSave = useCallback(async (userId: string, eventLocale: Locale) => {
     const client = getSupabaseClient();
@@ -190,6 +149,7 @@ export function LoginForm() {
 
     setSubmitting(true);
     setMessage("");
+    recordAuthAnalyticsEvent(authAnalyticsEventNames[mode]);
 
     const result =
       mode === "signin"
@@ -205,7 +165,7 @@ export function LoginForm() {
     setSubmitting(false);
 
     if (result.error) {
-      setMessage(getAuthErrorMessage(result.error, text));
+      setMessage(getAuthErrorMessage(result.error, text, mode));
       return;
     }
 
@@ -214,7 +174,7 @@ export function LoginForm() {
       return;
     }
 
-    setMode("signin");
+    updateMode("signin");
     setMessage(text.confirmEmail);
   }
 
@@ -225,8 +185,8 @@ export function LoginForm() {
           <LogIn size={20} aria-hidden="true" />
         </span>
         <div>
-          <h1 className="text-2xl font-black tracking-normal text-slate-950">{text.title}</h1>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{text.subtitle}</p>
+          <h1 className="text-2xl font-black tracking-normal text-slate-950">{title}</h1>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
         </div>
       </div>
 
@@ -265,15 +225,14 @@ export function LoginForm() {
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-[0.98] disabled:opacity-50"
         >
           {mode === "signin" ? <LogIn size={18} aria-hidden="true" /> : <UserPlus size={18} aria-hidden="true" />}
-          {mode === "signin" ? text.signin : text.signup}
+          {submitLabel}
         </button>
       </form>
 
       <button
         type="button"
         onClick={() => {
-          setMode((current) => (current === "signin" ? "signup" : "signin"));
-          setMessage("");
+          updateMode(mode === "signin" ? "signup" : "signin");
         }}
         className="mt-4 text-sm font-bold text-teal-700"
       >

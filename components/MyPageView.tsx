@@ -34,7 +34,7 @@ export function MyPageView({ locale }: MyPageViewProps) {
   }
 
   if (!user) {
-    return <AuthRequiredPanel title={copy.mypage.title} description={copy.submissions.loginDescription} locale={locale} />;
+    return <AuthRequiredPanel title={copy.mypage.loginTitle} description={copy.authFlow.signinDescription} locale={locale} />;
   }
 
   const joinedAt = profile?.created_at ?? user.created_at;

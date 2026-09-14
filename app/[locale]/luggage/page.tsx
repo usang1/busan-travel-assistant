@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Luggage, MessageSquareText } from "lucide-react";
 import { LuggageExplorer } from "@/components/LuggageExplorer";
-import { getPlaces } from "@/lib/place-store";
 import {
   buildLocalizedMetadata,
   isLocale,
   type Locale,
   ui,
 } from "@/lib/i18n";
+import { getLuggageContentState } from "@/lib/public-content-state";
 
 type LocalizedLuggagePageProps = {
   params: Promise<{
@@ -77,12 +77,15 @@ async function getLocale(params: LocalizedLuggagePageProps["params"]): Promise<L
 export async function generateMetadata({ params }: LocalizedLuggagePageProps): Promise<Metadata> {
   const locale = await getLocale(params);
   const luggageCopy = luggageLabels[locale];
+  const { hasPublicContent } = await getLuggageContentState(locale);
 
   return buildLocalizedMetadata({
     locale,
     title: luggageCopy.title,
     description: luggageCopy.description,
     path: "/luggage",
+    noIndex: !hasPublicContent,
+    follow: true,
   });
 }
 
@@ -90,8 +93,7 @@ export default async function LocalizedLuggagePage({ params }: LocalizedLuggageP
   const locale = await getLocale(params);
   const luggageCopy = luggageLabels[locale];
   const phraseCopy = luggagePhrase[locale];
-  const { places, error } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-luggage" });
-  const luggagePlaces = places.filter((place) => place.category === "luggage");
+  const { places: luggagePlaces, error } = await getLuggageContentState(locale);
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">

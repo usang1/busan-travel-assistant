@@ -5,6 +5,7 @@ import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
 type LocalizedLoginPageProps = {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ mode?: string | string[] }>;
 };
 
 async function getLocale(params: LocalizedLoginPageProps["params"]): Promise<Locale> {
@@ -13,14 +14,16 @@ async function getLocale(params: LocalizedLoginPageProps["params"]): Promise<Loc
   return locale;
 }
 
-export async function generateMetadata({ params }: LocalizedLoginPageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: LocalizedLoginPageProps): Promise<Metadata> {
   const locale = await getLocale(params);
-  const copy = ui[locale];
+  const copy = ui[locale].authFlow;
+  const mode = (await searchParams).mode;
+  const isSignup = Array.isArray(mode) ? mode.includes("signup") : mode === "signup";
 
   return buildLocalizedMetadata({
     locale,
-    title: copy.auth.login,
-    description: copy.submissions.loginDescription,
+    title: isSignup ? copy.signupTitle : copy.signinTitle,
+    description: isSignup ? copy.signupDescription : copy.signinDescription,
     path: "/login",
     noIndex: true,
   });

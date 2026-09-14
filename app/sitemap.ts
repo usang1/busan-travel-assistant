@@ -11,11 +11,8 @@ export const dynamic = "force-dynamic";
 const routes = [
   "/",
   "/places",
-  "/guides",
-  "/photo-spots",
   "/nearby",
   "/translator",
-  "/luggage",
   "/service-info",
   "/privacy",
   "/terms",
@@ -26,18 +23,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const frequency = (route: string): MetadataRoute.Sitemap[number]["changeFrequency"] =>
     route === "/" ? "daily" : "weekly";
   const priority = (route: string) => (route === "/" ? 1 : 0.7);
-  const staticEntries = routes.flatMap((route) =>
-    locales.map((locale) => ({
-      url: absoluteUrl(withLocale(route, locale)),
-      changeFrequency: frequency(route),
-      priority: priority(route),
-      alternates: {
-        languages: localeAlternates(route),
-      },
-    })),
-  );
   const [{ guides }, { photoSpots }] = await Promise.all([getPublishedGuides(), getPhotoSpots()]);
   const placeEntries: MetadataRoute.Sitemap = [];
+  let hasLuggageContent = false;
   const client = createPublicGuideClient();
   if (client) {
     try {
@@ -45,6 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         const result = await getPlaces({ activeOnly: true, range: { from, to: from + 499 } }, client);
         if (result.source !== "supabase" || result.error) break;
         for (const place of result.places) {
+          if (place.category === "luggage") hasLuggageContent = true;
           const available = translatedPlaceLocales(place);
           for (const locale of available) placeEntries.push({
             url: absoluteUrl(withLocale(`/places/${place.slug}`, locale)),
@@ -57,6 +46,46 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
     } catch { /* Available public routes remain crawlable during a place-service outage. */ }
   }
+  const staticEntries = routes.flatMap((route) =>
+    locales.map((locale) => ({
+      url: absoluteUrl(withLocale(route, locale)),
+      changeFrequency: frequency(route),
+      priority: priority(route),
+      alternates: {
+        languages: localeAlternates(route),
+      },
+    })),
+  );
+  const guideLandingLocales = locales.filter((locale) => guides.some((guide) => translatedGuideLocales(guide).includes(locale)));
+  const guideLandingEntries = guideLandingLocales
+    .map((locale) => ({
+      url: absoluteUrl(withLocale("/guides", locale)),
+      changeFrequency: frequency("/guides"),
+      priority: priority("/guides"),
+      alternates: {
+        languages: localeAlternates("/guides", guideLandingLocales),
+      },
+    }));
+  const photoSpotLandingEntries = photoSpots.length
+    ? locales.map((locale) => ({
+        url: absoluteUrl(withLocale("/photo-spots", locale)),
+        changeFrequency: frequency("/photo-spots"),
+        priority: priority("/photo-spots"),
+        alternates: {
+          languages: localeAlternates("/photo-spots"),
+        },
+      }))
+    : [];
+  const luggageLandingEntries = hasLuggageContent
+    ? locales.map((locale) => ({
+        url: absoluteUrl(withLocale("/luggage", locale)),
+        changeFrequency: frequency("/luggage"),
+        priority: priority("/luggage"),
+        alternates: {
+          languages: localeAlternates("/luggage"),
+        },
+      }))
+    : [];
   const photoSpotEntries = photoSpots
     .filter((spot) => spot.is_active && spot.free_or_pro === "free" && spot.name_zh.trim())
     .map((spot) => ({
@@ -66,7 +95,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
       alternates: { languages: localeAlternates(`/photo-spots/${spot.slug}`, ["zh"]) },
     }));
-  return [...staticEntries, ...placeEntries, ...photoSpotEntries, ...guides.flatMap((guide) => translatedGuideLocales(guide).map((locale) => ({
+  return [...staticEntries, ...guideLandingEntries, ...photoSpotLandingEntries, ...luggageLandingEntries, ...placeEntries, ...photoSpotEntries, ...guides.flatMap((guide) => translatedGuideLocales(guide).map((locale) => ({
     url: absoluteUrl(withLocale(`/guides/${guide.slug}`, locale)),
     lastModified: new Date(guide.updated_at),
     changeFrequency: "weekly" as const,

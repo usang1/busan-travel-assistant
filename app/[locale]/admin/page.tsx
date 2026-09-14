@@ -29,4 +29,7 @@ export async function generateMetadata({ params }: LocalizedAdminPageProps): Pro
   });
 }
 
-export default AdminPage;
+export default async function LocalizedAdminPage({ params }: LocalizedAdminPageProps) {
+  const locale = await getLocale(params);
+  return <AdminPage locale={locale} />;
+}

@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { PhotoSpotCard } from "@/components/PhotoSpotCard";
 import { SectionTitle } from "@/components/SectionTitle";
 import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
-import { getPhotoSpots } from "@/lib/photo-spot-store";
+import { getPhotoSpotContentState } from "@/lib/public-content-state";
 
 type LocalizedPhotoSpotsPageProps = {
   params: Promise<{ locale: string }>;
@@ -55,11 +55,14 @@ async function getLocale(params: LocalizedPhotoSpotsPageProps["params"]): Promis
 
 export async function generateMetadata({ params }: LocalizedPhotoSpotsPageProps): Promise<Metadata> {
   const locale = await getLocale(params);
+  const { hasPublicContent } = await getPhotoSpotContentState();
 
   return buildLocalizedMetadata({
     ...photoSpotSeo[locale],
     locale,
     path: "/photo-spots",
+    noIndex: !hasPublicContent,
+    follow: true,
   });
 }
 
@@ -67,7 +70,7 @@ export default async function LocalizedPhotoSpotsPage({ params }: LocalizedPhoto
   const locale = await getLocale(params);
   const copy = ui[locale];
   const pageCopy = photoSpotSeo[locale];
-  const { photoSpots, source, error } = await getPhotoSpots();
+  const { photoSpots, source, error } = await getPhotoSpotContentState();
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
