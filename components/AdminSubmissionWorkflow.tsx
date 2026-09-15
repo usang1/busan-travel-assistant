@@ -96,6 +96,7 @@ type PublishForm = {
   chinese_menu: boolean;
   card_payment: boolean;
   is_active: boolean;
+  tags_text: string;
 };
 
 const statuses: SubmissionStatus[] = ["pending", "reviewing", "approved", "rejected", "duplicate"];
@@ -168,6 +169,30 @@ function withUnifiedPlaceName(form: PublishForm, name: string): PublishForm {
     name_en: name,
     name_ja: name,
   };
+}
+
+function parseTagsText(tagsText: string, category: PlaceCategory) {
+  const customTags = tagsText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [first = "", second = "", third = ""] = line.split("|").map((part) => part.trim());
+      const label = second || first;
+      const slug = third || slugify(label || first);
+
+      return {
+        label_zh: first,
+        label_ko: label,
+        slug,
+      };
+    })
+    .filter((tag) => tag.label_zh && tag.label_ko && tag.slug);
+
+  return [
+    { label_zh: categoryLabels[category].zh, label_ko: categoryLabels[category].ko, slug: category },
+    ...customTags.filter((tag) => tag.slug !== category),
+  ];
 }
 
 function isFoodPlaceCategory(category: PlaceCategory | "") {
@@ -335,7 +360,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     provider_amenities: "",
     source_metadata: null,
     source_fetched_at: "",
-    status: "REVIEW",
+    status: "PUBLISHED",
     closed_days: "",
     last_verified_at: "",
     nearest_station: "",
@@ -345,7 +370,8 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     luggage_friendly: false,
     chinese_menu: false,
     card_payment: false,
-    is_active: false,
+    is_active: true,
+    tags_text: "",
   };
 }
 
@@ -441,9 +467,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     thumbnail_url: form.thumbnail_url.trim(),
     is_featured: false,
     is_active: form.status === publishedPlaceStatus,
-    tags: [
-      { label_zh: categoryLabels[category].zh, label_ko: categoryLabels[category].ko, slug: category },
-    ],
+    tags: parseTagsText(form.tags_text, category),
     menu_items: form.menu_items.map((item, index) => ({
       name_ko: item.name_ko,
       name_zh: item.name_ko,
@@ -1624,6 +1648,16 @@ function PublishFormView({
               {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
             </select>
           </Field>
+          <div className="sm:col-span-2">
+            <Field label="태그">
+              <textarea
+                value={form.tags_text}
+                onChange={(event) => onFieldChange("tags_text", event.target.value)}
+                className={textareaClass}
+                placeholder={"광안리 처음\n밤 10시 이후"}
+              />
+            </Field>
+          </div>
           {isFoodPlace ? (
             <>
               <Field label="대표 메뉴">

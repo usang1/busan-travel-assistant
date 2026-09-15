@@ -92,12 +92,14 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
     }
 
     const target = placeTargets[card.key];
+    const hasStructuredMatch = target.hasMatch(publicPlaces);
+    const hasTagMatch = publicPlaces.some((place) => placeMatchesIntentTag(place, card));
 
-    if (target.hasMatch(publicPlaces)) {
+    if (hasStructuredMatch || hasTagMatch) {
       return {
         ...card,
         destination: "places",
-        href: withLocale(target.href, locale),
+        href: withLocale(hasStructuredMatch ? target.href : `/places?search=${encodeURIComponent(card.search)}`, locale),
       };
     }
 
@@ -107,6 +109,23 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
       href: null,
     };
   });
+}
+
+function placeMatchesIntentTag(place: PlaceWithRelations, card: HomeIntentCopy) {
+  const tagText = (place.tags ?? [])
+    .map((tag) => `${tag.label_zh} ${tag.label_ko} ${tag.slug}`)
+    .join(" ")
+    .toLowerCase();
+  const searchTerms = card.search.toLowerCase().split(/\s+/).filter(Boolean);
+  const intentTerms = card.terms
+    .map((term) => term.toLowerCase())
+    .filter((term) => term !== "광안리" && term !== "부산");
+
+  return Boolean(
+    tagText &&
+      ((searchTerms.length > 0 && searchTerms.every((term) => tagText.includes(term))) ||
+        intentTerms.some((term) => tagText.includes(term))),
+  );
 }
 
 export function getProblemGuides(guides: Guide[], locale: Locale) {

@@ -1,7 +1,6 @@
 import { normalizeCoordinates } from "@/lib/place-providers/normalize";
-import { evaluatePlaceQuality, formatQualityBlockMessage } from "@/lib/place-quality";
+import { evaluatePlaceQuality } from "@/lib/place-quality";
 import { formatVerifiedBlockMessage } from "@/lib/place-publication-quality";
-import { isPublicPlace } from "@/lib/place-publishing";
 import { placeCategories, type PlacePayload } from "@/types/database";
 
 export function validatePlacePayloadForSave(payload: PlacePayload) {
@@ -24,14 +23,6 @@ export function validatePlacePayloadForSave(payload: PlacePayload) {
 
   if (payload.price_min !== null && payload.price_max !== null && payload.price_min > payload.price_max) {
     throw validationError("최대 가격은 최소 가격보다 작을 수 없습니다.");
-  }
-
-  if (isPublicPlace(payload)) {
-    const quality = evaluatePlaceQuality(payload);
-
-    if (!quality.canPublish) {
-      throw validationError(`공개할 수 없습니다. 누락된 필수 정보를 확인해 주세요.\n${formatQualityBlockMessage(quality)}`);
-    }
   }
 
   if (payload.china_info?.verification_status === "verified") {

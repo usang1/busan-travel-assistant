@@ -196,23 +196,38 @@ assert.doesNotThrow(() => validatePlacePayloadForSave(completeWithExplicitPlaceh
 const missingDescription = {
   ...completePayload,
   short_description_zh: "",
+  china_info: {
+    ...completePayload.china_info,
+    verification_status: "unverified",
+  },
 };
 const missingDescriptionQuality = evaluatePlaceQuality(missingDescription);
 assert.equal(missingDescriptionQuality.canPublish, false);
 assert.ok(missingDescriptionQuality.missingRequired.some((item) => item.key === "description"));
-assert.throws(() => validatePlacePayloadForSave(missingDescription), /대표 설명/);
+assert.doesNotThrow(() => validatePlacePayloadForSave(missingDescription));
 assert.equal(isPublishablePlace(missingDescription), false);
 assert.equal(getPlacePublicationState(missingDescription), "needs_recheck");
+assert.throws(() => validatePlacePayloadForSave({
+  ...missingDescription,
+  china_info: {
+    ...missingDescription.china_info,
+    verification_status: "verified",
+  },
+}), /검증 완료로 저장할 수 없습니다/);
 
 const missingCoordinates = {
   ...completePayload,
   latitude: null,
   longitude: null,
+  china_info: {
+    ...completePayload.china_info,
+    verification_status: "unverified",
+  },
 };
 const missingCoordinateQuality = evaluatePlaceQuality(missingCoordinates);
 assert.equal(missingCoordinateQuality.canPublish, false);
 assert.ok(missingCoordinateQuality.missingRequired.some((item) => item.key === "coordinates"));
-assert.throws(() => validatePlacePayloadForSave(missingCoordinates), /위도·경도/);
+assert.doesNotThrow(() => validatePlacePayloadForSave(missingCoordinates));
 
 const draftWithoutCoordinates = {
   ...missingCoordinates,

@@ -280,6 +280,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           item.place.address_ko,
           item.place.nearest_station,
           getPlaceCategoryLabel(item.place.category, locale),
+          ...(item.place.tags ?? []).map((tag) => `${tag.label_zh} ${tag.label_ko} ${tag.slug}`),
           ...getChinaDiscoveryTags(item.place, locale, 6),
         ]
           .join(" ")

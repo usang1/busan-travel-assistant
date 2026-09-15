@@ -48,14 +48,16 @@ export async function POST(request: Request, { params }: RouteContext) {
       throw new Error(existingError?.message ?? "제보를 찾지 못했습니다.");
     }
 
-    if (existingSubmission.status === "approved" || existingSubmission.place_id) {
+    const targetPlaceId = existingSubmission.place_id ?? placeId;
+
+    if (existingSubmission.status === "approved" && !targetPlaceId) {
       return NextResponse.json({ message: "이미 승인 처리된 제보입니다." }, { status: 409 });
     }
 
-    const place = placeId
-      ? await updatePlace(placeId, payload, client)
+    const place = targetPlaceId
+      ? await updatePlace(targetPlaceId, payload, client)
       : await createPlace(payload, client);
-    if (!placeId) createdPlaceId = place.id;
+    if (!targetPlaceId) createdPlaceId = place.id;
 
     const { data: submission, error } = await client
       .from("place_submissions")
@@ -66,8 +68,6 @@ export async function POST(request: Request, { params }: RouteContext) {
         reviewed_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .neq("status", "approved")
-      .is("place_id", null)
       .select("*")
       .single();
 

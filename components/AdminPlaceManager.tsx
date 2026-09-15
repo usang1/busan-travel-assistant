@@ -320,11 +320,11 @@ function createEmptyForm(): FormState {
     provider_amenities: "",
     source_metadata: null,
     source_fetched_at: "",
-    status: "DRAFT",
+    status: "PUBLISHED",
     closed_days: "",
     last_verified_at: "",
     is_featured: false,
-    is_active: false,
+    is_active: true,
     tags_text: "",
     menu_items: [],
     china_info: createEmptyChinaInfo(),
@@ -338,6 +338,25 @@ function slugify(value: string) {
     .replace(/[^a-z0-9가-힣一-龥]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+function parseTagsText(tagsText: string) {
+  return tagsText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [first = "", second = "", third = ""] = line.split("|").map((part) => part.trim());
+      const label = second || first;
+      const slug = third || slugify(label || first);
+
+      return {
+        label_zh: first,
+        label_ko: label,
+        slug,
+      };
+    })
+    .filter((tag) => tag.label_zh && tag.label_ko && tag.slug);
 }
 
 function getPrimarySource(place: PlaceWithRelations) {
@@ -581,21 +600,7 @@ function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPaylo
 
 function toPayload(form: FormState): PlacePayload {
   const unifiedName = unifiedPlaceName(form);
-  const tags = form.tags_text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [labelZh = "", labelKo = "", rawSlug = ""] = line.split("|").map((part) => part.trim());
-      const slug = rawSlug || slugify(labelKo || labelZh);
-
-      return {
-        label_zh: labelZh,
-        label_ko: labelKo || labelZh,
-        slug,
-      };
-    })
-    .filter((tag) => tag.label_zh && tag.label_ko && tag.slug);
+  const tags = parseTagsText(form.tags_text);
   const chinaInfo = toChinaInfoPayload(form.china_info);
 
   return {
@@ -1923,8 +1928,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </div>
                 </button>
                 {quality.missingRequired.length ? (
-                  <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-rose-700">
-                    공개 불가: {quality.missingRequired.map((item) => item.label).join(", ")}
+                  <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-amber-700">
+                    보완 권장: {quality.missingRequired.map((item) => item.label).join(", ")}
                   </p>
                 ) : quality.isStale ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">마지막 확인일이 오래되었습니다.</p>
@@ -2008,6 +2013,16 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
                 </select>
               </Field>
+              <div className="sm:col-span-2">
+                <Field label="태그">
+                  <textarea
+                    value={form.tags_text}
+                    onChange={(event) => updateField("tags_text", event.target.value)}
+                    className={textareaClass}
+                    placeholder={"광안리 처음\n밤 10시 이후"}
+                  />
+                </Field>
+              </div>
               {isFoodPlace ? (
                 <>
                   <Field label="대표 메뉴">
@@ -2477,14 +2492,6 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="여행 팁 일본어">
                 <textarea value={form.tips_ja} onChange={(event) => updateField("tips_ja", event.target.value)} className={textareaClass} />
               </Field>
-              <Field label="태그">
-                <textarea
-                  value={form.tags_text}
-                  onChange={(event) => updateField("tags_text", event.target.value)}
-                  className={textareaClass}
-                  placeholder="当地人常去 | 현지인이 자주 감 | local"
-                />
-              </Field>
             </FormSection>
 
             <FormSection title="메뉴 CRUD">
@@ -2581,8 +2588,8 @@ function PlaceQualityPanel({ result }: { result: PlaceQualityResult }) {
     <section className="border-b border-slate-200 pb-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-black text-slate-950">3. 공개 품질 점검</h3>
-          <p className="mt-1 text-sm text-slate-500">필수 항목을 모두 채워야 PUBLISHED 상태로 저장할 수 있습니다.</p>
+          <h3 className="text-base font-black text-slate-950">3. 공개 품질 참고</h3>
+          <p className="mt-1 text-sm text-slate-500">부족한 항목은 참고용이며 저장과 공개를 막지 않습니다.</p>
         </div>
         <div className={["rounded-2xl px-4 py-3 text-center ring-1", result.canPublish ? "bg-teal-50 text-teal-800 ring-teal-100" : "bg-rose-50 text-rose-800 ring-rose-100"].join(" ")}>
           <p className="text-xs font-bold">완성도</p>
@@ -2590,10 +2597,10 @@ function PlaceQualityPanel({ result }: { result: PlaceQualityResult }) {
         </div>
       </div>
       {!result.canPublish ? (
-        <div className="mt-4 rounded-2xl bg-rose-50 p-4 text-sm font-semibold leading-6 text-rose-800 ring-1 ring-rose-100">
+        <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-800 ring-1 ring-amber-100">
           <div className="flex items-start gap-2">
             <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
-            <p>공개 불가능: {result.missingRequired.map((item) => item.label).join(", ")}</p>
+            <p>보완 권장: {result.missingRequired.map((item) => item.label).join(", ")}</p>
           </div>
         </div>
       ) : null}
@@ -2603,7 +2610,7 @@ function PlaceQualityPanel({ result }: { result: PlaceQualityResult }) {
         </p>
       ) : null}
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        <QualityChecklist title="필수 공개 항목" items={result.required} />
+        <QualityChecklist title="공개 참고 항목" items={result.required} />
         <QualityChecklist title="선택 품질 항목" items={result.optional} />
       </div>
     </section>
@@ -2647,7 +2654,7 @@ function MobilePlacePreview({ form, quality }: { form: FormState; quality: Place
               {form.slug.trim() ? <p className="mt-0.5 truncate text-sm text-slate-500">{form.slug}</p> : null}
             </div>
             <span className={["shrink-0 rounded-full px-2.5 py-1 text-xs font-black", quality.canPublish ? "bg-teal-50 text-teal-800" : "bg-rose-50 text-rose-800"].join(" ")}>
-              {quality.canPublish ? "공개 가능" : "공개 불가"}
+              {quality.canPublish ? "공개 가능" : "보완 권장"}
             </span>
           </div>
           <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{form.short_description_zh.trim() || form.short_description_ko.trim() || "대표 설명 필요"}</p>
@@ -3037,7 +3044,6 @@ function IconButton({ label, onClick, icon: Icon, danger = false }: IconButtonPr
 
 function PublicationButton({
   published,
-  canPublish = true,
   blockReason = "",
   onClick,
 }: {
@@ -3047,7 +3053,7 @@ function PublicationButton({
   onClick: () => void;
 }) {
   const Icon = published ? EyeOff : Eye;
-  const disabled = !published && !canPublish;
+  const disabled = false;
   return (
     <button
       type="button"
@@ -3059,10 +3065,10 @@ function PublicationButton({
           ? "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
           : "bg-teal-50 text-teal-800 ring-teal-200 hover:bg-teal-100",
       ].join(" ")}
-      title={published ? "사용자 화면에서 숨기기" : disabled ? blockReason || "공개 필수 정보가 부족합니다." : "사용자 화면에 공개하기"}
+      title={published ? "사용자 화면에서 숨기기" : blockReason || "사용자 화면에 공개하기"}
     >
       <Icon size={15} aria-hidden="true" />
-      {published ? "비공개 전환" : disabled ? "공개 불가" : "공개하기"}
+      {published ? "비공개 전환" : "공개하기"}
     </button>
   );
 }

@@ -138,6 +138,20 @@ const guideLookupFailed = resolveHomeIntentCards({
 assert.equal(byKey(guideLookupFailed, "solo").destination, "places");
 assert.equal(byKey(guideLookupFailed, "solo").href, "/ja/places?solo=true");
 
+const tagMatchedPlace = resolveHomeIntentCards({
+  locale: "ko",
+  guides: [],
+  places: [
+    place({
+      id: "tag-first-gwangalli",
+      category: "attraction",
+      tags: [{ label_zh: "광안리 처음", label_ko: "광안리 처음", slug: "gwangalli-first" }],
+    }),
+  ],
+});
+assert.equal(byKey(tagMatchedPlace, "firstGwangalli").destination, "places");
+assert.equal(byKey(tagMatchedPlace, "firstGwangalli").href, "/ko/places?search=%EA%B4%91%EC%95%88%EB%A6%AC%20%EC%B2%98%EC%9D%8C");
+
 const noContent = resolveHomeIntentCards({ locale: "zh", guides: [], places: [] });
 assert.equal(noContent.every((card) => card.destination === "pending" && card.href === null), true);
 
