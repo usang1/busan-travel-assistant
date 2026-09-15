@@ -884,6 +884,15 @@ function applyTranslationsToForm(form: FormState, translations: Partial<AdminTra
   return { nextForm, filledCount };
 }
 
+function needsAutoTranslation(form: FormState) {
+  return Boolean(
+    (form.short_description_ko.trim() && (!form.short_description_zh.trim() || !form.short_description_en.trim() || !form.short_description_ja.trim())) ||
+      (form.tips_ko.trim() && (!form.tips_zh.trim() || !form.tips_en.trim() || !form.tips_ja.trim())) ||
+      (form.address_ko.trim() && (!form.address_zh.trim() || !form.address_en.trim() || !form.address_ja.trim())) ||
+      (form.recommended_order_ko.trim() && !form.recommended_order_zh.trim()),
+  );
+}
+
 function getMapLinkState(value: string) {
   const trimmed = value.trim();
 
@@ -1623,8 +1632,43 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }
   }
 
+  async function autoTranslateBeforeSave(currentForm: FormState) {
+    if (!needsAutoTranslation(currentForm)) {
+      return { nextForm: currentForm, notice: "" };
+    }
+
+    setTranslating(true);
+    setStatus("한국어 입력값을 OpenAI API로 자동 번역하는 중입니다.");
+
+    try {
+      const response = await fetch("/api/admin/translate-place", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ fields: buildTranslationFieldsFromForm(currentForm) }),
+      });
+      const body = (await response.json()) as { translations?: Partial<AdminTranslationFields>; failed_fields?: string[]; message?: string };
+
+      if (!response.ok) {
+        throw new Error(body.message ?? "AI 번역에 실패했습니다.");
+      }
+
+      const { nextForm, filledCount } = applyTranslationsToForm(currentForm, body.translations ?? {});
+      const failureNotice = body.failed_fields?.length ? ` 일부 번역 검증 필요: ${body.failed_fields.join(", ")}.` : "";
+      const notice = filledCount > 0 ? ` 한국어 입력값 ${filledCount}개를 자동 번역했습니다.${failureNotice}` : failureNotice;
+
+      setForm(nextForm);
+      return { nextForm, notice };
+    } catch (translationError) {
+      const message = translationError instanceof Error ? translationError.message : "AI 번역 중 오류가 발생했습니다.";
+      throw new Error(`자동 번역 실패: ${message}`);
+    } finally {
+      setTranslating(false);
+    }
+  }
+
   async function savePlace(nextForm = form) {
     let formToSave = nextForm;
+    let translationNotice = "";
 
     if (!unifiedPlaceName(formToSave) || !formToSave.category || !(formToSave.slug || slugify(unifiedPlaceName(formToSave)))) {
       setStatus("장소명, 카테고리, slug는 필수입니다.");
@@ -1664,6 +1708,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         }
       }
 
+      const translated = await autoTranslateBeforeSave(formToSave);
+      formToSave = translated.nextForm;
+      translationNotice = translated.notice;
+
       const payload = toPayload(formToSave);
       validatePlacePayloadForSave(payload);
       const duplicateMatches = findPlaceDuplicateMatches(payload, places, formToSave.id);
@@ -1689,7 +1737,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           : [localPlace, ...places];
         persistLocal(nextPlaces);
         setForm(toForm(localPlace));
-        setStatus(`서버 저장소 미설정 상태라 브라우저 임시 저장소에 저장했습니다. ${buildAdminPlaceVisibilityNotice(localPlace)}`);
+        setStatus(`서버 저장소 미설정 상태라 브라우저 임시 저장소에 저장했습니다.${translationNotice} ${buildAdminPlaceVisibilityNotice(localPlace)}`);
         return;
       }
 
@@ -1710,7 +1758,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         formToSave.id ? current.map((place) => (place.id === savedPlace.id ? savedPlace : place)) : [savedPlace, ...current],
       );
       setForm(toForm(savedPlace));
-      setStatus(`저장했습니다. 중국인 특화 구조화 정보도 함께 반영됩니다. ${buildAdminPlaceVisibilityNotice(savedPlace)}`);
+      setStatus(`저장했습니다.${translationNotice} 중국인 특화 구조화 정보도 함께 반영됩니다. ${buildAdminPlaceVisibilityNotice(savedPlace)}`);
     } catch (saveError) {
       setStatus(saveError instanceof Error ? saveError.message : "저장 중 오류가 발생했습니다.");
     } finally {

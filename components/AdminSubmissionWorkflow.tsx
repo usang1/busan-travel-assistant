@@ -71,6 +71,7 @@ type PublishForm = {
   waiting_level: ChinaWaitingLevel;
   waiting_minutes_min: string;
   waiting_minutes_max: string;
+  recommended_order_zh: string;
   recommended_order_ko: string;
   tips_zh: string;
   tips_en: string;
@@ -320,6 +321,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     waiting_level: "unknown",
     waiting_minutes_min: "",
     waiting_minutes_max: "",
+    recommended_order_zh: "",
     recommended_order_ko: "",
     tips_zh: "",
     tips_en: "",
@@ -432,7 +434,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     luggage_friendly: form.luggage_friendly,
     chinese_menu: form.chinese_menu,
     card_payment: form.card_payment,
-    recommended_order_zh: "",
+    recommended_order_zh: form.recommended_order_zh,
     recommended_order_ko: form.recommended_order_ko,
     tips_zh: form.tips_zh,
     tips_ko: form.tips_ko,
@@ -500,8 +502,8 @@ function buildTranslationFieldsFromPublishForm(form: PublishForm): AdminTranslat
     tips_zh: form.tips_zh,
     tips_en: form.tips_en,
     tips_ja: form.tips_ja,
-    recommended_order_ko: "",
-    recommended_order_zh: "",
+    recommended_order_ko: form.recommended_order_ko,
+    recommended_order_zh: form.recommended_order_zh,
     address_ko: form.address_ko,
     address_zh: form.address_zh,
     address_en: form.address_en,
@@ -534,6 +536,8 @@ function applyTranslationsToPublishForm(form: PublishForm, translations: Partial
     tips_zh: fill(form.tips_zh, translations.tips_zh),
     tips_en: fill(form.tips_en, translations.tips_en),
     tips_ja: fill(form.tips_ja, translations.tips_ja),
+    recommended_order_ko: fill(form.recommended_order_ko, translations.recommended_order_ko),
+    recommended_order_zh: fill(form.recommended_order_zh, translations.recommended_order_zh),
     address_ko: fill(form.address_ko, translations.address_ko),
     address_zh: fill(form.address_zh, translations.address_zh),
     address_en: fill(form.address_en, translations.address_en),
@@ -541,6 +545,15 @@ function applyTranslationsToPublishForm(form: PublishForm, translations: Partial
   };
 
   return { nextForm, filledCount };
+}
+
+function needsAutoTranslation(form: PublishForm) {
+  return Boolean(
+    (form.description_ko.trim() && (!form.description_zh.trim() || !form.description_en.trim() || !form.description_ja.trim())) ||
+      (form.tips_ko.trim() && (!form.tips_zh.trim() || !form.tips_en.trim() || !form.tips_ja.trim())) ||
+      (form.address_ko.trim() && (!form.address_zh.trim() || !form.address_en.trim() || !form.address_ja.trim())) ||
+      (form.recommended_order_ko.trim() && !form.recommended_order_zh.trim()),
+  );
 }
 
 function applyGeneratedContentToPublishForm(form: PublishForm, content: PlaceAiGeneratedContent, fields: AdminAiDraftApplyField[]): PublishForm {
@@ -1171,6 +1184,39 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     }
   }
 
+  async function autoTranslateBeforePublish(currentForm: PublishForm) {
+    if (!needsAutoTranslation(currentForm)) {
+      return { nextForm: currentForm, notice: "" };
+    }
+
+    setTranslating(true);
+    setStatus("한국어 입력값을 OpenAI API로 자동 번역하는 중입니다.");
+
+    try {
+      const response = await adminFetch("/api/admin/translate-place", {
+        method: "POST",
+        body: JSON.stringify({ fields: buildTranslationFieldsFromPublishForm(currentForm) }),
+      });
+      const body = (await response.json()) as { translations?: Partial<AdminTranslationFields>; failed_fields?: string[]; message?: string };
+
+      if (!response.ok) {
+        throw new Error(body.message ?? "AI 번역에 실패했습니다.");
+      }
+
+      const { nextForm, filledCount } = applyTranslationsToPublishForm(currentForm, body.translations ?? {});
+      const failureNotice = body.failed_fields?.length ? ` 일부 번역 검증 필요: ${body.failed_fields.join(", ")}.` : "";
+      const notice = filledCount > 0 ? ` 한국어 입력값 ${filledCount}개를 자동 번역했습니다.${failureNotice}` : failureNotice;
+
+      setForm(nextForm);
+      return { nextForm, notice };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI 번역 중 오류가 발생했습니다.";
+      throw new Error(`자동 번역 실패: ${message}`);
+    } finally {
+      setTranslating(false);
+    }
+  }
+
   async function updateSubmissionStatus(nextStatus: SubmissionStatus) {
     if (!selected) {
       return;
@@ -1202,6 +1248,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
   async function publishPlace() {
     let formToPublish = form;
+    let translationNotice = "";
 
     if (
       !(formToPublish.slug || slugify(unifiedPlaceName(formToPublish))) ||
@@ -1245,6 +1292,10 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
         }
       }
 
+      const translated = await autoTranslateBeforePublish(formToPublish);
+      formToPublish = translated.nextForm;
+      translationNotice = translated.notice;
+
       const payload = buildPayload(formToPublish);
       validatePlacePayloadForSave(payload);
       const placesResponse = await adminFetch("/api/admin/places");
@@ -1282,7 +1333,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       await loadSubmissions();
       await onPlaceCreated();
       const visibilityNotice = body.place ? ` ${buildAdminPlaceVisibilityNotice(body.place)}` : "";
-      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${visibilityNotice}` : `장소를 직접 등록했습니다.${visibilityNotice}`);
+      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${translationNotice}${visibilityNotice}` : `장소를 직접 등록했습니다.${translationNotice}${visibilityNotice}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "장소 등록 중 오류가 발생했습니다.");
     } finally {

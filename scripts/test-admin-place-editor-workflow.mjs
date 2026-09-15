@@ -44,8 +44,12 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
 }
 assert.match(placeManagerSource, /name_zh: unifiedName/, "place payload must reuse the Korean place name for the zh name field");
 assert.match(placeManagerSource, /name_en: name/, "admin translation state must keep the en place name unified");
+assert.match(placeManagerSource, /function needsAutoTranslation\(form: FormState\)/, "place manager must detect Korean fields that need automatic GPT translation");
+assert.match(placeManagerSource, /const translated = await autoTranslateBeforeSave\(formToSave\);[\s\S]*const payload = toPayload\(formToSave\);/, "place manager must translate Korean inputs before building the save payload");
 assert.match(submissionWorkflowSource, /name_zh: name/, "submission publishing must reuse the Korean place name for the zh name field");
 assert.match(submissionWorkflowSource, /china_info: chinaInfo/, "submission publishing must persist waiting info through china_info");
+assert.match(submissionWorkflowSource, /function needsAutoTranslation\(form: PublishForm\)/, "submission publishing must detect Korean fields that need automatic GPT translation");
+assert.match(submissionWorkflowSource, /const translated = await autoTranslateBeforePublish\(formToPublish\);[\s\S]*const payload = buildPayload\(formToPublish\);/, "submission publishing must translate Korean inputs before building the publish payload");
 
 assert.match(submissionWorkflowSource, /providerLookupNotice=\{providerLookupNotice\}[\s\S]*status=\{status\}/, "publish form must receive the current save status");
 assert.match(submissionWorkflowSource, /<p role="status"[^>]*>\{status\}<\/p>/, "mobile publish controls must show save feedback beside the button");
