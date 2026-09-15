@@ -44,6 +44,8 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
   for (const label of ["중국어 장소명", "영어 장소명", "일본어 장소명", "중국어명", "영어명", "일본어명"]) {
     assert.doesNotMatch(source, new RegExp(`label="${label}"`), `admin forms must not require a separate ${label} field`);
   }
+  assert.match(source, /<AdminPlaceImageUpload/, "admin place forms must use the shared representative image uploader");
+  assert.doesNotMatch(source, /label="대표 이미지 URL"|placeholder="관리자 이미지 URL"/, "admin place forms must not expose representative image URL inputs");
 }
 assert.match(placeManagerSource, /status: "PUBLISHED"/, "new admin places should default to public");
 assert.match(placeManagerSource, /is_active: true/, "new admin places should default to active");
@@ -73,6 +75,27 @@ assert.match(submissionWorkflowSource, /<p role="status"[^>]*>\{status\}<\/p>/, 
 assert.match(submissionWorkflowSource, /제보된 지도 링크[\s\S]*href=\{selectedSourceLink\}[\s\S]*noopener noreferrer/, "submitted map URL must be a safe external hyperlink");
 assert.match(submissionWorkflowSource, /href=\{mapLinkState\.normalizedUrl\}[\s\S]*제보된 링크 열기/, "publish editor must provide a direct map-link action");
 assert.match(submissionWorkflowSource, /onWebSearch=\{\(\) => void parseSourceUrl\(true\)\}/, "submission workflow must expose an explicit web-search fallback action");
+
+const imageUploadSource = readFileSync(new URL("../components/AdminPlaceImageUpload.tsx", import.meta.url), "utf8");
+assert.match(imageUploadSource, /type="file"/, "representative images must be selected from a file input");
+assert.match(imageUploadSource, /\/api\/admin\/place-image/, "representative images must use the authenticated upload route");
+assert.match(imageUploadSource, /Authorization: `Bearer \$\{accessToken\}`/, "image uploads must send the admin access token");
+assert.match(imageUploadSource, /maxImageBytes = 8 \* 1024 \* 1024/, "client image uploads must enforce the 8MB limit");
+
+const imageUploadRoute = readFileSync(new URL("../app/api/admin/place-image/route.ts", import.meta.url), "utf8");
+assert.match(imageUploadRoute, /requireAdmin\(request\)/, "the image upload route must require an administrator");
+assert.match(imageUploadRoute, /client\.storage\.from\(placeImageBucket\)\.upload/, "the image upload route must write to Supabase Storage");
+assert.match(imageUploadRoute, /imageExtensions\[image\.type\]/, "the image upload route must allowlist image MIME types");
+assert.match(imageUploadRoute, /image\.size <= 0 \|\| image\.size > maxImageBytes/, "the image upload route must reject empty and oversized files");
+assert.match(imageUploadRoute, /matchesImageSignature\(image\.type, new Uint8Array\(bytes\)\)/, "the image upload route must verify actual file signatures");
+
+const imageStorageMigration = readFileSync(new URL("../supabase/migrations/027_place_image_storage.sql", import.meta.url), "utf8");
+assert.match(imageStorageMigration, /'place-images'/, "the place image storage migration must create the expected bucket");
+assert.match(imageStorageMigration, /public\.is_admin\(\)/, "place image writes must be restricted to administrators");
+assert.match(imageStorageMigration, /file_size_limit = excluded\.file_size_limit/, "the place image bucket must retain its size limit");
+
+const nextConfigSource = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+assert.match(nextConfigSource, /\/storage\/v1\/object\/public\/place-images\/\*\*/, "Next Image must only allow the place image bucket path");
 
 const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
 assert.match(placeStoreSource, /adaptPlaceWriteRowForLegacySchema/, "place writes must adapt to older production schemas");

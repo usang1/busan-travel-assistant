@@ -104,6 +104,7 @@ supabase/migrations/017_place_rankings_and_recommendations.sql
 supabase/migrations/018_trip_planning_and_sharing.sql
 supabase/migrations/019_fix_place_rankings_signature.sql
 supabase/migrations/020_place_quality_workflow.sql
+supabase/migrations/027_place_image_storage.sql
 supabase/seed.sql
 ```
 

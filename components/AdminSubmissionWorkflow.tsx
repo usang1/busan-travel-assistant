@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, ExternalLink, Languages, Plus, RefreshCw, Send, Sparkles, XCircle } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
+import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
@@ -1610,6 +1611,7 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
           ) : null}
 
           <PublishFormView
+            accessToken={accessToken}
             form={form}
             saving={saving}
             selected={selected}
@@ -1644,6 +1646,7 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
 }
 
 function PublishFormView({
+  accessToken,
   form,
   saving,
   selected,
@@ -1671,6 +1674,7 @@ function PublishFormView({
   onTranslate,
   onRegenerateAdminSummary,
 }: {
+  accessToken: string;
   form: PublishForm;
   saving: boolean;
   selected: PlaceSubmissionRecord | null;
@@ -1840,27 +1844,17 @@ function PublishFormView({
               </Field>
             </>
           ) : null}
-          {(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) ? (
-            <div className="sm:col-span-2">
-              <Field label="대표 이미지">
-                <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
-                  <div
-                    className="aspect-[4/3] w-full max-w-[160px] rounded-lg bg-slate-100 bg-cover bg-center ring-1 ring-slate-200"
-                    style={{ backgroundImage: `url(${form.thumbnail_url || form.provider_image_preview_url})` }}
-                  />
-                  <div>
-                    <input value={form.thumbnail_url} onChange={(event) => onFieldChange("thumbnail_url", event.target.value)} className={inputClass} placeholder="관리자 이미지 URL" />
-                    {!form.thumbnail_url && form.provider_image_preview_url ? (
-                      <p className="mt-2 text-xs leading-5 text-amber-700">
-                        Provider 사진 미리보기입니다. Google 정책상 임시 사진 URL은 DB 대표 이미지로 자동 저장하지 않습니다.
-                        {form.provider_image_attribution ? ` 출처: ${form.provider_image_attribution}` : ""}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </Field>
-            </div>
-          ) : null}
+          <div className="sm:col-span-2">
+            <Field label="대표 이미지">
+              <AdminPlaceImageUpload
+                accessToken={accessToken}
+                value={form.thumbnail_url}
+                previewUrl={form.provider_image_preview_url}
+                previewAttribution={form.provider_image_attribution}
+                onChange={(url) => onFieldChange("thumbnail_url", url)}
+              />
+            </Field>
+          </div>
           {!isFoodPlace ? (
             <Field label="가격대">
               <select value={form.price_level} onChange={(event) => onFieldChange("price_level", event.target.value)} className={inputClass}>
@@ -2035,7 +2029,6 @@ function PublishFormView({
         <Field label="가까운 역"><input value={form.nearest_station} onChange={(event) => onFieldChange("nearest_station", event.target.value)} className={inputClass} /></Field>
         <Field label="출구"><input value={form.nearest_exit} onChange={(event) => onFieldChange("nearest_exit", event.target.value)} className={inputClass} /></Field>
         <Field label="도보 시간"><input value={form.walking_minutes} onChange={(event) => onFieldChange("walking_minutes", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
-        <Field label="대표 이미지"><input value={form.thumbnail_url} onChange={(event) => onFieldChange("thumbnail_url", event.target.value)} className={inputClass} /></Field>
         <Field label="Provider 평점"><input value={form.provider_rating} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} /></Field>
         <Field label="Provider 리뷰 수"><input value={form.provider_review_count} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} /></Field>
         <Field label="Provider 편의정보"><input value={form.provider_amenities} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} /></Field>

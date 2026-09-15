@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle, Check, ChevronDown, Eye, EyeOff, Languages, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
+import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
 import { TravelerInsightsEditor } from "@/components/TravelerInsightsEditor";
@@ -2099,27 +2100,17 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </Field>
                 </>
               ) : null}
-              {(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) ? (
-                <div className="sm:col-span-2">
-                  <Field label="대표 이미지">
-                    <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
-                      <div
-                        className="aspect-[4/3] w-full max-w-[160px] rounded-lg bg-slate-100 bg-cover bg-center ring-1 ring-slate-200"
-                        style={{ backgroundImage: `url(${form.thumbnail_url || form.provider_image_preview_url})` }}
-                      />
-                      <div>
-                        <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} placeholder="관리자 이미지 URL" />
-                        {!form.thumbnail_url && form.provider_image_preview_url ? (
-                          <p className="mt-2 text-xs leading-5 text-amber-700">
-                            Provider 사진 미리보기입니다. Google 정책상 임시 사진 URL은 DB 대표 이미지로 자동 저장하지 않습니다.
-                            {form.provider_image_attribution ? ` 출처: ${form.provider_image_attribution}` : ""}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  </Field>
-                </div>
-              ) : null}
+              <div className="sm:col-span-2">
+                <Field label="대표 이미지">
+                  <AdminPlaceImageUpload
+                    accessToken={adminAccessToken ?? ""}
+                    value={form.thumbnail_url}
+                    previewUrl={form.provider_image_preview_url}
+                    previewAttribution={form.provider_image_attribution}
+                    onChange={(url) => updateField("thumbnail_url", url)}
+                  />
+                </Field>
+              </div>
               {!isFoodPlace ? (
                 <Field label="가격대">
                   <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
@@ -2398,9 +2389,6 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               </Field>
               <Field label="마지막 확인일">
                 <input type="date" value={form.last_verified_at} onChange={(event) => updateField("last_verified_at", event.target.value)} className={inputClass} />
-              </Field>
-              <Field label="대표 이미지 URL">
-                <input value={form.thumbnail_url} onChange={(event) => updateField("thumbnail_url", event.target.value)} className={inputClass} />
               </Field>
               <Field label="Provider 평점">
                 <input value={form.provider_rating} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} />
