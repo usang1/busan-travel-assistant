@@ -793,18 +793,40 @@ async function syncChinaInfo(placeId: string, payload: PlacePayload, client?: Su
     return;
   }
 
-  const { error } = await resolvedClient
-    .from("place_china_info")
-    .upsert({ place_id: placeId, ...payload.china_info }, { onConflict: "place_id" });
+  const row: Record<string, unknown> = { place_id: placeId, ...payload.china_info };
+  const maxAttempts = Object.keys(row).length;
 
-  if (error) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const { error } = await resolvedClient
+      .from("place_china_info")
+      .upsert(row, { onConflict: "place_id" });
+
+    if (!error) return;
+
     if (isMissingOptionalRelationError(error)) {
       debugOptionalRelationSkip("place_china_info", error.message);
       return;
     }
 
-    throw new Error(error.message);
+    const missingColumn = getMissingSchemaColumn(error);
+    if (missingColumn && missingColumn !== "place_id" && missingColumn in row) {
+      delete row[missingColumn];
+      debugOptionalRelationSkip(`place_china_info.${missingColumn}`, error.message);
+      continue;
+    }
+
+    throw placeSaveError("여행자 정보 저장 단계에서 오류가 발생했습니다.", error);
   }
+
+  throw placeSaveError("여행자 정보의 DB 컬럼 호환성을 확인하지 못했습니다.");
+}
+
+function getMissingSchemaColumn(error: { code?: string; message?: string }) {
+  if (error.code !== "PGRST204" && error.code !== "42703") return null;
+  const message = error.message ?? "";
+  return message.match(/'([^']+)' column/i)?.[1]
+    ?? message.match(/column ["']([^"']+)["'].*does not exist/i)?.[1]
+    ?? null;
 }
 
 function isMissingOptionalRelationError(error: { code?: string; message?: string }) {
@@ -848,15 +870,24 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   }
 
   if (error || !data) {
-    throw new Error(error?.message ?? "장소 추가에 실패했습니다.");
+    throw placeSaveError("장소 기본 정보 저장 단계에서 오류가 발생했습니다.", error ?? undefined);
   }
 
   const id = (data as Pick<PlaceRecord, "id">).id;
-  await syncTags(id, payload.tags, resolvedClient);
-  await syncMenuItems(id, payload.menu_items, resolvedClient);
-  await syncTranslations(id, payload, resolvedClient);
-  await syncSource(id, payload, resolvedClient);
-  await syncChinaInfo(id, payload, resolvedClient);
+  try {
+    await runPlaceSaveStage("카테고리 태그", () => syncTags(id, payload.tags, resolvedClient));
+    await runPlaceSaveStage("메뉴", () => syncMenuItems(id, payload.menu_items, resolvedClient));
+    await runPlaceSaveStage("다국어 정보", () => syncTranslations(id, payload, resolvedClient));
+    await runPlaceSaveStage("지도 출처", () => syncSource(id, payload, resolvedClient));
+    await runPlaceSaveStage("여행자 정보", () => syncChinaInfo(id, payload, resolvedClient));
+  } catch (writeError) {
+    const { error: cleanupError } = await resolvedClient.from("places").delete().eq("id", id);
+    if (cleanupError) {
+      // eslint-disable-next-line no-console
+      console.error("[places:create-cleanup-failed]", { placeId: id, message: cleanupError.message });
+    }
+    throw writeError;
+  }
 
   const result = await getPlaceBySlug(payload.slug, { activeOnly: false, includeAdminRelations: true }, resolvedClient);
 
@@ -865,6 +896,56 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   }
 
   return result.place;
+}
+
+export async function findExistingPlaceIdForApproval(payload: PlacePayload, client?: SupabaseClient) {
+  const resolvedClient = resolveClient(client);
+
+  if (!resolvedClient) {
+    throw new Error("Place storage is not configured.");
+  }
+
+  if (payload.source?.external_id && payload.source.provider !== "MANUAL") {
+    const { data: sourceMatch } = await resolvedClient
+      .from("place_sources")
+      .select("place_id")
+      .eq("provider", payload.source.provider)
+      .eq("external_id", payload.source.external_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (sourceMatch?.place_id) return sourceMatch.place_id as string;
+  }
+
+  const { data: slugMatch, error } = await resolvedClient
+    .from("places")
+    .select("id")
+    .eq("slug", payload.slug)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw placeSaveError("기존 장소 확인 단계에서 오류가 발생했습니다.", error);
+  }
+
+  return (slugMatch?.id as string | undefined) ?? null;
+}
+
+function placeSaveError(message: string, cause?: { message?: string }) {
+  if (cause?.message) {
+    // eslint-disable-next-line no-console
+    console.error("[places:save-error]", { message, cause: cause.message });
+  }
+  return Object.assign(new Error(message), { status: 500, expose: true });
+}
+
+async function runPlaceSaveStage(label: string, operation: () => Promise<void>) {
+  try {
+    await operation();
+  } catch (error) {
+    if (error && typeof error === "object" && "expose" in error) throw error;
+    throw placeSaveError(`${label} 저장 단계에서 오류가 발생했습니다.`, error instanceof Error ? error : undefined);
+  }
 }
 
 export async function updatePlace(id: string, payload: PlacePayload, client?: SupabaseClient): Promise<PlaceWithRelations> {
@@ -886,14 +967,14 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   }
 
   if (error) {
-    throw new Error(error.message);
+    throw placeSaveError("장소 기본 정보 수정 단계에서 오류가 발생했습니다.", error);
   }
 
-  await syncTags(id, payload.tags, resolvedClient);
-  await syncMenuItems(id, payload.menu_items, resolvedClient);
-  await syncTranslations(id, payload, resolvedClient);
-  await syncSource(id, payload, resolvedClient);
-  await syncChinaInfo(id, payload, resolvedClient);
+  await runPlaceSaveStage("카테고리 태그", () => syncTags(id, payload.tags, resolvedClient));
+  await runPlaceSaveStage("메뉴", () => syncMenuItems(id, payload.menu_items, resolvedClient));
+  await runPlaceSaveStage("다국어 정보", () => syncTranslations(id, payload, resolvedClient));
+  await runPlaceSaveStage("지도 출처", () => syncSource(id, payload, resolvedClient));
+  await runPlaceSaveStage("여행자 정보", () => syncChinaInfo(id, payload, resolvedClient));
 
   const result = await getPlaceBySlug(payload.slug, { activeOnly: false, includeAdminRelations: true }, resolvedClient);
 

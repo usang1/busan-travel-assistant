@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
 import { publicPlacesCacheTag } from "@/lib/cache-tags";
-import { archivePlace, createPlace, updatePlace } from "@/lib/place-store";
+import { archivePlace, createPlace, findExistingPlaceIdForApproval, updatePlace } from "@/lib/place-store";
 import type { PlacePayload } from "@/types/database";
 
 type RouteContext = {
@@ -48,7 +48,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       throw new Error(existingError?.message ?? "제보를 찾지 못했습니다.");
     }
 
-    const targetPlaceId = existingSubmission.place_id ?? placeId;
+    const reusablePlaceId = existingSubmission.place_id || placeId
+      ? null
+      : await findExistingPlaceIdForApproval(payload, client);
+    const targetPlaceId = existingSubmission.place_id ?? placeId ?? reusablePlaceId;
 
     if (existingSubmission.status === "approved" && !targetPlaceId) {
       return NextResponse.json({ message: "이미 승인 처리된 제보입니다." }, { status: 409 });

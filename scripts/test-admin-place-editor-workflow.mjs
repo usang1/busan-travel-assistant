@@ -78,6 +78,14 @@ assert.match(placeStoreSource, /compatibleQuery\.limit\(1\)\.maybeSingle\(\)/, "
 assert.match(placeStoreSource, /legacyQuery\.limit\(1\)\.maybeSingle\(\)/, "legacy place detail lookup must tolerate duplicate rows");
 assert.match(placeStoreSource, /const listResult = await getPlaces\(/, "place detail lookup must fall back to the working public list query");
 assert.match(placeStoreSource, /normalizePlaceSlug\(place\.slug\) === requestedSlug/, "place detail fallback must normalize the requested slug");
+assert.match(placeStoreSource, /findExistingPlaceIdForApproval/, "submission approval must be able to resume from an existing partial place");
+assert.match(placeStoreSource, /from\("places"\)\.delete\(\)\.eq\("id", id\)/, "failed place creation must clean up its partial place row");
+assert.match(placeStoreSource, /getMissingSchemaColumn/, "China info writes must tolerate optional columns missing from an older production schema");
+assert.match(placeStoreSource, /runPlaceSaveStage\("메뉴"/, "place relation failures must identify the failing save stage for admins");
+
+const approvalRouteSource = readFileSync(new URL("../app/api/admin/submissions/[id]/approve/route.ts", import.meta.url), "utf8");
+assert.match(approvalRouteSource, /findExistingPlaceIdForApproval\(payload, client\)/, "reviewing submissions must reuse a matching provider or slug place");
+assert.match(approvalRouteSource, /existingSubmission\.place_id \?\? placeId \?\? reusablePlaceId/, "linked, detected, and recovered place ids must be applied in priority order");
 
 for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[slug]/page.tsx"]) {
   const detailSource = readFileSync(new URL(`../${detailFile}`, import.meta.url), "utf8");
