@@ -130,7 +130,7 @@ export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
       <nav aria-label={copy.menu}><a href="#guides" className="inline-flex min-h-11 items-center rounded-2xl bg-teal-700 px-4 text-sm font-bold text-white">{copy.guides}</a></nav>
       <AdminDashboard places={places} photoSpots={[] as PhotoSpotRecord[]} />
       <AdminGuideManager accessToken={accessToken as string} places={places} />
-      <AdminSubmissionWorkflow accessToken={accessToken as string} onPlaceCreated={loadPlaces} />
+      <AdminSubmissionWorkflow accessToken={accessToken as string} places={places} onPlaceCreated={loadPlaces} />
       <AdminCorrectionWorkflow accessToken={accessToken as string} />
       <AdminPlaceManager
         initialPlaces={places}

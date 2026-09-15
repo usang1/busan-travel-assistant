@@ -62,6 +62,11 @@ assert.match(submissionWorkflowSource, /function needsAutoTranslation\(form: Pub
 assert.match(submissionWorkflowSource, /const translated = await autoTranslateBeforePublish\(formToPublish\);[\s\S]*const payload = buildPayload\(formToPublish\);/, "submission publishing must translate Korean inputs before building the publish payload");
 assert.match(submissionWorkflowSource, /const existingPlaceId = selected && exactDuplicate \? exactDuplicate\.placeId : null;/, "submission publishing must reuse the existing place when a selected submission has the same provider place ID");
 assert.match(submissionWorkflowSource, /JSON\.stringify\(existingPlaceId \? \{ payload, placeId: existingPlaceId \} : payload\)/, "submission publishing must pass the existing place id to the approval route");
+assert.match(submissionWorkflowSource, /function formFromPlace\(place: PlaceWithRelations, submission\?: PlaceSubmissionRecord\): PublishForm/, "approved submissions must rebuild the review form from the linked place");
+assert.match(submissionWorkflowSource, /places\.find\(\(place\) => place\.id === submission\.place_id\)/, "approved submissions must resolve their linked place id");
+assert.match(submissionWorkflowSource, /setForm\(linkedPlace \? formFromPlace\(linkedPlace, submission\) : emptyForm\(submission\)\)/, "selecting an approved submission must restore its saved place fields");
+assert.match(submissionWorkflowSource, /home_intent_keys: getHomeIntentKeysFromTags\(place\.tags\)/, "restored submissions must preserve home category selections");
+assert.match(submissionWorkflowSource, /menu_items: place\.menu_items\.map/, "restored submissions must preserve saved menus");
 
 assert.match(submissionWorkflowSource, /providerLookupNotice=\{providerLookupNotice\}[\s\S]*status=\{status\}/, "publish form must receive the current save status");
 assert.match(submissionWorkflowSource, /<p role="status"[^>]*>\{status\}<\/p>/, "mobile publish controls must show save feedback beside the button");

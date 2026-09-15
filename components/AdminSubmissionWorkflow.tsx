@@ -5,15 +5,15 @@ import { CheckCircle2, ChevronDown, ExternalLink, Languages, Plus, RefreshCw, Se
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
-import { buildPlaceSourcePayload, enrichPlaceForm, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
+import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
-import { buildHomeIntentTags, homeIntentTagOptions, type HomeIntentKey } from "@/lib/home-intent-tags";
+import { buildHomeIntentTags, getHomeIntentKeysFromTags, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
-import { publishedPlaceStatus } from "@/lib/place-publishing";
+import { isPublicPlace, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import { formatPlaceFactSource } from "@/lib/place-draft";
@@ -23,6 +23,7 @@ import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGeneration
 
 type AdminSubmissionWorkflowProps = {
   accessToken: string;
+  places: PlaceWithRelations[];
   onPlaceCreated: () => Promise<void>;
 };
 
@@ -399,6 +400,114 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
   };
 }
 
+function getPrimarySource(place: PlaceWithRelations) {
+  return [...(place.sources ?? [])].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))[0] ?? null;
+}
+
+function metadataNumber(metadata: Record<string, unknown> | null, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRecord): PublishForm {
+  const zh = place.translations?.find((translation) => translation.locale === "zh");
+  const en = place.translations?.find((translation) => translation.locale === "en");
+  const ja = place.translations?.find((translation) => translation.locale === "ja");
+  const ko = place.translations?.find((translation) => translation.locale === "ko");
+  const source = getPrimarySource(place);
+  const sourceMetadata = source?.raw_metadata ?? null;
+  const chinaInfo = place.china_info;
+  const unifiedName = place.name_ko || ko?.name || place.name_zh || zh?.name || en?.name || ja?.name || "";
+
+  return {
+    source_url: source?.source_url ?? submission?.source_url ?? "",
+    provider: source?.provider ?? submission?.provider ?? "MANUAL",
+    source_external_id: source?.external_id ?? submission?.external_id ?? "",
+    slug: place.slug,
+    category: place.category,
+    name_zh: unifiedName,
+    name_en: unifiedName,
+    name_ja: unifiedName,
+    name_ko: unifiedName,
+    description_zh: place.short_description_zh || zh?.description || "",
+    description_en: en?.description ?? "",
+    description_ja: ja?.description ?? "",
+    description_ko: place.short_description_ko || ko?.description || "",
+    address_ko: place.address_ko || ko?.address || place.address || "",
+    address_zh: place.address_zh || zh?.address || "",
+    address_en: en?.address ?? "",
+    address_ja: ja?.address ?? "",
+    admin_summary: place.admin_summary ?? "",
+    latitude: place.latitude?.toString() ?? "",
+    longitude: place.longitude?.toString() ?? "",
+    phone: place.phone ?? "",
+    website: place.website ?? "",
+    opening_hours: place.opening_hours,
+    price_level: place.price_level?.toString() ?? "",
+    price_min: place.price_min?.toString() ?? "",
+    price_max: place.price_max?.toString() ?? "",
+    menu_items: place.menu_items.map((item) => ({
+      name_ko: item.name_ko || item.name_zh,
+      price: item.price,
+      is_recommended: item.is_recommended,
+    })),
+    waiting_level: chinaInfo?.waiting_level ?? "unknown",
+    waiting_minutes_min: chinaInfo?.waiting_minutes_min?.toString() ?? "",
+    waiting_minutes_max: chinaInfo?.waiting_minutes_max?.toString() ?? "",
+    recommended_order_zh: place.recommended_order_zh,
+    recommended_order_ko: place.recommended_order_ko,
+    tips_zh: place.tips_zh || zh?.travel_tip || "",
+    tips_en: en?.travel_tip ?? "",
+    tips_ja: ja?.travel_tip ?? "",
+    tips_ko: place.tips_ko || ko?.travel_tip || "",
+    thumbnail_url: place.thumbnail_url,
+    provider_image_preview_url: "",
+    provider_image_attribution: "",
+    provider_rating: metadataNumber(sourceMetadata, "rating"),
+    provider_review_count: metadataNumber(sourceMetadata, "review_count"),
+    provider_amenities: formatProviderAmenities(sourceMetadata?.amenities),
+    source_metadata: sourceMetadata,
+    source_fetched_at: source?.last_synced_at ?? "",
+    status: normalizePlaceStatusForWrite(place),
+    closed_days: place.closed_days ?? "",
+    last_verified_at: (place.last_verified_at ?? chinaInfo?.verified_at ?? "").slice(0, 10),
+    nearest_station: place.nearest_station,
+    nearest_exit: place.nearest_exit,
+    walking_minutes: place.walking_minutes.toString(),
+    solo_friendly: place.solo_friendly || chinaInfo?.solo_friendly === "yes",
+    luggage_friendly: place.luggage_friendly || chinaInfo?.luggage_friendly === "yes",
+    chinese_menu: place.chinese_menu || chinaInfo?.chinese_menu === "yes",
+    card_payment: place.card_payment || chinaInfo?.foreign_card === "yes",
+    is_active: isPublicPlace(place),
+    tags_text: place.tags
+      .filter((tag) => !isHomeIntentTagSlug(tag.slug))
+      .map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`)
+      .join("\n"),
+    home_intent_keys: getHomeIntentKeysFromTags(place.tags),
+  };
+}
+
+function findSubmissionPlace(submission: PlaceSubmissionRecord, places: PlaceWithRelations[]) {
+  if (submission.place_id) {
+    const linkedPlace = places.find((place) => place.id === submission.place_id);
+    if (linkedPlace) return linkedPlace;
+  }
+
+  const submittedExternalId = submission.external_id?.trim();
+  const submittedUrl = parseMapUrl(submission.source_url ?? "").normalizedUrl;
+  const sourceMatch = places.find((place) => (place.sources ?? []).some((source) => {
+    if (source.provider !== submission.provider) return false;
+    if (submittedExternalId && source.external_id === submittedExternalId) return true;
+    return Boolean(submittedUrl && parseMapUrl(source.source_url ?? "").normalizedUrl === submittedUrl);
+  }));
+  if (sourceMatch) return sourceMatch;
+
+  const submittedName = submission.name?.trim();
+  if (!submittedName) return null;
+  const nameMatches = places.filter((place) => place.name_ko.trim() === submittedName || place.name_zh.trim() === submittedName);
+  return nameMatches.length === 1 ? nameMatches[0] : null;
+}
+
 function buildPayload(form: PublishForm): PlacePayload {
   const category = form.category as PlaceCategory;
   const name = unifiedPlaceName(form);
@@ -716,7 +825,7 @@ function normalizedPublishFormForAdminSummary(form: PublishForm): NormalizedPlac
   };
 }
 
-export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSubmissionWorkflowProps) {
+export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }: AdminSubmissionWorkflowProps) {
   const [submissions, setSubmissions] = useState<PlaceSubmissionRecord[]>([]);
   const [activeStatus, setActiveStatus] = useState<SubmissionStatus>("pending");
   const [selected, setSelected] = useState<PlaceSubmissionRecord | null>(null);
@@ -807,14 +916,21 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
   }, [accessToken]);
 
   function selectSubmission(submission: PlaceSubmissionRecord) {
+    const linkedPlace = findSubmissionPlace(submission, places);
     setSelected(submission);
-    setForm(emptyForm(submission));
+    setForm(linkedPlace ? formFromPlace(linkedPlace, submission) : emptyForm(submission));
     setAiDraft(null);
     setLastNormalizedPlace(null);
     setAdminSummaryFailed(false);
     setAdminSummaryErrorMessage("");
     setProviderLookupNotice("");
-    setStatus("");
+    setStatus(
+      linkedPlace
+        ? "기존에 등록된 장소 정보를 불러왔습니다."
+        : submission.status === "approved"
+          ? "승인된 제보와 연결된 장소를 찾지 못했습니다. 장소 관리에서 수정해 주세요."
+          : "",
+    );
   }
 
   function startDirectCreate() {
