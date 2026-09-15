@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
+import { publicPlacesCacheTag } from "@/lib/cache-tags";
 import { archivePlace, createPlace } from "@/lib/place-store";
 import type { PlacePayload } from "@/types/database";
 
@@ -51,6 +53,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (error) {
       throw new Error(error.message);
     }
+
+    revalidateTag(publicPlacesCacheTag, "max");
 
     return NextResponse.json({ place, submission });
   } catch (error) {

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
+import { publicPlacesCacheTag } from "@/lib/cache-tags";
 import { createPlace, getPlaces } from "@/lib/place-store";
 import type { PlacePayload } from "@/types/database";
 
@@ -21,6 +23,7 @@ export async function POST(request: Request) {
     const { client } = await requireAdmin(request);
     const payload = (await request.json()) as PlacePayload;
     const place = await createPlace(payload, client);
+    revalidateTag(publicPlacesCacheTag, "max");
 
     return NextResponse.json({ place });
   } catch (error) {

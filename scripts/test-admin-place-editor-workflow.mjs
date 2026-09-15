@@ -32,6 +32,21 @@ for (const viewportWidth of [375, 390, 430]) {
 }
 
 const submissionWorkflowSource = readFileSync(new URL("../components/AdminSubmissionWorkflow.tsx", import.meta.url), "utf8");
+const placeManagerSource = readFileSync(new URL("../components/AdminPlaceManager.tsx", import.meta.url), "utf8");
+
+for (const source of [placeManagerSource, submissionWorkflowSource]) {
+  for (const label of ["대표 메뉴", "대표 메뉴 가격", "웨이팅"]) {
+    assert.match(source, new RegExp(`label="${label}"`), `admin forms must expose ${label} in the primary form`);
+  }
+  for (const label of ["중국어 장소명", "영어 장소명", "일본어 장소명", "중국어명", "영어명", "일본어명"]) {
+    assert.doesNotMatch(source, new RegExp(`label="${label}"`), `admin forms must not require a separate ${label} field`);
+  }
+}
+assert.match(placeManagerSource, /name_zh: unifiedName/, "place payload must reuse the Korean place name for the zh name field");
+assert.match(placeManagerSource, /name_en: name/, "admin translation state must keep the en place name unified");
+assert.match(submissionWorkflowSource, /name_zh: name/, "submission publishing must reuse the Korean place name for the zh name field");
+assert.match(submissionWorkflowSource, /china_info: chinaInfo/, "submission publishing must persist waiting info through china_info");
+
 assert.match(submissionWorkflowSource, /providerLookupNotice=\{providerLookupNotice\}[\s\S]*status=\{status\}/, "publish form must receive the current save status");
 assert.match(submissionWorkflowSource, /<p role="status"[^>]*>\{status\}<\/p>/, "mobile publish controls must show save feedback beside the button");
 assert.match(submissionWorkflowSource, /제보된 지도 링크[\s\S]*href=\{selectedSourceLink\}[\s\S]*noopener noreferrer/, "submitted map URL must be a safe external hyperlink");
@@ -50,8 +65,8 @@ assert.match(placeStoreSource, /normalizePlaceSlug\(place\.slug\) === requestedS
 
 for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[slug]/page.tsx"]) {
   const detailSource = readFileSync(new URL(`../${detailFile}`, import.meta.url), "utf8");
-  assert.match(detailSource, /const getCachedPlaceBySlug = cache\(\(slug: string\) => getPlaceBySlug\(slug\)\)/, `${detailFile}: metadata and page must share the place lookup`);
-  assert.match(detailSource, /getCachedPlaceBySlug\(slug\)/, `${detailFile}: detail route must use the shared lookup`);
+  assert.match(detailSource, /getCachedPublicPlaceBySlug/, `${detailFile}: metadata and page must share the public place cache`);
+  assert.match(detailSource, /getCachedPublicPlaceBySlug\(slug\)/, `${detailFile}: detail route must use the shared lookup`);
   assert.match(detailSource, /<PlaceCorrectionForm[\s\S]*currentValues=\{\{[\s\S]*opening_hours:[\s\S]*menu:[\s\S]*phone:/, `${detailFile}: correction form must receive current business values`);
 }
 

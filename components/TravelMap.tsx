@@ -24,6 +24,7 @@ type TravelMapProps = {
   onSelectMarker?: (id: string) => void;
   onRequestCurrentLocation?: () => void;
   onViewportSettled?: (bounds: MapBounds, source: "user" | "program") => void;
+  onShowList?: () => void;
 };
 
 type WorldPoint = {
@@ -145,12 +146,14 @@ const mapCopy: Record<Locale, {
   you: string;
   places: string;
   sdkFallback: string;
+  retry: string;
+  listView: string;
   noPlaces: string;
 }> = {
-  zh: { currentLocation: "使用当前位置", loading: "地图加载中", searchArea: "搜索此区域", zoomIn: "放大地图", zoomOut: "缩小地图", you: "我", places: "地点", sdkFallback: "地图 SDK 无法加载，已切换为简易地图。", noPlaces: "没有可显示的地图坐标。" },
-  en: { currentLocation: "Use current location", loading: "Loading map", searchArea: "Search this area", zoomIn: "Zoom in", zoomOut: "Zoom out", you: "You", places: "places", sdkFallback: "The map SDK could not load. Showing the simple map instead.", noPlaces: "No map coordinates are available." },
-  ja: { currentLocation: "現在地を使う", loading: "地図を読み込み中", searchArea: "このエリアを検索", zoomIn: "地図を拡大", zoomOut: "地図を縮小", you: "現在地", places: "スポット", sdkFallback: "地図 SDK を読み込めないため簡易地図を表示しています。", noPlaces: "表示できる地図座標がありません。" },
-  ko: { currentLocation: "현재 위치 사용", loading: "지도 로딩 중", searchArea: "이 지역에서 검색", zoomIn: "지도 확대", zoomOut: "지도 축소", you: "내 위치", places: "장소", sdkFallback: "지도 SDK를 불러오지 못해 간이 지도로 표시합니다.", noPlaces: "지도에 표시할 좌표가 없습니다." },
+  zh: { currentLocation: "使用当前位置", loading: "地图加载中", searchArea: "搜索此区域", zoomIn: "放大地图", zoomOut: "缩小地图", you: "我", places: "地点", sdkFallback: "地图 SDK 无法加载，已切换为简易地图。", retry: "重试", listView: "看列表", noPlaces: "没有可显示的地图坐标。" },
+  en: { currentLocation: "Use current location", loading: "Loading map", searchArea: "Search this area", zoomIn: "Zoom in", zoomOut: "Zoom out", you: "You", places: "places", sdkFallback: "The map SDK could not load. Showing the simple map instead.", retry: "Retry", listView: "View list", noPlaces: "No map coordinates are available." },
+  ja: { currentLocation: "現在地を使う", loading: "地図を読み込み中", searchArea: "このエリアを検索", zoomIn: "地図を拡大", zoomOut: "地図を縮小", you: "現在地", places: "スポット", sdkFallback: "地図 SDK を読み込めないため簡易地図を表示しています。", retry: "再試行", listView: "リストを見る", noPlaces: "表示できる地図座標がありません。" },
+  ko: { currentLocation: "현재 위치 사용", loading: "지도 로딩 중", searchArea: "이 지역에서 검색", zoomIn: "지도 확대", zoomOut: "지도 축소", you: "내 위치", places: "장소", sdkFallback: "지도 SDK를 불러오지 못해 간이 지도로 표시합니다.", retry: "다시 시도", listView: "리스트로 보기", noPlaces: "지도에 표시할 좌표가 없습니다." },
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -204,9 +207,11 @@ function NaverTravelMap({
   onSelectMarker,
   onRequestCurrentLocation,
   onViewportSettled,
+  onShowList,
   ncpKeyId,
 }: TravelMapProps & { ncpKeyId: string }) {
   const [scriptStatus, setScriptStatus] = useState<NaverScriptStatus>("loading");
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [maps, setMaps] = useState<NaverMapsNamespace | null>(null);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<NaverMapInstance | null>(null);
@@ -231,14 +236,19 @@ function NaverTravelMap({
 
   useEffect(() => {
     let active = true;
+    const timeout = window.setTimeout(() => {
+      if (active) setLoadTimedOut(true);
+    }, 3000);
 
     setScriptStatus("loading");
+    setLoadTimedOut(false);
     loadNaverMaps(ncpKeyId)
       .then((loadedMaps) => {
         if (!active) {
           return;
         }
 
+        window.clearTimeout(timeout);
         setMaps(loadedMaps);
         setScriptStatus("ready");
       })
@@ -247,11 +257,13 @@ function NaverTravelMap({
           return;
         }
 
+        window.clearTimeout(timeout);
         setScriptStatus("error");
       });
 
     return () => {
       active = false;
+      window.clearTimeout(timeout);
     };
   }, [ncpKeyId]);
 
@@ -482,8 +494,39 @@ function NaverTravelMap({
       ) : null}
 
       {scriptStatus === "loading" ? (
-        <div className="absolute inset-0 z-20 grid place-items-center bg-white/70 text-sm font-bold text-slate-600 backdrop-blur-sm">
-          {localizedCopy.loading}
+        <div className="absolute inset-0 z-20 grid place-items-center bg-white/75 px-4 text-center text-sm font-bold text-slate-600 backdrop-blur-sm">
+          <div>
+            <p>{localizedCopy.loading}</p>
+            {loadTimedOut ? (
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoadTimedOut(false);
+                    setScriptStatus("loading");
+                    void loadNaverMaps(ncpKeyId)
+                      .then((loadedMaps) => {
+                        setMaps(loadedMaps);
+                        setScriptStatus("ready");
+                      })
+                      .catch(() => setScriptStatus("error"));
+                  }}
+                  className="min-h-10 rounded-full bg-slate-950 px-4 text-xs font-black text-white"
+                >
+                  {localizedCopy.retry}
+                </button>
+                {onShowList ? (
+                  <button
+                    type="button"
+                    onClick={onShowList}
+                    className="min-h-10 rounded-full bg-white px-4 text-xs font-black text-slate-700 ring-1 ring-slate-200"
+                  >
+                    {localizedCopy.listView}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

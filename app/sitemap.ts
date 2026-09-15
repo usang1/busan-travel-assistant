@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
 import { absoluteUrl } from "@/config/site";
 import { localeAlternates, locales, withLocale } from "@/lib/i18n";
-import { createPublicGuideClient, getPublishedGuides } from "@/lib/guide-store";
+import { createPublicGuideClient } from "@/lib/guide-store";
+import { getCachedPhotoSpots, getCachedPublishedGuides } from "@/lib/public-cache";
 import { getPlaces } from "@/lib/place-store";
 import { translatedGuideLocales, translatedPlaceLocales } from "@/lib/public-seo";
-import { getPhotoSpots } from "@/lib/photo-spot-store";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const frequency = (route: string): MetadataRoute.Sitemap[number]["changeFrequency"] =>
     route === "/" ? "daily" : "weekly";
   const priority = (route: string) => (route === "/" ? 1 : 0.7);
-  const [{ guides }, { photoSpots }] = await Promise.all([getPublishedGuides(), getPhotoSpots()]);
+  const [{ guides }, { photoSpots }] = await Promise.all([getCachedPublishedGuides(), getCachedPhotoSpots()]);
   const placeEntries: MetadataRoute.Sitemap = [];
   let hasLuggageContent = false;
   const client = createPublicGuideClient();

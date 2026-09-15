@@ -35,6 +35,7 @@ function compileTs(filename, requireHandler) {
 }
 
 function load(request) {
+  if (request === "server-only") return {};
   if (!request.startsWith("@/")) return require(request);
   if (cache.has(request)) return cache.get(request);
 
@@ -49,6 +50,13 @@ function load(request) {
   }
   if (request === "@/lib/photo-spot-store") {
     return { getPhotoSpots: async () => ({ photoSpots: state.photoSpots, source: "supabase" }) };
+  }
+  if (request === "@/lib/public-cache") {
+    return {
+      getCachedPublishedGuides: async () => ({ guides: state.guides, unavailable: false }),
+      getCachedPhotoSpots: async () => ({ photoSpots: state.photoSpots, source: "supabase" }),
+      getCachedPublicPlaces: async () => ({ places: state.places, source: "supabase" }),
+    };
   }
   if (request === "@/lib/place-store") {
     return { getPlaces: async () => ({ places: state.places, source: "supabase" }) };

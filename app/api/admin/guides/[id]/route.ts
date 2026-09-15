@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireAdmin, adminErrorResponse } from "@/lib/admin-auth";
+import { publicGuidesCacheTag } from "@/lib/cache-tags";
 import { saveOfficialGuide } from "@/lib/guide-admin";
 import { guideInputError, guideUuid } from "@/lib/guide-validation";
 
@@ -26,6 +28,7 @@ export async function PUT(request: Request, context: Context) {
   try {
     const { client } = await requireAdmin(request);
     const id = await saveOfficialGuide(client, await routeId(context), await request.json());
+    revalidateTag(publicGuidesCacheTag, "max");
     return NextResponse.json({ id });
   } catch (error) { return failure(error); }
 }
@@ -35,6 +38,7 @@ export async function DELETE(request: Request, context: Context) {
     const { data, error } = await client.from("guides").delete().eq("id", await routeId(context)).select("id").maybeSingle();
     if (error) throw error;
     if (!data) throw guideInputError("가이드를 찾을 수 없습니다.", 404);
+    revalidateTag(publicGuidesCacheTag, "max");
     return new Response(null, { status: 204 });
   } catch (error) { return failure(error); }
 }

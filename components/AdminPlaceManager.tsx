@@ -209,6 +209,8 @@ const minimumOrderOptions: Array<{ value: ChinaMinimumOrderPolicy; label: string
   { value: "unknown", label: "확인 필요", people: "" },
 ];
 
+const foodCategories: PlaceCategory[] = ["restaurant", "cafe", "bar"];
+
 const mapProviderLabels: Record<PlaceSourceProvider, string> = {
   NAVER: "네이버지도 링크",
   KAKAO: "카카오맵 링크",
@@ -348,6 +350,7 @@ function toForm(place: PlaceWithRelations): FormState {
   const chinaInfo = { ...createEmptyChinaInfo(), ...(place.china_info ?? {}) };
   const source = getPrimarySource(place);
   const sourceMetadata = source?.raw_metadata ?? null;
+  const unifiedName = place.name_ko || place.name_zh;
 
   return {
     id: place.id,
@@ -355,10 +358,10 @@ function toForm(place: PlaceWithRelations): FormState {
     source_provider: source?.provider ?? "MANUAL",
     source_external_id: source?.external_id ?? "",
     slug: place.slug,
-    name_zh: place.name_zh,
-    name_en: en?.name ?? "",
-    name_ja: ja?.name ?? "",
-    name_ko: place.name_ko,
+    name_zh: unifiedName,
+    name_en: unifiedName,
+    name_ja: unifiedName,
+    name_ko: unifiedName,
     category: place.category,
     short_description_zh: place.short_description_zh,
     short_description_en: en?.description ?? "",
@@ -432,6 +435,61 @@ function nullableNumber(value: string) {
 
   const number = Number(trimmed);
   return Number.isFinite(number) ? number : null;
+}
+
+function unifiedPlaceName(form: Pick<FormState, "name_ko" | "name_zh" | "name_en" | "name_ja">) {
+  return form.name_ko.trim() || form.name_zh.trim() || form.name_en.trim() || form.name_ja.trim();
+}
+
+function withUnifiedPlaceName(form: FormState, name: string): FormState {
+  return {
+    ...form,
+    name_ko: name,
+    name_zh: name,
+    name_en: name,
+    name_ja: name,
+  };
+}
+
+function isFoodPlaceCategory(category: PlaceCategory | "") {
+  return foodCategories.includes(category as PlaceCategory);
+}
+
+function createPrimaryMenuDraft(sortOrder = "1"): MenuDraft {
+  return {
+    name_ko: "",
+    name_zh: "",
+    description_zh: "",
+    price: "",
+    is_recommended: true,
+    sort_order: sortOrder,
+  };
+}
+
+function getPrimaryMenuDraft(form: Pick<FormState, "menu_items">) {
+  return form.menu_items.find((item) => item.is_recommended) ?? form.menu_items[0] ?? createPrimaryMenuDraft();
+}
+
+function upsertPrimaryMenuDraft(items: MenuDraft[], patch: Partial<MenuDraft>) {
+  const primaryIndex = items.findIndex((item) => item.is_recommended);
+  const targetIndex = primaryIndex >= 0 ? primaryIndex : 0;
+  const current = items[targetIndex] ?? createPrimaryMenuDraft((items.length + 1).toString());
+  const nextItem = {
+    ...current,
+    ...patch,
+    is_recommended: true,
+    sort_order: current.sort_order || "1",
+  };
+
+  if (typeof patch.name_ko === "string" && (!current.name_zh.trim() || current.name_zh === current.name_ko)) {
+    nextItem.name_zh = patch.name_ko;
+  }
+
+  if (!items.length) {
+    return [nextItem];
+  }
+
+  return items.map((item, index) => (index === targetIndex ? nextItem : item));
 }
 
 function metadataNumber(metadata: Record<string, unknown> | null, key: string) {
@@ -522,6 +580,7 @@ function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPaylo
 }
 
 function toPayload(form: FormState): PlacePayload {
+  const unifiedName = unifiedPlaceName(form);
   const tags = form.tags_text
     .split("\n")
     .map((line) => line.trim())
@@ -540,9 +599,9 @@ function toPayload(form: FormState): PlacePayload {
   const chinaInfo = toChinaInfoPayload(form.china_info);
 
   return {
-    slug: form.slug || slugify(form.name_ko || form.name_zh),
-    name_zh: form.name_zh.trim(),
-    name_ko: form.name_ko.trim(),
+    slug: form.slug || slugify(unifiedName),
+    name_zh: unifiedName,
+    name_ko: unifiedName,
     category: form.category as PlaceCategory,
     address: form.address_ko,
     phone: form.phone.trim() || null,
@@ -591,14 +650,14 @@ function toPayload(form: FormState): PlacePayload {
     translations: [
       {
         locale: "zh",
-        name: form.name_zh.trim(),
+        name: unifiedName,
         description: form.short_description_zh,
         travel_tip: form.tips_zh,
         address: form.address_zh,
       },
       {
         locale: "ko",
-        name: form.name_ko.trim(),
+        name: unifiedName,
         description: form.short_description_ko,
         travel_tip: form.tips_ko,
         address: form.address_ko,
@@ -606,7 +665,7 @@ function toPayload(form: FormState): PlacePayload {
       form.name_en.trim() || form.short_description_en.trim() || form.tips_en.trim() || form.address_en.trim()
         ? {
             locale: "en" as const,
-            name: form.name_en || form.name_ko || form.name_zh,
+            name: unifiedName,
             description: form.short_description_en,
             travel_tip: form.tips_en,
             address: form.address_en,
@@ -615,7 +674,7 @@ function toPayload(form: FormState): PlacePayload {
       form.name_ja.trim() || form.short_description_ja.trim() || form.tips_ja.trim() || form.address_ja.trim()
         ? {
             locale: "ja" as const,
-            name: form.name_ja || form.name_ko || form.name_zh,
+            name: unifiedName,
             description: form.short_description_ja,
             travel_tip: form.tips_ja,
             address: form.address_ja,
@@ -631,7 +690,7 @@ function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): Form
   const enriched = enrichPlaceForm({ ...form, provider: form.source_provider }, place);
   const { provider, ...nextForm } = enriched;
 
-  return {
+  return withUnifiedPlaceName({
     ...nextForm,
     source_provider: provider,
     recommended_order_ko: nextForm.recommended_order_ko || place.recommendedOrder?.join(" · ") || "",
@@ -649,7 +708,7 @@ function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): Form
       ...form.china_info,
       toilet_available: fillUnknownTristate(form.china_info.toilet_available, place.amenities?.restroom),
     },
-  };
+  }, unifiedPlaceName(nextForm) || place.name || "");
 }
 
 function fillUnknownTristate(current: PlaceFactTristate, incoming?: boolean): PlaceFactTristate {
@@ -761,11 +820,13 @@ function localPlaceFromPayload(payload: PlacePayload, id?: string): PlaceWithRel
 }
 
 function buildTranslationFieldsFromForm(form: FormState): AdminTranslationFields {
+  const name = unifiedPlaceName(form);
+
   return {
-    name_ko: form.name_ko,
-    name_zh: form.name_zh,
-    name_en: form.name_en,
-    name_ja: form.name_ja,
+    name_ko: name,
+    name_zh: name,
+    name_en: name,
+    name_ja: name,
     short_description_ko: form.short_description_ko,
     short_description_zh: form.short_description_zh,
     short_description_en: form.short_description_en,
@@ -789,6 +850,7 @@ function buildTranslationFieldsFromForm(form: FormState): AdminTranslationFields
 
 function applyTranslationsToForm(form: FormState, translations: Partial<AdminTranslationFields>) {
   let filledCount = 0;
+  const name = unifiedPlaceName(form) || translations.name_ko?.trim() || translations.name_zh?.trim() || translations.name_en?.trim() || translations.name_ja?.trim() || "";
   const fill = (current: string, translated?: string) => {
     if (current.trim() || !translated?.trim()) {
       return current;
@@ -799,10 +861,10 @@ function applyTranslationsToForm(form: FormState, translations: Partial<AdminTra
   };
   const nextForm: FormState = {
     ...form,
-    name_ko: fill(form.name_ko, translations.name_ko),
-    name_zh: fill(form.name_zh, translations.name_zh),
-    name_en: fill(form.name_en, translations.name_en),
-    name_ja: fill(form.name_ja, translations.name_ja),
+    name_ko: name,
+    name_zh: name,
+    name_en: name,
+    name_ja: name,
     short_description_ko: fill(form.short_description_ko, translations.short_description_ko || translations.description_ko),
     short_description_zh: fill(form.short_description_zh, translations.short_description_zh || translations.description_zh),
     short_description_en: fill(form.short_description_en, translations.short_description_en || translations.description_en),
@@ -922,7 +984,7 @@ function normalizedPlaceForAdminSummary(form: FormState): NormalizedPlace | null
 }
 
 function hasEnoughAiSourceFacts(form: FormState) {
-  const hasPlaceName = Boolean(form.name_ko.trim() || form.name_zh.trim());
+  const hasPlaceName = Boolean(unifiedPlaceName(form));
   const hasMenu = form.menu_items.some((item) => item.name_ko.trim() || item.name_zh.trim() || item.description_zh.trim() || item.price.trim());
   const hasFact =
     form.source_url.trim() ||
@@ -964,6 +1026,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info), { includeAdminNotes: true }), [form.china_info]);
   const formQuality = useMemo(() => evaluatePlaceQuality(toPayload(form)), [form]);
   const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
+  const isFoodPlace = isFoodPlaceCategory(form.category);
+  const primaryMenu = getPrimaryMenuDraft(form);
   const aiCurrentContent = useMemo(
     () => ({
       description_ko: form.short_description_ko,
@@ -1063,6 +1127,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
   function updateField<Key extends keyof FormState>(key: Key, value: FormState[Key]) {
     setForm((current) => {
+      if (key === "name_ko" || key === "name_zh" || key === "name_en" || key === "name_ja") {
+        return withUnifiedPlaceName(current, String(value));
+      }
+
       if (key === "status") {
         const nextStatus = value as PlaceWorkflowStatus;
         return { ...current, status: nextStatus, is_active: nextStatus === publishedPlaceStatus };
@@ -1127,7 +1195,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       return;
     }
 
-    if (!payload.name_ko && !payload.name_zh) {
+    if (!payload.name_ko) {
       setStatus("AI 설명을 생성하려면 장소명과 최소한의 장소 정보가 필요합니다.");
       return;
     }
@@ -1286,6 +1354,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }));
   }
 
+  function updatePrimaryMenu(patch: Partial<MenuDraft>) {
+    setForm((current) => ({
+      ...current,
+      menu_items: upsertPrimaryMenuDraft(current.menu_items, patch),
+    }));
+  }
+
   function resetChinaInfoToUnknown() {
     setForm((current) => ({
       ...current,
@@ -1411,7 +1486,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
       setForm((current) => {
         const enriched = normalizedPlace ? applyProviderFactsToForm(current, normalizedPlace) : current;
-        return {
+        const nextForm = {
           ...enriched,
           source_url: analysis.normalizedUrl,
           source_provider: analysis.sourceProvider,
@@ -1425,6 +1500,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           short_description_ko: enriched.short_description_ko || koreanContent?.description?.trim() || "",
           tips_ko: enriched.tips_ko || koreanContent?.travelTip?.trim() || "",
         };
+        return withUnifiedPlaceName(nextForm, unifiedPlaceName(nextForm) || title);
       });
 
       const filled = [
@@ -1550,7 +1626,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   async function savePlace(nextForm = form) {
     let formToSave = nextForm;
 
-    if ((!formToSave.name_zh && !formToSave.name_ko) || !formToSave.category || !(formToSave.slug || slugify(formToSave.name_ko || formToSave.name_zh))) {
+    if (!unifiedPlaceName(formToSave) || !formToSave.category || !(formToSave.slug || slugify(unifiedPlaceName(formToSave)))) {
       setStatus("장소명, 카테고리, slug는 필수입니다.");
       return;
     }
@@ -1783,7 +1859,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-950">{place.name_ko}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500">{place.name_zh}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500">{place.slug}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
@@ -1884,6 +1960,46 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
                 </select>
               </Field>
+              {isFoodPlace ? (
+                <>
+                  <Field label="대표 메뉴">
+                    <input
+                      value={primaryMenu.name_ko}
+                      onChange={(event) => updatePrimaryMenu({ name_ko: event.target.value })}
+                      className={inputClass}
+                      placeholder="예: 돼지국밥"
+                    />
+                  </Field>
+                  <Field label="대표 메뉴 가격">
+                    <input
+                      value={primaryMenu.price}
+                      onChange={(event) => updatePrimaryMenu({ price: event.target.value })}
+                      className={inputClass}
+                      inputMode="numeric"
+                      placeholder="예: 10000"
+                    />
+                  </Field>
+                  <Field label="웨이팅">
+                    <select
+                      value={form.china_info.waiting_level}
+                      onChange={(event) => updateWaiting(event.target.value as ChinaWaitingLevel)}
+                      className={inputClass}
+                    >
+                      {waitingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="가격대">
+                    <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
+                      <option value="">정보 없음</option>
+                      <option value="0">무료</option>
+                      <option value="1">₩</option>
+                      <option value="2">₩₩</option>
+                      <option value="3">₩₩₩</option>
+                      <option value="4">₩₩₩₩</option>
+                    </select>
+                  </Field>
+                </>
+              ) : null}
               {(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) ? (
                 <div className="sm:col-span-2">
                   <Field label="대표 이미지">
@@ -1905,7 +2021,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </Field>
                 </div>
               ) : null}
-              {form.price_level.trim() ? (
+              {!isFoodPlace ? (
                 <Field label="가격대">
                   <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
                     <option value="">정보 없음</option>
@@ -1992,7 +2108,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-blue-50 px-4 text-sm font-semibold text-blue-800 ring-1 ring-blue-100 disabled:opacity-60"
                 >
                   <Languages size={17} aria-hidden="true" />
-                  {translating ? "번역 중" : "빈 다국어 필드 번역"}
+                  {translating ? "번역 중" : "빈 설명/주소 번역"}
                 </button>
                 <button
                   type="button"
@@ -2085,26 +2201,17 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   ))}
                 </select>
               </Field>
-              <Field label="중국어 장소명">
+              <Field label="장소명">
                 <input
-                  value={form.name_zh}
+                  value={form.name_ko}
                   onChange={(event) => {
-                    updateField("name_zh", event.target.value);
+                    updateField("name_ko", event.target.value);
                     if (!form.slug) {
                       updateField("slug", slugify(event.target.value));
                     }
                   }}
                   className={inputClass}
                 />
-              </Field>
-              <Field label="한국어 장소명">
-                <input value={form.name_ko} onChange={(event) => updateField("name_ko", event.target.value)} className={inputClass} />
-              </Field>
-              <Field label="영어 장소명">
-                <input value={form.name_en} onChange={(event) => updateField("name_en", event.target.value)} className={inputClass} />
-              </Field>
-              <Field label="일본어 장소명">
-                <input value={form.name_ja} onChange={(event) => updateField("name_ja", event.target.value)} className={inputClass} />
               </Field>
               <Field label="중국어 공개 추천 설명">
                 <textarea value={form.short_description_zh} onChange={(event) => updateField("short_description_zh", event.target.value)} className={textareaClass} />
@@ -2488,8 +2595,8 @@ function MobilePlacePreview({ form, quality }: { form: FormState; quality: Place
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-lg font-bold text-slate-950">{form.name_zh.trim() || form.name_ko.trim() || "장소명 필요"}</p>
-              {form.name_ko.trim() ? <p className="mt-0.5 truncate text-sm text-slate-500">{form.name_ko}</p> : null}
+              <p className="truncate text-lg font-bold text-slate-950">{unifiedPlaceName(form) || "장소명 필요"}</p>
+              {form.slug.trim() ? <p className="mt-0.5 truncate text-sm text-slate-500">{form.slug}</p> : null}
             </div>
             <span className={["shrink-0 rounded-full px-2.5 py-1 text-xs font-black", quality.canPublish ? "bg-teal-50 text-teal-800" : "bg-rose-50 text-rose-800"].join(" ")}>
               {quality.canPublish ? "공개 가능" : "공개 불가"}
@@ -2519,7 +2626,7 @@ function AdminReviewSummary({
   onLocaleChange: (locale: PlaceContentLocale) => void;
 }) {
   const facts = [
-    { field: "name", label: "장소명", available: Boolean(form.name_ko.trim() || form.name_zh.trim()) },
+    { field: "name", label: "장소명", available: Boolean(unifiedPlaceName(form)) },
     { field: "category", label: "카테고리", available: Boolean(form.category) },
     { field: "address", label: "주소", available: Boolean(form.address_ko.trim()) },
     { field: "coordinates", label: "좌표", available: hasValidFormCoordinates(form) },
@@ -2537,7 +2644,7 @@ function AdminReviewSummary({
   const provider = toSupportedProvider(form.source_provider);
   const unavailable = provider
     ? getProviderUnavailableCapabilities(provider, {
-        name: form.name_ko || form.name_zh,
+        name: unifiedPlaceName(form),
         category: form.category,
         addressKo: form.address_ko,
         roadAddressKo: undefined,
@@ -2558,10 +2665,10 @@ function AdminReviewSummary({
     : [];
   const missingLabels = Array.from(new Set([...facts.filter((fact) => !fact.available).map((fact) => fact.label), ...unavailable.map((fact) => fact.label)]));
   const localeContent: Record<PlaceContentLocale, { name: string; address: string; description: string; tip: string }> = {
-    ko: { name: form.name_ko, address: form.address_ko, description: form.short_description_ko, tip: form.tips_ko },
-    zh: { name: form.name_zh, address: form.address_zh, description: form.short_description_zh, tip: form.tips_zh },
-    en: { name: form.name_en, address: form.address_en, description: form.short_description_en, tip: form.tips_en },
-    ja: { name: form.name_ja, address: form.address_ja, description: form.short_description_ja, tip: form.tips_ja },
+    ko: { name: unifiedPlaceName(form), address: form.address_ko, description: form.short_description_ko, tip: form.tips_ko },
+    zh: { name: unifiedPlaceName(form), address: form.address_zh, description: form.short_description_zh, tip: form.tips_zh },
+    en: { name: unifiedPlaceName(form), address: form.address_en, description: form.short_description_en, tip: form.tips_en },
+    ja: { name: unifiedPlaceName(form), address: form.address_ja, description: form.short_description_ja, tip: form.tips_ja },
   };
   const selected = localeContent[locale];
 

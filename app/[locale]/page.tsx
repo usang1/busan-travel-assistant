@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
-import { getPublishedGuides } from "@/lib/guide-store";
-import { getPlaces } from "@/lib/place-store";
+import { getCachedPublishedGuides, getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
 import {
   buildLocalizedMetadata,
@@ -20,7 +19,7 @@ type LocalePageProps = {
   }>;
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 async function getLocale(params: LocalePageProps["params"]): Promise<Locale> {
   const { locale } = await params;
@@ -48,8 +47,8 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
   const copy = ui[locale];
   const [{ places: publicPlaces }, { guides }] = await Promise.all([
-    getPlaces({ activeOnly: true, locale, debugLabel: "localized-home" }),
-    getPublishedGuides(),
+    getCachedPublicPlaces(locale),
+    getCachedPublishedGuides(),
   ]);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
 

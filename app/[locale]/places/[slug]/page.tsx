@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -36,9 +35,9 @@ import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
 import { breadcrumbSchema, placeSchema, translatedPlaceLocales } from "@/lib/public-seo";
 import { TagChip } from "@/components/TagChip";
-import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
+import { getCachedPublicPlaceBySlug, getCachedRelatedGuidesForPlace } from "@/lib/public-cache";
+import { formatPriceRange, formatWon } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
-import { getRelatedGuidesForPlace } from "@/lib/guide-store";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
@@ -73,9 +72,7 @@ type LocalizedPlaceDetailPageProps = {
   }>;
 };
 
-export const dynamic = "force-dynamic";
-
-const getCachedPlaceBySlug = cache((slug: string) => getPlaceBySlug(slug));
+export const revalidate = 300;
 
 export function generateStaticParams() {
   return [];
@@ -93,7 +90,7 @@ async function getRouteParams(params: LocalizedPlaceDetailPageProps["params"]) {
 
 export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps): Promise<Metadata> {
   const { locale, slug } = await getRouteParams(params);
-  const { place } = await getCachedPlaceBySlug(slug);
+  const { place } = await getCachedPublicPlaceBySlug(slug);
   const copy = ui[locale];
 
   if (!place) {
@@ -133,20 +130,23 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
 
 export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlaceDetailPageProps) {
   const { locale, slug } = await getRouteParams(params);
-  const { place, error } = await getCachedPlaceBySlug(slug);
+  const { place, error } = await getCachedPublicPlaceBySlug(slug);
   const copy = ui[locale];
 
   if (!place) {
     notFound();
   }
 
-  const relatedPlaces = (await getRelatedPlaces(place)).filter((relatedPlace) => translatedPlaceLocales(relatedPlace).includes(locale));
-  const relatedGuides = await getRelatedGuidesForPlace({
-    placeId: place.id,
-    area: getPlaceAreaText(place),
-    category: place.category,
-    limit: 4,
-  });
+  const [relatedPlacesResult, relatedGuides] = await Promise.all([
+    getRelatedPlaces(place),
+    getCachedRelatedGuidesForPlace({
+      placeId: place.id,
+      area: getPlaceAreaText(place),
+      category: place.category,
+      limit: 4,
+    }),
+  ]);
+  const relatedPlaces = relatedPlacesResult.filter((relatedPlace) => translatedPlaceLocales(relatedPlace).includes(locale));
 
   const content = getPlaceContent(place, locale);
   const nameDisplay = getPlaceNameDisplay(place, locale);

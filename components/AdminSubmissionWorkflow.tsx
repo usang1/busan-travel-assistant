@@ -17,7 +17,7 @@ import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
-import { categoryLabels, placeCategories, placeWorkflowStatuses, type PlaceCategory, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type PlaceWorkflowStatus, type SubmissionStatus } from "@/types/database";
+import { categoryLabels, placeCategories, placeWorkflowStatuses, type ChinaWaitingLevel, type PlaceCategory, type PlaceChinaInfoPayload, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type PlaceWorkflowStatus, type SubmissionStatus } from "@/types/database";
 import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
 
 type AdminSubmissionWorkflowProps = {
@@ -68,6 +68,9 @@ type PublishForm = {
   price_min: string;
   price_max: string;
   menu_items: PublishMenuDraft[];
+  waiting_level: ChinaWaitingLevel;
+  waiting_minutes_min: string;
+  waiting_minutes_max: string;
   recommended_order_ko: string;
   tips_zh: string;
   tips_en: string;
@@ -115,6 +118,18 @@ const mapProviderLabels: Record<PlaceSourceProvider, string> = {
   MANUAL: "수동 입력",
 };
 
+const waitingOptions: Array<{ value: ChinaWaitingLevel; label: string; min: string; max: string }> = [
+  { value: "none", label: "거의 없음", min: "0", max: "0" },
+  { value: "short", label: "5~10분", min: "5", max: "10" },
+  { value: "moderate", label: "10~20분", min: "10", max: "20" },
+  { value: "long", label: "20~40분", min: "20", max: "40" },
+  { value: "extreme", label: "40분 이상", min: "40", max: "" },
+  { value: "varies", label: "시간대에 따라 다름", min: "", max: "" },
+  { value: "unknown", label: "확인 필요", min: "", max: "" },
+];
+
+const foodCategories: PlaceCategory[] = ["restaurant", "cafe", "bar"];
+
 function slugify(value: string) {
   return value
     .trim()
@@ -133,6 +148,57 @@ function nullableNumber(value: string) {
 
   const number = Number(trimmed);
   return Number.isFinite(number) ? number : null;
+}
+
+function nullableInteger(value: string) {
+  const number = nullableNumber(value);
+  return number === null ? null : Math.max(0, Math.round(number));
+}
+
+function unifiedPlaceName(form: Pick<PublishForm, "name_ko" | "name_zh" | "name_en" | "name_ja">) {
+  return form.name_ko.trim() || form.name_zh.trim() || form.name_en.trim() || form.name_ja.trim();
+}
+
+function withUnifiedPlaceName(form: PublishForm, name: string): PublishForm {
+  return {
+    ...form,
+    name_ko: name,
+    name_zh: name,
+    name_en: name,
+    name_ja: name,
+  };
+}
+
+function isFoodPlaceCategory(category: PlaceCategory | "") {
+  return foodCategories.includes(category as PlaceCategory);
+}
+
+function createPrimaryMenuDraft(): PublishMenuDraft {
+  return {
+    name_ko: "",
+    price: null,
+    is_recommended: true,
+  };
+}
+
+function getPrimaryMenuDraft(form: Pick<PublishForm, "menu_items">) {
+  return form.menu_items.find((item) => item.is_recommended) ?? form.menu_items[0] ?? createPrimaryMenuDraft();
+}
+
+function upsertPrimaryMenuDraft(items: PublishMenuDraft[], patch: Partial<PublishMenuDraft>) {
+  const primaryIndex = items.findIndex((item) => item.is_recommended);
+  const targetIndex = primaryIndex >= 0 ? primaryIndex : 0;
+  const nextItem = {
+    ...(items[targetIndex] ?? createPrimaryMenuDraft()),
+    ...patch,
+    is_recommended: true,
+  };
+
+  if (!items.length) {
+    return [nextItem];
+  }
+
+  return items.map((item, index) => (index === targetIndex ? nextItem : item));
 }
 
 function hasCoordinateInput(form: Pick<PublishForm, "latitude" | "longitude">) {
@@ -204,7 +270,7 @@ function getMapLinkState(value: string) {
 }
 
 function hasEnoughAiSourceFacts(form: PublishForm) {
-  const hasPlaceName = Boolean(form.name_ko.trim() || form.name_zh.trim());
+  const hasPlaceName = Boolean(unifiedPlaceName(form));
   const hasFact = Boolean(
     form.source_url.trim() ||
       form.address_ko.trim() ||
@@ -229,9 +295,9 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     source_external_id: "",
     slug: slugify(baseName),
     category: submission?.category ?? "",
-    name_zh: "",
-    name_en: "",
-    name_ja: "",
+    name_zh: baseName,
+    name_en: baseName,
+    name_ja: baseName,
     name_ko: baseName,
     description_zh: "",
     description_en: "",
@@ -251,6 +317,9 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     price_min: "",
     price_max: "",
     menu_items: [],
+    waiting_level: "unknown",
+    waiting_minutes_min: "",
+    waiting_minutes_max: "",
     recommended_order_ko: "",
     tips_zh: "",
     tips_en: "",
@@ -280,23 +349,62 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
 
 function buildPayload(form: PublishForm): PlacePayload {
   const category = form.category as PlaceCategory;
+  const name = unifiedPlaceName(form);
+  const chinaInfo: PlaceChinaInfoPayload = {
+    chinese_taste_score: null,
+    spicy_level: null,
+    greasy_level: null,
+    smell_level: null,
+    portion_level: null,
+    ordering_difficulty: null,
+    waiting_level: form.waiting_level,
+    waiting_minutes_min: nullableInteger(form.waiting_minutes_min),
+    waiting_minutes_max: nullableInteger(form.waiting_minutes_max),
+    chinese_menu: form.chinese_menu ? "yes" : "no",
+    chinese_service: "unknown",
+    foreign_card: form.card_payment ? "yes" : "no",
+    alipay: "unknown",
+    wechat_pay: "unknown",
+    solo_friendly: form.solo_friendly ? "yes" : "no",
+    luggage_friendly: form.luggage_friendly ? "yes" : "no",
+    toilet_available: "unknown",
+    reservation_required: "unknown",
+    minimum_order_people: null,
+    minimum_order_policy: "unknown",
+    minimum_order_note: null,
+    xiaohongshu_popular: "unknown",
+    photo_recommended: "unknown",
+    tourism_recommended: "unknown",
+    subway_walk_minutes: null,
+    manual_summary_override: null,
+    manual_warning_override: null,
+    traveler_insights: {
+      solo_dining: form.solo_friendly ? "yes" : "no",
+      card_payment: form.card_payment ? "yes" : "no",
+      chinese_menu: form.chinese_menu ? "yes" : "no",
+      luggage_storage: form.luggage_friendly ? "yes" : "no",
+      waiting: form.waiting_level === "none" ? "none" : form.waiting_level === "unknown" ? "unknown" : form.waiting_level === "short" ? "some" : "high",
+    },
+    verification_status: "unverified",
+    verified_at: form.last_verified_at || null,
+  };
   const zh: TranslationDraft = {
-    name: form.name_zh.trim(),
+    name,
     description: form.description_zh,
     travel_tip: form.tips_zh,
     address: form.address_zh,
   };
   const ko: TranslationDraft = {
-    name: form.name_ko.trim(),
+    name,
     description: form.description_ko,
     travel_tip: form.tips_ko,
     address: form.address_ko,
   };
 
   return {
-    slug: form.slug || slugify(form.name_ko || form.name_zh),
-    name_zh: form.name_zh.trim(),
-    name_ko: form.name_ko.trim(),
+    slug: form.slug || slugify(name),
+    name_zh: name,
+    name_ko: name,
     category,
     address: form.address_ko,
     phone: form.phone || null,
@@ -336,7 +444,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     ],
     menu_items: form.menu_items.map((item, index) => ({
       name_ko: item.name_ko,
-      name_zh: "",
+      name_zh: item.name_ko,
       description_zh: "",
       price: item.price,
       is_recommended: item.is_recommended,
@@ -345,20 +453,21 @@ function buildPayload(form: PublishForm): PlacePayload {
     translations: [
       { locale: "zh", ...zh },
       form.name_en || form.description_en || form.tips_en || form.address_en
-        ? { locale: "en" as const, name: form.name_en || form.name_ko || form.name_zh, description: form.description_en, travel_tip: form.tips_en, address: form.address_en }
+        ? { locale: "en" as const, name, description: form.description_en, travel_tip: form.tips_en, address: form.address_en }
         : null,
       form.name_ja || form.description_ja || form.tips_ja || form.address_ja
-        ? { locale: "ja" as const, name: form.name_ja || form.name_ko || form.name_zh, description: form.description_ja, travel_tip: form.tips_ja, address: form.address_ja }
+        ? { locale: "ja" as const, name, description: form.description_ja, travel_tip: form.tips_ja, address: form.address_ja }
         : null,
       { locale: "ko", ...ko },
     ].filter((translation): translation is PayloadTranslation => Boolean(translation)),
     source: buildPlaceSourcePayload(form),
+    china_info: chinaInfo,
   };
 }
 
 function applyProviderFactsToPublishForm(form: PublishForm, place: NormalizedPlace): PublishForm {
   const enriched = enrichPlaceForm(form, place);
-  return {
+  return withUnifiedPlaceName({
     ...enriched,
     menu_items: form.menu_items.length || !place.menu?.length
       ? form.menu_items
@@ -368,15 +477,17 @@ function applyProviderFactsToPublishForm(form: PublishForm, place: NormalizedPla
           is_recommended: item.role === "signature" || item.role === "popular",
         })),
     recommended_order_ko: form.recommended_order_ko || place.recommendedOrder?.join(" · ") || "",
-  };
+  }, unifiedPlaceName(enriched) || place.name || "");
 }
 
 function buildTranslationFieldsFromPublishForm(form: PublishForm): AdminTranslationFields {
+  const name = unifiedPlaceName(form);
+
   return {
-    name_ko: form.name_ko,
-    name_zh: form.name_zh,
-    name_en: form.name_en,
-    name_ja: form.name_ja,
+    name_ko: name,
+    name_zh: name,
+    name_en: name,
+    name_ja: name,
     short_description_ko: form.description_ko,
     short_description_zh: form.description_zh,
     short_description_en: form.description_en,
@@ -400,6 +511,7 @@ function buildTranslationFieldsFromPublishForm(form: PublishForm): AdminTranslat
 
 function applyTranslationsToPublishForm(form: PublishForm, translations: Partial<AdminTranslationFields>) {
   let filledCount = 0;
+  const name = unifiedPlaceName(form) || translations.name_ko?.trim() || translations.name_zh?.trim() || translations.name_en?.trim() || translations.name_ja?.trim() || "";
   const fill = (current: string, translated?: string) => {
     if (current.trim() || !translated?.trim()) {
       return current;
@@ -410,10 +522,10 @@ function applyTranslationsToPublishForm(form: PublishForm, translations: Partial
   };
   const nextForm: PublishForm = {
     ...form,
-    name_ko: fill(form.name_ko, translations.name_ko),
-    name_zh: fill(form.name_zh, translations.name_zh),
-    name_en: fill(form.name_en, translations.name_en),
-    name_ja: fill(form.name_ja, translations.name_ja),
+    name_ko: name,
+    name_zh: name,
+    name_en: name,
+    name_ja: name,
     description_ko: fill(form.description_ko, translations.description_ko || translations.short_description_ko),
     description_zh: fill(form.description_zh, translations.description_zh || translations.short_description_zh),
     description_en: fill(form.description_en, translations.description_en || translations.short_description_en),
@@ -658,6 +770,10 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
   function updateField<Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) {
     setForm((current) => {
+      if (key === "name_ko" || key === "name_zh" || key === "name_en" || key === "name_ja") {
+        return withUnifiedPlaceName(current, String(value));
+      }
+
       if (key === "status") {
         const nextStatus = value as PlaceWorkflowStatus;
         return { ...current, status: nextStatus, is_active: nextStatus === publishedPlaceStatus };
@@ -670,6 +786,24 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
       return { ...current, [key]: value };
     });
+  }
+
+  function updateWaiting(value: ChinaWaitingLevel) {
+    const option = waitingOptions.find((item) => item.value === value);
+
+    setForm((current) => ({
+      ...current,
+      waiting_level: value,
+      waiting_minutes_min: option?.min ?? "",
+      waiting_minutes_max: option?.max ?? "",
+    }));
+  }
+
+  function updatePrimaryMenu(patch: Partial<PublishMenuDraft>) {
+    setForm((current) => ({
+      ...current,
+      menu_items: upsertPrimaryMenuDraft(current.menu_items, patch),
+    }));
   }
 
   async function resolveCoordinatesForPublishForm(currentForm: PublishForm) {
@@ -758,7 +892,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       return;
     }
 
-    if (!payload.name_ko && !payload.name_zh) {
+    if (!payload.name_ko) {
       setStatus("AI 설명을 생성하려면 장소명과 최소한의 장소 정보가 필요합니다.");
       return;
     }
@@ -934,7 +1068,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
 
       setForm((current) => {
         const enriched = normalizedPlace ? applyProviderFactsToPublishForm(current, normalizedPlace) : current;
-        return {
+        const nextForm = {
           ...enriched,
           source_url: analysis.normalizedUrl,
           provider: analysis.sourceProvider,
@@ -948,6 +1082,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
           description_ko: enriched.description_ko || koreanContent?.description?.trim() || "",
           tips_ko: enriched.tips_ko || koreanContent?.travelTip?.trim() || "",
         };
+        return withUnifiedPlaceName(nextForm, unifiedPlaceName(nextForm) || title);
       });
 
       const filled = [
@@ -1069,8 +1204,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
     let formToPublish = form;
 
     if (
-      !(formToPublish.slug || slugify(formToPublish.name_ko || formToPublish.name_zh)) ||
-      (!formToPublish.name_zh && !formToPublish.name_ko) ||
+      !(formToPublish.slug || slugify(unifiedPlaceName(formToPublish))) ||
+      !unifiedPlaceName(formToPublish) ||
       !formToPublish.category
     ) {
       setStatus("장소명, 카테고리, slug는 필수입니다.");
@@ -1263,6 +1398,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
             saving={saving}
             selected={selected}
             onFieldChange={updateField}
+            onWaitingChange={updateWaiting}
+            onPrimaryMenuChange={updatePrimaryMenu}
             onParseSourceUrl={() => void parseSourceUrl()}
             onWebSearch={() => void parseSourceUrl(true)}
             onPublish={() => void publishPlace()}
@@ -1295,6 +1432,8 @@ function PublishFormView({
   saving,
   selected,
   onFieldChange,
+  onWaitingChange,
+  onPrimaryMenuChange,
   onParseSourceUrl,
   onWebSearch,
   onPublish,
@@ -1320,6 +1459,8 @@ function PublishFormView({
   saving: boolean;
   selected: PlaceSubmissionRecord | null;
   onFieldChange: <Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) => void;
+  onWaitingChange: (value: ChinaWaitingLevel) => void;
+  onPrimaryMenuChange: (patch: Partial<PublishMenuDraft>) => void;
   onParseSourceUrl: () => void;
   onWebSearch: () => void;
   onPublish: () => void;
@@ -1342,6 +1483,8 @@ function PublishFormView({
   onRegenerateAdminSummary: () => void;
 }) {
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
+  const isFoodPlace = isFoodPlaceCategory(form.category);
+  const primaryMenu = getPrimaryMenuDraft(form);
   const currentAiContent = useMemo(
     () => ({
       description_ko: form.description_ko,
@@ -1428,6 +1571,37 @@ function PublishFormView({
               {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
             </select>
           </Field>
+          {isFoodPlace ? (
+            <>
+              <Field label="대표 메뉴">
+                <input
+                  value={primaryMenu.name_ko}
+                  onChange={(event) => onPrimaryMenuChange({ name_ko: event.target.value })}
+                  className={inputClass}
+                  placeholder="예: 돼지국밥"
+                />
+              </Field>
+              <Field label="대표 메뉴 가격">
+                <input
+                  value={primaryMenu.price ?? ""}
+                  onChange={(event) => onPrimaryMenuChange({ price: nullableNumber(event.target.value) })}
+                  className={inputClass}
+                  inputMode="numeric"
+                  placeholder="예: 10000"
+                />
+              </Field>
+              <Field label="웨이팅">
+                <select value={form.waiting_level} onChange={(event) => onWaitingChange(event.target.value as ChinaWaitingLevel)} className={inputClass}>
+                  {waitingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </Field>
+              <Field label="가격대">
+                <select value={form.price_level} onChange={(event) => onFieldChange("price_level", event.target.value)} className={inputClass}>
+                  <option value="">정보 없음</option><option value="0">무료</option><option value="1">₩</option><option value="2">₩₩</option><option value="3">₩₩₩</option><option value="4">₩₩₩₩</option>
+                </select>
+              </Field>
+            </>
+          ) : null}
           {(form.thumbnail_url.trim() || form.provider_image_preview_url.trim()) ? (
             <div className="sm:col-span-2">
               <Field label="대표 이미지">
@@ -1449,7 +1623,7 @@ function PublishFormView({
               </Field>
             </div>
           ) : null}
-          {form.price_level.trim() ? (
+          {!isFoodPlace ? (
             <Field label="가격대">
               <select value={form.price_level} onChange={(event) => onFieldChange("price_level", event.target.value)} className={inputClass}>
                 <option value="">정보 없음</option><option value="0">무료</option><option value="1">₩</option><option value="2">₩₩</option><option value="3">₩₩₩</option><option value="4">₩₩₩₩</option>
@@ -1501,7 +1675,7 @@ function PublishFormView({
         <div className="border-t border-slate-200 p-4">
           <button type="button" onClick={onTranslate} disabled={translating || saving} className="mb-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-blue-50 px-4 text-sm font-black text-blue-800 ring-1 ring-blue-100 disabled:opacity-60 sm:w-auto">
             <Languages size={16} aria-hidden="true" />
-            {translating ? "번역 중" : "빈 다국어 필드 번역"}
+            {translating ? "번역 중" : "빈 설명/주소 번역"}
           </button>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
@@ -1568,10 +1742,7 @@ function PublishFormView({
             {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
           </select>
         </Field>
-        <Field label="중국어명"><input value={form.name_zh} onChange={(event) => onFieldChange("name_zh", event.target.value)} className={inputClass} /></Field>
-        <Field label="한국어명"><input value={form.name_ko} onChange={(event) => onFieldChange("name_ko", event.target.value)} className={inputClass} /></Field>
-        <Field label="영어명"><input value={form.name_en} onChange={(event) => onFieldChange("name_en", event.target.value)} className={inputClass} /></Field>
-        <Field label="일본어명"><input value={form.name_ja} onChange={(event) => onFieldChange("name_ja", event.target.value)} className={inputClass} /></Field>
+        <Field label="장소명"><input value={form.name_ko} onChange={(event) => onFieldChange("name_ko", event.target.value)} className={inputClass} /></Field>
         <Field label="중국어 설명"><textarea value={form.description_zh} onChange={(event) => onFieldChange("description_zh", event.target.value)} className={textareaClass} /></Field>
         <Field label="한국어 설명"><textarea value={form.description_ko} onChange={(event) => onFieldChange("description_ko", event.target.value)} className={textareaClass} /></Field>
         <Field label="영어 설명"><textarea value={form.description_en} onChange={(event) => onFieldChange("description_en", event.target.value)} className={textareaClass} /></Field>
@@ -1669,15 +1840,16 @@ function SubmissionReviewSummary({
   providerLookupNotice: string;
   onLocaleChange: (locale: PlaceContentLocale) => void;
 }) {
+  const name = unifiedPlaceName(form);
   const localized = {
-    ko: { name: form.name_ko, address: form.address_ko, description: form.description_ko, tip: form.tips_ko },
-    zh: { name: form.name_zh, address: form.address_zh, description: form.description_zh, tip: form.tips_zh },
-    en: { name: form.name_en, address: form.address_en, description: form.description_en, tip: form.tips_en },
-    ja: { name: form.name_ja, address: form.address_ja, description: form.description_ja, tip: form.tips_ja },
+    ko: { name, address: form.address_ko, description: form.description_ko, tip: form.tips_ko },
+    zh: { name, address: form.address_zh, description: form.description_zh, tip: form.tips_zh },
+    en: { name, address: form.address_en, description: form.description_en, tip: form.tips_en },
+    ja: { name, address: form.address_ja, description: form.description_ja, tip: form.tips_ja },
   } satisfies Record<PlaceContentLocale, { name: string; address: string; description: string; tip: string }>;
   const selected = localized[locale];
   const facts = [
-    { field: "name", label: "장소명", available: Boolean(form.name_ko.trim() || form.name_zh.trim()) },
+    { field: "name", label: "장소명", available: Boolean(name) },
     { field: "category", label: "카테고리", available: Boolean(form.category) },
     { field: "address", label: "주소", available: Boolean(form.address_ko.trim()) },
     { field: "coordinates", label: "좌표", available: hasValidFormCoordinates(form) },
@@ -1688,6 +1860,7 @@ function SubmissionReviewSummary({
     { field: "rating", label: "평점", available: Boolean(form.provider_rating.trim()) },
     { field: "reviewCount", label: "리뷰 수", available: Boolean(form.provider_review_count.trim()) },
     { field: "menu", label: "메뉴", available: form.menu_items.some((item) => Boolean(item.name_ko.trim())) },
+    { field: "waiting", label: "웨이팅", available: form.waiting_level !== "unknown" },
     { field: "recommendedOrder", label: "첫 주문 정보", available: Boolean(form.recommended_order_ko.trim()) },
     { field: "website", label: "홈페이지", available: Boolean(form.website.trim()) },
     { field: "providerPlaceId", label: "Place ID", available: Boolean(form.source_external_id.trim()) },
@@ -1695,7 +1868,7 @@ function SubmissionReviewSummary({
   const provider = toSupportedProvider(form.provider);
   const unavailable = provider
     ? getProviderUnavailableCapabilities(provider, {
-        name: form.name_ko || form.name_zh,
+        name,
         category: form.category,
         addressKo: form.address_ko,
         roadAddressKo: undefined,

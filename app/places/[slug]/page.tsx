@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -34,7 +33,8 @@ import { TagChip } from "@/components/TagChip";
 import { absoluteUrl, siteConfig } from "@/config/site";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
-import { formatPriceRange, formatWon, getPlaceBySlug } from "@/lib/place-store";
+import { getCachedPublicPlaceBySlug } from "@/lib/public-cache";
+import { formatPriceRange, formatWon } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
 import {
   getLastVerifiedLabel,
@@ -55,9 +55,7 @@ type PlaceDetailPageProps = {
   }>;
 };
 
-export const dynamic = "force-dynamic";
-
-const getCachedPlaceBySlug = cache((slug: string) => getPlaceBySlug(slug));
+export const revalidate = 300;
 
 export function generateStaticParams() {
   return [];
@@ -65,7 +63,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: PlaceDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { place } = await getCachedPlaceBySlug(slug);
+  const { place } = await getCachedPublicPlaceBySlug(slug);
   const chinaSummary = buildChinaPlaceSummary(place?.china_info);
   const featureText = chinaSummary.tags.slice(0, 3).join("、");
 
@@ -93,7 +91,7 @@ export async function generateMetadata({ params }: PlaceDetailPageProps): Promis
 
 export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) {
   const { slug } = await params;
-  const { place, source, error } = await getCachedPlaceBySlug(slug);
+  const { place, source, error } = await getCachedPublicPlaceBySlug(slug);
 
   if (!place) {
     notFound();

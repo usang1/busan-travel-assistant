@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { NearbyExplorer } from "@/components/NearbyExplorer";
 import { absoluteUrl } from "@/config/site";
-import { getPlaces } from "@/lib/place-store";
+import { getCachedPublicPlaces } from "@/lib/public-cache";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "广安里附近推荐｜当前位置找美食拍照行李寄存",
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default async function NearbyPage() {
-  const { places, error } = await getPlaces({ activeOnly: true, locale: "zh", debugLabel: "nearby" });
+  const { places, error } = await getCachedPublicPlaces("zh");
 
   return (
     <main className="safe-bottom mx-auto max-w-7xl px-4 pb-6 pt-5 lg:px-6">

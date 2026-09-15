@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireAdmin, adminErrorResponse } from "@/lib/admin-auth";
+import { publicGuidesCacheTag } from "@/lib/cache-tags";
 import { saveOfficialGuide } from "@/lib/guide-admin";
 
 export async function GET(request: Request) {
@@ -17,6 +19,7 @@ export async function POST(request: Request) {
   try {
     const { client } = await requireAdmin(request);
     const id = await saveOfficialGuide(client, null, await request.json());
+    revalidateTag(publicGuidesCacheTag, "max");
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     const result = adminErrorResponse(error);

@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
-import { getPublishedGuides } from "@/lib/guide-store";
-import { getPlaces } from "@/lib/place-store";
 import { buildLocalizedMetadata, localeMeta, localizedCanonical, ui } from "@/lib/i18n";
+import { getCachedPublishedGuides, getCachedPublicPlaces } from "@/lib/public-cache";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 const locale = "zh";
 const copy = ui[locale];
@@ -19,8 +18,8 @@ export const metadata: Metadata = buildLocalizedMetadata({
 
 export default async function Home() {
   const [{ places }, { guides }] = await Promise.all([
-    getPlaces({ activeOnly: true, locale, debugLabel: "home" }),
-    getPublishedGuides(),
+    getCachedPublicPlaces(locale),
+    getCachedPublishedGuides(),
   ]);
 
   return (

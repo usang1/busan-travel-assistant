@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { NearbyExplorer } from "@/components/NearbyExplorer";
-import { getPlaces } from "@/lib/place-store";
+import { getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
 import {
   buildLocalizedMetadata,
@@ -16,7 +16,7 @@ type LocalizedNearbyPageProps = {
   }>;
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 async function getLocale(params: LocalizedNearbyPageProps["params"]): Promise<Locale> {
   const { locale } = await params;
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: LocalizedNearbyPageProps): Pr
 
 export default async function LocalizedNearbyPage({ params }: LocalizedNearbyPageProps) {
   const locale = await getLocale(params);
-  const { places: publicPlaces, error } = await getPlaces({ activeOnly: true, locale, debugLabel: "localized-nearby" });
+  const { places: publicPlaces, error } = await getCachedPublicPlaces(locale);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
 
   return (

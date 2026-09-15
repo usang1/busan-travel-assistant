@@ -2,11 +2,10 @@ import type { Metadata } from "next";
 import { PlacesExplorer } from "@/components/PlacesExplorer";
 import { SectionTitle } from "@/components/SectionTitle";
 import { absoluteUrl } from "@/config/site";
-import { getPlaces } from "@/lib/place-store";
-import { getPlaceRankings } from "@/lib/place-recommendations";
+import { getCachedPlaceRankings, getCachedPublicPlaces } from "@/lib/public-cache";
 import { placeCategories, type PlaceCategory } from "@/types/database";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "釜山广安里美食地图｜韩国本地人推荐",
@@ -33,8 +32,8 @@ export default async function PlacesPage({ searchParams }: PlacesPageProps) {
   const rankingCategory = parseRankingCategory(params?.category);
   const rankingRegion = params?.region && params.region !== "all" ? params.region : undefined;
   const [{ places, source, error }, rankings] = await Promise.all([
-    getPlaces({ activeOnly: true, locale: "zh", debugLabel: "places" }),
-    getPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
+    getCachedPublicPlaces("zh"),
+    getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
   ]);
 
   return (

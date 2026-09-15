@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PlacesExplorer } from "@/components/PlacesExplorer";
 import { SectionTitle } from "@/components/SectionTitle";
-import { getPlaces } from "@/lib/place-store";
-import { getPlaceRankings } from "@/lib/place-recommendations";
+import { getCachedPlaceRankings, getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
 import { placeCategories, type PlaceCategory } from "@/types/database";
 import {
@@ -25,7 +24,7 @@ type LocalizedPlacesPageProps = {
   }>;
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 async function getLocale(params: LocalizedPlacesPageProps["params"]): Promise<Locale> {
   const { locale } = await params;
@@ -56,8 +55,8 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   const rankingCategory = parseRankingCategory(query?.category);
   const rankingRegion = query?.region && query.region !== "all" ? query.region : undefined;
   const [{ places: publicPlaces, source, error }, rankings] = await Promise.all([
-    getPlaces({ activeOnly: true, locale, debugLabel: "localized-places" }),
-    getPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
+    getCachedPublicPlaces(locale),
+    getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
   ]);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
   const localeRankings = {

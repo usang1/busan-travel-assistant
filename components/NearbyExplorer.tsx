@@ -131,7 +131,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const [currentBounds, setCurrentBounds] = useState<MapBounds | null>(null);
   const [appliedBounds, setAppliedBounds] = useState<MapBounds | null>(null);
   const [mapMoved, setMapMoved] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(true);
+  const [desktopMapMounted, setDesktopMapMounted] = useState(false);
   const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
   const initialSelectionAppliedRef = useRef(false);
   const origin = originMode === "current" && userLocation ? userLocation : gwangalliCenter;
@@ -219,6 +220,15 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       setFilterNotice(localizedCopy.savedLoginRequired);
     }
   }, [authLoading, category, localizedCopy.savedLoginRequired, user]);
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setDesktopMapMounted(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+
+    return () => query.removeEventListener("change", sync);
+  }, []);
 
   const baseItems = useMemo(() => {
     return places
@@ -497,54 +507,60 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           <div className="min-h-0 flex-1 overflow-y-auto p-4">{list}</div>
         </aside>
         <div className="sticky top-[160px] h-[calc(100dvh-184px)] min-h-[360px]">
-          <TravelMap
-            center={origin}
-            markers={markers}
-            userLocation={originMode === "current" ? userLocation : null}
-            currentLocationFocusRequest={locationFocusRequest}
-            locationPending={isLocating}
-            onRequestCurrentLocation={requestLocation}
-            provider={provider}
-            locale={locale}
-            selectedId={selectedItem?.place.id ?? null}
-            searchAreaVisible={mapMoved}
-            onSearchArea={applyCurrentMapBounds}
-            onSelectMarker={(id) => selectPlace(id, "marker")}
-            onViewportSettled={(bounds, source) => {
-              setCurrentBounds(bounds);
-              if (source === "user") {
-                setMapMoved(true);
-              }
-            }}
-            className="h-full"
-          />
+          {desktopMapMounted ? (
+            <TravelMap
+              center={origin}
+              markers={markers}
+              userLocation={originMode === "current" ? userLocation : null}
+              currentLocationFocusRequest={locationFocusRequest}
+              locationPending={isLocating}
+              onRequestCurrentLocation={requestLocation}
+              provider={provider}
+              locale={locale}
+              selectedId={selectedItem?.place.id ?? null}
+              searchAreaVisible={mapMoved}
+              onSearchArea={applyCurrentMapBounds}
+              onSelectMarker={(id) => selectPlace(id, "marker")}
+              onViewportSettled={(bounds, source) => {
+                setCurrentBounds(bounds);
+                if (source === "user") {
+                  setMapMoved(true);
+                }
+              }}
+              onShowList={() => setSheetOpen(true)}
+              className="h-full"
+            />
+          ) : null}
         </div>
       </section>
 
       <section className="lg:hidden">
-        <div className={cn("relative h-[52dvh] min-h-[300px]", sheetOpen && "hidden")}>
-          <TravelMap
-            center={origin}
-            markers={markers}
-            userLocation={originMode === "current" ? userLocation : null}
-            currentLocationFocusRequest={locationFocusRequest}
-            locationPending={isLocating}
-            onRequestCurrentLocation={requestLocation}
-            provider={provider}
-            locale={locale}
-            selectedId={selectedItem?.place.id ?? null}
-            searchAreaVisible={mapMoved}
-            onSearchArea={applyCurrentMapBounds}
-            onSelectMarker={(id) => selectPlace(id, "marker")}
-            onViewportSettled={(bounds, source) => {
-              setCurrentBounds(bounds);
-              if (source === "user") {
-                setMapMoved(true);
-              }
-            }}
-            className="h-full"
-          />
-        </div>
+        {!sheetOpen ? (
+          <div className="relative h-[52dvh] min-h-[300px]">
+            <TravelMap
+              center={origin}
+              markers={markers}
+              userLocation={originMode === "current" ? userLocation : null}
+              currentLocationFocusRequest={locationFocusRequest}
+              locationPending={isLocating}
+              onRequestCurrentLocation={requestLocation}
+              provider={provider}
+              locale={locale}
+              selectedId={selectedItem?.place.id ?? null}
+              searchAreaVisible={mapMoved}
+              onSearchArea={applyCurrentMapBounds}
+              onSelectMarker={(id) => selectPlace(id, "marker")}
+              onViewportSettled={(bounds, source) => {
+                setCurrentBounds(bounds);
+                if (source === "user") {
+                  setMapMoved(true);
+                }
+              }}
+              onShowList={() => setSheetOpen(true)}
+              className="h-full"
+            />
+          </div>
+        ) : null}
 
         {selectedItem && !sheetOpen ? (
           <div className="mt-3">
@@ -562,10 +578,10 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
             aria-controls="nearby-mobile-list"
             className="flex h-16 w-full items-center justify-between px-5 text-left"
           >
-            <span>
-              <span className="block text-sm font-black text-slate-950">{localizedCopy.placesCount} {filteredItems.length}</span>
-              <span className="block text-xs text-slate-500">{localizedCopy.sheetSubtitle}</span>
-            </span>
+              <span>
+                <span className="block text-sm font-black text-slate-950">{localizedCopy.placesCount} {filteredItems.length}</span>
+                <span className="block text-xs text-slate-500">{sheetOpen ? localizedCopy.mapView : localizedCopy.sheetSubtitle}</span>
+              </span>
             <ChevronUp className={cn("text-slate-500 transition", sheetOpen && "rotate-180")} size={20} aria-hidden="true" />
           </button>
           <div id="nearby-mobile-list" hidden={!sheetOpen} className="px-4 pb-4">{list}</div>
@@ -1058,6 +1074,7 @@ const nearbyCopy: Record<Locale, {
   locationDenied: string;
   placesCount: string;
   sheetSubtitle: string;
+  mapView: string;
   origin: string;
   heading: string;
   currentLocation: string;
@@ -1097,6 +1114,7 @@ const nearbyCopy: Record<Locale, {
     locationDenied: "位置权限被拒绝，将继续以广安里为基准显示。",
     placesCount: "地点",
     sheetSubtitle: "按所选区域和筛选条件",
+    mapView: "打开地图",
     origin: "当前位置 / 广安里",
     heading: "现在附近去哪？",
     currentLocation: "当前位置",
@@ -1136,6 +1154,7 @@ const nearbyCopy: Record<Locale, {
     locationDenied: "Location permission was denied. Continuing from Gwangalli.",
     placesCount: "Places",
     sheetSubtitle: "Based on selected area and filters",
+    mapView: "Open map",
     origin: "Current location / Gwangalli",
     heading: "Where nearby now?",
     currentLocation: "Current location",
@@ -1175,6 +1194,7 @@ const nearbyCopy: Record<Locale, {
     locationDenied: "位置情報の権限が拒否されました。広安里基準で続行します。",
     placesCount: "スポット",
     sheetSubtitle: "選択エリアとフィルター基準",
+    mapView: "地図を開く",
     origin: "現在地 / 広安里",
     heading: "今近くでどこへ行く？",
     currentLocation: "現在地",
@@ -1214,6 +1234,7 @@ const nearbyCopy: Record<Locale, {
     locationDenied: "위치 권한이 거부되었습니다. 광안리 기준으로 계속 표시합니다.",
     placesCount: "장소",
     sheetSubtitle: "선택한 지역과 필터 기준",
+    mapView: "지도 보기",
     origin: "현재 위치 / 광안리",
     heading: "지금 근처 어디 갈까?",
     currentLocation: "현재 위치",
