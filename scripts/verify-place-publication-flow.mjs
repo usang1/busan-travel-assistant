@@ -101,6 +101,8 @@ assert.match(qualityMigration, /notify pgrst, 'reload schema'/i);
 
 const approvalRoute = fs.readFileSync("app/api/admin/submissions/[id]/approve/route.ts", "utf8");
 assert.match(approvalRoute, /createPlace\(payload, client\)/);
+assert.match(approvalRoute, /updatePlace\(placeId, payload, client\)/);
+assert.match(approvalRoute, /place_id: place\.id/);
 assert.doesNotMatch(approvalRoute, /is_active:\s*true/);
 assert.doesNotMatch(approvalRoute, /status:\s*["']ACTIVE["']/);
 

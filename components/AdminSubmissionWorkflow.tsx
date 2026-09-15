@@ -1305,7 +1305,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       const placesBody = (await placesResponse.json()) as { places?: PlaceWithRelations[] };
       const duplicateMatches = findPlaceDuplicateMatches(payload, placesBody.places ?? []);
       const exactDuplicate = duplicateMatches.find((match) => match.level === "exact");
-      if (exactDuplicate) {
+      const existingPlaceId = selected && exactDuplicate ? exactDuplicate.placeId : null;
+      if (exactDuplicate && !existingPlaceId) {
         setStatus(`이미 등록된 provider 장소 ID입니다: ${exactDuplicate.placeName}`);
         return;
       }
@@ -1321,7 +1322,7 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       const endpoint = selected ? `/api/admin/submissions/${selected.id}/approve` : "/api/admin/places";
       const response = await adminFetch(endpoint, {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(existingPlaceId ? { payload, placeId: existingPlaceId } : payload),
       });
 
       if (!response.ok) {
@@ -1333,7 +1334,8 @@ export function AdminSubmissionWorkflow({ accessToken, onPlaceCreated }: AdminSu
       await loadSubmissions();
       await onPlaceCreated();
       const visibilityNotice = body.place ? ` ${buildAdminPlaceVisibilityNotice(body.place)}` : "";
-      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${translationNotice}${visibilityNotice}` : `장소를 직접 등록했습니다.${translationNotice}${visibilityNotice}`);
+      const duplicateNotice = existingPlaceId ? ` 기존 장소(${exactDuplicate?.placeName})를 수정하고 제보를 승인했습니다.` : "";
+      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${translationNotice}${duplicateNotice}${visibilityNotice}` : `장소를 직접 등록했습니다.${translationNotice}${visibilityNotice}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "장소 등록 중 오류가 발생했습니다.");
     } finally {

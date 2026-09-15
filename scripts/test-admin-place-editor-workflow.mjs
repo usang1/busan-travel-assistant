@@ -50,6 +50,8 @@ assert.match(submissionWorkflowSource, /name_zh: name/, "submission publishing m
 assert.match(submissionWorkflowSource, /china_info: chinaInfo/, "submission publishing must persist waiting info through china_info");
 assert.match(submissionWorkflowSource, /function needsAutoTranslation\(form: PublishForm\)/, "submission publishing must detect Korean fields that need automatic GPT translation");
 assert.match(submissionWorkflowSource, /const translated = await autoTranslateBeforePublish\(formToPublish\);[\s\S]*const payload = buildPayload\(formToPublish\);/, "submission publishing must translate Korean inputs before building the publish payload");
+assert.match(submissionWorkflowSource, /const existingPlaceId = selected && exactDuplicate \? exactDuplicate\.placeId : null;/, "submission publishing must reuse the existing place when a selected submission has the same provider place ID");
+assert.match(submissionWorkflowSource, /JSON\.stringify\(existingPlaceId \? \{ payload, placeId: existingPlaceId \} : payload\)/, "submission publishing must pass the existing place id to the approval route");
 
 assert.match(submissionWorkflowSource, /providerLookupNotice=\{providerLookupNotice\}[\s\S]*status=\{status\}/, "publish form must receive the current save status");
 assert.match(submissionWorkflowSource, /<p role="status"[^>]*>\{status\}<\/p>/, "mobile publish controls must show save feedback beside the button");

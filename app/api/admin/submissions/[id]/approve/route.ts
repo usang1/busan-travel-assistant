@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
 import { publicPlacesCacheTag } from "@/lib/cache-tags";
-import { archivePlace, createPlace } from "@/lib/place-store";
+import { archivePlace, createPlace, updatePlace } from "@/lib/place-store";
 import type { PlacePayload } from "@/types/database";
 
 type RouteContext = {
@@ -11,13 +11,32 @@ type RouteContext = {
   }>;
 };
 
+type ApprovalRequestBody = PlacePayload | {
+  payload?: PlacePayload;
+  placeId?: string;
+};
+
+function parseApprovalBody(body: ApprovalRequestBody) {
+  if ("payload" in body && body.payload) {
+    return {
+      payload: body.payload,
+      placeId: typeof body.placeId === "string" && body.placeId.trim() ? body.placeId.trim() : null,
+    };
+  }
+
+  return {
+    payload: body as PlacePayload,
+    placeId: null,
+  };
+}
+
 export async function POST(request: Request, { params }: RouteContext) {
   let createdPlaceId: string | null = null;
 
   try {
     const { client, user } = await requireAdmin(request);
     const { id } = await params;
-    const payload = (await request.json()) as PlacePayload;
+    const { payload, placeId } = parseApprovalBody((await request.json()) as ApprovalRequestBody);
 
     const { data: existingSubmission, error: existingError } = await client
       .from("place_submissions")
@@ -33,8 +52,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       return NextResponse.json({ message: "이미 승인 처리된 제보입니다." }, { status: 409 });
     }
 
-    const place = await createPlace(payload, client);
-    createdPlaceId = place.id;
+    const place = placeId
+      ? await updatePlace(placeId, payload, client)
+      : await createPlace(payload, client);
+    if (!placeId) createdPlaceId = place.id;
 
     const { data: submission, error } = await client
       .from("place_submissions")
