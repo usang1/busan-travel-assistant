@@ -11,8 +11,8 @@ type PublicationQualityPlace = Parameters<typeof evaluatePlaceQuality>[0];
 
 export type PlacePublicationState = "draft" | "published" | "verified" | "needs_recheck" | "archived";
 
-export function isPublishablePlace(place: PublicationQualityPlace, now = new Date()) {
-  return isPublicPlace(place) && evaluatePlaceQuality(place, now).canPublish;
+export function isPublishablePlace(place: PublicationQualityPlace, _now = new Date()) {
+  return isPublicPlace(place);
 }
 
 export function isVerifiedPlace(place: PublicationQualityPlace, now = new Date()) {

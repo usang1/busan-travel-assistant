@@ -78,7 +78,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       throw new Error(error.message);
     }
 
-    revalidateTag(publicPlacesCacheTag, "max");
+    revalidateTag(publicPlacesCacheTag, { expire: 0 });
 
     return NextResponse.json({ place, submission });
   } catch (error) {

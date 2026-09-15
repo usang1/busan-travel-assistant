@@ -10,7 +10,7 @@ export function hasUsableMapCoordinates(place: Pick<PlaceRecord, "latitude" | "l
 
 export function buildAdminPlaceVisibilityNotice(place: PlaceVisibilityFields) {
   if (!isPublicPlace(place)) {
-    return "현재 공개 상태가 아니어서 사용자 목록과 지도에는 표시되지 않습니다. 필수 정보를 채운 뒤 상태를 PUBLISHED로 바꿔 저장하세요.";
+    return "현재 공개 상태가 아니어서 사용자 목록과 지도에는 표시되지 않습니다. 상태를 PUBLISHED로 바꿔 저장하세요.";
   }
 
   if (!hasUsableMapCoordinates(place)) {

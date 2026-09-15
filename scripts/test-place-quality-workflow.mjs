@@ -205,7 +205,7 @@ const missingDescriptionQuality = evaluatePlaceQuality(missingDescription);
 assert.equal(missingDescriptionQuality.canPublish, false);
 assert.ok(missingDescriptionQuality.missingRequired.some((item) => item.key === "description"));
 assert.doesNotThrow(() => validatePlacePayloadForSave(missingDescription));
-assert.equal(isPublishablePlace(missingDescription), false);
+assert.equal(isPublishablePlace(missingDescription), true);
 assert.equal(getPlacePublicationState(missingDescription), "needs_recheck");
 assert.throws(() => validatePlacePayloadForSave({
   ...missingDescription,
@@ -228,6 +228,7 @@ const missingCoordinateQuality = evaluatePlaceQuality(missingCoordinates);
 assert.equal(missingCoordinateQuality.canPublish, false);
 assert.ok(missingCoordinateQuality.missingRequired.some((item) => item.key === "coordinates"));
 assert.doesNotThrow(() => validatePlacePayloadForSave(missingCoordinates));
+assert.equal(isPublishablePlace(missingCoordinates), true);
 
 const draftWithoutCoordinates = {
   ...missingCoordinates,

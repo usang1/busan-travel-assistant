@@ -17,7 +17,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     const { id } = await params;
     const payload = (await request.json()) as PlacePayload;
     const place = await updatePlace(id, payload, client);
-    revalidateTag(publicPlacesCacheTag, "max");
+    revalidateTag(publicPlacesCacheTag, { expire: 0 });
 
     return NextResponse.json({ place });
   } catch (error) {
@@ -32,7 +32,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
     const { client } = await requireAdmin(request);
     const { id } = await params;
     await archivePlace(id, client);
-    revalidateTag(publicPlacesCacheTag, "max");
+    revalidateTag(publicPlacesCacheTag, { expire: 0 });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

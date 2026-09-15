@@ -16,7 +16,7 @@ export function translatedPlaceLocales(place: PlaceWithRelations): Locale[] {
   return locales.filter((locale) => {
     const translatedName = place.translations?.find((item) => item.locale === locale)?.name?.trim();
     const name = translatedName || (locale === "ko" ? place.name_ko : locale === "zh" ? place.name_zh : "");
-    return Boolean(name?.trim() && getPublicPlaceDescription(place, locale));
+    return Boolean(name?.trim());
   });
 }
 

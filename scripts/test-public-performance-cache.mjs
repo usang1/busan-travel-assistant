@@ -38,7 +38,11 @@ for (const file of [
   "app/api/admin/submissions/[id]/approve/route.ts",
 ]) {
   const source = fs.readFileSync(file, "utf8");
-  assert.match(source, /revalidateTag\(publicPlacesCacheTag, "max"\)/, `${file} must invalidate public place cache`);
+  assert.match(
+    source,
+    /revalidateTag\(publicPlacesCacheTag, \{ expire: 0 \}\)/,
+    `${file} must immediately invalidate the public place cache`,
+  );
 }
 
 for (const file of [

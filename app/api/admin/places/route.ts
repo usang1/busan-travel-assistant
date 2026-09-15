@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const { client } = await requireAdmin(request);
     const payload = (await request.json()) as PlacePayload;
     const place = await createPlace(payload, client);
-    revalidateTag(publicPlacesCacheTag, "max");
+    revalidateTag(publicPlacesCacheTag, { expire: 0 });
 
     return NextResponse.json({ place });
   } catch (error) {

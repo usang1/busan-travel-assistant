@@ -37,7 +37,7 @@ const place = {
 assert.deepEqual(Array.from(seo.translatedPlaceLocales(place)).sort(), ["en", "ko", "zh"]);
 assert.equal(seo.translatedPlaceLocales({ ...place, status: "DRAFT" }).length, 0);
 assert.equal(seo.translatedPlaceLocales({ ...place, is_active: false }).length, 0);
-assert.equal(seo.translatedPlaceLocales({ ...place, short_description_zh: "" }).length, 0);
+assert.deepEqual(Array.from(seo.translatedPlaceLocales({ ...place, short_description_zh: "" })).sort(), ["en", "ko", "zh"]);
 const sitemapDetailUrls = [place, { ...place, id: "draft-place", slug: "draft-cafe", status: "DRAFT" }]
   .flatMap((item) => seo.translatedPlaceLocales(item).map((locale) => `/${locale}/places/${item.slug}`))
   .sort();
