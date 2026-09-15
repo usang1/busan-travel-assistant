@@ -565,21 +565,29 @@ function toPlaceWriteRow(payload: PlacePayload): PlaceWriteRow {
   return normalizePlacePublicationForWrite(place);
 }
 
-function withoutAdminSummary(row: PlaceWriteRow): Omit<PlaceWriteRow, "admin_summary"> {
-  const { admin_summary: _adminSummary, ...compatibleRow } = row;
-  void _adminSummary;
+function adaptPlaceWriteRowForLegacySchema(
+  row: Record<string, unknown>,
+  error: { code?: string; message?: string },
+) {
+  const missingColumn = getMissingSchemaColumn(error);
+  const optionalColumns = new Set(["admin_summary", "closed_days", "last_verified_at"]);
 
-  return compatibleRow;
-}
+  if (missingColumn && optionalColumns.has(missingColumn) && missingColumn in row) {
+    const nextRow = { ...row };
+    delete nextRow[missingColumn];
+    return nextRow;
+  }
 
-function isMissingAdminSummaryColumnError(error: { code?: string; message?: string } | null) {
-  const message = error?.message?.toLowerCase() ?? "";
+  const message = error.message?.toLowerCase() ?? "";
+  const legacyStatusRejected = error.code === "23514" && message.includes("places_status_check");
+  if (legacyStatusRejected && (row.status === "PUBLISHED" || row.status === "REVIEW")) {
+    return {
+      ...row,
+      status: row.status === "PUBLISHED" ? "ACTIVE" : "DRAFT",
+    };
+  }
 
-  return Boolean(
-    error &&
-      message.includes("admin_summary") &&
-      (error.code === "PGRST204" || error.code === "42703" || message.includes("schema cache") || message.includes("column")),
-  );
+  return null;
 }
 
 function resolveClient(client?: SupabaseClient) {
@@ -861,10 +869,14 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   await assertNoExactSourceDuplicate(payload, resolvedClient);
 
   const placeRow = toPlaceWriteRow(payload);
-  let { data, error } = await resolvedClient.from("places").insert(placeRow).select("id").single();
+  let compatiblePlaceRow: Record<string, unknown> = { ...placeRow };
+  let { data, error } = await resolvedClient.from("places").insert(compatiblePlaceRow).select("id").single();
 
-  if (isMissingAdminSummaryColumnError(error)) {
-    const compatibleResult = await resolvedClient.from("places").insert(withoutAdminSummary(placeRow)).select("id").single();
+  for (let attempt = 0; error && attempt < 4; attempt += 1) {
+    const nextRow = adaptPlaceWriteRowForLegacySchema(compatiblePlaceRow, error);
+    if (!nextRow) break;
+    compatiblePlaceRow = nextRow;
+    const compatibleResult = await resolvedClient.from("places").insert(compatiblePlaceRow).select("id").single();
     data = compatibleResult.data;
     error = compatibleResult.error;
   }
@@ -959,10 +971,14 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   await assertNoExactSourceDuplicate(payload, resolvedClient, id);
 
   const placeRow = toPlaceWriteRow(payload);
-  let { error } = await resolvedClient.from("places").update(placeRow).eq("id", id);
+  let compatiblePlaceRow: Record<string, unknown> = { ...placeRow };
+  let { error } = await resolvedClient.from("places").update(compatiblePlaceRow).eq("id", id);
 
-  if (isMissingAdminSummaryColumnError(error)) {
-    const compatibleResult = await resolvedClient.from("places").update(withoutAdminSummary(placeRow)).eq("id", id);
+  for (let attempt = 0; error && attempt < 4; attempt += 1) {
+    const nextRow = adaptPlaceWriteRowForLegacySchema(compatiblePlaceRow, error);
+    if (!nextRow) break;
+    compatiblePlaceRow = nextRow;
+    const compatibleResult = await resolvedClient.from("places").update(compatiblePlaceRow).eq("id", id);
     error = compatibleResult.error;
   }
 

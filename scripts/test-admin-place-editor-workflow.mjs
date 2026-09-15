@@ -70,9 +70,11 @@ assert.match(submissionWorkflowSource, /href=\{mapLinkState\.normalizedUrl\}[\s\
 assert.match(submissionWorkflowSource, /onWebSearch=\{\(\) => void parseSourceUrl\(true\)\}/, "submission workflow must expose an explicit web-search fallback action");
 
 const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
-assert.match(placeStoreSource, /isMissingAdminSummaryColumnError/, "place writes must detect a missing optional admin_summary migration");
-assert.match(placeStoreSource, /insert\(withoutAdminSummary\(placeRow\)\)/, "place creation must retry against the pre-migration schema");
-assert.match(placeStoreSource, /update\(withoutAdminSummary\(placeRow\)\)/, "place updates must retry against the pre-migration schema");
+assert.match(placeStoreSource, /adaptPlaceWriteRowForLegacySchema/, "place writes must adapt to older production schemas");
+assert.match(placeStoreSource, /\["admin_summary", "closed_days", "last_verified_at"\]/, "place writes must omit unavailable optional columns on legacy schemas");
+assert.match(placeStoreSource, /row\.status === "PUBLISHED" \? "ACTIVE" : "DRAFT"/, "place writes must map workflow statuses to legacy public statuses");
+assert.match(placeStoreSource, /from\("places"\)\.insert\(compatiblePlaceRow\)/, "place creation must retry with a compatible row");
+assert.match(placeStoreSource, /from\("places"\)\.update\(compatiblePlaceRow\)/, "place updates must retry with a compatible row");
 assert.match(placeStoreSource, /query\.limit\(1\)\.maybeSingle\(\)/, "place detail lookup must tolerate duplicate or relation-expanded rows");
 assert.match(placeStoreSource, /compatibleQuery\.limit\(1\)\.maybeSingle\(\)/, "compatible place detail lookup must tolerate duplicate rows");
 assert.match(placeStoreSource, /legacyQuery\.limit\(1\)\.maybeSingle\(\)/, "legacy place detail lookup must tolerate duplicate rows");
