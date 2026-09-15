@@ -35,6 +35,12 @@ new Function("module", "exports", "require", output)(module, module.exports, (sp
       getBusanDistrictKey(place) {
         return place.district ?? null;
       },
+      getBusanDistrictLabel(key, locale) {
+        const labels = {
+          "suyeong-gu": { ko: "수영구", zh: "水营区", en: "Suyeong-gu", ja: "水営区" },
+        };
+        return labels[key]?.[locale] ?? "";
+      },
     };
   }
   if (specifier === "@/lib/i18n") {
@@ -195,6 +201,11 @@ const districtIntentPlace = resolveHomeIntentCards({
 });
 assert.equal(byKey(districtIntentPlace, "lateNight").destination, "places");
 assert.equal(byKey(districtIntentPlace, "lateNight").href, "/ko/places?intent=lateNight&region=suyeong-gu");
+assert.equal(byKey(districtIntentPlace, "firstGwangalli").label, "수영구 처음 가면?");
+assert.equal(byKey(districtIntentPlace, "food").label, "수영구 맛집");
+assert.equal(byKey(districtIntentPlace, "rainyDay").label, "비 오는 날 갈 곳");
+assert.equal(byKey(districtIntentPlace, "solo").label, "혼자 가기 좋은 곳");
+assert.equal(byKey(districtIntentPlace, "luggage").label, "짐 보관 가능한 곳");
 
 const noContent = resolveHomeIntentCards({ locale: "zh", guides: [], places: [] });
 assert.equal(noContent.every((card) => card.destination === "pending" && card.href === null), true);

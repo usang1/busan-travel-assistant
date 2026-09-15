@@ -1,5 +1,5 @@
 import { getChinaFilterByQueryKey } from "@/lib/place-china/discovery";
-import { getBusanDistrictKey, type BusanDistrictKey } from "@/lib/busan-districts";
+import { getBusanDistrictKey, getBusanDistrictLabel, type BusanDistrictKey } from "@/lib/busan-districts";
 import { isPublicPlace } from "@/lib/place-publishing";
 import { type Locale, withLocale } from "@/lib/i18n";
 import { getHomeIntentKeysFromTags, type HomeIntentKey } from "@/lib/home-intent-tags";
@@ -34,6 +34,11 @@ type PlaceTarget = {
   href: string;
   hasMatch: (places: PlaceWithRelations[]) => boolean;
 };
+
+type DistrictIntentCopy = Record<HomeIntentKey, {
+  label: (district: string) => string;
+  description: (district: string) => string;
+}>;
 
 export const homeIntentCards: Record<Locale, HomeIntentCopy[]> = {
   zh: [
@@ -70,6 +75,41 @@ export const homeIntentCards: Record<Locale, HomeIntentCopy[]> = {
   ],
 };
 
+const districtIntentCopy: Record<Locale, DistrictIntentCopy> = {
+  ko: {
+    firstGwangalli: { label: (district) => `${district} 처음 가면?`, description: (district) => `첫 방문에 맞는 ${district} 공개 장소를 확인하세요.` },
+    food: { label: (district) => `${district} 맛집`, description: (district) => `${district}의 공개 음식점, 메뉴, 웨이팅 정보를 확인하세요.` },
+    rainyDay: { label: () => "비 오는 날 갈 곳", description: (district) => `비 오는 날에도 가기 좋은 ${district} 공개 장소를 확인하세요.` },
+    solo: { label: () => "혼자 가기 좋은 곳", description: (district) => `혼자 이용하기 좋은 ${district} 공개 장소를 확인하세요.` },
+    lateNight: { label: () => "밤 10시 이후 갈 곳", description: (district) => `늦은 시간에도 고려할 수 있는 ${district} 공개 장소를 확인하세요.` },
+    luggage: { label: () => "짐 보관 가능한 곳", description: (district) => `${district}에서 이용할 수 있는 공개 짐 보관 장소를 확인하세요.` },
+  },
+  zh: {
+    firstGwangalli: { label: (district) => `第一次去${district}`, description: (district) => `查看适合第一次到访${district}的已公开地点。` },
+    food: { label: (district) => `${district}美食`, description: (district) => `查看${district}已公开的餐厅、菜单和排队信息。` },
+    rainyDay: { label: () => "下雨天去哪里", description: (district) => `查看${district}下雨天也适合前往的已公开地点。` },
+    solo: { label: () => "适合一个人去", description: (district) => `查看${district}适合独自前往的已公开地点。` },
+    lateNight: { label: () => "晚上10点以后去哪", description: (district) => `查看${district}深夜仍可考虑的已公开地点。` },
+    luggage: { label: () => "行李寄存", description: (district) => `查看${district}已公开的行李寄存地点。` },
+  },
+  en: {
+    firstGwangalli: { label: (district) => `First time in ${district}`, description: (district) => `See published ${district} places suited to a first visit.` },
+    food: { label: (district) => `${district} food`, description: (district) => `See published restaurants, menus, and wait information in ${district}.` },
+    rainyDay: { label: () => "Rainy-day places", description: (district) => `See published ${district} places that still work in the rain.` },
+    solo: { label: () => "Good for solo travel", description: (district) => `See published ${district} places that work well alone.` },
+    lateNight: { label: () => "After 10 PM", description: (district) => `See published ${district} places to consider late at night.` },
+    luggage: { label: () => "Luggage storage", description: (district) => `See published luggage storage places in ${district}.` },
+  },
+  ja: {
+    firstGwangalli: { label: (district) => `初めての${district}`, description: (district) => `${district}を初めて訪れる人向けの公開スポットを確認。` },
+    food: { label: (district) => `${district}グルメ`, description: (district) => `${district}の公開中の飲食店、メニュー、待ち時間情報を確認。` },
+    rainyDay: { label: () => "雨の日に行く場所", description: (district) => `${district}で雨の日にも行きやすい公開スポットを確認。` },
+    solo: { label: () => "一人で行きやすい場所", description: (district) => `${district}で一人でも利用しやすい公開スポットを確認。` },
+    lateNight: { label: () => "夜10時以降に行く場所", description: (district) => `${district}で夜遅くにも検討できる公開スポットを確認。` },
+    luggage: { label: () => "荷物預かり", description: (district) => `${district}で利用できる公開中の荷物預かりスポットを確認。` },
+  },
+};
+
 const placeTargets: Record<HomeIntentKey, PlaceTarget> = {
   firstGwangalli: chinaFilterTarget("firstBusan"),
   food: categoryTarget("restaurant"),
@@ -86,11 +126,12 @@ export function resolveHomeIntentCards({ guides, places, locale, district }: Res
     .filter((place) => !district || getBusanDistrictKey(place) === district);
 
   return homeIntentCards[locale].map((card) => {
+    const displayCard = district ? withDistrictIntentCopy(card, district, locale) : card;
     const hasMappedPlace = publicPlaces.some((place) => getHomeIntentKeysFromTags(place.tags).includes(card.key));
 
     if (hasMappedPlace) {
       return {
-        ...card,
+        ...displayCard,
         destination: "places",
         href: withLocale(withDistrict(`/places?intent=${card.key}`, district), locale),
       };
@@ -100,7 +141,7 @@ export function resolveHomeIntentCards({ guides, places, locale, district }: Res
 
     if (matchedGuide) {
       return {
-        ...card,
+        ...displayCard,
         destination: "guide",
         href: withLocale(`/guides/${matchedGuide.slug}`, locale),
       };
@@ -112,18 +153,28 @@ export function resolveHomeIntentCards({ guides, places, locale, district }: Res
 
     if (hasStructuredMatch || hasTagMatch) {
       return {
-        ...card,
+        ...displayCard,
         destination: "places",
         href: withLocale(withDistrict(hasStructuredMatch ? target.href : `/places?search=${encodeURIComponent(card.search)}`, district), locale),
       };
     }
 
     return {
-      ...card,
+      ...displayCard,
       destination: "pending",
       href: null,
     };
   });
+}
+
+function withDistrictIntentCopy(card: HomeIntentCopy, district: BusanDistrictKey, locale: Locale): HomeIntentCopy {
+  const districtLabel = getBusanDistrictLabel(district, locale);
+  const copy = districtIntentCopy[locale][card.key];
+  return {
+    ...card,
+    label: copy.label(districtLabel),
+    description: copy.description(districtLabel),
+  };
 }
 
 function withDistrict(href: string, district?: BusanDistrictKey) {
