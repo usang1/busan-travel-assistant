@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
 import { buildLocalizedMetadata, localeMeta, localizedCanonical, ui } from "@/lib/i18n";
-import { getCachedPublishedGuides, getCachedPublicPlaces } from "@/lib/public-cache";
 
 export const revalidate = 300;
 
@@ -17,11 +16,6 @@ export const metadata: Metadata = buildLocalizedMetadata({
 });
 
 export default async function Home() {
-  const [{ places }, { guides }] = await Promise.all([
-    getCachedPublicPlaces(locale),
-    getCachedPublishedGuides(),
-  ]);
-
   return (
     <>
       <StructuredData
@@ -34,7 +28,7 @@ export default async function Home() {
           description: copy.home.description,
         }}
       />
-      <HomeDiscoveryPage locale={locale} places={places} guides={guides} />
+      <HomeDiscoveryPage locale={locale} />
     </>
   );
 }

@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { PlaceCard } from "@/components/PlaceCard";
 import { PlaceRankingSection } from "@/components/PlaceRankingSection";
 import { TagChip } from "@/components/TagChip";
+import { busanDistrictOptions, getBusanDistrictKey, isBusanDistrictKey } from "@/lib/busan-districts";
 import {
   calculateDistanceMeters,
   formatDistance,
@@ -62,7 +63,10 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const [category, setCategory] = useState<PlaceCategory | "all">(
     getInitialCategory(searchParams, initialCategory),
   );
-  const [region, setRegion] = useState(() => searchParams.get("region") ?? "all");
+  const [region, setRegion] = useState(() => {
+    const requestedRegion = searchParams.get("region");
+    return isBusanDistrictKey(requestedRegion) ? requestedRegion : "all";
+  });
   const [priceBucket, setPriceBucket] = useState<ChinaPriceBucket>(() => readPriceBucket(searchParams));
   const [activeChinaFilters, setActiveChinaFilters] = useState<ChinaDiscoveryFilter[]>(() => readChinaFilters(searchParams));
   const [sortMode, setSortMode] = useState<SortMode>(() => readSortMode(searchParams));
@@ -82,7 +86,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     [availableChinaFilters],
   );
   const activeFilterCount = countActiveChinaFilters(showChinaFilters ? activeChinaFilters : [], priceBucket);
-  const regions = useMemo(() => buildRegions(places), [places]);
+  const regions = busanDistrictOptions.map((district) => ({ key: district.key, label: district.labels[locale] }));
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
@@ -136,7 +140,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     const filtered = enrichedPlaces
       .filter(({ place }) => {
         const categoryMatch = category === "all" || place.category === category;
-        const regionMatch = region === "all" || getRegionKey(place) === region;
+        const regionMatch = region === "all" || getBusanDistrictKey(place) === region;
         const searchMatch = lowered.length === 0 || buildSearchText(place, locale).includes(lowered);
         const chinaMatch = chinaFilteredPlaces.has(place.id);
         const intentMatch = !homeIntent || place.tags.some((tag) => getHomeIntentKeyFromSlug(tag.slug) === homeIntent);
@@ -512,30 +516,6 @@ function buildSearchText(place: PlaceWithRelations, locale: Locale) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-}
-
-function buildRegions(places: PlaceWithRelations[]) {
-  const regions = new Map<string, string>();
-
-  for (const place of places) {
-    const key = getRegionKey(place);
-
-    if (key !== "unknown") {
-      regions.set(key, key);
-    }
-  }
-
-  return Array.from(regions.entries())
-    .map(([key, label]) => ({ key, label }))
-    .sort((a, b) => a.label.localeCompare(b.label, "ko"));
-}
-
-function getRegionKey(place: PlaceWithRelations) {
-  const address = place.address_ko || place.address_zh || "";
-  const guMatch = address.match(/부산\s+([^\s]+구)/);
-  const dongMatch = address.match(/([가-힣]+동)/);
-
-  return dongMatch?.[1] ?? guMatch?.[1] ?? place.nearest_station ?? "unknown";
 }
 
 function filterClass(active: boolean) {

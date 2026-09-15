@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PlacesExplorer } from "@/components/PlacesExplorer";
 import { SectionTitle } from "@/components/SectionTitle";
+import { getBusanDistrictLabel, isBusanDistrictKey } from "@/lib/busan-districts";
 import { getCachedPlaceRankings, getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
 import { placeCategories, type PlaceCategory } from "@/types/database";
@@ -53,7 +54,7 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   const query = await searchParams;
   const copy = ui[locale];
   const rankingCategory = parseRankingCategory(query?.category);
-  const rankingRegion = query?.region && query.region !== "all" ? query.region : undefined;
+  const rankingRegion = isBusanDistrictKey(query?.region) ? getBusanDistrictLabel(query.region, "ko") : undefined;
   const [{ places: publicPlaces, source, error }, rankings] = await Promise.all([
     getCachedPublicPlaces(locale),
     getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),

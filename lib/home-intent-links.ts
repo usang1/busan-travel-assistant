@@ -1,4 +1,5 @@
 import { getChinaFilterByQueryKey } from "@/lib/place-china/discovery";
+import { getBusanDistrictKey, type BusanDistrictKey } from "@/lib/busan-districts";
 import { isPublicPlace } from "@/lib/place-publishing";
 import { type Locale, withLocale } from "@/lib/i18n";
 import { getHomeIntentKeysFromTags, type HomeIntentKey } from "@/lib/home-intent-tags";
@@ -26,6 +27,7 @@ type ResolveHomeIntentCardsInput = {
   guides: Guide[];
   places: PlaceWithRelations[];
   locale: Locale;
+  district?: BusanDistrictKey;
 };
 
 type PlaceTarget = {
@@ -77,9 +79,11 @@ const placeTargets: Record<HomeIntentKey, PlaceTarget> = {
   luggage: categoryTarget("luggage"),
 };
 
-export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIntentCardsInput): ResolvedHomeIntentCard[] {
+export function resolveHomeIntentCards({ guides, places, locale, district }: ResolveHomeIntentCardsInput): ResolvedHomeIntentCard[] {
   const publicGuides = guides.filter((guide) => guide.status === "PUBLISHED");
-  const publicPlaces = places.filter(isPublicPlace);
+  const publicPlaces = places
+    .filter(isPublicPlace)
+    .filter((place) => !district || getBusanDistrictKey(place) === district);
 
   return homeIntentCards[locale].map((card) => {
     const hasMappedPlace = publicPlaces.some((place) => getHomeIntentKeysFromTags(place.tags).includes(card.key));
@@ -88,7 +92,7 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
       return {
         ...card,
         destination: "places",
-        href: withLocale(`/places?intent=${card.key}`, locale),
+        href: withLocale(withDistrict(`/places?intent=${card.key}`, district), locale),
       };
     }
 
@@ -110,7 +114,7 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
       return {
         ...card,
         destination: "places",
-        href: withLocale(hasStructuredMatch ? target.href : `/places?search=${encodeURIComponent(card.search)}`, locale),
+        href: withLocale(withDistrict(hasStructuredMatch ? target.href : `/places?search=${encodeURIComponent(card.search)}`, district), locale),
       };
     }
 
@@ -120,6 +124,14 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
       href: null,
     };
   });
+}
+
+function withDistrict(href: string, district?: BusanDistrictKey) {
+  if (!district) return href;
+  const [pathname, query = ""] = href.split("?");
+  const params = new URLSearchParams(query);
+  params.set("region", district);
+  return `${pathname}?${params.toString()}`;
 }
 
 function placeMatchesLegacyIntentTag(place: PlaceWithRelations, card: HomeIntentCopy) {

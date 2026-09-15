@@ -30,6 +30,13 @@ new Function("module", "exports", "require", tagOutput)(tagModule, tagModule.exp
 
 new Function("module", "exports", "require", output)(module, module.exports, (specifier) => {
   if (specifier === "@/lib/home-intent-tags") return tagModule.exports;
+  if (specifier === "@/lib/busan-districts") {
+    return {
+      getBusanDistrictKey(place) {
+        return place.district ?? null;
+      },
+    };
+  }
   if (specifier === "@/lib/i18n") {
     return {
       withLocale(path, locale) {
@@ -177,6 +184,18 @@ const mappedIntentPlace = resolveHomeIntentCards({
 assert.equal(byKey(mappedIntentPlace, "lateNight").destination, "places");
 assert.equal(byKey(mappedIntentPlace, "lateNight").href, "/ko/places?intent=lateNight");
 
+const districtIntentPlace = resolveHomeIntentCards({
+  locale: "ko",
+  district: "suyeong-gu",
+  guides: [],
+  places: [
+    place({ id: "suyeong-night", district: "suyeong-gu", tags: buildHomeIntentTags(["lateNight"]) }),
+    place({ id: "haeundae-night", district: "haeundae-gu", tags: buildHomeIntentTags(["lateNight"]) }),
+  ],
+});
+assert.equal(byKey(districtIntentPlace, "lateNight").destination, "places");
+assert.equal(byKey(districtIntentPlace, "lateNight").href, "/ko/places?intent=lateNight&region=suyeong-gu");
+
 const noContent = resolveHomeIntentCards({ locale: "zh", guides: [], places: [] });
 assert.equal(noContent.every((card) => card.destination === "pending" && card.href === null), true);
 
@@ -198,7 +217,11 @@ for (const locale of ["ko", "zh", "en", "ja"]) {
   assert.equal(byKey(cards, "luggage").href, `/${locale}/places?category=luggage`);
 }
 
-assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides, places, locale \}\)/);
+assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides: \[\], places, locale, district: selectedDistrict \}\)/);
+assert.match(homeDiscoverySource, /city="seoul"[\s\S]*enabled=\{false\}/);
+assert.match(homeDiscoverySource, /city="jeju"[\s\S]*enabled=\{false\}/);
+assert.match(homeDiscoverySource, /city="busan"[\s\S]*enabled/);
+assert.match(homeDiscoverySource, /busanDistrictOptions\.map/);
 assert.match(homeDiscoverySource, /lg:grid-cols-3/);
 assert.match(homeDiscoverySource, /focus:outline-none focus:ring-4 focus:ring-teal-100/);
 assert.doesNotMatch(homeDiscoverySource, /\/guides\?search=/);

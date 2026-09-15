@@ -1,4 +1,5 @@
 import { chinaPriceBuckets, getChinaFilterByQueryKey } from "@/lib/place-china/discovery";
+import type { BusanDistrictKey } from "@/lib/busan-districts";
 import type { PlaceWithRelations } from "@/types/database";
 
 export const homeQuickFilterKeys = [
@@ -40,12 +41,20 @@ const filterConfigs: HomeQuickFilterConfig[] = [
   queryFilter("chineseMenu"),
 ];
 
-export function getHomeQuickFilters(places: PlaceWithRelations[]) {
+export function getHomeQuickFilters(places: PlaceWithRelations[], district?: BusanDistrictKey) {
   return filterConfigs.map((filter) => ({
     key: filter.key,
-    href: filter.href,
+    href: withDistrict(filter.href, district),
     enabled: filter.enabled(places),
   }));
+}
+
+function withDistrict(href: string, district?: BusanDistrictKey) {
+  if (!district) return href;
+  const [pathname, query = ""] = href.split("?");
+  const params = new URLSearchParams(query);
+  params.set("region", district);
+  return `${pathname}?${params.toString()}`;
 }
 
 function queryFilter(key: Exclude<HomeQuickFilterKey, "under10000">): HomeQuickFilterConfig {

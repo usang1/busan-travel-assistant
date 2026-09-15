@@ -73,6 +73,7 @@ assert.equal(buildLocalizedPlacesSearchHref("zh", " 咖啡 "), "/zh/places?searc
 assert.equal(buildLocalizedPlacesSearchHref("en", " cafe "), "/en/places?search=cafe");
 assert.equal(buildLocalizedPlacesSearchHref("ja", " カフェ "), "/ja/places?search=%E3%82%AB%E3%83%95%E3%82%A7");
 assert.equal(buildLocalizedPlacesSearchHref("ko", "   "), "/ko/places");
+assert.equal(buildLocalizedPlacesSearchHref("ko", " 맛집 ", "suyeong-gu"), "/ko/places?search=%EB%A7%9B%EC%A7%91&region=suyeong-gu");
 assert.equal(readPlacesSearchQuery(new URLSearchParams("search=%EC%B9%B4%ED%8E%98&category=cafe")), "카페");
 assert.equal(readPlacesSearchQuery(new URLSearchParams("q=legacy")), "legacy");
 
@@ -111,9 +112,9 @@ assert.match(nearbyExplorer, /initialSelectionAppliedRef/);
 assert.doesNotMatch(nearbyExplorer, /filteredItems\.find\([^\n]+\) \?\? filteredItems\[0\]/);
 assert.match(bottomNavigation, /key: "itinerary", href: "\/itinerary"/);
 assert.doesNotMatch(bottomNavigation, /key: "submit"/);
-assert.match(homeDiscovery, /getHomeQuickFilters\(places\)/);
+assert.match(homeDiscovery, /getHomeQuickFilters\(districtPlaces, selectedDistrict\)/);
 assert.match(homeSearchForm, /role="search"/);
-assert.match(homeSearchForm, /buildLocalizedPlacesSearchHref\(locale, query\)/);
+assert.match(homeSearchForm, /buildLocalizedPlacesSearchHref\(locale, query, region\)/);
 assert.doesNotMatch(homeSearchForm, /params\.set\("q", trimmed\)/);
 assert.match(homeSearchForm, /enterKeyHint="search"/);
 assert.match(homeSearchForm, /onCompositionStart=/);
@@ -121,6 +122,7 @@ assert.match(homeSearchForm, /nativeEvent\.isComposing/);
 assert.match(homeSearchForm, /disabled=\{isNavigating\}/);
 assert.match(placesExplorer, /readPlacesSearchQuery\(searchParams\)/);
 assert.match(placesExplorer, /nextParams\.set\("search", query\.trim\(\)\)/);
+assert.match(placesExplorer, /getBusanDistrictKey\(place\) === region/);
 assert.match(placeSearchUrlSource, /searchParams\.get\("search"\) \?\? searchParams\.get\("q"\) \?\? ""/);
 
 assert.match(travelMap, /currentLocationFocusRequest <= lastFocusedLocationRequestRef\.current/);

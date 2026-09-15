@@ -10,7 +10,7 @@ assert.match(publicCache, /persistSession:\s*false/);
 assert.doesNotMatch(publicCache, /cookies\(|headers\(/);
 
 for (const file of [
-  "app/[locale]/page.tsx",
+  "app/[locale]/busan/page.tsx",
   "app/[locale]/places/page.tsx",
   "app/[locale]/nearby/page.tsx",
   "app/[locale]/places/[slug]/page.tsx",
@@ -19,6 +19,10 @@ for (const file of [
   assert.doesNotMatch(source, /force-dynamic/, `${file} should not force public pages to be uncached`);
   assert.match(source, /publicPageRevalidateSeconds|getCachedPublic/, `${file} should use the public cache boundary`);
 }
+
+const cityHomePage = fs.readFileSync("app/[locale]/page.tsx", "utf8");
+assert.doesNotMatch(cityHomePage, /force-dynamic/);
+assert.doesNotMatch(cityHomePage, /getCachedPublic/, "the city-only home page should not fetch place data");
 
 for (const file of [
   "app/[locale]/itinerary/page.tsx",

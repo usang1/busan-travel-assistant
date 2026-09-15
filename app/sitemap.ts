@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const routes = [
   "/",
+  "/busan",
   "/places",
   "/nearby",
   "/translator",

@@ -11,6 +11,7 @@ import { TagChip } from "@/components/TagChip";
 import { TravelerInsightsEditor } from "@/components/TravelerInsightsEditor";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
+import { buildBusanDistrictTags, busanDistrictOptions, getBusanDistrictKey, inferBusanDistrictKey, isBusanDistrictTagSlug, type BusanDistrictKey } from "@/lib/busan-districts";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { buildHomeIntentTags, getHomeIntentKeysFromTags, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
@@ -81,6 +82,7 @@ type FormState = {
   name_ja: string;
   name_ko: string;
   category: PlaceCategory | "";
+  busan_district: BusanDistrictKey | "";
   short_description_zh: string;
   short_description_en: string;
   short_description_ja: string;
@@ -289,6 +291,7 @@ function createEmptyForm(): FormState {
     name_ja: "",
     name_ko: "",
     category: "",
+    busan_district: "",
     short_description_zh: "",
     short_description_en: "",
     short_description_ja: "",
@@ -386,6 +389,7 @@ function toForm(place: PlaceWithRelations): FormState {
     name_ja: unifiedName,
     name_ko: unifiedName,
     category: place.category,
+    busan_district: getBusanDistrictKey(place) ?? "",
     short_description_zh: place.short_description_zh,
     short_description_en: en?.description ?? "",
     short_description_ja: ja?.description ?? "",
@@ -425,7 +429,7 @@ function toForm(place: PlaceWithRelations): FormState {
     last_verified_at: place.last_verified_at?.slice(0, 10) ?? "",
     is_featured: place.is_featured,
     is_active: isPublicPlace(place),
-    tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
+    tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isBusanDistrictTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
     home_intent_keys: getHomeIntentKeysFromTags(place.tags),
     menu_items: place.menu_items.map((item) => ({
       name_ko: item.name_ko,
@@ -626,7 +630,8 @@ function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPaylo
 
 function toPayload(form: FormState): PlacePayload {
   const unifiedName = unifiedPlaceName(form);
-  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys)];
+  const district = form.busan_district || inferBusanDistrictKey(form.address_ko) || "";
+  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys), ...buildBusanDistrictTags(district)];
   const chinaInfo = toChinaInfoPayload(form.china_info);
 
   return {
@@ -2045,6 +2050,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <select value={form.category} onChange={(event) => updateField("category", event.target.value as PlaceCategory)} className={inputClass}>
                   <option value="">선택 필요</option>
                   {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
+                </select>
+              </Field>
+              <Field label="부산 구·군">
+                <select value={form.busan_district} onChange={(event) => updateField("busan_district", event.target.value as BusanDistrictKey | "")} className={inputClass}>
+                  <option value="">주소에서 자동 인식</option>
+                  {busanDistrictOptions.map((district) => <option key={district.key} value={district.key}>{district.labels.ko}</option>)}
                 </select>
               </Field>
               <div className="sm:col-span-2">

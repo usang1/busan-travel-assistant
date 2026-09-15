@@ -4,13 +4,15 @@ import { useRef, useState, useTransition, type FormEvent, type KeyboardEvent } f
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type Locale, ui } from "@/lib/i18n";
+import type { BusanDistrictKey } from "@/lib/busan-districts";
 import { buildLocalizedPlacesSearchHref } from "@/lib/place-search-url";
 
 type HomeSearchFormProps = {
   locale: Locale;
+  region?: BusanDistrictKey;
 };
 
-export function HomeSearchForm({ locale }: HomeSearchFormProps) {
+export function HomeSearchForm({ locale, region }: HomeSearchFormProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,7 +29,7 @@ export function HomeSearchForm({ locale }: HomeSearchFormProps) {
       return;
     }
 
-    const href = buildLocalizedPlacesSearchHref(locale, query);
+    const href = buildLocalizedPlacesSearchHref(locale, query, region);
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PlacesExplorer } from "@/components/PlacesExplorer";
 import { SectionTitle } from "@/components/SectionTitle";
 import { absoluteUrl } from "@/config/site";
+import { getBusanDistrictLabel, isBusanDistrictKey } from "@/lib/busan-districts";
 import { getCachedPlaceRankings, getCachedPublicPlaces } from "@/lib/public-cache";
 import { placeCategories, type PlaceCategory } from "@/types/database";
 
@@ -30,7 +31,7 @@ type PlacesPageProps = {
 export default async function PlacesPage({ searchParams }: PlacesPageProps) {
   const params = await searchParams;
   const rankingCategory = parseRankingCategory(params?.category);
-  const rankingRegion = params?.region && params.region !== "all" ? params.region : undefined;
+  const rankingRegion = isBusanDistrictKey(params?.region) ? getBusanDistrictLabel(params.region, "ko") : undefined;
   const [{ places, source, error }, rankings] = await Promise.all([
     getCachedPublicPlaces("zh"),
     getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
