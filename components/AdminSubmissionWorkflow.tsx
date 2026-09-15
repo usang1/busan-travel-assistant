@@ -7,6 +7,7 @@ import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
+import { buildHomeIntentTags, homeIntentTagOptions, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
@@ -97,6 +98,7 @@ type PublishForm = {
   card_payment: boolean;
   is_active: boolean;
   tags_text: string;
+  home_intent_keys: HomeIntentKey[];
 };
 
 const statuses: SubmissionStatus[] = ["pending", "reviewing", "approved", "rejected", "duplicate"];
@@ -209,6 +211,27 @@ function createPrimaryMenuDraft(): PublishMenuDraft {
 
 function getPrimaryMenuDraft(form: Pick<PublishForm, "menu_items">) {
   return form.menu_items.find((item) => item.is_recommended) ?? form.menu_items[0] ?? createPrimaryMenuDraft();
+}
+
+function mergePublishMenuDrafts(current: PublishMenuDraft[], incoming: PublishMenuDraft[]) {
+  const merged = current.filter((item) => item.name_ko.trim() || item.price !== null);
+
+  for (const item of incoming) {
+    const existingIndex = merged.findIndex((candidate) => candidate.name_ko.trim().toLowerCase() === item.name_ko.trim().toLowerCase());
+
+    if (existingIndex >= 0) {
+      const existing = merged[existingIndex];
+      merged[existingIndex] = {
+        ...existing,
+        price: existing.price ?? item.price,
+        is_recommended: existing.is_recommended || item.is_recommended,
+      };
+    } else {
+      merged.push(item);
+    }
+  }
+
+  return merged;
 }
 
 function upsertPrimaryMenuDraft(items: PublishMenuDraft[], patch: Partial<PublishMenuDraft>) {
@@ -372,6 +395,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     card_payment: false,
     is_active: true,
     tags_text: "",
+    home_intent_keys: [],
   };
 }
 
@@ -467,7 +491,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     thumbnail_url: form.thumbnail_url.trim(),
     is_featured: false,
     is_active: form.status === publishedPlaceStatus,
-    tags: parseTagsText(form.tags_text, category),
+    tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys)],
     menu_items: form.menu_items.map((item, index) => ({
       name_ko: item.name_ko,
       name_zh: item.name_ko,
@@ -493,15 +517,14 @@ function buildPayload(form: PublishForm): PlacePayload {
 
 function applyProviderFactsToPublishForm(form: PublishForm, place: NormalizedPlace): PublishForm {
   const enriched = enrichPlaceForm(form, place);
+  const incomingMenu = (place.menu ?? []).map((item) => ({
+    name_ko: item.name,
+    price: item.price ?? null,
+    is_recommended: item.role === "signature" || item.role === "popular",
+  }));
   return withUnifiedPlaceName({
     ...enriched,
-    menu_items: form.menu_items.length || !place.menu?.length
-      ? form.menu_items
-      : place.menu.map((item) => ({
-          name_ko: item.name,
-          price: item.price ?? null,
-          is_recommended: item.role === "signature" || item.role === "popular",
-        })),
+    menu_items: mergePublishMenuDrafts(form.menu_items, incomingMenu),
     recommended_order_ko: form.recommended_order_ko || place.recommendedOrder?.join(" · ") || "",
   }, unifiedPlaceName(enriched) || place.name || "");
 }
@@ -1600,6 +1623,15 @@ function PublishFormView({
     onFieldChange("provider", nextMapLinkState.provider);
   }
 
+  function toggleHomeIntent(key: HomeIntentKey, checked: boolean) {
+    onFieldChange(
+      "home_intent_keys",
+      checked
+        ? Array.from(new Set([...form.home_intent_keys, key]))
+        : form.home_intent_keys.filter((item) => item !== key),
+    );
+  }
+
   return (
     <section className="rounded-[24px] bg-white p-4 ring-1 ring-slate-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1649,14 +1681,17 @@ function PublishFormView({
             </select>
           </Field>
           <div className="sm:col-span-2">
-            <Field label="태그">
-              <textarea
-                value={form.tags_text}
-                onChange={(event) => onFieldChange("tags_text", event.target.value)}
-                className={textareaClass}
-                placeholder={"광안리 처음\n밤 10시 이후"}
-              />
-            </Field>
+            <p className="mb-2 text-sm font-bold text-slate-700">홈 카테고리</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {homeIntentTagOptions.map((option) => (
+                <CheckField
+                  key={option.key}
+                  label={option.label_ko}
+                  checked={form.home_intent_keys.includes(option.key)}
+                  onChange={(checked) => toggleHomeIntent(option.key, checked)}
+                />
+              ))}
+            </div>
           </div>
           {isFoodPlace ? (
             <>

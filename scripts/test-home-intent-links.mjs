@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 
 const source = readFileSync(new URL("../lib/home-intent-links.ts", import.meta.url), "utf8");
+const tagSource = readFileSync(new URL("../lib/home-intent-tags.ts", import.meta.url), "utf8");
 const homeDiscoverySource = readFileSync(new URL("../components/HomeDiscoveryPage.tsx", import.meta.url), "utf8");
 const guideExplorerSource = readFileSync(new URL("../components/GuideExplorer.tsx", import.meta.url), "utf8");
 const guideCopySource = readFileSync(new URL("../lib/guide-copy.ts", import.meta.url), "utf8");
@@ -15,8 +16,20 @@ const output = ts.transpileModule(source, {
   },
 }).outputText;
 const module = { exports: {} };
+const tagOutput = ts.transpileModule(tagSource, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+    verbatimModuleSyntax: false,
+  },
+}).outputText;
+const tagModule = { exports: {} };
+new Function("module", "exports", "require", tagOutput)(tagModule, tagModule.exports, () => {
+  throw new Error("home-intent-tags.ts must not have runtime imports");
+});
 
 new Function("module", "exports", "require", output)(module, module.exports, (specifier) => {
+  if (specifier === "@/lib/home-intent-tags") return tagModule.exports;
   if (specifier === "@/lib/i18n") {
     return {
       withLocale(path, locale) {
@@ -52,6 +65,7 @@ new Function("module", "exports", "require", output)(module, module.exports, (sp
 });
 
 const { homeIntentCards, resolveHomeIntentCards } = module.exports;
+const { buildHomeIntentTags, getHomeIntentKeysFromTags, homeIntentTagOptions } = tagModule.exports;
 
 function guide(overrides) {
   return {
@@ -151,6 +165,17 @@ const tagMatchedPlace = resolveHomeIntentCards({
 });
 assert.equal(byKey(tagMatchedPlace, "firstGwangalli").destination, "places");
 assert.equal(byKey(tagMatchedPlace, "firstGwangalli").href, "/ko/places?search=%EA%B4%91%EC%95%88%EB%A6%AC%20%EC%B2%98%EC%9D%8C");
+
+const mappedIntentTags = buildHomeIntentTags(["firstGwangalli", "lateNight"]);
+assert.deepEqual([...getHomeIntentKeysFromTags(mappedIntentTags)], ["firstGwangalli", "lateNight"]);
+assert.equal(homeIntentTagOptions.length, 6);
+const mappedIntentPlace = resolveHomeIntentCards({
+  locale: "ko",
+  guides: [guide({ slug: "night-guide", title_ko: "밤 10시 이후 가이드" })],
+  places: [place({ id: "mapped-night", category: "restaurant", tags: buildHomeIntentTags(["lateNight"]) })],
+});
+assert.equal(byKey(mappedIntentPlace, "lateNight").destination, "places");
+assert.equal(byKey(mappedIntentPlace, "lateNight").href, "/ko/places?intent=lateNight");
 
 const noContent = resolveHomeIntentCards({ locale: "zh", guides: [], places: [] });
 assert.equal(noContent.every((card) => card.destination === "pending" && card.href === null), true);

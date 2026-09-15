@@ -24,18 +24,22 @@ export async function POST(request: Request) {
     const resolution = await resolveMapUrlCached(inputUrl);
     const providerDraft = createPlaceDraft(resolution.normalizedPlace);
     const missingFields = getMissingPlaceFields(providerDraft);
+    const forcedWebSearchFields: PlaceDraftField[] = ["menu", "recommendedOrder", "priceRange"];
+    const webSearchFields = forceWebSearch
+      ? Array.from(new Set([...missingFields, ...forcedWebSearchFields]))
+      : missingFields;
     let normalizedPlace = mergePlaceData(resolution.normalizedPlace, null).normalizedPlace;
     let webSearch: PlaceWebSearchResult | null = null;
     let webSearchError = "";
     let webSearchAcceptedFields: PlaceDraftField[] = [];
     let webSearchNeedsReviewFields: PlaceDraftField[] = [];
 
-    if (missingFields.length > 0 && process.env.OPENAI_API_KEY?.trim()) {
+    if (webSearchFields.length > 0 && process.env.OPENAI_API_KEY?.trim()) {
       try {
         webSearch = forceWebSearch
-          ? await searchMissingPlaceData(providerDraft, missingFields, searchHints)
-          : await searchMissingPlaceDataCached(providerDraft, missingFields, searchHints);
-        const mergeResult = mergePlaceData(normalizedPlace, webSearch.data);
+          ? await searchMissingPlaceData(providerDraft, webSearchFields, searchHints)
+          : await searchMissingPlaceDataCached(providerDraft, webSearchFields, searchHints);
+        const mergeResult = mergePlaceData(normalizedPlace, webSearch.data, forceWebSearch ? forcedWebSearchFields : []);
         normalizedPlace = mergeResult.normalizedPlace;
         webSearchAcceptedFields = mergeResult.acceptedFields;
         webSearchNeedsReviewFields = mergeResult.needsReviewFields;
@@ -71,7 +75,7 @@ export async function POST(request: Request) {
           ? webSearchAcceptedFields.length
             ? `Web Search에서 ${webSearchAcceptedFields.join(", ")} 정보를 보완했습니다.`
             : "Web Search를 실행했지만 추가로 확인된 정보가 없습니다."
-          : missingFields.length > 0 && !process.env.OPENAI_API_KEY?.trim()
+          : webSearchFields.length > 0 && !process.env.OPENAI_API_KEY?.trim()
             ? "OPENAI_API_KEY가 없어 Web Search 보완을 실행하지 않았습니다."
             : "";
     const providerLookup = {

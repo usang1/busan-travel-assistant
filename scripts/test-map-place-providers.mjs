@@ -293,6 +293,20 @@ const providerConflict = placeDraft.mergePlaceData(sparseProviderPlace, {
 });
 assert.equal(providerConflict.normalizedPlace.phone, "051-111-1111");
 
+const forcedMenuRefresh = placeDraft.mergePlaceData({
+  ...sparseProviderPlace,
+  menu: [{ name: "Provider 메뉴", price: 10000 }],
+  priceRange: { min: 10000, max: 10000, currency: "KRW" },
+}, {
+  menu: { value: [{ name: "웹검색 대표 메뉴", price: 18000, role: "signature" }], confidence: 0.95, sourceUrls: ["https://official.example/menu"] },
+  priceRange: { value: { min: 18000, max: 25000, approximate: false }, confidence: 0.95, sourceUrls: ["https://official.example/menu"] },
+  sources: [{ title: "공식 메뉴", url: "https://official.example/menu", type: "OFFICIAL" }],
+}, ["menu", "priceRange"]);
+assert.equal(forcedMenuRefresh.normalizedPlace.menu[0].name, "웹검색 대표 메뉴");
+assert.equal(forcedMenuRefresh.normalizedPlace.menu[0].price, 18000);
+assert.equal(forcedMenuRefresh.normalizedPlace.priceMin, 18000);
+assert.deepEqual([...forcedMenuRefresh.acceptedFields], ["menu", "priceRange"]);
+
 const unsupportedSearchFact = placeDraft.mergePlaceData(sparseProviderPlace, {
   description: { value: "근거 없는 설명", confidence: 0.99, sourceUrls: [] },
   sources: [],
@@ -914,7 +928,8 @@ assert.match(mapLinkRouteSource, /generatePlaceAiContent/);
 assert.match(mapLinkRouteSource, /locale_targets: \["ko"\]/);
 assert.match(mapLinkRouteSource, /koreanContentError/);
 assert.match(mapLinkRouteSource, /Promise\.allSettled\(\[summaryPromise, koreanContentPromise\]\)/);
-assert.match(mapLinkRouteSource, /forceWebSearch[\s\S]*searchMissingPlaceData\(providerDraft, missingFields, searchHints\)/);
+assert.match(mapLinkRouteSource, /forcedWebSearchFields:[\s\S]*\["menu", "recommendedOrder", "priceRange"\]/);
+assert.match(mapLinkRouteSource, /searchMissingPlaceData\(providerDraft, webSearchFields, searchHints\)/);
 assert.equal(webSearchRequest.text.format.schema.properties.menu.properties.value.items.properties.role.enum.includes("popular"), true);
 assert.ok(webSearchRequest.text.format.schema.properties.recommendedOrder);
 assert.ok(webSearchRequest.text.format.schema.properties.matchedPlace);

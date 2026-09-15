@@ -11,6 +11,7 @@ import { TravelerInsightsEditor } from "@/components/TravelerInsightsEditor";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
+import { buildHomeIntentTags, getHomeIntentKeysFromTags, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import {
   buildChinaPlaceSummary,
@@ -119,6 +120,7 @@ type FormState = {
   is_featured: boolean;
   is_active: boolean;
   tags_text: string;
+  home_intent_keys: HomeIntentKey[];
   menu_items: MenuDraft[];
   china_info: ChinaInfoForm;
 };
@@ -326,6 +328,7 @@ function createEmptyForm(): FormState {
     is_featured: false,
     is_active: true,
     tags_text: "",
+    home_intent_keys: [],
     menu_items: [],
     china_info: createEmptyChinaInfo(),
   };
@@ -421,7 +424,8 @@ function toForm(place: PlaceWithRelations): FormState {
     last_verified_at: place.last_verified_at?.slice(0, 10) ?? "",
     is_featured: place.is_featured,
     is_active: isPublicPlace(place),
-    tags_text: place.tags.map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
+    tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
+    home_intent_keys: getHomeIntentKeysFromTags(place.tags),
     menu_items: place.menu_items.map((item) => ({
       name_ko: item.name_ko,
       name_zh: item.name_zh,
@@ -487,6 +491,27 @@ function createPrimaryMenuDraft(sortOrder = "1"): MenuDraft {
 
 function getPrimaryMenuDraft(form: Pick<FormState, "menu_items">) {
   return form.menu_items.find((item) => item.is_recommended) ?? form.menu_items[0] ?? createPrimaryMenuDraft();
+}
+
+function mergeMenuDrafts(current: MenuDraft[], incoming: MenuDraft[]) {
+  const merged = current.filter((item) => item.name_ko.trim() || item.name_zh.trim() || item.price.trim());
+
+  for (const item of incoming) {
+    const existingIndex = merged.findIndex((candidate) => candidate.name_ko.trim().toLowerCase() === item.name_ko.trim().toLowerCase());
+
+    if (existingIndex >= 0) {
+      const existing = merged[existingIndex];
+      merged[existingIndex] = {
+        ...existing,
+        price: existing.price.trim() || item.price,
+        is_recommended: existing.is_recommended || item.is_recommended,
+      };
+    } else {
+      merged.push({ ...item, sort_order: String(merged.length + 1) });
+    }
+  }
+
+  return merged;
 }
 
 function upsertPrimaryMenuDraft(items: MenuDraft[], patch: Partial<MenuDraft>) {
@@ -600,7 +625,7 @@ function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPaylo
 
 function toPayload(form: FormState): PlacePayload {
   const unifiedName = unifiedPlaceName(form);
-  const tags = parseTagsText(form.tags_text);
+  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys)];
   const chinaInfo = toChinaInfoPayload(form.china_info);
 
   return {
@@ -694,21 +719,20 @@ function toPayload(form: FormState): PlacePayload {
 function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): FormState {
   const enriched = enrichPlaceForm({ ...form, provider: form.source_provider }, place);
   const { provider, ...nextForm } = enriched;
+  const incomingMenu = (place.menu ?? []).map((item, index) => ({
+    name_ko: item.name,
+    name_zh: item.name,
+    description_zh: "",
+    price: item.price === undefined ? "" : String(item.price),
+    is_recommended: item.role === "signature" || item.role === "popular",
+    sort_order: String(index + 1),
+  }));
 
   return withUnifiedPlaceName({
     ...nextForm,
     source_provider: provider,
     recommended_order_ko: nextForm.recommended_order_ko || place.recommendedOrder?.join(" · ") || "",
-    menu_items: nextForm.menu_items.length || !place.menu?.length
-      ? nextForm.menu_items
-      : place.menu.map((item, index) => ({
-          name_ko: item.name,
-          name_zh: item.name,
-          description_zh: "",
-          price: item.price === undefined ? "" : String(item.price),
-          is_recommended: item.role === "signature" || item.role === "popular",
-          sort_order: String(index + 1),
-        })),
+    menu_items: mergeMenuDrafts(nextForm.menu_items, incomingMenu),
     china_info: {
       ...form.china_info,
       toilet_available: fillUnknownTristate(form.china_info.toilet_available, place.amenities?.restroom),
@@ -1375,6 +1399,15 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }));
   }
 
+  function toggleHomeIntent(key: HomeIntentKey, checked: boolean) {
+    setForm((current) => ({
+      ...current,
+      home_intent_keys: checked
+        ? Array.from(new Set([...current.home_intent_keys, key]))
+        : current.home_intent_keys.filter((item) => item !== key),
+    }));
+  }
+
   function resetChinaInfoToUnknown() {
     setForm((current) => ({
       ...current,
@@ -2014,14 +2047,17 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 </select>
               </Field>
               <div className="sm:col-span-2">
-                <Field label="태그">
-                  <textarea
-                    value={form.tags_text}
-                    onChange={(event) => updateField("tags_text", event.target.value)}
-                    className={textareaClass}
-                    placeholder={"광안리 처음\n밤 10시 이후"}
-                  />
-                </Field>
+                <p className="mb-1.5 text-sm font-semibold text-slate-700">홈 카테고리</p>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {homeIntentTagOptions.map((option) => (
+                    <CheckField
+                      key={option.key}
+                      label={option.label_ko}
+                      checked={form.home_intent_keys.includes(option.key)}
+                      onChange={(checked) => toggleHomeIntent(option.key, checked)}
+                    />
+                  ))}
+                </div>
               </div>
               {isFoodPlace ? (
                 <>

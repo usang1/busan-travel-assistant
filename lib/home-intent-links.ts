@@ -1,10 +1,11 @@
 import { getChinaFilterByQueryKey } from "@/lib/place-china/discovery";
 import { isPublicPlace } from "@/lib/place-publishing";
 import { type Locale, withLocale } from "@/lib/i18n";
+import { getHomeIntentKeysFromTags, type HomeIntentKey } from "@/lib/home-intent-tags";
 import type { PlaceWithRelations } from "@/types/database";
 import type { Guide } from "@/types/guide";
 
-export type HomeIntentKey = "firstGwangalli" | "food" | "rainyDay" | "solo" | "lateNight" | "luggage";
+export type { HomeIntentKey } from "@/lib/home-intent-tags";
 
 type HomeIntentCopy = {
   key: HomeIntentKey;
@@ -81,6 +82,16 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
   const publicPlaces = places.filter(isPublicPlace);
 
   return homeIntentCards[locale].map((card) => {
+    const hasMappedPlace = publicPlaces.some((place) => getHomeIntentKeysFromTags(place.tags).includes(card.key));
+
+    if (hasMappedPlace) {
+      return {
+        ...card,
+        destination: "places",
+        href: withLocale(`/places?intent=${card.key}`, locale),
+      };
+    }
+
     const matchedGuide = findGuideByTerms(publicGuides, locale, card.terms);
 
     if (matchedGuide) {
@@ -93,7 +104,7 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
 
     const target = placeTargets[card.key];
     const hasStructuredMatch = target.hasMatch(publicPlaces);
-    const hasTagMatch = publicPlaces.some((place) => placeMatchesIntentTag(place, card));
+    const hasTagMatch = publicPlaces.some((place) => placeMatchesLegacyIntentTag(place, card));
 
     if (hasStructuredMatch || hasTagMatch) {
       return {
@@ -111,7 +122,7 @@ export function resolveHomeIntentCards({ guides, places, locale }: ResolveHomeIn
   });
 }
 
-function placeMatchesIntentTag(place: PlaceWithRelations, card: HomeIntentCopy) {
+function placeMatchesLegacyIntentTag(place: PlaceWithRelations, card: HomeIntentCopy) {
   const tagText = (place.tags ?? [])
     .map((tag) => `${tag.label_zh} ${tag.label_ko} ${tag.slug}`)
     .join(" ")

@@ -38,8 +38,9 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
   for (const label of ["대표 메뉴", "대표 메뉴 가격", "웨이팅"]) {
     assert.match(source, new RegExp(`label="${label}"`), `admin forms must expose ${label} in the primary form`);
   }
-  assert.match(source, /label="태그"/, "admin forms must expose tags in the primary form");
-  assert.match(source, /placeholder=\{"광안리 처음\\n밤 10시 이후"\}/, "admin tag input must accept simple Korean lines");
+  assert.match(source, /홈 카테고리/, "admin forms must expose home category mappings in the primary form");
+  assert.match(source, /homeIntentTagOptions\.map/, "admin home categories must be checkbox options");
+  assert.doesNotMatch(source, /placeholder=\{"광안리 처음\\n밤 10시 이후"\}/, "admin forms must not use natural-language tag entry for home categories");
   for (const label of ["중국어 장소명", "영어 장소명", "일본어 장소명", "중국어명", "영어명", "일본어명"]) {
     assert.doesNotMatch(source, new RegExp(`label="${label}"`), `admin forms must not require a separate ${label} field`);
   }
@@ -47,13 +48,15 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
 assert.match(placeManagerSource, /status: "PUBLISHED"/, "new admin places should default to public");
 assert.match(placeManagerSource, /is_active: true/, "new admin places should default to active");
 assert.match(placeManagerSource, /name_zh: unifiedName/, "place payload must reuse the Korean place name for the zh name field");
-assert.match(placeManagerSource, /function parseTagsText\(tagsText: string\)/, "place manager must parse simple Korean tag lines");
+assert.match(placeManagerSource, /buildHomeIntentTags\(form\.home_intent_keys\)/, "place manager must persist selected home category mappings");
 assert.match(placeManagerSource, /name_en: name/, "admin translation state must keep the en place name unified");
 assert.match(placeManagerSource, /function needsAutoTranslation\(form: FormState\)/, "place manager must detect Korean fields that need automatic GPT translation");
 assert.match(placeManagerSource, /const translated = await autoTranslateBeforeSave\(formToSave\);[\s\S]*const payload = toPayload\(formToSave\);/, "place manager must translate Korean inputs before building the save payload");
 assert.match(submissionWorkflowSource, /name_zh: name/, "submission publishing must reuse the Korean place name for the zh name field");
 assert.match(submissionWorkflowSource, /status: "PUBLISHED"/, "submission publishing should default to public");
-assert.match(submissionWorkflowSource, /tags: parseTagsText\(form\.tags_text, category\)/, "submission publishing must persist admin-entered tags");
+assert.match(submissionWorkflowSource, /buildHomeIntentTags\(form\.home_intent_keys\)/, "submission publishing must persist selected home category mappings");
+assert.match(submissionWorkflowSource, /mergePublishMenuDrafts\(form\.menu_items, incomingMenu\)/, "submission web enrichment must merge all discovered menus");
+assert.match(placeManagerSource, /mergeMenuDrafts\(nextForm\.menu_items, incomingMenu\)/, "place manager web enrichment must merge all discovered menus");
 assert.match(submissionWorkflowSource, /china_info: chinaInfo/, "submission publishing must persist waiting info through china_info");
 assert.match(submissionWorkflowSource, /function needsAutoTranslation\(form: PublishForm\)/, "submission publishing must detect Korean fields that need automatic GPT translation");
 assert.match(submissionWorkflowSource, /const translated = await autoTranslateBeforePublish\(formToPublish\);[\s\S]*const payload = buildPayload\(formToPublish\);/, "submission publishing must translate Korean inputs before building the publish payload");

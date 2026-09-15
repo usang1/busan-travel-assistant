@@ -162,12 +162,15 @@ export function getMissingPlaceFields(placeDraft: PlaceDraft): PlaceDraftField[]
 export function mergePlaceData(
   providerData: NormalizedPlace,
   webSearchData?: WebSearchEnrichmentData | null,
+  replaceFields: PlaceDraftField[] = [],
 ): PlaceDraftMergeResult {
   const draft = createPlaceDraft(providerData);
   const acceptedFields: PlaceDraftField[] = [];
   const needsReviewFields: PlaceDraftField[] = [];
 
-  for (const field of getMissingPlaceFields(draft)) {
+  const fieldsToMerge = Array.from(new Set([...getMissingPlaceFields(draft), ...replaceFields]));
+
+  for (const field of fieldsToMerge) {
     const candidate = webSearchData?.[field];
     if (!candidate || candidate.value === null || candidate.value === undefined) continue;
 

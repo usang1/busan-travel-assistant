@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
 import { readPlacesSearchQuery } from "@/lib/place-search-url";
+import { getHomeIntentKeyFromSlug, getHomeIntentLabel, isHomeIntentKey, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { getPlaceCategoryLabel } from "@/lib/place-trust";
 import { categoryLabels, type PlaceCategory, type PlaceRankingCollection, type PlaceWithRelations } from "@/types/database";
 
@@ -65,6 +66,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const [priceBucket, setPriceBucket] = useState<ChinaPriceBucket>(() => readPriceBucket(searchParams));
   const [activeChinaFilters, setActiveChinaFilters] = useState<ChinaDiscoveryFilter[]>(() => readChinaFilters(searchParams));
   const [sortMode, setSortMode] = useState<SortMode>(() => readSortMode(searchParams));
+  const [homeIntent, setHomeIntent] = useState<HomeIntentKey | null>(() => readHomeIntent(searchParams));
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
   const copy = ui[locale];
@@ -90,6 +92,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     if (region !== "all") nextParams.set("region", region);
     if (priceBucket !== "all") nextParams.set("price", priceBucket);
     if (sortMode !== "chinaRecommended") nextParams.set("sort", sortMode);
+    if (homeIntent) nextParams.set("intent", homeIntent);
 
     if (showChinaFilters) {
       activeChinaFilters.forEach((filterKey) => {
@@ -107,7 +110,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     if (nextQuery !== currentQuery) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     }
-  }, [activeChinaFilters, category, pathname, priceBucket, query, region, router, searchParams, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, category, homeIntent, pathname, priceBucket, query, region, router, searchParams, showChinaFilters, sortMode]);
 
   const enrichedPlaces = useMemo(() => {
     const origin = userLocation ?? gwangalliCenter;
@@ -136,12 +139,13 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
         const regionMatch = region === "all" || getRegionKey(place) === region;
         const searchMatch = lowered.length === 0 || buildSearchText(place, locale).includes(lowered);
         const chinaMatch = chinaFilteredPlaces.has(place.id);
+        const intentMatch = !homeIntent || place.tags.some((tag) => getHomeIntentKeyFromSlug(tag.slug) === homeIntent);
 
-        return categoryMatch && regionMatch && searchMatch && chinaMatch;
+        return categoryMatch && regionMatch && searchMatch && chinaMatch && intentMatch;
       });
 
     return sortPlacesForChineseTraveler(filtered, sortMode);
-  }, [activeChinaFilters, category, enrichedPlaces, locale, priceBucket, query, region, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, category, enrichedPlaces, homeIntent, locale, priceBucket, query, region, showChinaFilters, sortMode]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") {
@@ -158,12 +162,13 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
         priceBucket,
         chinaFilters: showChinaFilters ? activeChinaFilters : [],
         sortMode,
+        homeIntent,
       },
       rawPlacesCount: places.length,
       finalFilteredCount: filteredPlaces.length,
       loadError: loadError ?? null,
     });
-  }, [activeChinaFilters, category, filteredPlaces.length, loadError, locale, places.length, priceBucket, query, region, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, category, filteredPlaces.length, homeIntent, loadError, locale, places.length, priceBucket, query, region, showChinaFilters, sortMode]);
 
   function toggleChinaFilter(filter: ChinaDiscoveryFilter) {
     setActiveChinaFilters((current) =>
@@ -178,6 +183,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     setPriceBucket("all");
     setActiveChinaFilters([]);
     setSortMode("chinaRecommended");
+    setHomeIntent(null);
   }
 
   function requestLocation() {
@@ -308,11 +314,12 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
         ) : null}
 
         <div className="flex flex-wrap gap-2">
+          {homeIntent ? <TagChip tone="green">{getHomeIntentLabel(homeIntent, locale)}</TagChip> : null}
           <button type="button" onClick={requestLocation} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-black text-blue-700 ring-1 ring-blue-100">
             <LocateFixed size={14} aria-hidden="true" />
             {explorerCopy.distanceSort}
           </button>
-          {activeFilterCount > 0 || query || category !== "all" || region !== "all" ? (
+          {activeFilterCount > 0 || query || category !== "all" || region !== "all" || homeIntent ? (
             <button type="button" onClick={clearFilters} className="rounded-full bg-slate-950 px-3 py-1.5 text-sm font-black text-white">
               {explorerCopy.clearFilters}
             </button>
@@ -562,4 +569,9 @@ function readSortMode(searchParams: URLSearchParams): SortMode {
   const value = searchParams.get("sort");
 
   return value === "saved" || value === "distance" || value === "lowWait" ? value : "chinaRecommended";
+}
+
+function readHomeIntent(searchParams: URLSearchParams): HomeIntentKey | null {
+  const value = searchParams.get("intent");
+  return isHomeIntentKey(value) ? value : null;
 }
