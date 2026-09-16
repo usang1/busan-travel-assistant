@@ -14,6 +14,7 @@ import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-ur
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
+import { buildChinaDiscoveryTags, chinaDiscoveryTagOptions, getChinaDiscoveryKeysFromTags, isChinaDiscoveryTagSlug, type ChinaDiscoveryTagKey } from "@/lib/place-china/discovery";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { isPublicPlace, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
@@ -103,6 +104,7 @@ type PublishForm = {
   is_active: boolean;
   tags_text: string;
   home_intent_keys: HomeIntentKey[];
+  china_discovery_keys: ChinaDiscoveryTagKey[];
 };
 
 const statuses: SubmissionStatus[] = ["pending", "reviewing", "approved", "rejected", "duplicate"];
@@ -401,6 +403,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     is_active: true,
     tags_text: "",
     home_intent_keys: [],
+    china_discovery_keys: [],
   };
 }
 
@@ -485,10 +488,11 @@ function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRe
     card_payment: place.card_payment || chinaInfo?.foreign_card === "yes",
     is_active: isPublicPlace(place),
     tags_text: place.tags
-      .filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isBusanDistrictTagSlug(tag.slug))
+      .filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isBusanDistrictTagSlug(tag.slug) && !isChinaDiscoveryTagSlug(tag.slug))
       .map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`)
       .join("\n"),
     home_intent_keys: getHomeIntentKeysFromTags(place.tags),
+    china_discovery_keys: getChinaDiscoveryKeysFromTags(place.tags),
   };
 }
 
@@ -606,7 +610,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     thumbnail_url: form.thumbnail_url.trim(),
     is_featured: false,
     is_active: form.status === publishedPlaceStatus,
-    tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildBusanDistrictTags(district)],
+    tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildBusanDistrictTags(district)],
     menu_items: form.menu_items.map((item, index) => ({
       name_ko: item.name_ko,
       name_zh: item.name_ko,
@@ -1759,6 +1763,15 @@ function PublishFormView({
     );
   }
 
+  function toggleChinaDiscoveryTag(key: ChinaDiscoveryTagKey, checked: boolean) {
+    onFieldChange(
+      "china_discovery_keys",
+      checked
+        ? Array.from(new Set([...form.china_discovery_keys, key]))
+        : form.china_discovery_keys.filter((item) => item !== key),
+    );
+  }
+
   return (
     <section className="rounded-[24px] bg-white p-4 ring-1 ring-slate-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1822,6 +1835,19 @@ function PublishFormView({
                   label={getHomeIntentLabel(option.key, "ko", homeIntentDistrictLabel)}
                   checked={form.home_intent_keys.includes(option.key)}
                   onChange={(checked) => toggleHomeIntent(option.key, checked)}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-sm font-bold text-slate-700">상황 필터 태그</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {chinaDiscoveryTagOptions.map((option) => (
+                <CheckField
+                  key={option.key}
+                  label={option.labels.ko}
+                  checked={form.china_discovery_keys.includes(option.key)}
+                  onChange={(checked) => toggleChinaDiscoveryTag(option.key, checked)}
                 />
               ))}
             </div>

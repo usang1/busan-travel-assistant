@@ -11,6 +11,7 @@ const travelMap = readFileSync(new URL("../components/TravelMap.tsx", import.met
 const locationSource = readFileSync(new URL("../lib/location.ts", import.meta.url), "utf8");
 const directionsSource = readFileSync(new URL("../lib/directions.ts", import.meta.url), "utf8");
 const placeSearchUrlSource = readFileSync(new URL("../lib/place-search-url.ts", import.meta.url), "utf8");
+const chinaDiscoverySource = readFileSync(new URL("../lib/place-china/discovery.ts", import.meta.url), "utf8");
 
 const compiledLocation = ts.transpileModule(locationSource, {
   compilerOptions: {
@@ -124,6 +125,10 @@ assert.match(placesExplorer, /readPlacesSearchQuery\(searchParams\)/);
 assert.match(placesExplorer, /nextParams\.set\("search", query\.trim\(\)\)/);
 assert.match(placesExplorer, /getBusanDistrictKey\(place\) === region/);
 assert.match(placeSearchUrlSource, /searchParams\.get\("search"\) \?\? searchParams\.get\("q"\) \?\? ""/);
+assert.match(chinaDiscoverySource, /slug: "china-filter-ocean-view"/);
+assert.match(chinaDiscoverySource, /match: \(place\) => hasChinaDiscoveryTag\(place, "oceanView"\) \|\| placeTextIncludes\(place, oceanViewKeywords\)/);
+assert.match(chinaDiscoverySource, /export function buildChinaDiscoveryTags/);
+assert.match(chinaDiscoverySource, /export function getChinaDiscoveryKeysFromTags/);
 
 assert.match(travelMap, /currentLocationFocusRequest <= lastFocusedLocationRequestRef\.current/);
 assert.match(travelMap, /lastFocusedLocationRequestRef\.current = currentLocationFocusRequest/);

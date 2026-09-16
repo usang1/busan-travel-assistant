@@ -34,6 +34,31 @@ export type ChinaDiscoveryFilterOption = {
   enabled: (places: PlaceWithRelations[]) => boolean;
 };
 
+export type ChinaDiscoveryTagKey = Extract<ChinaDiscoveryFilter, "oceanView">;
+
+type ChinaDiscoveryTagOption = {
+  key: ChinaDiscoveryTagKey;
+  slug: string;
+  label_ko: string;
+  label_zh: string;
+  labels: Record<Locale, string>;
+};
+
+const oceanViewKeywords = ["海景", "看海", "海边", "广安大桥", "ocean", "sea view", "beach", "바다", "오션", "광안대교", "海が見える"];
+
+export const chinaDiscoveryTagOptions: ChinaDiscoveryTagOption[] = [
+  {
+    key: "oceanView",
+    slug: "china-filter-ocean-view",
+    label_ko: "바다 전망",
+    label_zh: "海景",
+    labels: { zh: "海景", en: "Ocean view", ja: "海が見える", ko: "바다 전망" },
+  },
+];
+
+const discoveryTagByKey = new Map(chinaDiscoveryTagOptions.map((option) => [option.key, option]));
+const discoveryTagBySlug = new Map(chinaDiscoveryTagOptions.map((option) => [option.slug, option]));
+
 export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
   {
     key: "openNow",
@@ -147,8 +172,8 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
     queryKey: "oceanView",
     label: { zh: "海景", en: "Ocean view", ja: "海が見える", ko: "바다 전망" },
     compactLabel: { zh: "海景", en: "Ocean", ja: "海", ko: "바다" },
-    match: (place) => placeTextIncludes(place, ["海景", "看海", "海边", "广安大桥", "ocean", "sea view", "beach", "바다", "오션", "광안대교", "海が見える"]),
-    enabled: (places) => places.some((place) => placeTextIncludes(place, ["海景", "看海", "海边", "广安大桥", "ocean", "sea view", "beach", "바다", "오션", "광안대교", "海が見える"])),
+    match: (place) => hasChinaDiscoveryTag(place, "oceanView") || placeTextIncludes(place, oceanViewKeywords),
+    enabled: (places) => places.some((place) => hasChinaDiscoveryTag(place, "oceanView") || placeTextIncludes(place, oceanViewKeywords)),
   },
   {
     key: "rainyDay",
@@ -192,6 +217,24 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
       ),
   },
 ];
+
+export function buildChinaDiscoveryTags(keys: ChinaDiscoveryTagKey[]) {
+  return keys.flatMap((key) => {
+    const option = discoveryTagByKey.get(key);
+    return option ? [{ label_zh: option.label_zh, label_ko: option.label_ko, slug: option.slug }] : [];
+  });
+}
+
+export function getChinaDiscoveryKeysFromTags(tags: Array<{ slug: string }> | null | undefined) {
+  return Array.from(new Set((tags ?? []).flatMap((tag) => {
+    const key = discoveryTagBySlug.get(tag.slug)?.key;
+    return key ? [key] : [];
+  })));
+}
+
+export function isChinaDiscoveryTagSlug(slug: string) {
+  return discoveryTagBySlug.has(slug);
+}
 
 function subwayWalkingMinutes(place: PlaceWithRelations) {
   if (typeof place.china_info?.subway_walk_minutes === "number" && place.china_info.subway_walk_minutes > 0) {
@@ -386,6 +429,11 @@ function maxKnownPrice(place: PlaceWithRelations) {
   }
 
   return place.price_min;
+}
+
+function hasChinaDiscoveryTag(place: PlaceWithRelations, key: ChinaDiscoveryTagKey) {
+  const slug = discoveryTagByKey.get(key)?.slug;
+  return Boolean(slug && place.tags.some((tag) => tag.slug === slug));
 }
 
 function placeTextIncludes(place: PlaceWithRelations, keywords: string[]) {

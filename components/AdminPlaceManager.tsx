@@ -22,6 +22,7 @@ import {
   waitingLabel,
   type ChinaRatingKey,
 } from "@/lib/place-china/format";
+import { buildChinaDiscoveryTags, chinaDiscoveryTagOptions, getChinaDiscoveryKeysFromTags, isChinaDiscoveryTagSlug, type ChinaDiscoveryTagKey } from "@/lib/place-china/discovery";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { evaluatePlaceQuality, type PlaceQualityResult } from "@/lib/place-quality";
@@ -124,6 +125,7 @@ type FormState = {
   is_active: boolean;
   tags_text: string;
   home_intent_keys: HomeIntentKey[];
+  china_discovery_keys: ChinaDiscoveryTagKey[];
   menu_items: MenuDraft[];
   china_info: ChinaInfoForm;
 };
@@ -333,6 +335,7 @@ function createEmptyForm(): FormState {
     is_active: true,
     tags_text: "",
     home_intent_keys: [],
+    china_discovery_keys: [],
     menu_items: [],
     china_info: createEmptyChinaInfo(),
   };
@@ -429,8 +432,9 @@ function toForm(place: PlaceWithRelations): FormState {
     last_verified_at: place.last_verified_at?.slice(0, 10) ?? "",
     is_featured: place.is_featured,
     is_active: isPublicPlace(place),
-    tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isBusanDistrictTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
+    tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isBusanDistrictTagSlug(tag.slug) && !isChinaDiscoveryTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
     home_intent_keys: getHomeIntentKeysFromTags(place.tags),
+    china_discovery_keys: getChinaDiscoveryKeysFromTags(place.tags),
     menu_items: place.menu_items.map((item) => ({
       name_ko: item.name_ko,
       name_zh: item.name_zh,
@@ -631,7 +635,7 @@ function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPaylo
 function toPayload(form: FormState): PlacePayload {
   const unifiedName = unifiedPlaceName(form);
   const district = form.busan_district || inferBusanDistrictKey(form.address_ko) || "";
-  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys), ...buildBusanDistrictTags(district)];
+  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildBusanDistrictTags(district)];
   const chinaInfo = toChinaInfoPayload(form.china_info);
 
   return {
@@ -1416,6 +1420,15 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }));
   }
 
+  function toggleChinaDiscoveryTag(key: ChinaDiscoveryTagKey, checked: boolean) {
+    setForm((current) => ({
+      ...current,
+      china_discovery_keys: checked
+        ? Array.from(new Set([...current.china_discovery_keys, key]))
+        : current.china_discovery_keys.filter((item) => item !== key),
+    }));
+  }
+
   function resetChinaInfoToUnknown() {
     setForm((current) => ({
       ...current,
@@ -2069,6 +2082,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                       label={getHomeIntentLabel(option.key, "ko", homeIntentDistrictLabel)}
                       checked={form.home_intent_keys.includes(option.key)}
                       onChange={(checked) => toggleHomeIntent(option.key, checked)}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="mb-1.5 text-sm font-semibold text-slate-700">상황 필터 태그</p>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {chinaDiscoveryTagOptions.map((option) => (
+                    <CheckField
+                      key={option.key}
+                      label={option.labels.ko}
+                      checked={form.china_discovery_keys.includes(option.key)}
+                      onChange={(checked) => toggleChinaDiscoveryTag(option.key, checked)}
                     />
                   ))}
                 </div>
