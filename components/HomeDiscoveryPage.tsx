@@ -79,10 +79,10 @@ export function HomeDiscoveryPage({ locale }: HomeDiscoveryPageProps) {
 
       <section className="mt-7">
         <SectionTitle title={copy.cityTitle} subtitle={copy.citySubtitle} />
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <CityCard locale={locale} city="seoul" label={copy.seoul} enabled={false} preparing={copy.preparing} />
-          <CityCard locale={locale} city="jeju" label={copy.jeju} enabled={false} preparing={copy.preparing} />
-          <CityCard locale={locale} city="busan" label={copy.busan} enabled preparing={copy.available} />
+        <div className="mt-4 space-y-4">
+          {cityRegionGroups.map((city) => (
+            <CityRegionGroup key={city.key} locale={locale} city={city} />
+          ))}
         </div>
       </section>
     </main>
@@ -260,34 +260,128 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
   );
 }
 
-type CityKey = "seoul" | "jeju" | "busan";
+type CityRegion = {
+  key: string;
+  labels: Record<Locale, string>;
+  href: string;
+};
 
-function CityCard({ locale, city, label, enabled, preparing }: { locale: Locale; city: CityKey; label: string; enabled: boolean; preparing: string }) {
-  const content = (
-    <>
-      <span className="grid size-11 place-items-center rounded-lg bg-slate-100 text-slate-700"><Building2 size={21} aria-hidden="true" /></span>
-      <span className="min-w-0 flex-1 text-xl font-black">{label}</span>
-      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{preparing}</span>
-    </>
-  );
+type CityRegionGroupItem = {
+  key: string;
+  labels: Record<Locale, string>;
+  subtitle: Record<Locale, string>;
+  cityHref?: string;
+  regions: CityRegion[];
+};
 
-  if (!enabled) {
-    return <div aria-disabled="true" className="flex min-h-24 items-center gap-3 rounded-lg bg-slate-50 p-4 text-slate-500 ring-1 ring-slate-200">{content}</div>;
-  }
-
+function CityRegionGroup({ locale, city }: { locale: Locale; city: CityRegionGroupItem }) {
   return (
-    <Link href={withLocale(`/${city}`, locale)} className="flex min-h-24 items-center gap-3 rounded-lg bg-white p-4 text-slate-950 shadow-sm ring-1 ring-slate-200 hover:bg-teal-50 focus:outline-none focus:ring-4 focus:ring-teal-100">
-      {content}
-      <ArrowRight size={18} className="shrink-0 text-teal-700" aria-hidden="true" />
-    </Link>
+    <section>
+      <div className="flex items-center gap-3">
+        <span className="grid size-11 place-items-center rounded-lg bg-slate-100 text-slate-700"><Building2 size={21} aria-hidden="true" /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl font-black text-slate-950">{city.labels[locale]}</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500">{city.subtitle[locale]}</p>
+        </div>
+        {city.cityHref ? (
+          <Link href={withLocale(city.cityHref, locale)} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg px-2 text-sm font-black text-teal-700 hover:bg-teal-50">
+            {cityHomeCopy[locale].viewCity}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        ) : null}
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {city.regions.map((region) => (
+          <Link
+            key={region.key}
+            href={withLocale(region.href, locale)}
+            className="flex min-h-14 items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-3 text-sm font-black text-slate-800 ring-1 ring-slate-200 transition hover:bg-teal-50 hover:text-teal-800 focus:outline-none focus:ring-4 focus:ring-teal-100"
+          >
+            <span>{region.labels[locale]}</span>
+            <ArrowRight size={15} className="shrink-0 text-teal-700" aria-hidden="true" />
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
-const cityHomeCopy: Record<Locale, { area: string; heading: string; supporting: string; cityTitle: string; citySubtitle: string; seoul: string; jeju: string; busan: string; preparing: string; available: string }> = {
-  ko: { area: "한국 여행", heading: "어느 도시로 여행하시나요?", supporting: "도시를 선택한 뒤 지역과 여행 상황에 맞는 장소를 찾아보세요.", cityTitle: "도시 선택", citySubtitle: "현재 부산 지역 정보를 먼저 제공합니다.", seoul: "서울", jeju: "제주", busan: "부산", preparing: "준비 중", available: "이용 가능" },
-  zh: { area: "韩国旅行", heading: "这次要去哪个城市？", supporting: "选择城市后，再按地区和旅行场景查找地点。", cityTitle: "选择城市", citySubtitle: "目前优先提供釜山地区信息。", seoul: "首尔", jeju: "济州", busan: "釜山", preparing: "准备中", available: "可使用" },
-  en: { area: "Korea travel", heading: "Which city are you visiting?", supporting: "Choose a city, then find places by district and travel situation.", cityTitle: "Choose a city", citySubtitle: "Busan district information is available first.", seoul: "Seoul", jeju: "Jeju", busan: "Busan", preparing: "Preparing", available: "Available" },
-  ja: { area: "韓国旅行", heading: "どの都市へ旅行しますか？", supporting: "都市を選び、地域と旅行シーンに合うスポットを探せます。", cityTitle: "都市を選択", citySubtitle: "現在は釜山エリアの情報を先に提供しています。", seoul: "ソウル", jeju: "済州", busan: "釜山", preparing: "準備中", available: "利用可能" },
+const seoulDistricts = [
+  region("gangnam-gu", "강남구", "江南区", "Gangnam-gu", "江南区"),
+  region("gangdong-gu", "강동구", "江东区", "Gangdong-gu", "江東区"),
+  region("gangbuk-gu", "강북구", "江北区", "Gangbuk-gu", "江北区"),
+  region("gangseo-gu", "강서구", "江西区", "Gangseo-gu", "江西区"),
+  region("gwanak-gu", "관악구", "冠岳区", "Gwanak-gu", "冠岳区"),
+  region("gwangjin-gu", "광진구", "广津区", "Gwangjin-gu", "広津区"),
+  region("guro-gu", "구로구", "九老区", "Guro-gu", "九老区"),
+  region("geumcheon-gu", "금천구", "衿川区", "Geumcheon-gu", "衿川区"),
+  region("nowon-gu", "노원구", "芦原区", "Nowon-gu", "蘆原区"),
+  region("dobong-gu", "도봉구", "道峰区", "Dobong-gu", "道峰区"),
+  region("dongdaemun-gu", "동대문구", "东大门区", "Dongdaemun-gu", "東大門区"),
+  region("dongjak-gu", "동작구", "铜雀区", "Dongjak-gu", "銅雀区"),
+  region("mapo-gu", "마포구", "麻浦区", "Mapo-gu", "麻浦区"),
+  region("seodaemun-gu", "서대문구", "西大门区", "Seodaemun-gu", "西大門区"),
+  region("seocho-gu", "서초구", "瑞草区", "Seocho-gu", "瑞草区"),
+  region("seongdong-gu", "성동구", "城东区", "Seongdong-gu", "城東区"),
+  region("seongbuk-gu", "성북구", "城北区", "Seongbuk-gu", "城北区"),
+  region("songpa-gu", "송파구", "松坡区", "Songpa-gu", "松坡区"),
+  region("yangcheon-gu", "양천구", "阳川区", "Yangcheon-gu", "陽川区"),
+  region("yeongdeungpo-gu", "영등포구", "永登浦区", "Yeongdeungpo-gu", "永登浦区"),
+  region("yongsan-gu", "용산구", "龙山区", "Yongsan-gu", "龍山区"),
+  region("eunpyeong-gu", "은평구", "恩平区", "Eunpyeong-gu", "恩平区"),
+  region("jongno-gu", "종로구", "钟路区", "Jongno-gu", "鐘路区"),
+  region("jung-gu", "중구", "中区", "Jung-gu", "中区"),
+  region("jungnang-gu", "중랑구", "中浪区", "Jungnang-gu", "中浪区"),
+];
+
+const jejuRegions = [
+  { key: "jeju-si", labels: { ko: "제주시", zh: "济州市", en: "Jeju City", ja: "済州市" }, searchKo: "제주시" },
+  { key: "seogwipo-si", labels: { ko: "서귀포시", zh: "西归浦市", en: "Seogwipo", ja: "西帰浦市" }, searchKo: "서귀포시" },
+];
+
+const cityRegionGroups: CityRegionGroupItem[] = [
+  {
+    key: "seoul",
+    labels: { ko: "서울", zh: "首尔", en: "Seoul", ja: "ソウル" },
+    subtitle: { ko: "25개 구 중 방문할 지역을 선택하세요.", zh: "从25个区中选择要去的地区。", en: "Choose one of Seoul's 25 districts.", ja: "25区から訪問エリアを選択。" },
+    regions: seoulDistricts.map((district) => ({
+      key: district.key,
+      labels: district.labels,
+      href: `/places?search=${encodeURIComponent(`서울 ${district.labels.ko}`)}`,
+    })),
+  },
+  {
+    key: "jeju",
+    labels: { ko: "제주", zh: "济州", en: "Jeju", ja: "済州" },
+    subtitle: { ko: "제주시와 서귀포시로 나눠서 찾아보세요.", zh: "按济州市和西归浦市查找。", en: "Browse by Jeju City or Seogwipo.", ja: "済州市と西帰浦市で探せます。" },
+    regions: jejuRegions.map((region) => ({
+      key: region.key,
+      labels: region.labels,
+      href: `/places?search=${encodeURIComponent(region.searchKo)}`,
+    })),
+  },
+  {
+    key: "busan",
+    labels: { ko: "부산", zh: "釜山", en: "Busan", ja: "釜山" },
+    subtitle: { ko: "기존 부산 구·군 카드로 바로 이동합니다.", zh: "直接按釜山区或郡查看。", en: "Open the existing Busan district cards.", ja: "既存の釜山区・郡カードへ移動します。" },
+    cityHref: "/busan",
+    regions: busanDistrictOptions.map((district) => ({
+      key: district.key,
+      labels: district.labels,
+      href: `/busan?district=${district.key}`,
+    })),
+  },
+];
+
+function region(key: string, ko: string, zh: string, en: string, ja: string): CityRegion {
+  return { key, labels: { ko, zh, en, ja }, href: "" };
+}
+
+const cityHomeCopy: Record<Locale, { area: string; heading: string; supporting: string; cityTitle: string; citySubtitle: string; viewCity: string }> = {
+  ko: { area: "한국 여행", heading: "어느 도시로 여행하시나요?", supporting: "도시를 선택한 뒤 지역과 여행 상황에 맞는 장소를 찾아보세요.", cityTitle: "도시 선택", citySubtitle: "서울·제주·부산을 세부 지역 카드로 선택하세요.", viewCity: "전체" },
+  zh: { area: "韩国旅行", heading: "这次要去哪个城市？", supporting: "选择城市后，再按地区和旅行场景查找地点。", cityTitle: "选择城市", citySubtitle: "按首尔、济州、釜山的细分地区选择。", viewCity: "全部" },
+  en: { area: "Korea travel", heading: "Which city are you visiting?", supporting: "Choose a city, then find places by district and travel situation.", cityTitle: "Choose a city", citySubtitle: "Pick Seoul, Jeju, or Busan by smaller local area.", viewCity: "All" },
+  ja: { area: "韓国旅行", heading: "どの都市へ旅行しますか？", supporting: "都市を選び、地域と旅行シーンに合うスポットを探せます。", cityTitle: "都市を選択", citySubtitle: "ソウル・済州・釜山を細かい地域カードから選べます。", viewCity: "全体" },
 };
 
 const districtCopy: Record<Locale, { cities: string; title: string; subtitle: string }> = {

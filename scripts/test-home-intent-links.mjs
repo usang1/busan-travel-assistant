@@ -232,9 +232,11 @@ for (const locale of ["ko", "zh", "en", "ja"]) {
 }
 
 assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides: \[\], places, locale, district: selectedDistrict \}\)/);
-assert.match(homeDiscoverySource, /city="seoul"[\s\S]*enabled=\{false\}/);
-assert.match(homeDiscoverySource, /city="jeju"[\s\S]*enabled=\{false\}/);
-assert.match(homeDiscoverySource, /city="busan"[\s\S]*enabled/);
+assert.match(homeDiscoverySource, /cityRegionGroups\.map/);
+assert.match(homeDiscoverySource, /key: "seoul"[\s\S]*seoulDistricts\.map/);
+assert.match(homeDiscoverySource, /key: "jeju"[\s\S]*jejuRegions\.map/);
+assert.match(homeDiscoverySource, /encodeURIComponent\(`서울 \$\{district\.labels\.ko\}`\)/);
+assert.match(homeDiscoverySource, /encodeURIComponent\(region\.searchKo\)/);
 assert.match(homeDiscoverySource, /busanDistrictOptions\.map/);
 assert.match(homeDiscoverySource, /lg:grid-cols-3/);
 assert.match(homeDiscoverySource, /focus:outline-none focus:ring-4 focus:ring-teal-100/);
