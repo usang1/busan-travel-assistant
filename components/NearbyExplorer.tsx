@@ -52,6 +52,7 @@ import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/l
 import { getPreferredMapProvider, type MapBounds, type MapMarker } from "@/lib/map-provider";
 import {
   getLocalizedRecommendationDisplay,
+  getConfirmedTransitLabel,
   getPlaceCategoryLabel,
   getPlaceNameDisplay,
   getPlacePhotoDisplay,
@@ -884,6 +885,7 @@ function PlaceListCard({
   const menu = getRepresentativeMenu(place, locale);
   const publicDescription = getPublicPlaceDescription(place, locale);
   const advantage = publicDescription || getTravelerAdvantage(place, locale);
+  const transitLabel = getConfirmedTransitLabel(place, locale);
   const distanceWarning = getDistanceWarning(distance, locale);
   const selectedLabel = { zh: "已选择", en: "Selected", ja: "選択中", ko: "선택됨" }[locale];
   const menuLabel = { zh: "招牌", en: "Menu", ja: "代表", ko: "대표" }[locale];
@@ -919,6 +921,12 @@ function PlaceListCard({
             <TagChip tone="amber">{getWaitingDisplay(place, locale)}</TagChip>
             {locale === "zh" ? <TagChip tone="amber">{recommendation.label} {recommendation.value}</TagChip> : null}
           </span>
+          {transitLabel ? (
+            <span className="mt-2 flex items-center gap-1.5 text-xs font-black leading-5 text-teal-800">
+              <MapPinned size={14} aria-hidden="true" />
+              <span className="line-clamp-1">{transitLabel}</span>
+            </span>
+          ) : null}
         </span>
       </button>
       <div className="mt-3 grid gap-1.5 text-xs font-bold text-slate-600">
@@ -944,7 +952,11 @@ function PlaceListCard({
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-        <Link href={href} className="inline-flex h-10 items-center justify-center gap-1 rounded-2xl px-3 text-sm font-black text-teal-700 transition hover:bg-teal-50">
+        <Link
+          href={href}
+          aria-label={`${nameDisplay.name} ${localizedCopy.detail}`}
+          className="inline-flex h-10 items-center justify-center gap-1 rounded-2xl px-3 text-sm font-black text-teal-700 transition hover:bg-teal-50"
+        >
           {localizedCopy.detail}
           <Navigation size={15} aria-hidden="true" />
         </Link>
@@ -989,6 +1001,7 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
   const menu = getRepresentativeMenu(place, locale);
   const publicDescription = getPublicPlaceDescription(place, locale);
   const advantage = publicDescription || getTravelerAdvantage(place, locale);
+  const transitLabel = getConfirmedTransitLabel(place, locale);
   const menuLabel = { zh: "招牌", en: "Menu", ja: "代表", ko: "대표" }[locale];
   const photo = getPlacePhotoDisplay(place, locale);
   const recommendation = getLocalizedRecommendationDisplay(place, locale);
@@ -1011,6 +1024,12 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
           <p className="mt-2 text-xs font-bold text-teal-700">
             {getPlaceCategoryLabel(place.category, locale)} · {formatDistance(distance, locale)} · {walkingLabel}
           </p>
+          {transitLabel ? (
+            <p className="mt-1 flex items-center gap-1.5 text-xs font-black leading-5 text-teal-800">
+              <MapPinned size={14} aria-hidden="true" />
+              <span className="line-clamp-1">{transitLabel}</span>
+            </p>
+          ) : null}
           {locale === "zh" ? (
             <p className="mt-1 text-xs font-bold text-slate-500">
               {recommendation.label} {recommendation.value} · {formatPriceRange(place, locale)} · {localizedCopy.savedCount} {place.save_count ?? 0}
@@ -1030,7 +1049,11 @@ function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListI
         ) : null}
         <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{advantage}</p>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-          <Link href={href} className="inline-flex min-h-10 items-center gap-1 rounded-xl px-2 text-sm font-black text-teal-700 transition hover:bg-teal-50">
+          <Link
+            href={href}
+            aria-label={`${nameDisplay.name} ${localizedCopy.detail}`}
+            className="inline-flex min-h-10 items-center gap-1 rounded-xl px-2 text-sm font-black text-teal-700 transition hover:bg-teal-50"
+          >
             {localizedCopy.detail}
             <ArrowRight size={15} aria-hidden="true" />
           </Link>

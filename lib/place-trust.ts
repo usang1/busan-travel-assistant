@@ -195,7 +195,7 @@ export function buildPlaceCardFacts(place: PlaceWithRelations, locale: Locale) {
   };
 }
 
-function getConfirmedTransitLabel(
+export function getConfirmedTransitLabel(
   place: Pick<PlaceWithRelations, "nearest_station" | "nearest_exit" | "walking_minutes" | "china_info">,
   locale: Locale,
 ) {

@@ -111,6 +111,8 @@ assert.match(nearbyExplorer, /savedPlaceIds\.has\(item\.place\.id\)/);
 assert.match(nearbyExplorer, /distanceFromUser !== null && distanceFromUser <= distanceLimit/);
 assert.match(nearbyExplorer, /initialSelectionAppliedRef/);
 assert.doesNotMatch(nearbyExplorer, /filteredItems\.find\([^\n]+\) \?\? filteredItems\[0\]/);
+assert.match(nearbyExplorer, /getConfirmedTransitLabel\(place, locale\)/);
+assert.match(nearbyExplorer, /aria-label=\{`\$\{nameDisplay\.name\} \$\{localizedCopy\.detail\}`\}/);
 assert.match(bottomNavigation, /key: "itinerary", href: "\/itinerary"/);
 assert.match(bottomNavigation, /key: "submit", href: "\/contact"/);
 assert.match(bottomNavigation, /grid-cols-6/);
