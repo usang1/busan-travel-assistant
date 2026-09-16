@@ -131,7 +131,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const [currentBounds, setCurrentBounds] = useState<MapBounds | null>(null);
   const [appliedBounds, setAppliedBounds] = useState<MapBounds | null>(null);
   const [mapMoved, setMapMoved] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [desktopMapMounted, setDesktopMapMounted] = useState(false);
   const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
   const initialSelectionAppliedRef = useRef(false);
@@ -536,32 +536,30 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       </section>
 
       <section className="lg:hidden">
-        {!sheetOpen ? (
-          <div className="relative h-[52dvh] min-h-[300px]">
-            <TravelMap
-              center={origin}
-              markers={markers}
-              userLocation={originMode === "current" ? userLocation : null}
-              currentLocationFocusRequest={locationFocusRequest}
-              locationPending={isLocating}
-              onRequestCurrentLocation={requestLocation}
-              provider={provider}
-              locale={locale}
-              selectedId={selectedItem?.place.id ?? null}
-              searchAreaVisible={mapMoved}
-              onSearchArea={applyCurrentMapBounds}
-              onSelectMarker={(id) => selectPlace(id, "marker")}
-              onViewportSettled={(bounds, source) => {
-                setCurrentBounds(bounds);
-                if (source === "user") {
-                  setMapMoved(true);
-                }
-              }}
-              onShowList={() => setSheetOpen(true)}
-              className="h-full"
-            />
-          </div>
-        ) : null}
+        <div className={cn("relative h-[52dvh] min-h-[300px]", sheetOpen && "hidden")}>
+          <TravelMap
+            center={origin}
+            markers={markers}
+            userLocation={originMode === "current" ? userLocation : null}
+            currentLocationFocusRequest={locationFocusRequest}
+            locationPending={isLocating}
+            onRequestCurrentLocation={requestLocation}
+            provider={provider}
+            locale={locale}
+            selectedId={selectedItem?.place.id ?? null}
+            searchAreaVisible={mapMoved}
+            onSearchArea={applyCurrentMapBounds}
+            onSelectMarker={(id) => selectPlace(id, "marker")}
+            onViewportSettled={(bounds, source) => {
+              setCurrentBounds(bounds);
+              if (source === "user") {
+                setMapMoved(true);
+              }
+            }}
+            onShowList={() => setSheetOpen(true)}
+            className="h-full"
+          />
+        </div>
 
         {selectedItem && !sheetOpen ? (
           <div className="mt-3">

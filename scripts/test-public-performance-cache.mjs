@@ -60,10 +60,10 @@ for (const file of [
 assert.match(fs.readFileSync("app/api/places/recommendations/route.ts", "utf8"), /private, no-store/);
 
 const nearby = fs.readFileSync("components/NearbyExplorer.tsx", "utf8");
-assert.match(nearby, /const \[sheetOpen, setSheetOpen\] = useState\(true\)/);
+assert.match(nearby, /const \[sheetOpen, setSheetOpen\] = useState\(false\)/);
 assert.match(nearby, /const \[desktopMapMounted, setDesktopMapMounted\] = useState\(false\)/);
 assert.match(nearby, /window\.matchMedia\("\(min-width: 1024px\)"\)/);
-assert.match(nearby, /!\s*sheetOpen \? \(/);
+assert.match(nearby, /sheetOpen && "hidden"/);
 
 const travelMap = fs.readFileSync("components/TravelMap.tsx", "utf8");
 assert.match(travelMap, /setLoadTimedOut\(true\)/);
@@ -78,4 +78,4 @@ assert.match(migration, /places_public_featured_updated_idx/);
 assert.match(migration, /places_public_coordinates_idx/);
 assert.match(migration, /guides_public_status_sort_idx/);
 
-console.log("Public performance cache tests passed (public cache boundary, invalidation, map lazy fallback, and DB indexes).");
+console.log("Public performance cache tests passed (public cache boundary, invalidation, map visibility, and DB indexes).");
