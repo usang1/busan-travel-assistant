@@ -57,10 +57,6 @@ type PlaceDetailPageProps = {
 
 export const revalidate = 300;
 
-export function generateStaticParams() {
-  return [];
-}
-
 export async function generateMetadata({ params }: PlaceDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
   const { place } = await getCachedPublicPlaceBySlug(slug);

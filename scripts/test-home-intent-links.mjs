@@ -235,7 +235,7 @@ assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides: \[\], plac
 assert.match(homeDiscoverySource, /cityRegionGroups\.map/);
 assert.match(homeDiscoverySource, /<CitySelectCard key=\{city\.key\}/);
 assert.match(homeDiscoverySource, /selectedCityGroup \? \(/);
-assert.match(homeDiscoverySource, /href=\{withLocale\(`\/\?city=\$\{city\.key\}`, locale\)\}/);
+assert.match(homeDiscoverySource, /href=\{withLocale\(active \? "\/" : `\/\?city=\$\{city\.key\}`, locale\)\}/);
 assert.match(homeDiscoverySource, /export function isHomeCityKey/);
 assert.match(homeDiscoverySource, /key: "seoul"[\s\S]*seoulDistricts\.map/);
 assert.match(homeDiscoverySource, /key: "jeju"[\s\S]*jejuRegions\.map/);

@@ -74,10 +74,6 @@ type LocalizedPlaceDetailPageProps = {
 
 export const revalidate = 300;
 
-export function generateStaticParams() {
-  return [];
-}
-
 async function getRouteParams(params: LocalizedPlaceDetailPageProps["params"]) {
   const { locale, slug } = await params;
 

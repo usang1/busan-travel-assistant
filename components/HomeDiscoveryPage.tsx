@@ -291,7 +291,9 @@ export function isHomeCityKey(value: string | null | undefined): value is HomeCi
 function CitySelectCard({ locale, city, active }: { locale: Locale; city: CityRegionGroupItem; active: boolean }) {
   return (
     <Link
-      href={withLocale(`/?city=${city.key}`, locale)}
+      href={withLocale(active ? "/" : `/?city=${city.key}`, locale)}
+      scroll={false}
+      aria-expanded={active}
       className={active
         ? "flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100"
         : "flex min-h-24 items-center gap-3 rounded-lg bg-white p-4 text-slate-950 shadow-sm ring-1 ring-slate-200 transition hover:bg-teal-50 focus:outline-none focus:ring-4 focus:ring-teal-100"}
