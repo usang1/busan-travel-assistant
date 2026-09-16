@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BadgeCheck, Camera, Clock3, MapPin, MessageSquarePlus, Soup, UserRound, WalletCards } from "lucide-react";
+import { BadgeCheck, Camera, Clock3, ExternalLink, MapPin, MessageSquarePlus, Soup, UserRound, WalletCards } from "lucide-react";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
@@ -56,6 +56,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const cardFacts = buildPlaceCardFacts(place, locale);
   const verificationStatus = getVerificationStatus(place);
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
+  const naverPlaceUrl = getRegisteredNaverPlaceUrl(place);
   const localizedTags = place.tags
     .map((tag) => ({ slug: tag.slug, label: getLocalizedTag(tag, locale) }))
     .filter((tag) => tag.label);
@@ -164,10 +165,23 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           </div>
         ) : null}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <Link href={correctionHref} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
-            <MessageSquarePlus size={15} aria-hidden="true" />
-            {correctionLabel}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href={correctionHref} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
+              <MessageSquarePlus size={15} aria-hidden="true" />
+              {correctionLabel}
+            </Link>
+            {naverPlaceUrl ? (
+              <a
+                href={naverPlaceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-green-50 px-3 text-xs font-black text-green-800 ring-1 ring-green-100 transition hover:bg-green-100"
+              >
+                <ExternalLink size={15} aria-hidden="true" />
+                네이버 플레이스
+              </a>
+            ) : null}
+          </div>
           <DirectionsButton
             placeId={place.id}
             name={content.name}
@@ -182,8 +196,20 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   );
 }
 
+function getRegisteredNaverPlaceUrl(place: PlaceWithRelations) {
+  return (place.sources ?? []).find((source) => source.provider === "NAVER" && source.source_url?.trim())?.source_url?.trim() ?? "";
+}
+
 function PlaceFactIcon({ factKey }: { factKey: ReturnType<typeof buildPlaceCardFacts>["facts"][number]["key"] }) {
-  const Icon = factKey === "menu" ? Soup : factKey === "price" ? WalletCards : factKey === "solo" ? UserRound : Clock3;
+  const Icon = factKey === "menu"
+    ? Soup
+    : factKey === "price"
+      ? WalletCards
+      : factKey === "solo"
+        ? UserRound
+        : factKey === "transit"
+          ? MapPin
+          : Clock3;
 
   return <Icon size={15} className="mt-0.5 shrink-0 text-teal-700" aria-hidden="true" />;
 }

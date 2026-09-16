@@ -6,7 +6,7 @@ export type PlacePhotoDisplay =
   | { kind: "image"; url: string }
   | { kind: "placeholder"; title: string; detail: string };
 
-export type PlaceCardFactKey = "menu" | "price" | "hours" | "solo" | "waiting";
+export type PlaceCardFactKey = "menu" | "price" | "hours" | "solo" | "waiting" | "transit";
 
 export type PlaceCardFact = {
   key: PlaceCardFactKey;
@@ -41,7 +41,9 @@ const copy = {
     originalNameLabel: "韩文原名",
     recommendationLabel: "推荐度",
     recommendationUnknown: "暂未确认",
-    labels: { menu: "招牌", price: "价格", hours: "营业", solo: "单人", waiting: "等位" },
+    labels: { menu: "招牌", price: "价格", hours: "营业", solo: "单人", waiting: "等位", transit: "交通" },
+    walk: "步行",
+    minutes: "分钟",
   },
   en: {
     photoTitle: "Photo pending",
@@ -58,7 +60,9 @@ const copy = {
     originalNameLabel: "Korean original name",
     recommendationLabel: "Recommendation",
     recommendationUnknown: "Not confirmed",
-    labels: { menu: "Menu", price: "Price", hours: "Hours", solo: "Solo", waiting: "Wait" },
+    labels: { menu: "Menu", price: "Price", hours: "Hours", solo: "Solo", waiting: "Wait", transit: "Transit" },
+    walk: "Walk",
+    minutes: "min",
   },
   ja: {
     photoTitle: "写真準備中",
@@ -75,7 +79,9 @@ const copy = {
     originalNameLabel: "韓国語原名",
     recommendationLabel: "おすすめ度",
     recommendationUnknown: "未確認",
-    labels: { menu: "代表", price: "価格", hours: "営業時間", solo: "一人", waiting: "待ち" },
+    labels: { menu: "代表", price: "価格", hours: "営業時間", solo: "一人", waiting: "待ち", transit: "交通" },
+    walk: "徒歩",
+    minutes: "分",
   },
   ko: {
     photoTitle: "사진 준비 중",
@@ -92,7 +98,9 @@ const copy = {
     originalNameLabel: "원문명",
     recommendationLabel: "추천도",
     recommendationUnknown: "확인 중",
-    labels: { menu: "대표", price: "가격", hours: "영업", solo: "혼밥", waiting: "웨이팅" },
+    labels: { menu: "대표", price: "가격", hours: "영업", solo: "혼밥", waiting: "웨이팅", transit: "교통" },
+    walk: "도보",
+    minutes: "분",
   },
 } as const;
 
@@ -171,18 +179,39 @@ export function buildPlaceCardFacts(place: PlaceWithRelations, locale: Locale) {
   const hours = getPublicOpeningHours(place, locale);
   const solo = getConfirmedSoloLabel(place, locale);
   const waiting = getConfirmedWaitingLabel(place, locale);
+  const transit = getConfirmedTransitLabel(place, locale);
 
   addFact(facts, missing, "menu", labels.menu, menu);
   addFact(facts, missing, "price", labels.price, price);
   addFact(facts, missing, "hours", labels.hours, hours);
   addFact(facts, missing, "solo", labels.solo, solo);
   addFact(facts, missing, "waiting", labels.waiting, waiting);
+  if (transit) facts.push({ key: "transit", label: labels.transit, value: transit });
 
   return {
     facts,
     missing,
     missingSummary: missing.length >= 2 ? copy[locale].infoPreparing : "",
   };
+}
+
+function getConfirmedTransitLabel(
+  place: Pick<PlaceWithRelations, "nearest_station" | "nearest_exit" | "walking_minutes" | "china_info">,
+  locale: Locale,
+) {
+  const station = place.nearest_station?.trim() ?? "";
+  const exit = place.nearest_exit?.trim() ?? "";
+  const subwayWalkMinutes = place.china_info?.subway_walk_minutes;
+  const walkingMinutes = typeof subwayWalkMinutes === "number" && subwayWalkMinutes > 0
+    ? subwayWalkMinutes
+    : place.walking_minutes > 0
+      ? place.walking_minutes
+      : null;
+
+  if (!station && walkingMinutes === null) return "";
+
+  const walk = walkingMinutes === null ? "" : `${copy[locale].walk} ${walkingMinutes}${copy[locale].minutes}`;
+  return [station, exit, walk].filter(Boolean).join(" · ");
 }
 
 export function getPublicOpeningHours(place: Pick<PlaceWithRelations, "opening_hours">, locale: Locale) {

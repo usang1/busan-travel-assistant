@@ -145,6 +145,19 @@ for (const locale of ["ko", "zh", "en", "ja"]) {
   assert.match(trust.getLastVerifiedLabel(basePlace, locale), new RegExp(`^${locale}:2026-09-01`));
 }
 
+const subwayWalkPlace = {
+  ...basePlace,
+  nearest_station: "광안역",
+  nearest_exit: "3번 출구",
+  walking_minutes: 9,
+  china_info: {
+    ...basePlace.china_info,
+    subway_walk_minutes: 4,
+  },
+};
+const subwayWalkFact = trust.buildPlaceCardFacts(subwayWalkPlace, "ko").facts.find((fact) => fact.key === "transit");
+assert.deepEqual({ ...subwayWalkFact }, { key: "transit", label: "교통", value: "광안역 · 3번 출구 · 도보 4분" });
+
 const unsplashPlace = {
   ...basePlace,
   thumbnail_url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
@@ -215,6 +228,10 @@ const placeCardSource = fs.readFileSync("components/PlaceCard.tsx", "utf8");
 assert.match(placeCardSource, /getPlacePhotoDisplay/);
 assert.match(placeCardSource, /buildPlaceCardFacts/);
 assert.match(placeCardSource, /getTrustedPlaceImageUrl/);
+assert.match(placeCardSource, /getRegisteredNaverPlaceUrl/);
+assert.match(placeCardSource, /source\.provider === "NAVER"/);
+assert.match(placeCardSource, /네이버 플레이스/);
+assert.match(placeCardSource, /rel="noopener noreferrer"/);
 assert.doesNotMatch(placeCardSource, /formatOpeningStatus/);
 assert.doesNotMatch(placeCardSource, /getRepresentativeMenu/);
 
