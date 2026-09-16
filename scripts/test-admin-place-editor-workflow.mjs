@@ -42,9 +42,11 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
   assert.match(source, /homeIntentTagOptions\.map/, "admin home categories must be checkbox options");
   assert.match(source, /상황 필터 태그/, "admin forms must expose structured discovery filter tags");
   assert.match(source, /chinaDiscoveryTagOptions\.map/, "admin discovery filter tags must be checkbox options");
-  assert.match(source, /label="부산 구·군"/, "admin forms must expose the Busan district selector");
-  assert.match(source, /busanDistrictOptions\.map/, "admin forms must use the canonical Busan district options");
-  assert.match(source, /buildBusanDistrictTags\(district\)/, "admin forms must persist the selected Busan district tag");
+  assert.match(source, /label="도시"/, "admin forms must expose the city selector");
+  assert.match(source, /placeCities\.map/, "admin forms must offer Busan, Seoul, and Jeju");
+  assert.match(source, /cityRegions\(selectedCity\)\.map/, "admin regions must follow the selected city");
+  assert.match(source, /key === "city"[\s\S]*region_key: ""/, "changing city must clear an incompatible region");
+  assert.match(source, /buildPlaceRegionTags\(city, form.region_key, form.address_ko\)/, "admin forms must persist the city and region");
   assert.match(source, /buildChinaDiscoveryTags\(form\.china_discovery_keys\)/, "admin forms must persist selected discovery filter tags");
   assert.doesNotMatch(source, /placeholder=\{"광안리 처음\\n밤 10시 이후"\}/, "admin forms must not use natural-language tag entry for home categories");
   for (const label of ["중국어 장소명", "영어 장소명", "일본어 장소명", "중국어명", "영어명", "일본어명"]) {

@@ -11,7 +11,7 @@ import { TagChip } from "@/components/TagChip";
 import { TravelerInsightsEditor } from "@/components/TravelerInsightsEditor";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
-import { buildBusanDistrictTags, busanDistrictOptions, getBusanDistrictKey, getBusanDistrictLabel, inferBusanDistrictKey, isBusanDistrictTagSlug, type BusanDistrictKey } from "@/lib/busan-districts";
+import { buildPlaceRegionTags, cityRegions, getPlaceRegion, inferPlaceCity, isPlaceRegionTag, placeCities, placeRegionLabel, type PlaceCity } from "@/lib/city-regions";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
@@ -83,7 +83,8 @@ type FormState = {
   name_ja: string;
   name_ko: string;
   category: PlaceCategory | "";
-  busan_district: BusanDistrictKey | "";
+  city: PlaceCity | "";
+  region_key: string;
   short_description_zh: string;
   short_description_en: string;
   short_description_ja: string;
@@ -293,7 +294,8 @@ function createEmptyForm(): FormState {
     name_ja: "",
     name_ko: "",
     category: "",
-    busan_district: "",
+    city: "",
+    region_key: "",
     short_description_zh: "",
     short_description_en: "",
     short_description_ja: "",
@@ -392,7 +394,7 @@ function toForm(place: PlaceWithRelations): FormState {
     name_ja: unifiedName,
     name_ko: unifiedName,
     category: place.category,
-    busan_district: getBusanDistrictKey(place) ?? "",
+    ...getPlaceRegion(place),
     short_description_zh: place.short_description_zh,
     short_description_en: en?.description ?? "",
     short_description_ja: ja?.description ?? "",
@@ -432,7 +434,7 @@ function toForm(place: PlaceWithRelations): FormState {
     last_verified_at: place.last_verified_at?.slice(0, 10) ?? "",
     is_featured: place.is_featured,
     is_active: isPublicPlace(place),
-    tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isBusanDistrictTagSlug(tag.slug) && !isChinaDiscoveryTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
+    tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isPlaceRegionTag(tag.slug) && !isChinaDiscoveryTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
     home_intent_keys: getHomeIntentKeysFromTags(place.tags),
     china_discovery_keys: getChinaDiscoveryKeysFromTags(place.tags),
     menu_items: place.menu_items.map((item) => ({
@@ -634,8 +636,8 @@ function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPaylo
 
 function toPayload(form: FormState): PlacePayload {
   const unifiedName = unifiedPlaceName(form);
-  const district = form.busan_district || inferBusanDistrictKey(form.address_ko) || "";
-  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildBusanDistrictTags(district)];
+  const city = form.city || inferPlaceCity(form.address_ko) || "busan";
+  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildPlaceRegionTags(city, form.region_key, form.address_ko)];
   const chinaInfo = toChinaInfoPayload(form.china_info);
 
   return {
@@ -1076,8 +1078,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
   const isFoodPlace = isFoodPlaceCategory(form.category);
   const primaryMenu = getPrimaryMenuDraft(form);
-  const homeIntentDistrict = form.busan_district || inferBusanDistrictKey(form.address_ko);
-  const homeIntentDistrictLabel = homeIntentDistrict ? getBusanDistrictLabel(homeIntentDistrict, "ko") : "";
+  const selectedCity = form.city || inferPlaceCity(form.address_ko) || "busan";
+  const homeIntentDistrictLabel = placeRegionLabel(selectedCity, form.region_key, form.address_ko);
   const aiCurrentContent = useMemo(
     () => ({
       description_ko: form.short_description_ko,
@@ -1177,6 +1179,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
   function updateField<Key extends keyof FormState>(key: Key, value: FormState[Key]) {
     setForm((current) => {
+      if (key === "city") return { ...current, city: value as PlaceCity | "", region_key: "" };
       if (key === "name_ko" || key === "name_zh" || key === "name_en" || key === "name_ja") {
         return withUnifiedPlaceName(current, String(value));
       }
@@ -2067,10 +2070,16 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
                 </select>
               </Field>
-              <Field label="부산 구·군">
-                <select value={form.busan_district} onChange={(event) => updateField("busan_district", event.target.value as BusanDistrictKey | "")} className={inputClass}>
+              <Field label="도시">
+                <select aria-label="도시" value={form.city} onChange={(event) => updateField("city", event.target.value as PlaceCity | "")} className={inputClass}>
                   <option value="">주소에서 자동 인식</option>
-                  {busanDistrictOptions.map((district) => <option key={district.key} value={district.key}>{district.labels.ko}</option>)}
+                  {placeCities.map((city) => <option key={city.key} value={city.key}>{city.label}</option>)}
+                </select>
+              </Field>
+              <Field label={`${placeCities.find((city) => city.key === selectedCity)?.label} ${selectedCity === "seoul" ? "구" : selectedCity === "jeju" ? "시" : "구·군"}`}>
+                <select aria-label="지역" value={form.region_key} onChange={(event) => updateField("region_key", event.target.value)} className={inputClass}>
+                  <option value="">주소에서 자동 인식</option>
+                  {cityRegions(selectedCity).map((region) => <option key={region.key} value={region.key}>{region.labels.ko}</option>)}
                 </select>
               </Field>
               <div className="sm:col-span-2">

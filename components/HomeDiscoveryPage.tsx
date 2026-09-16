@@ -22,6 +22,7 @@ import { HomeSearchForm } from "@/components/HomeSearchForm";
 import { PlaceCard } from "@/components/PlaceCard";
 import { SectionTitle } from "@/components/SectionTitle";
 import { busanDistrictOptions, getBusanDistrictKey, getBusanDistrictLabel, type BusanDistrictKey } from "@/lib/busan-districts";
+import { jejuRegions, seoulDistricts } from "@/lib/city-regions";
 import { getHomeQuickFilters, type HomeQuickFilterKey } from "@/lib/home-discovery";
 import { getProblemGuides, resolveHomeIntentCards, type ResolvedHomeIntentCard } from "@/lib/home-intent-links";
 import { type Locale, ui, withLocale } from "@/lib/i18n";
@@ -324,38 +325,6 @@ function CityRegionGrid({ locale, city }: { locale: Locale; city: CityRegionGrou
   );
 }
 
-const seoulDistricts = [
-  region("gangnam-gu", "강남구", "江南区", "Gangnam-gu", "江南区"),
-  region("gangdong-gu", "강동구", "江东区", "Gangdong-gu", "江東区"),
-  region("gangbuk-gu", "강북구", "江北区", "Gangbuk-gu", "江北区"),
-  region("gangseo-gu", "강서구", "江西区", "Gangseo-gu", "江西区"),
-  region("gwanak-gu", "관악구", "冠岳区", "Gwanak-gu", "冠岳区"),
-  region("gwangjin-gu", "광진구", "广津区", "Gwangjin-gu", "広津区"),
-  region("guro-gu", "구로구", "九老区", "Guro-gu", "九老区"),
-  region("geumcheon-gu", "금천구", "衿川区", "Geumcheon-gu", "衿川区"),
-  region("nowon-gu", "노원구", "芦原区", "Nowon-gu", "蘆原区"),
-  region("dobong-gu", "도봉구", "道峰区", "Dobong-gu", "道峰区"),
-  region("dongdaemun-gu", "동대문구", "东大门区", "Dongdaemun-gu", "東大門区"),
-  region("dongjak-gu", "동작구", "铜雀区", "Dongjak-gu", "銅雀区"),
-  region("mapo-gu", "마포구", "麻浦区", "Mapo-gu", "麻浦区"),
-  region("seodaemun-gu", "서대문구", "西大门区", "Seodaemun-gu", "西大門区"),
-  region("seocho-gu", "서초구", "瑞草区", "Seocho-gu", "瑞草区"),
-  region("seongdong-gu", "성동구", "城东区", "Seongdong-gu", "城東区"),
-  region("seongbuk-gu", "성북구", "城北区", "Seongbuk-gu", "城北区"),
-  region("songpa-gu", "송파구", "松坡区", "Songpa-gu", "松坡区"),
-  region("yangcheon-gu", "양천구", "阳川区", "Yangcheon-gu", "陽川区"),
-  region("yeongdeungpo-gu", "영등포구", "永登浦区", "Yeongdeungpo-gu", "永登浦区"),
-  region("yongsan-gu", "용산구", "龙山区", "Yongsan-gu", "龍山区"),
-  region("eunpyeong-gu", "은평구", "恩平区", "Eunpyeong-gu", "恩平区"),
-  region("jongno-gu", "종로구", "钟路区", "Jongno-gu", "鐘路区"),
-  region("jung-gu", "중구", "中区", "Jung-gu", "中区"),
-  region("jungnang-gu", "중랑구", "中浪区", "Jungnang-gu", "中浪区"),
-];
-
-const jejuRegions = [
-  { key: "jeju-si", labels: { ko: "제주시", zh: "济州市", en: "Jeju City", ja: "済州市" }, searchKo: "제주시" },
-  { key: "seogwipo-si", labels: { ko: "서귀포시", zh: "西归浦市", en: "Seogwipo", ja: "西帰浦市" }, searchKo: "서귀포시" },
-];
 
 const cityRegionGroups: CityRegionGroupItem[] = [
   {
@@ -389,10 +358,6 @@ const cityRegionGroups: CityRegionGroupItem[] = [
     })),
   },
 ];
-
-function region(key: string, ko: string, zh: string, en: string, ja: string): CityRegion {
-  return { key, labels: { ko, zh, en, ja }, href: "" };
-}
 
 const cityHomeCopy: Record<Locale, { area: string; heading: string; supporting: string; cityTitle: string; citySubtitle: string; regionTitle: string }> = {
   ko: { area: "한국 여행", heading: "어느 도시로 여행하시나요?", supporting: "도시를 선택한 뒤 지역과 여행 상황에 맞는 장소를 찾아보세요.", cityTitle: "도시 선택", citySubtitle: "먼저 도시를 선택하면 세부 지역이 표시됩니다.", regionTitle: "지역 선택" },

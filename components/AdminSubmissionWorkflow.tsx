@@ -7,7 +7,7 @@ import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
-import { buildBusanDistrictTags, busanDistrictOptions, getBusanDistrictKey, getBusanDistrictLabel, inferBusanDistrictKey, isBusanDistrictTagSlug, type BusanDistrictKey } from "@/lib/busan-districts";
+import { buildPlaceRegionTags, cityRegions, getPlaceRegion, inferCityRegion, inferPlaceCity, isPlaceRegionTag, placeCities, placeRegionLabel, type PlaceCity } from "@/lib/city-regions";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
@@ -51,7 +51,8 @@ type PublishForm = {
   source_external_id: string;
   slug: string;
   category: PlaceCategory | "";
-  busan_district: BusanDistrictKey | "";
+  city: PlaceCity | "";
+  region_key: string;
   name_zh: string;
   name_en: string;
   name_ja: string;
@@ -343,6 +344,8 @@ function hasEnoughAiSourceFacts(form: PublishForm) {
 function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
   const parsed = parseMapUrl(submission?.source_url ?? "");
   const baseName = submission?.name ?? "";
+  const submittedAddress = submission?.location_text ?? submission?.address_text ?? "";
+  const submittedCity = inferPlaceCity(submittedAddress);
 
   return {
     source_url: parsed.normalizedUrl,
@@ -350,7 +353,8 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     source_external_id: "",
     slug: slugify(baseName),
     category: submission?.category ?? "",
-    busan_district: inferBusanDistrictKey(submission?.location_text ?? submission?.address_text) ?? "",
+    city: submittedCity,
+    region_key: submittedCity ? inferCityRegion(submittedCity, submittedAddress) : "",
     name_zh: baseName,
     name_en: baseName,
     name_ja: baseName,
@@ -359,7 +363,7 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     description_en: "",
     description_ja: "",
     description_ko: "",
-    address_ko: submission?.location_text ?? submission?.address_text ?? "",
+    address_ko: submittedAddress,
     address_zh: "",
     address_en: "",
     address_ja: "",
@@ -432,7 +436,7 @@ function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRe
     source_external_id: source?.external_id ?? submission?.external_id ?? "",
     slug: place.slug,
     category: place.category,
-    busan_district: getBusanDistrictKey(place) ?? "",
+    ...getPlaceRegion(place),
     name_zh: unifiedName,
     name_en: unifiedName,
     name_ja: unifiedName,
@@ -488,7 +492,7 @@ function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRe
     card_payment: place.card_payment || chinaInfo?.foreign_card === "yes",
     is_active: isPublicPlace(place),
     tags_text: place.tags
-      .filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isBusanDistrictTagSlug(tag.slug) && !isChinaDiscoveryTagSlug(tag.slug))
+      .filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isPlaceRegionTag(tag.slug) && !isChinaDiscoveryTagSlug(tag.slug))
       .map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`)
       .join("\n"),
     home_intent_keys: getHomeIntentKeysFromTags(place.tags),
@@ -520,7 +524,7 @@ function findSubmissionPlace(submission: PlaceSubmissionRecord, places: PlaceWit
 function buildPayload(form: PublishForm): PlacePayload {
   const category = form.category as PlaceCategory;
   const name = unifiedPlaceName(form);
-  const district = form.busan_district || inferBusanDistrictKey(form.address_ko) || "";
+  const city = form.city || inferPlaceCity(form.address_ko) || "busan";
   const chinaInfo: PlaceChinaInfoPayload = {
     chinese_taste_score: null,
     spicy_level: null,
@@ -610,7 +614,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     thumbnail_url: form.thumbnail_url.trim(),
     is_featured: false,
     is_active: form.status === publishedPlaceStatus,
-    tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildBusanDistrictTags(district)],
+    tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildPlaceRegionTags(city, form.region_key, form.address_ko)],
     menu_items: form.menu_items.map((item, index) => ({
       name_ko: item.name_ko,
       name_zh: item.name_ko,
@@ -956,6 +960,7 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
 
   function updateField<Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) {
     setForm((current) => {
+      if (key === "city") return { ...current, city: value as PlaceCity | "", region_key: "" };
       if (key === "name_ko" || key === "name_zh" || key === "name_en" || key === "name_ja") {
         return withUnifiedPlaceName(current, String(value));
       }
@@ -1714,8 +1719,8 @@ function PublishFormView({
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const isFoodPlace = isFoodPlaceCategory(form.category);
   const primaryMenu = getPrimaryMenuDraft(form);
-  const homeIntentDistrict = form.busan_district || inferBusanDistrictKey(form.address_ko);
-  const homeIntentDistrictLabel = homeIntentDistrict ? getBusanDistrictLabel(homeIntentDistrict, "ko") : "";
+  const selectedCity = form.city || inferPlaceCity(form.address_ko) || "busan";
+  const homeIntentDistrictLabel = placeRegionLabel(selectedCity, form.region_key, form.address_ko);
   const currentAiContent = useMemo(
     () => ({
       description_ko: form.description_ko,
@@ -1820,10 +1825,16 @@ function PublishFormView({
               {placeCategories.map((category) => <option key={category} value={category}>{categoryLabels[category].ko}</option>)}
             </select>
           </Field>
-          <Field label="부산 구·군">
-            <select value={form.busan_district} onChange={(event) => onFieldChange("busan_district", event.target.value as BusanDistrictKey | "")} className={inputClass}>
+          <Field label="도시">
+            <select aria-label="도시" value={form.city} onChange={(event) => onFieldChange("city", event.target.value as PlaceCity | "")} className={inputClass}>
               <option value="">주소에서 자동 인식</option>
-              {busanDistrictOptions.map((district) => <option key={district.key} value={district.key}>{district.labels.ko}</option>)}
+              {placeCities.map((city) => <option key={city.key} value={city.key}>{city.label}</option>)}
+            </select>
+          </Field>
+          <Field label={`${placeCities.find((city) => city.key === selectedCity)?.label} ${selectedCity === "seoul" ? "구" : selectedCity === "jeju" ? "시" : "구·군"}`}>
+            <select aria-label="지역" value={form.region_key} onChange={(event) => onFieldChange("region_key", event.target.value)} className={inputClass}>
+              <option value="">주소에서 자동 인식</option>
+              {cityRegions(selectedCity).map((region) => <option key={region.key} value={region.key}>{region.labels.ko}</option>)}
             </select>
           </Field>
           <div className="sm:col-span-2">

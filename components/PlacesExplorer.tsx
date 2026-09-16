@@ -8,6 +8,7 @@ import { PlaceCard } from "@/components/PlaceCard";
 import { PlaceRankingSection } from "@/components/PlaceRankingSection";
 import { TagChip } from "@/components/TagChip";
 import { busanDistrictOptions, getBusanDistrictKey, isBusanDistrictKey } from "@/lib/busan-districts";
+import { getPlaceRegion, placeCities, placeRegionLabel } from "@/lib/city-regions";
 import {
   calculateDistanceMeters,
   formatDistance,
@@ -486,8 +487,11 @@ const placesExplorerCopy: Record<Locale, {
 
 function buildSearchText(place: PlaceWithRelations, locale: Locale) {
   const content = getPlaceContent(place, locale);
+  const { city, region_key } = getPlaceRegion(place);
+  const cityLabel = placeCities.find((option) => option.key === city)?.label;
 
   return [
+    `${cityLabel} ${placeRegionLabel(city, region_key, place.address_ko)}`,
     content.name,
     content.secondaryName,
     content.description,
