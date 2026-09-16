@@ -233,6 +233,10 @@ for (const locale of ["ko", "zh", "en", "ja"]) {
 
 assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides: \[\], places, locale, district: selectedDistrict \}\)/);
 assert.match(homeDiscoverySource, /cityRegionGroups\.map/);
+assert.match(homeDiscoverySource, /<CitySelectCard key=\{city\.key\}/);
+assert.match(homeDiscoverySource, /selectedCityGroup \? \(/);
+assert.match(homeDiscoverySource, /href=\{withLocale\(`\/\?city=\$\{city\.key\}`, locale\)\}/);
+assert.match(homeDiscoverySource, /export function isHomeCityKey/);
 assert.match(homeDiscoverySource, /key: "seoul"[\s\S]*seoulDistricts\.map/);
 assert.match(homeDiscoverySource, /key: "jeju"[\s\S]*jejuRegions\.map/);
 assert.match(homeDiscoverySource, /encodeURIComponent\(`서울 \$\{district\.labels\.ko\}`\)/);

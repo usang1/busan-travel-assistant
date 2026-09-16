@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
+import { HomeDiscoveryPage, isHomeCityKey } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
 import {
   buildLocalizedMetadata,
@@ -14,6 +14,9 @@ import {
 type LocalePageProps = {
   params: Promise<{
     locale: string;
+  }>;
+  searchParams?: Promise<{
+    city?: string;
   }>;
 };
 
@@ -41,8 +44,10 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
   });
 }
 
-export default async function LocalizedHome({ params }: LocalePageProps) {
+export default async function LocalizedHome({ params, searchParams }: LocalePageProps) {
   const locale = await getLocale(params);
+  const query = await searchParams;
+  const selectedCity = isHomeCityKey(query?.city) ? query.city : undefined;
   const copy = ui[locale];
   return (
     <>
@@ -64,7 +69,7 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
           },
         }}
       />
-      <HomeDiscoveryPage locale={locale} />
+      <HomeDiscoveryPage locale={locale} selectedCity={selectedCity} />
     </>
   );
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
+import { HomeDiscoveryPage, isHomeCityKey } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
 import { buildLocalizedMetadata, localeMeta, localizedCanonical, ui } from "@/lib/i18n";
 
@@ -15,7 +15,14 @@ export const metadata: Metadata = buildLocalizedMetadata({
   path: "/",
 });
 
-export default async function Home() {
+type HomePageProps = {
+  searchParams?: Promise<{ city?: string }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const query = await searchParams;
+  const selectedCity = isHomeCityKey(query?.city) ? query.city : undefined;
+
   return (
     <>
       <StructuredData
@@ -28,7 +35,7 @@ export default async function Home() {
           description: copy.home.description,
         }}
       />
-      <HomeDiscoveryPage locale={locale} />
+      <HomeDiscoveryPage locale={locale} selectedCity={selectedCity} />
     </>
   );
 }

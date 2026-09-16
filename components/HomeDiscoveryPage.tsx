@@ -32,6 +32,7 @@ import type { Guide } from "@/types/guide";
 
 type HomeDiscoveryPageProps = {
   locale: Locale;
+  selectedCity?: HomeCityKey;
 };
 
 type BusanDiscoveryPageProps = {
@@ -53,9 +54,10 @@ const quickFilterIcons: Record<HomeQuickFilterKey, LucideIcon> = {
   chineseMenu: Languages,
 };
 
-export function HomeDiscoveryPage({ locale }: HomeDiscoveryPageProps) {
+export function HomeDiscoveryPage({ locale, selectedCity }: HomeDiscoveryPageProps) {
   const copy = cityHomeCopy[locale];
   const commonCopy = ui[locale].common;
+  const selectedCityGroup = selectedCity ? cityRegionGroups.find((city) => city.key === selectedCity) ?? null : null;
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
@@ -79,12 +81,19 @@ export function HomeDiscoveryPage({ locale }: HomeDiscoveryPageProps) {
 
       <section className="mt-7">
         <SectionTitle title={copy.cityTitle} subtitle={copy.citySubtitle} />
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {cityRegionGroups.map((city) => (
-            <CityRegionGroup key={city.key} locale={locale} city={city} />
+            <CitySelectCard key={city.key} locale={locale} city={city} active={selectedCity === city.key} />
           ))}
         </div>
       </section>
+
+      {selectedCityGroup ? (
+        <section className="mt-7">
+          <SectionTitle title={`${selectedCityGroup.labels[locale]} ${copy.regionTitle}`} subtitle={selectedCityGroup.subtitle[locale]} />
+          <CityRegionGrid locale={locale} city={selectedCityGroup} />
+        </section>
+      ) : null}
     </main>
   );
 }
@@ -266,43 +275,50 @@ type CityRegion = {
   href: string;
 };
 
+type HomeCityKey = "seoul" | "jeju" | "busan";
+
 type CityRegionGroupItem = {
-  key: string;
+  key: HomeCityKey;
   labels: Record<Locale, string>;
   subtitle: Record<Locale, string>;
-  cityHref?: string;
   regions: CityRegion[];
 };
 
-function CityRegionGroup({ locale, city }: { locale: Locale; city: CityRegionGroupItem }) {
+export function isHomeCityKey(value: string | null | undefined): value is HomeCityKey {
+  return value === "seoul" || value === "jeju" || value === "busan";
+}
+
+function CitySelectCard({ locale, city, active }: { locale: Locale; city: CityRegionGroupItem; active: boolean }) {
   return (
-    <section>
-      <div className="flex items-center gap-3">
-        <span className="grid size-11 place-items-center rounded-lg bg-slate-100 text-slate-700"><Building2 size={21} aria-hidden="true" /></span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-black text-slate-950">{city.labels[locale]}</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-500">{city.subtitle[locale]}</p>
-        </div>
-        {city.cityHref ? (
-          <Link href={withLocale(city.cityHref, locale)} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg px-2 text-sm font-black text-teal-700 hover:bg-teal-50">
-            {cityHomeCopy[locale].viewCity}
-            <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-        ) : null}
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {city.regions.map((region) => (
-          <Link
-            key={region.key}
-            href={withLocale(region.href, locale)}
-            className="flex min-h-14 items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-3 text-sm font-black text-slate-800 ring-1 ring-slate-200 transition hover:bg-teal-50 hover:text-teal-800 focus:outline-none focus:ring-4 focus:ring-teal-100"
-          >
-            <span>{region.labels[locale]}</span>
-            <ArrowRight size={15} className="shrink-0 text-teal-700" aria-hidden="true" />
-          </Link>
-        ))}
-      </div>
-    </section>
+    <Link
+      href={withLocale(`/?city=${city.key}`, locale)}
+      className={active
+        ? "flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100"
+        : "flex min-h-24 items-center gap-3 rounded-lg bg-white p-4 text-slate-950 shadow-sm ring-1 ring-slate-200 transition hover:bg-teal-50 focus:outline-none focus:ring-4 focus:ring-teal-100"}
+    >
+      <span className={active ? "grid size-11 place-items-center rounded-lg bg-white/15 text-white" : "grid size-11 place-items-center rounded-lg bg-slate-100 text-slate-700"}>
+        <Building2 size={21} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1 text-xl font-black">{city.labels[locale]}</span>
+      <ArrowRight size={18} className={active ? "shrink-0 text-white" : "shrink-0 text-teal-700"} aria-hidden="true" />
+    </Link>
+  );
+}
+
+function CityRegionGrid({ locale, city }: { locale: Locale; city: CityRegionGroupItem }) {
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {city.regions.map((region) => (
+        <Link
+          key={region.key}
+          href={withLocale(region.href, locale)}
+          className="flex min-h-14 items-center justify-between gap-2 rounded-lg bg-white px-3 py-3 text-sm font-black text-slate-800 shadow-sm ring-1 ring-slate-200 transition hover:bg-teal-50 hover:text-teal-800 focus:outline-none focus:ring-4 focus:ring-teal-100"
+        >
+          <span>{region.labels[locale]}</span>
+          <ArrowRight size={15} className="shrink-0 text-teal-700" aria-hidden="true" />
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -364,7 +380,6 @@ const cityRegionGroups: CityRegionGroupItem[] = [
     key: "busan",
     labels: { ko: "부산", zh: "釜山", en: "Busan", ja: "釜山" },
     subtitle: { ko: "기존 부산 구·군 카드로 바로 이동합니다.", zh: "直接按釜山区或郡查看。", en: "Open the existing Busan district cards.", ja: "既存の釜山区・郡カードへ移動します。" },
-    cityHref: "/busan",
     regions: busanDistrictOptions.map((district) => ({
       key: district.key,
       labels: district.labels,
@@ -377,11 +392,11 @@ function region(key: string, ko: string, zh: string, en: string, ja: string): Ci
   return { key, labels: { ko, zh, en, ja }, href: "" };
 }
 
-const cityHomeCopy: Record<Locale, { area: string; heading: string; supporting: string; cityTitle: string; citySubtitle: string; viewCity: string }> = {
-  ko: { area: "한국 여행", heading: "어느 도시로 여행하시나요?", supporting: "도시를 선택한 뒤 지역과 여행 상황에 맞는 장소를 찾아보세요.", cityTitle: "도시 선택", citySubtitle: "서울·제주·부산을 세부 지역 카드로 선택하세요.", viewCity: "전체" },
-  zh: { area: "韩国旅行", heading: "这次要去哪个城市？", supporting: "选择城市后，再按地区和旅行场景查找地点。", cityTitle: "选择城市", citySubtitle: "按首尔、济州、釜山的细分地区选择。", viewCity: "全部" },
-  en: { area: "Korea travel", heading: "Which city are you visiting?", supporting: "Choose a city, then find places by district and travel situation.", cityTitle: "Choose a city", citySubtitle: "Pick Seoul, Jeju, or Busan by smaller local area.", viewCity: "All" },
-  ja: { area: "韓国旅行", heading: "どの都市へ旅行しますか？", supporting: "都市を選び、地域と旅行シーンに合うスポットを探せます。", cityTitle: "都市を選択", citySubtitle: "ソウル・済州・釜山を細かい地域カードから選べます。", viewCity: "全体" },
+const cityHomeCopy: Record<Locale, { area: string; heading: string; supporting: string; cityTitle: string; citySubtitle: string; regionTitle: string }> = {
+  ko: { area: "한국 여행", heading: "어느 도시로 여행하시나요?", supporting: "도시를 선택한 뒤 지역과 여행 상황에 맞는 장소를 찾아보세요.", cityTitle: "도시 선택", citySubtitle: "먼저 도시를 선택하면 세부 지역이 표시됩니다.", regionTitle: "지역 선택" },
+  zh: { area: "韩国旅行", heading: "这次要去哪个城市？", supporting: "选择城市后，再按地区和旅行场景查找地点。", cityTitle: "选择城市", citySubtitle: "请先选择城市，再查看细分地区。", regionTitle: "地区选择" },
+  en: { area: "Korea travel", heading: "Which city are you visiting?", supporting: "Choose a city, then find places by district and travel situation.", cityTitle: "Choose a city", citySubtitle: "Pick a city first, then choose a smaller local area.", regionTitle: "Area" },
+  ja: { area: "韓国旅行", heading: "どの都市へ旅行しますか？", supporting: "都市を選び、地域と旅行シーンに合うスポットを探せます。", cityTitle: "都市を選択", citySubtitle: "まず都市を選ぶと、細かい地域が表示されます。", regionTitle: "地域選択" },
 };
 
 const districtCopy: Record<Locale, { cities: string; title: string; subtitle: string }> = {
