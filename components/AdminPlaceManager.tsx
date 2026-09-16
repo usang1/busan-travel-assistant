@@ -11,9 +11,9 @@ import { TagChip } from "@/components/TagChip";
 import { TravelerInsightsEditor } from "@/components/TravelerInsightsEditor";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
-import { buildBusanDistrictTags, busanDistrictOptions, getBusanDistrictKey, inferBusanDistrictKey, isBusanDistrictTagSlug, type BusanDistrictKey } from "@/lib/busan-districts";
+import { buildBusanDistrictTags, busanDistrictOptions, getBusanDistrictKey, getBusanDistrictLabel, inferBusanDistrictKey, isBusanDistrictTagSlug, type BusanDistrictKey } from "@/lib/busan-districts";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
-import { buildHomeIntentTags, getHomeIntentKeysFromTags, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
+import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import {
   buildChinaPlaceSummary,
@@ -1072,6 +1072,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
   const isFoodPlace = isFoodPlaceCategory(form.category);
   const primaryMenu = getPrimaryMenuDraft(form);
+  const homeIntentDistrict = form.busan_district || inferBusanDistrictKey(form.address_ko);
+  const homeIntentDistrictLabel = homeIntentDistrict ? getBusanDistrictLabel(homeIntentDistrict, "ko") : "";
   const aiCurrentContent = useMemo(
     () => ({
       description_ko: form.short_description_ko,
@@ -2064,7 +2066,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   {homeIntentTagOptions.map((option) => (
                     <CheckField
                       key={option.key}
-                      label={option.label_ko}
+                      label={getHomeIntentLabel(option.key, "ko", homeIntentDistrictLabel)}
                       checked={form.home_intent_keys.includes(option.key)}
                       onChange={(checked) => toggleHomeIntent(option.key, checked)}
                     />

@@ -78,7 +78,7 @@ new Function("module", "exports", "require", output)(module, module.exports, (sp
 });
 
 const { homeIntentCards, resolveHomeIntentCards } = module.exports;
-const { buildHomeIntentTags, getHomeIntentKeysFromTags, homeIntentTagOptions } = tagModule.exports;
+const { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions } = tagModule.exports;
 
 function guide(overrides) {
   return {
@@ -182,6 +182,9 @@ assert.equal(byKey(tagMatchedPlace, "firstGwangalli").href, "/ko/places?search=%
 const mappedIntentTags = buildHomeIntentTags(["firstGwangalli", "lateNight"]);
 assert.deepEqual([...getHomeIntentKeysFromTags(mappedIntentTags)], ["firstGwangalli", "lateNight"]);
 assert.equal(homeIntentTagOptions.length, 6);
+assert.equal(getHomeIntentLabel("firstGwangalli", "ko", "해운대구"), "해운대구 처음 가면?");
+assert.equal(getHomeIntentLabel("food", "ko", "해운대구"), "해운대구 맛집");
+assert.equal(getHomeIntentLabel("firstGwangalli", "ko"), "광안리 처음 가면?");
 const mappedIntentPlace = resolveHomeIntentCards({
   locale: "ko",
   guides: [guide({ slug: "night-guide", title_ko: "밤 10시 이후 가이드" })],

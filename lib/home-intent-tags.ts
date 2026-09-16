@@ -57,6 +57,40 @@ export const homeIntentTagOptions: HomeIntentTagOption[] = [
 
 const optionByKey = new Map(homeIntentTagOptions.map((option) => [option.key, option]));
 const optionBySlug = new Map(homeIntentTagOptions.map((option) => [option.slug, option]));
+const districtIntentLabels: Record<Locale, Record<HomeIntentKey, (district: string) => string>> = {
+  ko: {
+    firstGwangalli: (district) => `${district} 처음 가면?`,
+    food: (district) => `${district} 맛집`,
+    rainyDay: () => "비 오는 날 갈 곳",
+    solo: () => "혼자 가기 좋은 곳",
+    lateNight: () => "밤 10시 이후 갈 곳",
+    luggage: () => "짐 보관 가능한 곳",
+  },
+  zh: {
+    firstGwangalli: (district) => `第一次去${district}`,
+    food: (district) => `${district}美食`,
+    rainyDay: () => "下雨天去哪里",
+    solo: () => "适合一个人去",
+    lateNight: () => "晚上10点以后去哪",
+    luggage: () => "行李寄存",
+  },
+  en: {
+    firstGwangalli: (district) => `First time in ${district}`,
+    food: (district) => `${district} food`,
+    rainyDay: () => "Rainy-day places",
+    solo: () => "Good for solo travel",
+    lateNight: () => "After 10 PM",
+    luggage: () => "Luggage storage",
+  },
+  ja: {
+    firstGwangalli: (district) => `初めての${district}`,
+    food: (district) => `${district}グルメ`,
+    rainyDay: () => "雨の日に行く場所",
+    solo: () => "一人で行きやすい場所",
+    lateNight: () => "夜10時以降に行く場所",
+    luggage: () => "荷物預かり",
+  },
+};
 
 export function buildHomeIntentTags(keys: HomeIntentKey[]) {
   return keys.flatMap((key) => {
@@ -76,7 +110,11 @@ export function getHomeIntentKeyFromSlug(slug: string) {
   return optionBySlug.get(slug)?.key ?? null;
 }
 
-export function getHomeIntentLabel(key: HomeIntentKey, locale: Locale) {
+export function getHomeIntentLabel(key: HomeIntentKey, locale: Locale, districtLabel?: string) {
+  if (districtLabel) {
+    return districtIntentLabels[locale][key](districtLabel);
+  }
+
   return optionByKey.get(key)?.labels[locale] ?? "";
 }
 

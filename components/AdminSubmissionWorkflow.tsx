@@ -7,9 +7,9 @@ import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
-import { buildBusanDistrictTags, busanDistrictOptions, getBusanDistrictKey, inferBusanDistrictKey, isBusanDistrictTagSlug, type BusanDistrictKey } from "@/lib/busan-districts";
+import { buildBusanDistrictTags, busanDistrictOptions, getBusanDistrictKey, getBusanDistrictLabel, inferBusanDistrictKey, isBusanDistrictTagSlug, type BusanDistrictKey } from "@/lib/busan-districts";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
-import { buildHomeIntentTags, getHomeIntentKeysFromTags, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
+import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
@@ -1710,6 +1710,8 @@ function PublishFormView({
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const isFoodPlace = isFoodPlaceCategory(form.category);
   const primaryMenu = getPrimaryMenuDraft(form);
+  const homeIntentDistrict = form.busan_district || inferBusanDistrictKey(form.address_ko);
+  const homeIntentDistrictLabel = homeIntentDistrict ? getBusanDistrictLabel(homeIntentDistrict, "ko") : "";
   const currentAiContent = useMemo(
     () => ({
       description_ko: form.description_ko,
@@ -1817,7 +1819,7 @@ function PublishFormView({
               {homeIntentTagOptions.map((option) => (
                 <CheckField
                   key={option.key}
-                  label={option.label_ko}
+                  label={getHomeIntentLabel(option.key, "ko", homeIntentDistrictLabel)}
                   checked={form.home_intent_keys.includes(option.key)}
                   onChange={(checked) => toggleHomeIntent(option.key, checked)}
                 />
