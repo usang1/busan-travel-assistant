@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, CalendarDays, Home, MapPinned, UserRound } from "lucide-react";
+import { Bookmark, CalendarDays, Home, MapPinned, Send, UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { defaultLocale, getLocaleFromPath, ui, withLocale, withoutLocale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ const navItems = [
   { key: "home", href: "/", icon: Home },
   { key: "nearby", href: "/nearby", icon: MapPinned },
   { key: "itinerary", href: "/itinerary", icon: CalendarDays },
+  { key: "submit", href: "/contact", icon: Send },
   { key: "saved", href: "/saved", icon: Bookmark },
   { key: "mypage", href: "/mypage", icon: UserRound },
 ] as const;
@@ -26,7 +27,7 @@ export function BottomNavigation() {
 
   return (
     <nav aria-label={copy.siteName} className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden">
-      <div className="mx-auto grid max-w-3xl grid-cols-5 gap-1">
+      <div className="mx-auto grid max-w-3xl grid-cols-6 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href));

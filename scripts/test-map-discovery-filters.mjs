@@ -112,7 +112,8 @@ assert.match(nearbyExplorer, /distanceFromUser !== null && distanceFromUser <= d
 assert.match(nearbyExplorer, /initialSelectionAppliedRef/);
 assert.doesNotMatch(nearbyExplorer, /filteredItems\.find\([^\n]+\) \?\? filteredItems\[0\]/);
 assert.match(bottomNavigation, /key: "itinerary", href: "\/itinerary"/);
-assert.doesNotMatch(bottomNavigation, /key: "submit"/);
+assert.match(bottomNavigation, /key: "submit", href: "\/contact"/);
+assert.match(bottomNavigation, /grid-cols-6/);
 assert.match(homeDiscovery, /getHomeQuickFilters\(districtPlaces, selectedDistrict\)/);
 assert.match(homeSearchForm, /role="search"/);
 assert.match(homeSearchForm, /buildLocalizedPlacesSearchHref\(locale, query, region\)/);
