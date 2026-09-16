@@ -115,6 +115,8 @@ assert.match(bottomNavigation, /key: "itinerary", href: "\/itinerary"/);
 assert.match(bottomNavigation, /key: "submit", href: "\/contact"/);
 assert.match(bottomNavigation, /grid-cols-6/);
 assert.match(homeDiscovery, /getHomeQuickFilters\(districtPlaces, selectedDistrict\)/);
+assert.match(homeDiscovery, /href=\{withLocale\("\/contact", locale\)\}/);
+assert.match(homeDiscovery, /commonCopy\.submitPlace/);
 assert.match(homeSearchForm, /role="search"/);
 assert.match(homeSearchForm, /buildLocalizedPlacesSearchHref\(locale, query, region\)/);
 assert.doesNotMatch(homeSearchForm, /params\.set\("q", trimmed\)/);

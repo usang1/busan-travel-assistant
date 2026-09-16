@@ -9,6 +9,7 @@ import {
   Languages,
   Luggage,
   MapPin,
+  Send,
   Train,
   UserRound,
   WalletCards,
@@ -54,6 +55,7 @@ const quickFilterIcons: Record<HomeQuickFilterKey, LucideIcon> = {
 
 export function HomeDiscoveryPage({ locale }: HomeDiscoveryPageProps) {
   const copy = cityHomeCopy[locale];
+  const commonCopy = ui[locale].common;
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
@@ -64,6 +66,15 @@ export function HomeDiscoveryPage({ locale }: HomeDiscoveryPageProps) {
         </div>
         <h1 className="mt-5 max-w-lg text-3xl font-black leading-tight tracking-normal sm:text-4xl">{copy.heading}</h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">{copy.supporting}</p>
+        <div className="mt-5">
+          <Link
+            href={withLocale("/contact", locale)}
+            className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-teal-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-200 active:scale-95"
+          >
+            <Send size={17} aria-hidden="true" />
+            {commonCopy.submitPlace}
+          </Link>
+        </div>
       </section>
 
       <section className="mt-7">
@@ -112,6 +123,15 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
           <span className="mt-2 block text-xl font-semibold leading-snug text-teal-100 sm:text-2xl">{homeCopy.subheading}</span>
         </h1>
         <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">{homeCopy.supporting}</p>
+        <div className="mt-5">
+          <Link
+            href={withLocale("/contact", locale)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-teal-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-200 active:scale-95"
+          >
+            <Send size={16} aria-hidden="true" />
+            {copy.common.submitPlace}
+          </Link>
+        </div>
         {selectedDistrict ? <div className="mt-6"><HomeSearchForm locale={locale} region={selectedDistrict} /></div> : null}
       </section>
 
