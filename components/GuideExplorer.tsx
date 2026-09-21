@@ -46,9 +46,7 @@ export function GuideExplorer({ guides, locale }: { guides: Guide[]; locale: Loc
         description={copy.emptyDescription}
         action={
           <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
-            <button type="button" onClick={clearFilters} className="inline-flex min-h-11 items-center rounded-full bg-slate-950 px-4 text-sm font-black text-white focus:outline-none focus:ring-4 focus:ring-slate-200">
-              {copy.clearFilters}
-            </button>
+            {guides.length ? <button type="button" onClick={clearFilters} className="inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-black text-white focus:outline-none focus:ring-4 focus:ring-slate-200">{copy.clearFilters}</button> : null}
             <Link href={withLocale("/places", locale)} className="inline-flex min-h-11 items-center rounded-full bg-teal-700 px-4 text-sm font-black text-white focus:outline-none focus:ring-4 focus:ring-teal-100">
               {copy.explorePlaces}
             </Link>

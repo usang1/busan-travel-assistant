@@ -66,7 +66,7 @@ function AccountSavedGuides({ userId, locale }: { userId: string; locale: Locale
     window.dispatchEvent(new Event("guide-save-change"));
   }
   if (state !== "ready") return <p role="status" className="text-sm text-slate-500">{state === "error" ? copy.unavailable : copy.loading}</p>;
-  return guides.length ? <GuideList guides={guides} locale={locale} region={region} onRegion={setRegion} onRemove={(guideId) => void removeGuide(guideId)} /> : <Link href={withLocale("/guides", locale)} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700">{copy.title} →</Link>;
+  return guides.length ? <GuideList guides={guides} locale={locale} region={region} onRegion={setRegion} onRemove={(guideId) => void removeGuide(guideId)} /> : <Link href={withLocale("/places", locale)} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700">{copy.explorePlaces} →</Link>;
 }
 
 function GuestSavedGuides({ locale }: { locale: Locale }) {
@@ -121,7 +121,7 @@ function GuestSavedGuides({ locale }: { locale: Locale }) {
   }
 
   if (state !== "ready") return <p role="status" className="text-sm text-slate-500">{copy.loading}</p>;
-  return guides.length ? <GuideList guides={guides} locale={locale} region={region} onRegion={setRegion} onRemove={removeGuide} /> : <Link href={withLocale("/guides", locale)} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700">{copy.title} →</Link>;
+  return guides.length ? <GuideList guides={guides} locale={locale} region={region} onRegion={setRegion} onRemove={removeGuide} /> : <Link href={withLocale("/places", locale)} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700">{copy.explorePlaces} →</Link>;
 }
 
 type SavedRegion = "all" | "gwangalli" | "haeundae" | "seomyeon" | "nampo" | "other";

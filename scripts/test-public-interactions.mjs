@@ -34,7 +34,7 @@ try {
     await toggle.click();
     assert.equal(await toggle.getAttribute("aria-expanded"), "true");
     assert.equal(await page.locator("#nearby-mobile-list").isVisible(), true);
-    await toggle.click();
+    await page.locator('[role="tab"]').first().click();
     assert.equal(await page.locator("#nearby-mobile-list").isVisible(), false);
     await page.goto(`${base}/${locale}/translator`, { waitUntil: "networkidle" });
     await page.locator("main button").filter({ has: page.locator('p[lang="ko"]') }).first().click();

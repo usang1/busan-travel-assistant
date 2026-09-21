@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { MutableRefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ChevronUp, Heart, MapPinned, Navigation, Search } from "lucide-react";
+import { ArrowRight, Heart, List, Map as MapIcon, MapPinned, Navigation, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { DirectionsButton } from "@/components/DirectionsButton";
@@ -464,6 +464,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       onCategoryChange={changeCategory}
       onClearArea={clearAreaSearch}
       locationStatus={locationStatus}
+      originMode={originMode}
       filterNotice={filterNotice}
       userLoggedIn={Boolean(user)}
       userLocation={userLocation}
@@ -480,6 +481,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       onSortModeChange={setSortMode}
       onToggleChinaFilter={toggleChinaFilter}
       onClearFilters={clearFilters}
+      onRequestLocation={requestLocation}
+      isLocating={isLocating}
     />
   );
 
@@ -537,7 +540,32 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       </section>
 
       <section className="lg:hidden">
-        <div className={cn("relative h-[52dvh] min-h-[300px]", sheetOpen && "hidden")}>
+        <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" role="tablist" aria-label={localizedCopy.viewMode}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!sheetOpen}
+            onClick={() => setSheetOpen(false)}
+            className={cn("inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-sm font-black", !sheetOpen ? "bg-white text-teal-800 shadow-sm" : "text-slate-600")}
+          >
+            <MapIcon size={17} aria-hidden="true" />
+            {localizedCopy.mapView}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={sheetOpen}
+            aria-expanded={sheetOpen}
+            aria-controls="nearby-mobile-list"
+            onClick={() => setSheetOpen(true)}
+            className={cn("inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-sm font-black", sheetOpen ? "bg-white text-teal-800 shadow-sm" : "text-slate-600")}
+          >
+            <List size={17} aria-hidden="true" />
+            {localizedCopy.listView} · {filteredItems.length}
+          </button>
+        </div>
+
+        <div className={cn("relative h-[46dvh] min-h-[320px] max-h-[520px]", sheetOpen && "hidden")}>
           <TravelMap
             center={origin}
             markers={markers}
@@ -560,32 +588,14 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
             onShowList={() => setSheetOpen(true)}
             className="h-full"
           />
+          {selectedItem ? (
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10">
+              <SelectedPlaceSummary item={selectedItem} locale={locale} />
+            </div>
+          ) : null}
         </div>
 
-        {selectedItem && !sheetOpen ? (
-          <div className="mt-3">
-            <SelectedPlaceCard item={selectedItem} locale={locale} compact />
-          </div>
-        ) : null}
-
-        <section
-          className="mt-3 border-t border-slate-200 bg-white lg:hidden"
-        >
-          <button
-            type="button"
-            onClick={() => setSheetOpen((current) => !current)}
-            aria-expanded={sheetOpen}
-            aria-controls="nearby-mobile-list"
-            className="flex h-16 w-full items-center justify-between px-5 text-left"
-          >
-              <span>
-                <span className="block text-sm font-black text-slate-950">{localizedCopy.placesCount} {filteredItems.length}</span>
-                <span className="block text-xs text-slate-500">{sheetOpen ? localizedCopy.mapView : localizedCopy.sheetSubtitle}</span>
-              </span>
-            <ChevronUp className={cn("text-slate-500 transition", sheetOpen && "rotate-180")} size={20} aria-hidden="true" />
-          </button>
-          <div id="nearby-mobile-list" hidden={!sheetOpen} className="px-4 pb-4">{list}</div>
-        </section>
+        <div id="nearby-mobile-list" role="tabpanel" hidden={!sheetOpen} className="pb-4">{list}</div>
       </section>
 
       <p className="hidden text-center text-xs text-slate-500 lg:block">
@@ -601,6 +611,7 @@ function SearchAndFilters({
   locale,
   appliedBounds,
   locationStatus,
+  originMode,
   filterNotice,
   userLoggedIn,
   userLocation,
@@ -620,12 +631,15 @@ function SearchAndFilters({
   onSortModeChange,
   onToggleChinaFilter,
   onClearFilters,
+  onRequestLocation,
+  isLocating,
 }: {
   query: string;
   category: MapCategoryFilter;
   locale: Locale;
   appliedBounds: MapBounds | null;
   locationStatus: string;
+  originMode: OriginMode;
   filterNotice: string;
   userLoggedIn: boolean;
   userLocation: Coordinates | null;
@@ -645,6 +659,8 @@ function SearchAndFilters({
   onSortModeChange: (value: ChinaDiscoverySort) => void;
   onToggleChinaFilter: (value: ChinaDiscoveryFilter) => void;
   onClearFilters: () => void;
+  onRequestLocation: () => void;
+  isLocating: boolean;
 }) {
   const copy = ui[locale];
   const localizedCopy = nearbyCopy[locale];
@@ -654,9 +670,15 @@ function SearchAndFilters({
       <div className="rounded-[24px] bg-slate-950 p-4 text-white lg:bg-transparent lg:p-0 lg:text-slate-950 lg:shadow-none">
         <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-teal-100 ring-1 ring-white/10 lg:bg-teal-50 lg:text-teal-700 lg:ring-teal-100">
           <MapPinned size={16} aria-hidden="true" />
-          {localizedCopy.origin}
+          {originMode === "current" ? localizedCopy.currentLocation : localizedCopy.gwangalliLocation}
         </div>
         <p className="mt-2 text-sm leading-6 text-slate-300 lg:text-slate-500">{locationStatus}</p>
+        {originMode !== "current" ? (
+          <button type="button" onClick={onRequestLocation} disabled={isLocating} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-3 text-sm font-black text-slate-900 disabled:cursor-wait disabled:opacity-70 lg:bg-slate-950 lg:text-white">
+            <Navigation size={16} aria-hidden="true" />
+            {isLocating ? localizedCopy.locationChecking : localizedCopy.useMyLocation}
+          </button>
+        ) : null}
       </div>
 
       <label className="relative block">
@@ -725,7 +747,35 @@ function SearchAndFilters({
         </p>
       ) : null}
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <details className="rounded-lg bg-white p-3 ring-1 ring-slate-200 lg:hidden">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-black text-slate-800">
+          <span>{localizedCopy.moreFilters}</span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{activeFilterCount}</span>
+        </summary>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <FilterSelects locale={locale} priceBucket={priceBucket} sortMode={sortMode} onPriceBucketChange={onPriceBucketChange} onSortModeChange={onSortModeChange} />
+        </div>
+        {showChinaFilters && availableQuickFilters.length ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {availableQuickFilters.map((filter) => (
+              <button key={filter.key} type="button" onClick={() => onToggleChinaFilter(filter.key)} className="active:scale-95">
+                <TagChip tone={activeChinaFilters.includes(filter.key) ? "green" : "default"}>{filter.compactLabel[locale]}</TagChip>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {showChinaFilters && detailedChinaFilters.length ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {detailedChinaFilters.map((filter) => (
+              <button key={filter.key} type="button" onClick={() => onToggleChinaFilter(filter.key)} className="active:scale-95">
+                <TagChip tone={activeChinaFilters.includes(filter.key) ? "green" : "default"}>{filter.label[locale]}</TagChip>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </details>
+
+      <div className="hidden gap-2 lg:grid lg:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-xs font-black text-slate-500">{localizedCopy.price}</span>
           <select value={priceBucket} onChange={(event) => onPriceBucketChange(event.target.value as ChinaPriceBucket)} className={selectClass}>
@@ -748,7 +798,7 @@ function SearchAndFilters({
       </div>
 
       {showChinaFilters && availableQuickFilters.length ? (
-        <div>
+        <div className="hidden lg:block">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="text-xs font-black text-slate-500">{localizedCopy.quickFilters}</p>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
@@ -770,7 +820,7 @@ function SearchAndFilters({
       ) : null}
 
       {showChinaFilters && detailedChinaFilters.length ? (
-        <details className="rounded-2xl bg-slate-50 p-3">
+        <details className="hidden rounded-lg bg-slate-50 p-3 lg:block">
           <summary className="cursor-pointer text-sm font-black text-slate-800">{localizedCopy.moreFilters}</summary>
           <div className="mt-3 flex flex-wrap gap-2">
             {detailedChinaFilters.map((filter) => {
@@ -809,6 +859,42 @@ function SearchAndFilters({
   );
 }
 
+function FilterSelects({
+  locale,
+  priceBucket,
+  sortMode,
+  onPriceBucketChange,
+  onSortModeChange,
+}: {
+  locale: Locale;
+  priceBucket: ChinaPriceBucket;
+  sortMode: ChinaDiscoverySort;
+  onPriceBucketChange: (value: ChinaPriceBucket) => void;
+  onSortModeChange: (value: ChinaDiscoverySort) => void;
+}) {
+  const copy = nearbyCopy[locale];
+
+  return (
+    <>
+      <label className="block">
+        <span className="mb-1 block text-xs font-black text-slate-500">{copy.price}</span>
+        <select value={priceBucket} onChange={(event) => onPriceBucketChange(event.target.value as ChinaPriceBucket)} className={selectClass}>
+          {chinaPriceBuckets.map((bucket) => <option key={bucket.value} value={bucket.value}>{bucket.label[locale]}</option>)}
+        </select>
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs font-black text-slate-500">{copy.sort}</span>
+        <select value={sortMode} onChange={(event) => onSortModeChange(event.target.value as ChinaDiscoverySort)} className={selectClass}>
+          <option value="chinaRecommended">{copy.recommendedSort}</option>
+          <option value="saved">{copy.savedSort}</option>
+          <option value="distance">{copy.distanceSort}</option>
+          <option value="lowWait">{copy.lowWaitSort}</option>
+        </select>
+      </label>
+    </>
+  );
+}
+
 function PlaceResultList({
   items,
   selectedId,
@@ -831,15 +917,26 @@ function PlaceResultList({
   const copy = nearbyCopy[locale];
 
   if (items.length === 0) {
+    const commonCopy = ui[locale].common;
+    const action = loadError ? (
+      <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">
+        {copy.retry}
+      </button>
+    ) : rawPlacesCount === 0 ? (
+      <Link href={withLocale("/contact", locale)} className="inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-black text-white">
+        {commonCopy.submitPlace}
+      </Link>
+    ) : (
+      <button type="button" onClick={onClearFilters} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">
+        {copy.clearFilters}
+      </button>
+    );
+
     return (
       <EmptyState
         title={loadError ? copy.loadErrorTitle : copy.emptyTitle}
         description={loadError ? copy.loadErrorDescription : rawPlacesCount === 0 ? copy.emptyDatabaseDescription : copy.emptyDescription}
-        action={
-          <button type="button" onClick={onClearFilters} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">
-            {copy.clearFilters}
-          </button>
-        }
+        action={action}
       />
     );
   }
@@ -988,101 +1085,28 @@ function PlaceListCard({
   );
 }
 
-function SelectedPlaceCard({ item, locale, compact = false }: { item: PlaceListItem; locale: Locale; compact?: boolean }) {
+function SelectedPlaceSummary({ item, locale }: { item: PlaceListItem; locale: Locale }) {
   const { place, distance, walkingMinutes } = item;
-  const content = getPlaceContent(place, locale);
   const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const copy = ui[locale];
   const localizedCopy = nearbyCopy[locale];
-  const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
-  const chinaTags = getChinaDiscoveryTags(place, locale, 4);
   const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
   const menu = getRepresentativeMenu(place, locale);
-  const publicDescription = getPublicPlaceDescription(place, locale);
-  const advantage = publicDescription || getTravelerAdvantage(place, locale);
-  const transitLabel = getConfirmedTransitLabel(place, locale);
-  const menuLabel = { zh: "招牌", en: "Menu", ja: "代表", ko: "대표" }[locale];
-  const photo = getPlacePhotoDisplay(place, locale);
-  const recommendation = getLocalizedRecommendationDisplay(place, locale);
+  const menuLabel = { zh: "招牌", en: "Order", ja: "注文", ko: "주문" }[locale];
 
   return (
-    <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-2 ring-teal-700">
-      <Link href={href} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-200">
-        {photo.kind === "image" ? (
-          <Image src={photo.url} alt={nameDisplay.name} fill sizes="88px" className="object-cover" />
-        ) : (
-          <span className="grid h-full place-items-center px-2 text-center text-[11px] font-black leading-4 text-slate-500">
-            {photo.title}
-          </span>
-        )}
-      </Link>
-      <div className="min-w-0">
-        <Link href={href} className="block min-w-0 py-1">
-          <p className="truncate text-base font-black text-slate-950">{nameDisplay.name}</p>
-          {nameDisplay.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
-          <p className="mt-2 text-xs font-bold text-teal-700">
+    <article className="pointer-events-auto rounded-lg bg-white p-3 shadow-xl ring-1 ring-slate-200">
+      <Link href={href} aria-label={`${nameDisplay.name} ${localizedCopy.detail}`} className="flex min-h-14 items-center gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-black text-slate-950">{nameDisplay.name}</span>
+          <span className="mt-1 block truncate text-xs font-bold text-teal-800">
             {getPlaceCategoryLabel(place.category, locale)} · {formatDistance(distance, locale)} · {walkingLabel}
-          </p>
-          {transitLabel ? (
-            <p className="mt-1 flex items-center gap-1.5 text-xs font-black leading-5 text-teal-800">
-              <MapPinned size={14} aria-hidden="true" />
-              <span className="line-clamp-1">{transitLabel}</span>
-            </p>
-          ) : null}
-          {locale === "zh" ? (
-            <p className="mt-1 text-xs font-bold text-slate-500">
-              {recommendation.label} {recommendation.value} · {formatPriceRange(place, locale)} · {localizedCopy.savedCount} {place.save_count ?? 0}
-            </p>
-          ) : null}
-        </Link>
-        <p className="mt-1 line-clamp-1 text-xs font-bold text-slate-600">
-          {menuLabel} <span className="text-slate-950">{menu?.name ?? copy.common.noInfo}</span>
-          {menu?.price ? <span className="ml-1 text-slate-500">{menu.price}</span> : null}
-        </p>
-        {locale === "zh" && chinaTags.length ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {chinaTags.map((tag) => (
-              <TagChip key={tag}>{tag}</TagChip>
-            ))}
-          </div>
-        ) : null}
-        <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{advantage}</p>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-          <Link
-            href={href}
-            aria-label={`${nameDisplay.name} ${localizedCopy.detail}`}
-            className="inline-flex min-h-10 items-center gap-1 rounded-xl px-2 text-sm font-black text-teal-700 transition hover:bg-teal-50"
-          >
-            {localizedCopy.detail}
-            <ArrowRight size={15} aria-hidden="true" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <DirectionsButton
-              placeId={place.id}
-              name={content.name}
-              address={content.address}
-              coordinates={coordinates}
-              locale={locale}
-              compact
-            />
-            <SaveButton
-              className={compact ? "px-2" : undefined}
-              initialSaveCount={place.save_count ?? 0}
-              locale={locale}
-              item={{
-                id: place.id,
-                type: "place",
-                titleZh: place.name_zh,
-                titleKo: place.name_ko,
-                href,
-                imageUrl: getTrustedPlaceImageUrl(place),
-                meta: `${getPlaceCategoryLabel(place.category, locale)} · ${formatDistance(distance, locale)}`,
-              }}
-            />
-          </div>
-        </div>
-      </div>
+          </span>
+          <span className="mt-1 block truncate text-xs text-slate-600">{menuLabel} · {menu?.name ?? copy.common.noInfo}</span>
+        </span>
+        <ArrowRight size={18} className="shrink-0 text-teal-700" aria-hidden="true" />
+      </Link>
     </article>
   );
 }
@@ -1094,10 +1118,10 @@ const nearbyCopy: Record<Locale, {
   currentBase: string;
   distanceToGwangalli: string;
   locationDenied: string;
-  placesCount: string;
-  sheetSubtitle: string;
   mapView: string;
-  origin: string;
+  listView: string;
+  viewMode: string;
+  gwangalliLocation: string;
   heading: string;
   currentLocation: string;
   useMyLocation: string;
@@ -1107,6 +1131,7 @@ const nearbyCopy: Record<Locale, {
   emptyDatabaseDescription: string;
   loadErrorTitle: string;
   loadErrorDescription: string;
+  retry: string;
   detail: string;
   price: string;
   sort: string;
@@ -1134,10 +1159,10 @@ const nearbyCopy: Record<Locale, {
     currentBase: "当前以你的位置为基准。",
     distanceToGwangalli: "到广安里中心约",
     locationDenied: "位置权限被拒绝，将继续以广安里为基准显示。",
-    placesCount: "地点",
-    sheetSubtitle: "按所选区域和筛选条件",
-    mapView: "打开地图",
-    origin: "当前位置 / 广安里",
+    mapView: "地图",
+    listView: "列表",
+    viewMode: "地图或列表视图",
+    gwangalliLocation: "以广安里为基准",
     heading: "现在附近去哪？",
     currentLocation: "当前位置",
     useMyLocation: "我的位置",
@@ -1147,6 +1172,7 @@ const nearbyCopy: Record<Locale, {
     emptyDatabaseDescription: "目前没有已公开且带坐标的地点。",
     loadErrorTitle: "无法载入地点信息",
     loadErrorDescription: "地点数据库查询失败。请稍后再试。",
+    retry: "重新加载",
     detail: "详情",
     price: "价格",
     sort: "排序",
@@ -1174,10 +1200,10 @@ const nearbyCopy: Record<Locale, {
     currentBase: "Showing results from your current location.",
     distanceToGwangalli: "Distance to central Gwangalli:",
     locationDenied: "Location permission was denied. Continuing from Gwangalli.",
-    placesCount: "Places",
-    sheetSubtitle: "Based on selected area and filters",
-    mapView: "Open map",
-    origin: "Current location / Gwangalli",
+    mapView: "Map",
+    listView: "List",
+    viewMode: "Map or list view",
+    gwangalliLocation: "Based on Gwangalli",
     heading: "Where nearby now?",
     currentLocation: "Current location",
     useMyLocation: "Use my location",
@@ -1187,6 +1213,7 @@ const nearbyCopy: Record<Locale, {
     emptyDatabaseDescription: "There are no published places with coordinates yet.",
     loadErrorTitle: "Could not load places",
     loadErrorDescription: "The place database query failed. Please try again later.",
+    retry: "Reload",
     detail: "Details",
     price: "Price",
     sort: "Sort",
@@ -1214,10 +1241,10 @@ const nearbyCopy: Record<Locale, {
     currentBase: "現在地を基準に表示しています。",
     distanceToGwangalli: "広安里中心まで約",
     locationDenied: "位置情報の権限が拒否されました。広安里基準で続行します。",
-    placesCount: "スポット",
-    sheetSubtitle: "選択エリアとフィルター基準",
-    mapView: "地図を開く",
-    origin: "現在地 / 広安里",
+    mapView: "地図",
+    listView: "一覧",
+    viewMode: "地図または一覧表示",
+    gwangalliLocation: "広安里基準",
     heading: "今近くでどこへ行く？",
     currentLocation: "現在地",
     useMyLocation: "現在地を使う",
@@ -1227,6 +1254,7 @@ const nearbyCopy: Record<Locale, {
     emptyDatabaseDescription: "公開済みで座標のあるスポットがまだありません。",
     loadErrorTitle: "スポット情報を読み込めません",
     loadErrorDescription: "スポットデータベースの取得に失敗しました。時間をおいて再確認してください。",
+    retry: "再読み込み",
     detail: "詳細",
     price: "価格",
     sort: "並び替え",
@@ -1254,10 +1282,10 @@ const nearbyCopy: Record<Locale, {
     currentBase: "현재 위치 기준입니다.",
     distanceToGwangalli: "광안리 중심까지",
     locationDenied: "위치 권한이 거부되었습니다. 광안리 기준으로 계속 표시합니다.",
-    placesCount: "장소",
-    sheetSubtitle: "선택한 지역과 필터 기준",
-    mapView: "지도 보기",
-    origin: "현재 위치 / 광안리",
+    mapView: "지도",
+    listView: "목록",
+    viewMode: "지도 또는 목록 보기",
+    gwangalliLocation: "광안리 기준",
     heading: "지금 근처 어디 갈까?",
     currentLocation: "현재 위치",
     useMyLocation: "내 위치",
@@ -1267,6 +1295,7 @@ const nearbyCopy: Record<Locale, {
     emptyDatabaseDescription: "아직 공개됐고 좌표가 있는 장소가 없습니다.",
     loadErrorTitle: "장소 정보를 불러오지 못했습니다",
     loadErrorDescription: "장소 데이터베이스 조회에 실패했습니다. 잠시 후 다시 확인해 주세요.",
+    retry: "다시 불러오기",
     detail: "상세",
     price: "가격대",
     sort: "정렬",

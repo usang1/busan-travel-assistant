@@ -114,11 +114,14 @@ assert.doesNotMatch(nearbyExplorer, /filteredItems\.find\([^\n]+\) \?\? filtered
 assert.match(nearbyExplorer, /getConfirmedTransitLabel\(place, locale\)/);
 assert.match(nearbyExplorer, /aria-label=\{`\$\{nameDisplay\.name\} \$\{localizedCopy\.detail\}`\}/);
 assert.match(bottomNavigation, /key: "itinerary", href: "\/itinerary"/);
-assert.match(bottomNavigation, /key: "submit", href: "\/contact"/);
-assert.match(bottomNavigation, /grid-cols-6/);
+assert.match(bottomNavigation, /key: "places", href: "\/places"/);
+assert.doesNotMatch(bottomNavigation, /key: "submit"/);
+assert.doesNotMatch(bottomNavigation, /key: "mypage"/);
+assert.match(bottomNavigation, /grid-cols-5/);
+assert.match(bottomNavigation, /env\(safe-area-inset-bottom\)/);
 assert.match(homeDiscovery, /getHomeQuickFilters\(districtPlaces, selectedDistrict\)/);
 assert.match(homeDiscovery, /href=\{withLocale\("\/contact", locale\)\}/);
-assert.match(homeDiscovery, /commonCopy\.submitPlace/);
+assert.match(homeDiscovery, /ui\[locale\]\.common\.submitPlace/);
 assert.match(homeSearchForm, /role="search"/);
 assert.match(homeSearchForm, /buildLocalizedPlacesSearchHref\(locale, query, region\)/);
 assert.doesNotMatch(homeSearchForm, /params\.set\("q", trimmed\)/);
@@ -142,5 +145,10 @@ assert.match(travelMap, /mapCopy\[locale\]/);
 assert.match(travelMap, /scriptStatus === "error"[\s\S]*<FallbackTravelMap/);
 assert.match(travelMap, /fallbackReason \|\| markers\.length === 0/);
 assert.doesNotMatch(travelMap, />\s*我\s*</);
+assert.match(nearbyExplorer, /role="tablist"/);
+assert.match(nearbyExplorer, /aria-controls="nearby-mobile-list"/);
+assert.match(nearbyExplorer, /h-\[46dvh\]/);
+assert.match(nearbyExplorer, /SelectedPlaceSummary/);
+assert.match(nearbyExplorer, /originMode === "current" \? localizedCopy\.currentLocation : localizedCopy\.gwangalliLocation/);
 
 console.log("Map discovery tests passed (saved/category filters, coordinate validation, distance calculation, and explicit location focus)." );

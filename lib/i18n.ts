@@ -169,6 +169,7 @@ export const ui = {
     region: "釜山广安里 Beta",
     nav: {
       home: "首页",
+      places: "找地点",
       nearby: "附近",
       itinerary: "行程",
       saved: "收藏",
@@ -259,8 +260,8 @@ export const ui = {
       notSubmittedYet: "还没有提交地点。",
     },
     home: {
-      title: "釜山自由行攻略｜美食、路线、下雨天和行李寄存",
-      description: "按旅行问题查釜山：广安里美食、第一次去怎么玩、下雨天去哪、行李寄存、中文菜单餐厅和官方路线。",
+      title: "釜山旅行少踩坑｜去不去、点什么、怎么避坑",
+      description: "为第一次来釜山的自由行游客整理：先判断现在值不值得去、该点什么、外国人是否方便，以及要避开什么。",
       area: "当前区域 · 广安里 Beta",
       areaAction: "更换区域",
       areaNote: "目前只公开已确认的广安里周边地点。其他区域验证完成后再开放。",
@@ -372,6 +373,7 @@ export const ui = {
     region: "Busan Gwangalli Beta",
     nav: {
       home: "Home",
+      places: "Places",
       nearby: "Nearby",
       itinerary: "Routes",
       saved: "Saved",
@@ -462,8 +464,8 @@ export const ui = {
       notSubmittedYet: "No place submissions yet.",
     },
     home: {
-      title: "Busan Travel Assistant | Food, Routes, Rainy Day, Luggage",
-      description: "Find Busan guides connected to verified places: Gwangalli food, first-time routes, rainy day ideas, luggage storage, Chinese-menu restaurants, and official courses.",
+      title: "Busan Travel Without the Guesswork | What to Visit and Order",
+      description: "For first-time independent travelers in Busan: decide whether to go now, what to order, how easy a place is for international visitors, and what mistakes to avoid.",
       area: "Current area · Gwangalli Beta",
       areaAction: "Change area",
       areaNote: "Only verified places around Gwangalli are public for now. More areas will open after review.",
@@ -575,6 +577,7 @@ export const ui = {
     region: "釜山・広安里 Beta",
     nav: {
       home: "ホーム",
+      places: "スポット",
       nearby: "近く",
       itinerary: "旅程",
       saved: "保存",
@@ -665,8 +668,8 @@ export const ui = {
       notSubmittedYet: "投稿したスポットはまだありません。",
     },
     home: {
-      title: "釜山旅行アシスタント｜グルメ、コース、雨の日、荷物預かり",
-      description: "釜山の旅行課題別に、広安里グルメ、初めてのルート、雨の日、荷物預かり、中国語メニュー対応店、公式コースを探せます。",
+      title: "釜山で失敗しない旅｜行く価値・注文・注意点を確認",
+      description: "初めて釜山を訪れる個人旅行者向けに、今行く価値、注文するもの、外国人の利用しやすさ、避けたい失敗を整理します。",
       area: "現在のエリア · 広安里 Beta",
       areaAction: "エリア変更",
       areaNote: "現在は広安里周辺の確認済みスポットのみ公開しています。他エリアは確認後に公開します。",
@@ -778,6 +781,7 @@ export const ui = {
     region: "부산 광안리 Beta",
     nav: {
       home: "홈",
+      places: "장소",
       nearby: "주변",
       itinerary: "일정",
       saved: "저장",
@@ -868,8 +872,8 @@ export const ui = {
       notSubmittedYet: "아직 제보한 장소가 없습니다.",
     },
     home: {
-      title: "부산 여행 어시스턴트 | 맛집, 코스, 비 오는 날, 짐보관",
-      description: "광안리 맛집, 처음 가는 코스, 비 오는 날 여행, 짐 보관, 중국어 메뉴 식당, 공식 여행 코스를 실제 장소와 함께 찾습니다.",
+      title: "부산에서 실패하지 않는 여행 | 갈 곳·주문·주의사항",
+      description: "부산을 처음 찾는 자유여행객이 지금 갈 가치, 주문할 메뉴, 외국인 이용 편의, 피해야 할 실수를 먼저 판단하도록 돕습니다.",
       area: "현재 지역 · 광안리 Beta",
       areaAction: "지역 변경",
       areaNote: "현재는 광안리 주변의 검증된 장소만 공개합니다. 다른 지역은 확인이 끝난 뒤 열립니다.",

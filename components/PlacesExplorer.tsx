@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { LocateFixed, Search, SlidersHorizontal } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -29,7 +30,7 @@ import {
   type ChinaPriceBucket,
 } from "@/lib/place-china/discovery";
 import { cn } from "@/lib/utils";
-import { defaultLocale, getPlaceContent, type Locale, ui } from "@/lib/i18n";
+import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { readPlacesSearchQuery } from "@/lib/place-search-url";
 import { getHomeIntentKeyFromSlug, getHomeIntentLabel, isHomeIntentKey, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { getPlaceCategoryLabel } from "@/lib/place-trust";
@@ -348,9 +349,13 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
             title={loadError ? explorerCopy.loadErrorTitle : copy.places.emptyTitle}
             description={loadError ? explorerCopy.loadErrorDescription : places.length === 0 ? explorerCopy.emptyDatabaseDescription : explorerCopy.reduceFilters}
             action={
-              <button type="button" onClick={clearFilters} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">
-                {explorerCopy.clearFilters}
-              </button>
+              loadError ? (
+                <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{explorerCopy.retry}</button>
+              ) : places.length === 0 ? (
+                <Link href={withLocale("/contact", locale)} className="inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-black text-white">{copy.common.submitPlace}</Link>
+              ) : (
+                <button type="button" onClick={clearFilters} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{explorerCopy.clearFilters}</button>
+              )
             }
           />
         </div>
@@ -380,6 +385,7 @@ const placesExplorerCopy: Record<Locale, {
   emptyDatabaseDescription: string;
   loadErrorTitle: string;
   loadErrorDescription: string;
+  retry: string;
   popular: string;
   savedBased: string;
   locationUnsupported: string;
@@ -404,6 +410,7 @@ const placesExplorerCopy: Record<Locale, {
     emptyDatabaseDescription: "目前没有已公开的地点。",
     loadErrorTitle: "无法载入地点信息",
     loadErrorDescription: "地点数据库查询失败。请稍后再试。",
+    retry: "重新加载",
     popular: "热门地点",
     savedBased: "按收藏数",
     locationUnsupported: "此浏览器无法使用当前位置。",
@@ -428,6 +435,7 @@ const placesExplorerCopy: Record<Locale, {
     emptyDatabaseDescription: "There are no published places yet.",
     loadErrorTitle: "Could not load places",
     loadErrorDescription: "The place database query failed. Please try again later.",
+    retry: "Reload",
     popular: "Popular places",
     savedBased: "Based on saves",
     locationUnsupported: "Current location is unavailable in this browser.",
@@ -452,6 +460,7 @@ const placesExplorerCopy: Record<Locale, {
     emptyDatabaseDescription: "公開済みスポットがまだありません。",
     loadErrorTitle: "スポット情報を読み込めません",
     loadErrorDescription: "スポットデータベースの取得に失敗しました。時間をおいて再確認してください。",
+    retry: "再読み込み",
     popular: "人気スポット",
     savedBased: "保存数基準",
     locationUnsupported: "このブラウザでは現在地を使用できません。",
@@ -476,6 +485,7 @@ const placesExplorerCopy: Record<Locale, {
     emptyDatabaseDescription: "아직 공개된 장소가 없습니다.",
     loadErrorTitle: "장소 정보를 불러오지 못했습니다",
     loadErrorDescription: "장소 데이터베이스 조회에 실패했습니다. 잠시 후 다시 확인해 주세요.",
+    retry: "다시 불러오기",
     popular: "인기 장소",
     savedBased: "저장 수 기반",
     locationUnsupported: "이 브라우저에서는 현재 위치를 사용할 수 없습니다.",

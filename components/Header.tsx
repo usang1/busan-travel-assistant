@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Languages, LogIn, LogOut, MapPin, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { Languages, LogIn, LogOut, MapPin, Send, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, getLocaleFromPath, localeMeta, locales, ui, withLocale, withoutLocale } from "@/lib/i18n";
 import { getSupabaseClient } from "@/lib/supabase";
-import { guideCopy } from "@/lib/guide-copy";
 
 export function Header() {
   const pathname = usePathname();
@@ -45,14 +44,24 @@ export function Header() {
             <MapPin size={15} className="text-teal-700" aria-hidden="true" />
             {copy.region}
           </div>
+          <Link
+            href={withLocale("/contact", currentLocale)}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95"
+            aria-label={copy.nav.submit}
+            title={copy.nav.submit}
+          >
+            <Send size={17} aria-hidden="true" />
+          </Link>
           {user ? (
             <>
               <Link
                 href={withLocale("/mypage", currentLocale)}
-                className="hidden h-11 items-center justify-center gap-1.5 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95 sm:inline-flex"
+                className="inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95 sm:w-auto sm:gap-1.5 sm:px-3"
+                aria-label={copy.auth.mypage}
+                title={copy.auth.mypage}
               >
                 <UserRound size={16} aria-hidden="true" />
-                {copy.auth.mypage}
+                <span className="hidden text-sm font-black sm:inline">{copy.auth.mypage}</span>
               </Link>
               {isAdmin ? (
                 <Link
@@ -109,12 +118,10 @@ export function Header() {
       <nav className="mx-auto mt-2 hidden max-w-6xl flex-wrap gap-2 md:flex" aria-label={copy.siteName}>
         {[
           { href: "/", label: copy.nav.home },
-          { href: "/places", label: copy.places.heading },
-          { href: "/guides", label: guideCopy[currentLocale].title },
+          { href: "/places", label: copy.nav.places },
           { href: "/nearby", label: copy.nav.nearby },
           { href: "/itinerary", label: copy.nav.itinerary },
           { href: "/saved", label: copy.nav.saved },
-          { href: "/mypage", label: copy.nav.mypage },
         ].map((item) => <Link key={item.href} href={withLocale(item.href, currentLocale)} aria-current={basePath === item.href ? "page" : undefined} className="inline-flex min-h-11 items-center px-3 text-sm font-bold text-slate-700 hover:bg-teal-50 aria-[current=page]:bg-teal-50 aria-[current=page]:text-teal-800">{item.label}</Link>)}
       </nav>
     </header>

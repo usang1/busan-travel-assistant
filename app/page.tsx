@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { HomeDiscoveryPage, isHomeCityKey } from "@/components/HomeDiscoveryPage";
+import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
 import { buildLocalizedMetadata, localeMeta, localizedCanonical, ui } from "@/lib/i18n";
+import { getCachedPublicPlaces } from "@/lib/public-cache";
+import { translatedPlaceLocales } from "@/lib/public-seo";
 
 export const revalidate = 300;
 
@@ -15,13 +17,9 @@ export const metadata: Metadata = buildLocalizedMetadata({
   path: "/",
 });
 
-type HomePageProps = {
-  searchParams?: Promise<{ city?: string }>;
-};
-
-export default async function Home({ searchParams }: HomePageProps) {
-  const query = await searchParams;
-  const selectedCity = isHomeCityKey(query?.city) ? query.city : undefined;
+export default async function Home() {
+  const { places: publicPlaces } = await getCachedPublicPlaces(locale, "busan");
+  const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
 
   return (
     <>
@@ -35,7 +33,7 @@ export default async function Home({ searchParams }: HomePageProps) {
           description: copy.home.description,
         }}
       />
-      <HomeDiscoveryPage locale={locale} selectedCity={selectedCity} />
+      <HomeDiscoveryPage locale={locale} places={places} />
     </>
   );
 }

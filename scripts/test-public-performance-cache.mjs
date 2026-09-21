@@ -22,7 +22,8 @@ for (const file of [
 
 const cityHomePage = fs.readFileSync("app/[locale]/page.tsx", "utf8");
 assert.doesNotMatch(cityHomePage, /force-dynamic/);
-assert.doesNotMatch(cityHomePage, /getCachedPublic/, "the city-only home page should not fetch place data");
+assert.match(cityHomePage, /getCachedPublicPlaces\(locale, "busan"\)/, "the Busan-first home page should use cached public place data for live counts");
+assert.match(cityHomePage, /revalidate = 300/, "the Busan-first home page should remain revalidated rather than request-scoped");
 
 for (const file of [
   "app/[locale]/itinerary/page.tsx",

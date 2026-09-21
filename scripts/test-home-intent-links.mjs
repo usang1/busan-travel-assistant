@@ -232,16 +232,13 @@ for (const locale of ["ko", "zh", "en", "ja"]) {
 }
 
 assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides: \[\], places, locale, district: selectedDistrict \}\)/);
-assert.match(homeDiscoverySource, /cityRegionGroups\.map/);
-assert.match(homeDiscoverySource, /<CitySelectCard key=\{city\.key\}/);
-assert.match(homeDiscoverySource, /selectedCityGroup \? \(/);
-assert.match(homeDiscoverySource, /href=\{withLocale\(active \? "\/" : `\/\?city=\$\{city\.key\}`, locale\)\}/);
-assert.match(homeDiscoverySource, /export function isHomeCityKey/);
-assert.match(homeDiscoverySource, /key: "seoul"[\s\S]*seoulDistricts\.map/);
-assert.match(homeDiscoverySource, /key: "jeju"[\s\S]*jejuRegions\.map/);
-assert.match(homeDiscoverySource, /encodeURIComponent\(`서울 \$\{district\.labels\.ko\}`\)/);
-assert.match(homeDiscoverySource, /encodeURIComponent\(region\.searchKo\)/);
-assert.match(homeDiscoverySource, /busanDistrictOptions\.map/);
+assert.match(homeDiscoverySource, /getDistrictCounts\(places\)/);
+assert.match(homeDiscoverySource, /filter\(\(district\) => district\.count > 0\)/);
+assert.match(homeDiscoverySource, /href: "#sns-place-search"/);
+assert.match(homeDiscoverySource, /<HomeSearchForm locale=\{locale\} \/>/);
+assert.match(homeDiscoverySource, /aria-disabled="true"/);
+assert.match(homeDiscoverySource, /orderedDistricts\.map/);
+assert.doesNotMatch(homeDiscoverySource, /어느 도시로 여행하시나요/);
 assert.match(homeDiscoverySource, /lg:grid-cols-3/);
 assert.match(homeDiscoverySource, /focus:outline-none focus:ring-4 focus:ring-teal-100/);
 assert.doesNotMatch(homeDiscoverySource, /\/guides\?search=/);
@@ -252,4 +249,4 @@ assert.match(guideCopySource, /emptyDescription/);
 assert.match(guideCopySource, /clearFilters/);
 assert.match(guideCopySource, /explorePlaces/);
 
-console.log("Home intent link tests passed (guide/place/pending routing, locale links, and guide empty CTAs).");
+console.log("Home intent link tests passed (guide/place/pending routing, Busan-first discovery, and guide empty CTAs).");

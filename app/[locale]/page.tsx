@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { HomeDiscoveryPage, isHomeCityKey } from "@/components/HomeDiscoveryPage";
+import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import { StructuredData } from "@/components/StructuredData";
 import {
   buildLocalizedMetadata,
@@ -10,13 +10,12 @@ import {
   type Locale,
   ui,
 } from "@/lib/i18n";
+import { getCachedPublicPlaces } from "@/lib/public-cache";
+import { translatedPlaceLocales } from "@/lib/public-seo";
 
 type LocalePageProps = {
   params: Promise<{
     locale: string;
-  }>;
-  searchParams?: Promise<{
-    city?: string;
   }>;
 };
 
@@ -44,10 +43,10 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
   });
 }
 
-export default async function LocalizedHome({ params, searchParams }: LocalePageProps) {
+export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
-  const query = await searchParams;
-  const selectedCity = isHomeCityKey(query?.city) ? query.city : undefined;
+  const { places: publicPlaces } = await getCachedPublicPlaces(locale, "busan");
+  const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
   const copy = ui[locale];
   return (
     <>
@@ -69,7 +68,7 @@ export default async function LocalizedHome({ params, searchParams }: LocalePage
           },
         }}
       />
-      <HomeDiscoveryPage locale={locale} selectedCity={selectedCity} />
+      <HomeDiscoveryPage locale={locale} places={places} />
     </>
   );
 }

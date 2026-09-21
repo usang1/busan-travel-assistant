@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "韩国旅行助手",
   englishName: "Korea Travel Assistant",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://busan-travel-assistant.vercel.app",
-  description: "面向中国自由行游客的釜山广安里 Beta 旅行工具，整理已确认的美食、拍照机位、行李寄存、韩语沟通和旅行路线。",
+  description: "面向第一次来釜山的自由行游客，帮助判断现在值不值得去、该点什么、外国人是否方便，以及要避开什么。",
   locale: "zh_CN",
   contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "",
 };

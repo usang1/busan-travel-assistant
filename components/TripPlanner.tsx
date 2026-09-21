@@ -29,7 +29,7 @@ import {
   updateGuestTrip,
   updateGuestTripPlace,
 } from "@/lib/guest-trips";
-import { getPlaceContent, type Locale, withLocale } from "@/lib/i18n";
+import { getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { getPublicPlacesByIds } from "@/lib/place-store";
 import { getPlaceCategoryLabel, getPlaceNameDisplay } from "@/lib/place-trust";
 import { getSavedPlaceIds, savedItemsChangeEvent } from "@/lib/saved-items";
@@ -389,6 +389,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
           <MapPinned className="mx-auto text-slate-400" size={28} />
           <h2 className="mt-3 text-xl font-black text-slate-950">{text.emptyTitle}</h2>
           <p className="mt-2 text-sm text-slate-500">{text.emptyDescription}</p>
+          <Link href={withLocale("/places", locale)} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-black text-white">{ui[locale].common.explorePlaces}</Link>
         </section>
       ) : (
         <>
@@ -524,7 +525,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
                   );
                 })}
               </div>
-            ) : <p className="mt-4 text-sm text-slate-500">{text.noSavedPlaces}</p>}
+            ) : <p className="mt-4 text-sm text-slate-500">{text.noSavedPlaces} <Link href={withLocale("/places", locale)} className="ml-1 font-black text-teal-700 underline underline-offset-4">{ui[locale].common.explorePlaces}</Link></p>}
           </section>
         </>
       )}
