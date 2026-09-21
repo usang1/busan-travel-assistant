@@ -16,7 +16,7 @@ type SocialProviderId = "kakao" | "google" | "naver";
 const socialProviders: Array<{
   id: SocialProviderId;
   provider: Provider;
-  scopes: string;
+  scopes?: string;
   brandMark: string;
   className: string;
 }> = [
@@ -37,7 +37,6 @@ const socialProviders: Array<{
   {
     id: "naver",
     provider: "custom:naver",
-    scopes: "email nickname profile_image",
     brandMark: "N",
     className: "bg-[#03C75A] text-white ring-[#03C75A]",
   },
@@ -208,7 +207,7 @@ export function LoginForm() {
       provider: provider.provider,
       options: {
         redirectTo: callbackUrl.toString(),
-        scopes: provider.scopes,
+        ...(provider.scopes ? { scopes: provider.scopes } : {}),
       },
     });
 
