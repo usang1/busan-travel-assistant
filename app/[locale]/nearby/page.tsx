@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: LocalizedNearbyPageProps): Pr
 
 export default async function LocalizedNearbyPage({ params }: LocalizedNearbyPageProps) {
   const locale = await getLocale(params);
-  const { places: publicPlaces, error } = await getCachedPublicPlaces(locale);
+  const { places: publicPlaces, error } = await getCachedPublicPlaces(locale, "busan");
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
 
   return (

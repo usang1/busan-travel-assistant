@@ -201,6 +201,7 @@ const validation = loadTsModule("lib/place-validation.ts", {
   "@/lib/place-quality": quality,
   "@/lib/place-publication-quality": publicationQuality,
   "@/lib/place-publishing": publishing,
+  "@/lib/place-scope": { getPlaceScopeIssueLabels: () => [] },
   "@/types/database": databaseRuntime,
 });
 class FakeOpenAI {}

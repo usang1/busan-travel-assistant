@@ -9,6 +9,7 @@ import {
   scoreRelatedPlace,
 } from "@/lib/place-recommendation-score";
 import { getPublicPlacesByIds, getPublicPlacesInBounds } from "@/lib/place-store";
+import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { PlaceCategory, PlaceRankingCollection, PlaceWithRelations } from "@/types/database";
 
@@ -18,14 +19,17 @@ type PlaceRankingRow = {
   recent_save_count: number | string;
 };
 
+export const minimumRankingSaveCount = 3;
+
 export async function getPlaceRankings(options: { limit?: number; category?: PlaceCategory; region?: string } = {}): Promise<PlaceRankingCollection> {
   const client = getSupabaseClient();
   if (!client) return { popular: [], trending: [] };
 
   const limit = Math.max(1, Math.min(options.limit ?? 6, 12));
+  const queryLimit = Math.min(limit * 3, 24);
   const params = {
     ranking_period: "all",
-    result_limit: limit,
+    result_limit: queryLimit,
     category_filter: options.category ?? null,
     region_filter: options.region?.trim() || null,
   };
@@ -50,8 +54,8 @@ export async function getPlaceRankings(options: { limit?: number; category?: Pla
   const byId = new Map(places.map((place) => [place.id, place]));
 
   return {
-    popular: applyRanking(popularRows, byId),
-    trending: applyRanking(trendingRows, byId),
+    popular: applyRanking(popularRows, byId, "save_count").slice(0, limit),
+    trending: applyRanking(trendingRows, byId, "recent_save_count").slice(0, limit),
   };
 }
 
@@ -95,10 +99,10 @@ function normalizeRankingRows(value: unknown): PlaceRankingRow[] {
   });
 }
 
-function applyRanking(rows: PlaceRankingRow[], places: Map<string, PlaceWithRelations>) {
-  return rows.flatMap((row) => {
+function applyRanking(rows: PlaceRankingRow[], places: Map<string, PlaceWithRelations>, countKey: "save_count" | "recent_save_count") {
+  return rows.filter((row) => finiteCount(row[countKey]) >= minimumRankingSaveCount).flatMap((row) => {
     const place = places.get(row.place_id);
-    return place ? [{
+    return place && isVerifiedPlace(place) ? [{
       ...place,
       save_count: finiteCount(row.save_count),
       recent_save_count: finiteCount(row.recent_save_count),

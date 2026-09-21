@@ -94,7 +94,11 @@ const trust = compileTs("lib/place-trust.ts", (specifier) => {
   }
 
   if (specifier === "@/lib/traveler-insights") {
-    return { verificationDateLabel: (value, locale) => value ? `${locale}:${value}` : "" };
+    return { isPlaceInformationStale: () => false, verificationDateLabel: (value, locale) => value ? `${locale}:${value}` : "" };
+  }
+
+  if (specifier === "@/lib/transit-labels") {
+    return { formatLocalizedStation: (value) => value ?? "", formatLocalizedExit: (value) => value ?? "" };
   }
 
   if (specifier === "@/types/database") {

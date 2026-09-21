@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: LocalizedPlaceReportPageProps
 
 export default async function LocalizedPlaceReportPage({ params }: LocalizedPlaceReportPageProps) {
   const { locale, slug } = await getRouteParams(params);
-  const { place } = await getPlaceBySlug(slug);
+  const { place } = await getPlaceBySlug(slug, { cityCode: "busan" });
   if (!place) notFound();
   return <PlaceCorrectionPageView place={place} locale={locale} />;
 }

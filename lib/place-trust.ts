@@ -1,5 +1,6 @@
 import { getLocalizedMenuItem, getPlaceContent, type Locale } from "@/lib/i18n";
-import { verificationDateLabel } from "@/lib/traveler-insights";
+import { isPlaceInformationStale, verificationDateLabel } from "@/lib/traveler-insights";
+import { formatLocalizedExit, formatLocalizedStation } from "@/lib/transit-labels";
 import { categoryLabels, type PlaceCategory, type PlaceSourceProvider, type PlaceVerificationStatus, type PlaceWithRelations } from "@/types/database";
 
 export type PlacePhotoDisplay =
@@ -134,10 +135,11 @@ export function getPlaceNameDisplay(place: PlaceWithRelations, locale: Locale): 
 
 export function getLocalizedRecommendationDisplay(place: PlaceWithRelations, locale: Locale): LocalizedRecommendationDisplay {
   const score = place.china_info?.chinese_taste_score;
+  const verified = getVerificationStatus(place) === "verified" && !place.china_info?.has_information_conflict;
 
   return {
     label: copy[locale].recommendationLabel,
-    value: typeof score === "number" && score >= 1 && score <= 5 ? `${score}/5` : copy[locale].recommendationUnknown,
+    value: verified && typeof score === "number" && score >= 1 && score <= 5 ? `${score}/5` : copy[locale].recommendationUnknown,
   };
 }
 
@@ -199,8 +201,8 @@ export function getConfirmedTransitLabel(
   place: Pick<PlaceWithRelations, "nearest_station" | "nearest_exit" | "walking_minutes" | "china_info">,
   locale: Locale,
 ) {
-  const station = place.nearest_station?.trim() ?? "";
-  const exit = place.nearest_exit?.trim() ?? "";
+  const station = formatLocalizedStation(place.nearest_station, locale);
+  const exit = formatLocalizedExit(place.nearest_exit, locale);
   const subwayWalkMinutes = place.china_info?.subway_walk_minutes;
   const walkingMinutes = typeof subwayWalkMinutes === "number" && subwayWalkMinutes > 0
     ? subwayWalkMinutes
@@ -270,6 +272,26 @@ export function getSourceSummary(place: PlaceWithRelations, locale: Locale) {
   }
 
   return copy[locale].sourceUnknown;
+}
+
+export function getTrustEvidenceLabel(place: PlaceWithRelations, locale: Locale) {
+  const info = place.china_info;
+  const labels = {
+    zh: { official: "官方来源已确认", admin: "运营人员审核完成", traveler: (count: number) => `最近有${count}名旅行者确认`, unknown: "尚未确认", stale: "信息可能已过期", conflict: "信息存在冲突", review: "需要审核" },
+    en: { official: "Official source checked", admin: "Reviewed by the operator", traveler: (count: number) => `Confirmed by ${count} recent travelers`, unknown: "Not yet verified", stale: "Information may be outdated", conflict: "Conflicting information", review: "Review required" },
+    ja: { official: "公式情報を確認済み", admin: "運営者の確認済み", traveler: (count: number) => `最近の旅行者${count}名が確認`, unknown: "未確認", stale: "情報が古い可能性があります", conflict: "情報に不一致があります", review: "確認が必要" },
+    ko: { official: "공식 출처 확인", admin: "운영자 검수 완료", traveler: (count: number) => `최근 여행자 ${count}명 확인`, unknown: "아직 확인되지 않은 항목", stale: "오래된 정보", conflict: "정보 충돌", review: "검수 필요" },
+  }[locale];
+
+  if (info?.has_information_conflict) return labels.conflict;
+  if (info?.verification_status === "needs_review") return labels.review;
+  if (isPlaceInformationStale(getLastVerifiedAt(place))) return labels.stale;
+  if (info?.verification_basis === "official_source") return labels.official;
+  if (info?.verification_basis === "traveler" && (info.traveler_confirmation_count ?? 0) > 0) {
+    return labels.traveler(info.traveler_confirmation_count ?? 0);
+  }
+  if (info?.verification_basis === "admin" || info?.verification_status === "verified") return labels.admin;
+  return labels.unknown;
 }
 
 function addFact(facts: PlaceCardFact[], missing: PlaceCardFactKey[], key: PlaceCardFactKey, label: string, value: string) {

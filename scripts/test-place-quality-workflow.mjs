@@ -64,6 +64,8 @@ const completePayload = {
   name_zh: "广安里测试店",
   name_ko: "광안리 테스트店",
   category: "restaurant",
+  city_code: "busan",
+  district_code: "suyeong-gu",
   address: "부산 수영구 광안해변로 1",
   phone: null,
   website: "https://example.com/place",
@@ -227,7 +229,7 @@ const missingCoordinates = {
 const missingCoordinateQuality = evaluatePlaceQuality(missingCoordinates);
 assert.equal(missingCoordinateQuality.canPublish, false);
 assert.ok(missingCoordinateQuality.missingRequired.some((item) => item.key === "coordinates"));
-assert.doesNotThrow(() => validatePlacePayloadForSave(missingCoordinates));
+assert.throws(() => validatePlacePayloadForSave(missingCoordinates), /부산 공개 범위를 확인해 주세요/);
 assert.equal(isPublishablePlace(missingCoordinates), true);
 
 const draftWithoutCoordinates = {

@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Locale } from "@/lib/i18n";
+import { getTrustEvidenceLabel } from "@/lib/place-trust";
 import {
   isPlaceInformationStale,
   travelerInsightsFromPlaceInfo,
@@ -27,11 +28,11 @@ import type { PlaceWithRelations, TravelerInsights } from "@/types/database";
 type InsightTag = { key: string; icon: LucideIcon; tone: "positive" | "warning" | "neutral"; label: string };
 
 const copy = {
-  ko: { title: "여행자 실용정보", stale: "최근 정보가 오래되었습니다", review: "일부 정보는 재확인이 필요합니다" },
-  zh: { title: "旅行实用信息", stale: "最近一次信息确认已超过较长时间", review: "部分信息需要重新确认" },
-  en: { title: "Practical traveler information", stale: "This information has not been verified recently", review: "Some information needs verification" },
-  ja: { title: "旅行者向け実用情報", stale: "最近の情報確認から時間が経っています", review: "一部の情報は再確認が必要です" },
-} satisfies Record<Locale, { title: string; stale: string; review: string }>;
+  ko: { title: "여행자 실용정보", stale: "최근 정보가 오래되었습니다", review: "일부 정보는 재확인이 필요합니다", conflict: "서로 다른 정보가 있어 확인이 필요합니다" },
+  zh: { title: "旅行实用信息", stale: "最近一次信息确认已超过较长时间", review: "部分信息需要重新确认", conflict: "不同来源的信息存在冲突，需要确认" },
+  en: { title: "Practical traveler information", stale: "This information has not been verified recently", review: "Some information needs verification", conflict: "Sources conflict and need review" },
+  ja: { title: "旅行者向け実用情報", stale: "最近の情報確認から時間が経っています", review: "一部の情報は再確認が必要です", conflict: "情報に不一致があるため確認が必要です" },
+} satisfies Record<Locale, { title: string; stale: string; review: string; conflict: string }>;
 
 const toneClass = {
   positive: "bg-teal-50 text-teal-800 ring-teal-100",
@@ -46,8 +47,8 @@ export function TravelerInsightsPanel({ place, locale }: { place: PlaceWithRelat
   const dateLabel = verificationDateLabel(info?.verified_at, locale);
   const stale = isPlaceInformationStale(info?.verified_at);
   const needsReview = info?.verification_status === "needs_review";
-
-  if (!tags.length && !dateLabel) return null;
+  const hasConflict = Boolean(info?.has_information_conflict);
+  const evidenceLabel = getTrustEvidenceLabel(place, locale);
 
   return (
     <section className="mt-6 rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
@@ -60,6 +61,7 @@ export function TravelerInsightsPanel({ place, locale }: { place: PlaceWithRelat
           </span>
         ) : null}
       </div>
+      <p className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-700">{evidenceLabel}</p>
       {tags.length ? (
         <div className="mt-4 flex flex-wrap gap-2">
           {tags.map(({ key, icon: Icon, tone, label }) => (
@@ -70,10 +72,10 @@ export function TravelerInsightsPanel({ place, locale }: { place: PlaceWithRelat
           ))}
         </div>
       ) : null}
-      {stale || needsReview ? (
+      {stale || needsReview || hasConflict ? (
         <p className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
           <AlertTriangle size={16} aria-hidden="true" />
-          {needsReview ? copy[locale].review : copy[locale].stale}
+          {hasConflict ? copy[locale].conflict : needsReview ? copy[locale].review : copy[locale].stale}
         </p>
       ) : null}
     </section>

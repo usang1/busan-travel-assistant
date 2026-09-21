@@ -15,10 +15,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { hasCoordinates } from "@/lib/location";
+import { getConfirmedTransitLabel } from "@/lib/place-trust";
+import { isPlaceInformationStale } from "@/lib/traveler-insights";
 import {
   buildChinaPlaceSummary,
   minimumOrderLabel,
-  ratingHelp,
   tristateLabel,
   waitingLabel,
   type ChinaRatingDisplay,
@@ -47,7 +48,12 @@ const factIcon: Record<Exclude<FactTone, "neutral">, LucideIcon> = {
 };
 
 export function PlaceChinaDecisionPanel({ place, openingText, priceText }: PlaceChinaDecisionPanelProps) {
-  const info = place.china_info;
+  const rawInfo = place.china_info;
+  const info = rawInfo?.verification_status === "verified"
+    && !rawInfo.has_information_conflict
+    && !isPlaceInformationStale(rawInfo.verified_at)
+    ? rawInfo
+    : null;
   const chinaSummary = buildChinaPlaceSummary(info);
   const recommendation = chinaSummary.ratings.find((rating) => rating.key === "chinese_taste_score");
   const tasteRatings = chinaSummary.ratings.filter((rating) => rating.key !== "chinese_taste_score");
@@ -79,7 +85,7 @@ export function PlaceChinaDecisionPanel({ place, openingText, priceText }: Place
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <TopMetric icon={CircleDollarSign} label="价格" value={priceText} />
           <TopMetric icon={Clock3} label="营业" value={openingText} />
-          <TopMetric icon={MapPin} label="最近地铁" value={`${place.nearest_station} ${place.nearest_exit}`} />
+          <TopMetric icon={MapPin} label="最近地铁" value={getConfirmedTransitLabel(place, "zh") || "暂未确认"} />
           <TopMetric icon={Star} label="收藏" value={`${place.save_count ?? 0}`} />
         </div>
         {walkMinutes ? <p className="mt-3 text-sm font-semibold text-slate-300">从地铁站步行约 {walkMinutes} 分钟</p> : null}
@@ -180,7 +186,6 @@ function TasteRatingRow({ rating }: { rating: ChinaRatingDisplay }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StarRating value={rating.value} />
         <span className="text-sm font-bold text-slate-700">{rating.zhLabel}</span>
-        <span className="text-xs font-semibold text-slate-500">{rating.value ? ratingHelp[rating.key].values[rating.value].ko : "확인 필요"}</span>
       </div>
     </div>
   );

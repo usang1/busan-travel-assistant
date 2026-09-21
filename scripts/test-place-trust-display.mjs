@@ -37,7 +37,15 @@ function loadTrustModule() {
 
     if (specifier === "@/lib/traveler-insights") {
       return {
+        isPlaceInformationStale: () => false,
         verificationDateLabel: (value, locale) => value ? `${locale}:${value.slice(0, 10)}` : "",
+      };
+    }
+
+    if (specifier === "@/lib/transit-labels") {
+      return {
+        formatLocalizedStation: (value, locale) => locale === "zh" && value === "광안역" ? "广安站（광안역）" : value,
+        formatLocalizedExit: (value, locale) => locale === "zh" && value ? `${String(value).match(/\d+/)?.[0]}号出口` : value,
       };
     }
 
@@ -157,6 +165,8 @@ const subwayWalkPlace = {
 };
 const subwayWalkFact = trust.buildPlaceCardFacts(subwayWalkPlace, "ko").facts.find((fact) => fact.key === "transit");
 assert.deepEqual({ ...subwayWalkFact }, { key: "transit", label: "교통", value: "광안역 · 3번 출구 · 도보 4분" });
+const subwayWalkFactZh = trust.buildPlaceCardFacts(subwayWalkPlace, "zh").facts.find((fact) => fact.key === "transit");
+assert.deepEqual({ ...subwayWalkFactZh }, { key: "transit", label: "交通", value: "广安站（광안역） · 3号出口 · 步行 4分钟" });
 
 const unsplashPlace = {
   ...basePlace,

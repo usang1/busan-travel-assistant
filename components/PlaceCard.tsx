@@ -22,6 +22,7 @@ import {
   getPlaceTrustCopy,
   getPublicPlaceDescription,
   getSourceSummary,
+  getTrustEvidenceLabel,
   getTrustedPlaceImageUrl,
   getVerificationStatus,
   getVerificationStatusLabel,
@@ -45,6 +46,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const correctionHref = withLocale(`/places/${place.slug}/report`, locale);
   const chinaTags = locale === "zh" ? getChinaDiscoveryTags(place, locale, 4) : [];
   const correctionLabel = { zh: "补充商家信息", en: "Update info", ja: "店舗情報を報告", ko: "영업정보 제보" }[locale];
+  const naverPlaceLabel = { zh: "Naver 地图", en: "Naver Map", ja: "Naver Map", ko: "네이버 플레이스" }[locale];
   const coordinates: Coordinates | null = hasCoordinates(place)
     ? { latitude: place.latitude, longitude: place.longitude }
     : null;
@@ -140,6 +142,9 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <TagChip tone={verificationStatus === "verified" ? "green" : verificationStatus === "needs_review" ? "amber" : "default"}>
+            {getTrustEvidenceLabel(place, locale)}
+          </TagChip>
+          <TagChip tone={verificationStatus === "verified" ? "green" : verificationStatus === "needs_review" ? "amber" : "default"}>
             {getSourceSummary(place, locale)}
           </TagChip>
           {distanceWarning ? <TagChip tone="amber">{distanceWarning}</TagChip> : null}
@@ -178,7 +183,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
                 className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-green-50 px-3 text-xs font-black text-green-800 ring-1 ring-green-100 transition hover:bg-green-100"
               >
                 <ExternalLink size={15} aria-hidden="true" />
-                네이버 플레이스
+                {naverPlaceLabel}
               </a>
             ) : null}
           </div>

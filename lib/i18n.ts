@@ -1040,8 +1040,10 @@ export function getLocalizedMenuItem(
   item: { name_ko: string; name_zh: string; description_zh?: string },
   locale: Locale,
 ) {
-  const name = getLocalizedValue({ zh: item.name_zh, ko: item.name_ko }, locale);
-  const secondaryName = locale === "ko" || name === item.name_ko ? "" : item.name_ko;
+  const exactName = locale === "zh" ? item.name_zh.trim() : locale === "ko" ? item.name_ko.trim() : "";
+  const originalLabels = { zh: "韩文原名", en: "Korean original", ja: "韓国語原文", ko: "" } as const;
+  const name = exactName || (locale === "ko" ? item.name_ko : `${originalLabels[locale]}: ${item.name_ko}`);
+  const secondaryName = locale !== "ko" && Boolean(exactName) && exactName !== item.name_ko ? item.name_ko : "";
 
   return {
     name,

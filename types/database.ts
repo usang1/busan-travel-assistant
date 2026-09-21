@@ -20,6 +20,10 @@ export type ChinaMinimumOrderPolicy = "unknown" | "none" | "two_plus" | "three_p
 
 export type PlaceVerificationStatus = "unverified" | "pending" | "verified" | "needs_review";
 
+export type PlaceVerificationBasis = "official_source" | "admin" | "traveler" | "unverified";
+
+export type PlaceCityCode = "busan" | "seoul" | "jeju";
+
 export const placeWorkflowStatuses = ["DRAFT", "REVIEW", "PUBLISHED", "ARCHIVED"] as const;
 
 export type PlaceWorkflowStatus = (typeof placeWorkflowStatuses)[number];
@@ -67,6 +71,8 @@ export type PlaceRecord = {
   name_zh: string;
   name_ko: string;
   category: PlaceCategory;
+  city_code?: PlaceCityCode | null;
+  district_code?: string | null;
   address?: string;
   short_description_zh: string;
   short_description_ko: string;
@@ -166,6 +172,9 @@ export type PlaceChinaInfoRecord = {
   manual_warning_override?: string | null;
   traveler_insights?: TravelerInsights | null;
   verification_status: PlaceVerificationStatus;
+  verification_basis?: PlaceVerificationBasis;
+  traveler_confirmation_count?: number;
+  has_information_conflict?: boolean;
   verified_at?: string | null;
   created_at: string;
   updated_at: string;

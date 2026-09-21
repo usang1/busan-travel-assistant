@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default async function NearbyPage() {
-  const { places, error } = await getCachedPublicPlaces("zh");
+  const { places, error } = await getCachedPublicPlaces("zh", "busan");
 
   return (
     <main className="safe-bottom mx-auto max-w-7xl px-4 pb-6 pt-5 lg:px-6">

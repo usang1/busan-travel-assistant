@@ -36,7 +36,7 @@ export default async function BusanPage({ params, searchParams }: BusanPageProps
   const query = await searchParams;
   const selectedDistrict = isBusanDistrictKey(query?.district) ? query.district : undefined;
   const [{ places: publicPlaces }, { guides }] = await Promise.all([
-    getCachedPublicPlaces(locale),
+    getCachedPublicPlaces(locale, "busan"),
     getCachedPublishedGuides(),
   ]);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));

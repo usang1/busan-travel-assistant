@@ -56,7 +56,7 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   const rankingCategory = parseRankingCategory(query?.category);
   const rankingRegion = isBusanDistrictKey(query?.region) ? getBusanDistrictLabel(query.region, "ko") : undefined;
   const [{ places: publicPlaces, source, error }, rankings] = await Promise.all([
-    getCachedPublicPlaces(locale),
+    getCachedPublicPlaces(locale, "busan"),
     getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
   ]);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
@@ -68,7 +68,7 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
 
   return (
     <main className="safe-bottom mx-auto max-w-6xl px-4 pb-6 pt-5">
-      <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : copy.common.registeredPlaces} />
+      <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : `${copy.common.registeredPlaces} ${places.length}`} />
       <div className="mt-4">
         <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={localeRankings} />
       </div>

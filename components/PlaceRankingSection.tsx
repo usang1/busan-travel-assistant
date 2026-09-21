@@ -9,7 +9,7 @@ import type { PlaceRankingCollection } from "@/types/database";
 type RankingMode = "popular" | "trending";
 
 const copy = {
-  ko: { title: "지금 부산에서 많이 저장하는 곳", popular: "누적 저장", trending: "이번 주 급상승", empty: "저장 데이터가 쌓이면 인기 장소가 표시됩니다.", weekly: "최근 7일" },
+  ko: { title: "지금 부산에서 많이 저장하는 곳", popular: "누적 저장", trending: "이번 주 급상승", empty: "저장 데이터가 더 쌓이면 표시됩니다.", weekly: "최근 7일" },
   zh: { title: "现在釜山收藏较多的地点", popular: "累计收藏", trending: "本周上升", empty: "收藏数据积累后将在这里显示热门地点。", weekly: "最近7天" },
   en: { title: "Most saved in Busan now", popular: "All-time saves", trending: "Trending this week", empty: "Popular places will appear as save data grows.", weekly: "Last 7 days" },
   ja: { title: "今、釜山で保存されている場所", popular: "累計保存", trending: "今週の急上昇", empty: "保存データが増えると人気スポットが表示されます。", weekly: "直近7日" },

@@ -34,6 +34,7 @@ import {
 import { isPublicPlace, nextPlacePublicationStatus, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
+import { getPlaceScopeIssueLabels } from "@/lib/place-scope";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
@@ -278,6 +279,9 @@ function createEmptyChinaInfo(): ChinaInfoForm {
     manual_summary_override: "",
     manual_warning_override: "",
     verification_status: "unverified",
+    verification_basis: "unverified",
+    traveler_confirmation_count: 0,
+    has_information_conflict: false,
     verified_at: "",
     traveler_insights: createEmptyTravelerInsights(),
   };
@@ -636,8 +640,10 @@ function travelerWaitingToLegacy(value: Required<NonNullable<PlaceChinaInfoPaylo
 
 function toPayload(form: FormState): PlacePayload {
   const unifiedName = unifiedPlaceName(form);
-  const city = form.city || inferPlaceCity(form.address_ko) || "busan";
-  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildPlaceRegionTags(city, form.region_key, form.address_ko)];
+  const city = form.city || inferPlaceCity(form.address_ko);
+  const district = city ? form.region_key || getPlaceRegion({ city_code: city, address_ko: form.address_ko }).region_key : "";
+  const regionTags = city ? buildPlaceRegionTags(city, district, form.address_ko) : [];
+  const tags = [...parseTagsText(form.tags_text), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...regionTags];
   const chinaInfo = toChinaInfoPayload(form.china_info);
 
   return {
@@ -645,6 +651,8 @@ function toPayload(form: FormState): PlacePayload {
     name_zh: unifiedName,
     name_ko: unifiedName,
     category: form.category as PlaceCategory,
+    city_code: city || null,
+    district_code: district || null,
     address: form.address_ko,
     phone: form.phone.trim() || null,
     website: form.website.trim() || null,
@@ -1355,6 +1363,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     const nextChinaInfo = {
       ...form.china_info,
       verification_status: value,
+      verification_basis: value === "verified" && form.china_info.verification_basis === "unverified"
+        ? "admin" as const
+        : form.china_info.verification_basis,
       verified_at: value === "verified" && !form.china_info.verified_at
         ? new Date().toISOString().slice(0, 10)
         : form.china_info.verified_at,
@@ -1954,6 +1965,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           {visiblePlaces.length > 0 ? (
             visiblePlaces.map((place) => {
               const quality = evaluatePlaceQuality(place);
+              const scopeIssues = getPlaceScopeIssueLabels(place);
               const workflowStatus = normalizePlaceStatusForWrite(place);
               const publicationState = getPlacePublicationState(place);
               return (
@@ -1981,6 +1993,11 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                       <span className={["rounded-full px-2 py-1 text-[11px] font-black", quality.canPublish ? "bg-teal-50 text-teal-700" : "bg-rose-50 text-rose-700"].join(" ")}>
                         완성도 {quality.score}%
                       </span>
+                      {scopeIssues.length ? (
+                        <span className="rounded-full bg-rose-50 px-2 py-1 text-[11px] font-black text-rose-700">
+                          지역 검수 필요
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </button>
@@ -1990,6 +2007,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </p>
                 ) : quality.isStale ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">마지막 확인일이 오래되었습니다.</p>
+                ) : null}
+                {scopeIssues.length ? (
+                  <p className="mt-2 text-xs font-semibold leading-5 text-rose-700">지역 오류: {scopeIssues.join(", ")}</p>
                 ) : null}
                 <div className="mt-3 flex gap-2">
                   <IconButton label="수정" onClick={() => {
@@ -2218,6 +2238,34 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               onVerificationStatusChange={updateTravelerVerificationStatus}
               onVerifiedAtChange={(value) => updateChinaField("verified_at", value)}
             />
+            <div className="mt-4 grid gap-4 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3">
+              <Field label="확인 근거">
+                <select
+                  value={form.china_info.verification_basis ?? "unverified"}
+                  onChange={(event) => updateChinaField("verification_basis", event.target.value as NonNullable<PlaceChinaInfoPayload["verification_basis"]>)}
+                  className={inputClass}
+                >
+                  <option value="unverified">미확인</option>
+                  <option value="official_source">공식 출처 확인</option>
+                  <option value="admin">관리자 확인</option>
+                  <option value="traveler">여행자 확인</option>
+                </select>
+              </Field>
+              <Field label="최근 여행자 확인 수">
+                <input
+                  type="number"
+                  min="0"
+                  value={form.china_info.traveler_confirmation_count ?? 0}
+                  onChange={(event) => updateChinaField("traveler_confirmation_count", Math.max(0, Number(event.target.value) || 0))}
+                  className={inputClass}
+                />
+              </Field>
+              <CheckField
+                label="정보 충돌 있음"
+                checked={Boolean(form.china_info.has_information_conflict)}
+                onChange={(checked) => updateChinaField("has_information_conflict", checked)}
+              />
+            </div>
           </section>
 
           <section className="border-b border-slate-200 pb-6">

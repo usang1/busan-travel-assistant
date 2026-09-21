@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default async function PlaceReportPage({ params }: PlaceReportPageProps) {
   const { slug } = await params;
-  const { place } = await getPlaceBySlug(slug);
+  const { place } = await getPlaceBySlug(slug, { cityCode: "busan" });
   if (!place) notFound();
   return <PlaceCorrectionPageView place={place} locale="zh" />;
 }

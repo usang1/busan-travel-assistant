@@ -33,13 +33,13 @@ export default async function PlacesPage({ searchParams }: PlacesPageProps) {
   const rankingCategory = parseRankingCategory(params?.category);
   const rankingRegion = isBusanDistrictKey(params?.region) ? getBusanDistrictLabel(params.region, "ko") : undefined;
   const [{ places, source, error }, rankings] = await Promise.all([
-    getCachedPublicPlaces("zh"),
+    getCachedPublicPlaces("zh", "busan"),
     getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
   ]);
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <SectionTitle title="附近推荐" subtitle={source === "demo" ? "示例数据" : "已登记地点"} />
+      <SectionTitle title="附近推荐" subtitle={source === "demo" ? "示例数据" : `已登记地点 ${places.length}`} />
       {error ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
       <div className="mt-4">
         <PlacesExplorer places={places} initialCategory={params?.category} loadError={error} rankings={rankings} />

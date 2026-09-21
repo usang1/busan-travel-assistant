@@ -13,6 +13,7 @@ import { getPhotoSpots } from "@/lib/photo-spot-store";
 import { getPlaceRankings } from "@/lib/place-recommendations";
 import { getPlaceBySlug, getPlaces } from "@/lib/place-store";
 import type { Locale } from "@/lib/i18n";
+import type { PlaceCity } from "@/lib/city-regions";
 import type { PlaceCategory } from "@/types/database";
 
 function createPublicSupabaseClient() {
@@ -31,9 +32,9 @@ function createPublicSupabaseClient() {
 }
 
 export const getCachedPublicPlaces = unstable_cache(
-  async (locale?: Locale) => {
+  async (locale?: Locale, cityCode?: PlaceCity) => {
     const client = createPublicSupabaseClient();
-    return getPlaces({ activeOnly: true, locale, debugLabel: "cached-public-places" }, client ?? undefined);
+    return getPlaces({ activeOnly: true, locale, cityCode, debugLabel: "cached-public-places" }, client ?? undefined);
   },
   ["public-places"],
   {
@@ -45,7 +46,7 @@ export const getCachedPublicPlaces = unstable_cache(
 export const getCachedPublicPlaceBySlug = unstable_cache(
   async (slug: string) => {
     const client = createPublicSupabaseClient();
-    return getPlaceBySlug(slug, { activeOnly: true }, client ?? undefined);
+    return getPlaceBySlug(slug, { activeOnly: true, cityCode: "busan" }, client ?? undefined);
   },
   ["public-place-by-slug"],
   {

@@ -46,7 +46,9 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
   assert.match(source, /placeCities\.map/, "admin forms must offer Busan, Seoul, and Jeju");
   assert.match(source, /cityRegions\(selectedCity\)\.map/, "admin regions must follow the selected city");
   assert.match(source, /key === "city"[\s\S]*region_key: ""/, "changing city must clear an incompatible region");
-  assert.match(source, /buildPlaceRegionTags\(city, form.region_key, form.address_ko\)/, "admin forms must persist the city and region");
+  assert.match(source, /buildPlaceRegionTags\(city, district, form.address_ko\)/, "admin forms must persist the city and normalized region");
+  assert.match(source, /city_code: city \|\| null/, "admin forms must persist the normalized city column");
+  assert.match(source, /district_code: district \|\| null/, "admin forms must persist the normalized district column");
   assert.match(source, /buildChinaDiscoveryTags\(form\.china_discovery_keys\)/, "admin forms must persist selected discovery filter tags");
   assert.doesNotMatch(source, /placeholder=\{"광안리 처음\\n밤 10시 이후"\}/, "admin forms must not use natural-language tag entry for home categories");
   for (const label of ["중국어 장소명", "영어 장소명", "일본어 장소명", "중국어명", "영어명", "일본어명"]) {
@@ -109,7 +111,7 @@ assert.match(nextConfigSource, /\/storage\/v1\/object\/public\/place-images\/\*\
 
 const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
 assert.match(placeStoreSource, /adaptPlaceWriteRowForLegacySchema/, "place writes must adapt to older production schemas");
-assert.match(placeStoreSource, /\["admin_summary", "closed_days", "last_verified_at"\]/, "place writes must omit unavailable optional columns on legacy schemas");
+assert.match(placeStoreSource, /\["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code"\]/, "place writes must omit unavailable optional columns on legacy schemas");
 assert.match(placeStoreSource, /row\.status === "PUBLISHED" \? "ACTIVE" : "DRAFT"/, "place writes must map workflow statuses to legacy public statuses");
 assert.match(placeStoreSource, /from\("places"\)\.insert\(compatiblePlaceRow\)/, "place creation must retry with a compatible row");
 assert.match(placeStoreSource, /from\("places"\)\.update\(compatiblePlaceRow\)/, "place updates must retry with a compatible row");

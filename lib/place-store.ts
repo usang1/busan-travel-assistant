@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
+import { filterBusanScopedPlaces, isBusanScopedPlace } from "@/lib/place-scope";
 import { filterPublishablePlaces, isPublishablePlace } from "@/lib/place-publication-quality";
 import { archivedPlaceStatus, normalizePlacePublicationForWrite, publicReadablePlaceStatuses } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
@@ -16,6 +17,7 @@ import type {
   TagRecord,
 } from "@/types/database";
 import type { Locale } from "@/lib/i18n";
+import type { PlaceCity } from "@/lib/city-regions";
 
 type SupabasePlaceRow = PlaceRecord & {
   place_china_info?: PlaceChinaInfoRecord | PlaceChinaInfoRecord[] | null;
@@ -152,12 +154,13 @@ function emptyPlaceResult(error?: string): PlaceListResult {
   };
 }
 
-function buildPlaceQueryDebug(options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean }) {
+function buildPlaceQueryDebug(options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; cityCode?: PlaceCity }) {
   return {
     activeOnly: options.activeOnly ?? true,
     status: options.activeOnly ?? true ? publicStatusFilters.join(",") : "any",
     featuredOnly: Boolean(options.featuredOnly),
     includeAdminRelations: Boolean(options.includeAdminRelations),
+    cityCode: options.cityCode ?? "any",
   };
 }
 
@@ -194,9 +197,11 @@ async function addSaveCounts(places: PlaceWithRelations[]) {
   return withPlaceSaveCounts(places, counts);
 }
 
-async function finalizePlaceRows(rows: unknown, activeOnly: boolean): Promise<{ places: PlaceWithRelations[]; candidateCount: number }> {
+async function finalizePlaceRows(rows: unknown, activeOnly: boolean, cityCode?: PlaceCity): Promise<{ places: PlaceWithRelations[]; candidateCount: number }> {
   const mapped = mapPlaceRows(rows);
-  const places = await addSaveCounts(activeOnly ? filterPublishablePlaces(mapped) : mapped);
+  const publishable = activeOnly ? filterPublishablePlaces(mapped) : mapped;
+  const scoped = cityCode === "busan" ? filterBusanScopedPlaces(publishable) : publishable;
+  const places = await addSaveCounts(scoped);
 
   return {
     places,
@@ -204,17 +209,19 @@ async function finalizePlaceRows(rows: unknown, activeOnly: boolean): Promise<{ 
   };
 }
 
-async function finalizePlace(place: PlaceWithRelations, activeOnly: boolean) {
+async function finalizePlace(place: PlaceWithRelations, activeOnly: boolean, cityCode?: PlaceCity) {
   if (activeOnly && !isPublishablePlace(place)) {
     return null;
   }
+
+  if (cityCode === "busan" && !isBusanScopedPlace(place)) return null;
 
   const counts = await getPlaceSaveCounts([place.id]);
   return { ...place, save_count: counts.get(place.id) ?? 0 };
 }
 
 export async function getPlaces(
-  options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string; range?: { from: number; to: number } } = {},
+  options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string; cityCode?: PlaceCity; range?: { from: number; to: number } } = {},
   client?: SupabaseClient,
 ): Promise<PlaceListResult> {
   const resolvedClient = resolveClient(client);
@@ -271,7 +278,7 @@ export async function getPlaces(
     const compatibleResult = await compatibleQuery;
 
     if (!compatibleResult.error && compatibleResult.data) {
-      const { places, candidateCount } = await finalizePlaceRows(compatibleResult.data, options.activeOnly ?? true);
+      const { places, candidateCount } = await finalizePlaceRows(compatibleResult.data, options.activeOnly ?? true, options.cityCode);
       debugPlaceList("compatible", {
         label: options.debugLabel,
         filters: activeFilters,
@@ -323,7 +330,7 @@ export async function getPlaces(
       return emptyPlaceResult("장소 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.");
     }
 
-    const { places, candidateCount } = await finalizePlaceRows(legacyResult.data, options.activeOnly ?? true);
+    const { places, candidateCount } = await finalizePlaceRows(legacyResult.data, options.activeOnly ?? true, options.cityCode);
     debugPlaceList("legacy", {
       label: options.debugLabel,
       filters: activeFilters,
@@ -339,7 +346,7 @@ export async function getPlaces(
     };
   }
 
-  const { places, candidateCount } = await finalizePlaceRows(data, options.activeOnly ?? true);
+  const { places, candidateCount } = await finalizePlaceRows(data, options.activeOnly ?? true, options.cityCode);
   debugPlaceList("primary", {
     label: options.debugLabel,
     filters: activeFilters,
@@ -408,7 +415,7 @@ async function fetchBoundedPublicPlaces(
 
     const { data, error } = await query.limit(options.limit);
     if (!error && data) {
-      const { places } = await finalizePlaceRows(data, true);
+      const { places } = await finalizePlaceRows(data, true, "busan");
       return places;
     }
   }
@@ -418,7 +425,7 @@ async function fetchBoundedPublicPlaces(
 
 export async function getPlaceBySlug(
   slug: string,
-  options: { activeOnly?: boolean; includeAdminRelations?: boolean } = {},
+  options: { activeOnly?: boolean; includeAdminRelations?: boolean; cityCode?: PlaceCity } = {},
   client?: SupabaseClient,
 ): Promise<{ place: PlaceWithRelations | null; source: "supabase" | "demo" | "none"; error?: string }> {
   const resolvedClient = resolveClient(client);
@@ -459,7 +466,7 @@ export async function getPlaceBySlug(
 
     if (!compatibleResult.error && compatibleResult.data) {
       const place = mapPlaceRow(compatibleResult.data);
-      const publicPlace = await finalizePlace(place, options.activeOnly ?? true);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
 
       if (!publicPlace) {
         return {
@@ -488,7 +495,7 @@ export async function getPlaceBySlug(
 
     if (!legacyResult.error && legacyResult.data) {
       const place = mapPlaceRow(legacyResult.data);
-      const publicPlace = await finalizePlace(place, options.activeOnly ?? true);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
 
       if (!publicPlace) {
         return {
@@ -509,6 +516,7 @@ export async function getPlaceBySlug(
       {
         activeOnly: options.activeOnly ?? true,
         includeAdminRelations: options.includeAdminRelations,
+        cityCode: options.cityCode,
       },
       resolvedClient,
     );
@@ -531,7 +539,7 @@ export async function getPlaceBySlug(
   }
 
   const place = mapPlaceRow(data);
-  const publicPlace = await finalizePlace(place, options.activeOnly ?? true);
+  const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
 
   if (!publicPlace) {
     return {
@@ -570,7 +578,7 @@ function adaptPlaceWriteRowForLegacySchema(
   error: { code?: string; message?: string },
 ) {
   const missingColumn = getMissingSchemaColumn(error);
-  const optionalColumns = new Set(["admin_summary", "closed_days", "last_verified_at"]);
+  const optionalColumns = new Set(["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code"]);
 
   if (missingColumn && optionalColumns.has(missingColumn) && missingColumn in row) {
     const nextRow = { ...row };

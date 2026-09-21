@@ -42,6 +42,7 @@ import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   getLastVerifiedLabel,
+  getConfirmedTransitLabel,
   getPlaceCategoryLabel,
   getPlaceNameDisplay,
   getPlacePhotoDisplay,
@@ -49,6 +50,7 @@ import {
   getPublicPlaceDescription,
   getPublicTravelTip,
   getSourceSummary,
+  getTrustEvidenceLabel,
   getTrustedPlaceImageUrl,
   getVerificationStatus,
   getVerificationStatusLabel,
@@ -187,17 +189,18 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     ? `${place.walking_minutes}${copy.common.minutes}`
     : copy.common.noInfo;
   const directionsText = placeHasCoordinates && place.walking_minutes > 0
-    ? `${[place.nearest_station, place.nearest_exit].filter(Boolean).join(" ")} · ${copy.common.walk} ${walkingText}`
+    ? getConfirmedTransitLabel(place, locale)
     : copy.common.noInfo;
   const factLabels = {
-    zh: { address: "地址", phone: "电话", website: "网站", verification: "验证状态", source: "信息来源", lastChecked: "最后确认" },
-    en: { address: "Address", phone: "Phone", website: "Website", verification: "Verification", source: "Source", lastChecked: "Last checked" },
-    ja: { address: "住所", phone: "電話", website: "ウェブサイト", verification: "確認状態", source: "情報源", lastChecked: "最終確認" },
-    ko: { address: "주소", phone: "전화", website: "웹사이트", verification: "검증 상태", source: "정보 출처", lastChecked: "마지막 확인일" },
+    zh: { address: "地址", phone: "电话", website: "网站", verification: "验证状态", evidence: "确认依据", source: "信息来源", lastChecked: "最后确认" },
+    en: { address: "Address", phone: "Phone", website: "Website", verification: "Verification", evidence: "Evidence", source: "Source", lastChecked: "Last checked" },
+    ja: { address: "住所", phone: "電話", website: "ウェブサイト", verification: "確認状態", evidence: "確認根拠", source: "情報源", lastChecked: "最終確認" },
+    ko: { address: "주소", phone: "전화", website: "웹사이트", verification: "검증 상태", evidence: "확인 근거", source: "정보 출처", lastChecked: "마지막 확인일" },
   }[locale];
   const detailStatus = getVerificationStatusLabel(verificationStatus, locale);
   const detailSource = getSourceSummary(place, locale);
   const detailLastChecked = getLastVerifiedLabel(place, locale);
+  const detailEvidence = getTrustEvidenceLabel(place, locale);
   const recommendationDescription = publicDescription || trustCopy.noPublicDescription;
   const localizedTags = place.tags
     .map((tag) => ({ slug: tag.slug, label: getLocalizedTag(tag, locale) }))
@@ -299,8 +302,9 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             <p className="mt-3 text-base leading-7 text-slate-700">{recommendationDescription}</p>
           </section>
 
-          <section className="mt-5 grid gap-2 rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-100 sm:grid-cols-3">
+          <section className="mt-5 grid gap-2 rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-100 sm:grid-cols-2">
             <TrustFact icon={BadgeCheck} label={factLabels.verification} value={detailStatus} />
+            <TrustFact icon={BadgeCheck} label={factLabels.evidence} value={detailEvidence} />
             <TrustFact icon={FileSearch} label={factLabels.source} value={detailSource} />
             <TrustFact icon={CalendarCheck2} label={factLabels.lastChecked} value={detailLastChecked} />
           </section>

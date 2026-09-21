@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarCheck2, Copy, MapPin, Navigation, Soup, type LucideIcon } from "lucide-react";
 import { DirectionsButton } from "@/components/DirectionsButton";
+import { buildKoreanTaxiSentence } from "@/lib/korean-phrases";
 import { getRepresentativeMenu } from "@/lib/place-display";
 import { verificationDateLabel } from "@/lib/traveler-insights";
 import { getPlaceContent, type Locale, ui } from "@/lib/i18n";
@@ -27,9 +28,9 @@ const copy: Record<Locale, {
   lastChecked: string;
   correction: string;
 }> = {
-  zh: { title: "到店前使用", koreanName: "韩文店名", copyAddress: "复制地址", copied: "已复制", copyFailed: "无法复制", taxi: "给司机看", order: "点单句子", map: "地图", lastChecked: "最后确认", correction: "提交修改" },
-  en: { title: "Before you go", koreanName: "Korean name", copyAddress: "Copy address", copied: "Copied", copyFailed: "Could not copy", taxi: "Show driver", order: "Order phrase", map: "Map", lastChecked: "Last checked", correction: "Report update" },
-  ja: { title: "訪問前に使う", koreanName: "韓国語名", copyAddress: "住所コピー", copied: "コピーしました", copyFailed: "コピーできません", taxi: "運転手に見せる", order: "注文文", map: "地図", lastChecked: "最終確認", correction: "修正投稿" },
+  zh: { title: "到店前使用", koreanName: "韩文店名", copyAddress: "复制地址", copied: "已复制", copyFailed: "无法复制", taxi: "给司机看的韩语", order: "点单句子", map: "地图", lastChecked: "最后确认", correction: "提交修改" },
+  en: { title: "Before you go", koreanName: "Korean name", copyAddress: "Copy address", copied: "Copied", copyFailed: "Could not copy", taxi: "Korean phrase for driver", order: "Order phrase", map: "Map", lastChecked: "Last checked", correction: "Report update" },
+  ja: { title: "訪問前に使う", koreanName: "韓国語名", copyAddress: "住所コピー", copied: "コピーしました", copyFailed: "コピーできません", taxi: "運転手に見せる韓国語", order: "注文文", map: "地図", lastChecked: "最終確認", correction: "修正投稿" },
   ko: { title: "방문 전 확인", koreanName: "한국어 장소명", copyAddress: "주소 복사", copied: "복사했습니다", copyFailed: "복사할 수 없습니다", taxi: "기사님께 보여줄 문장", order: "대표 메뉴 주문 문장", map: "지도", lastChecked: "마지막 확인일", correction: "정보 수정 제보" },
 };
 
@@ -40,11 +41,7 @@ export function PlaceVisitTools({ place, locale, coordinates }: PlaceVisitToolsP
   const representativeMenu = getRepresentativeMenu(place, locale);
   const [status, setStatus] = useState("");
   const address = content.address || place.address_ko || place.address_zh || "";
-  const taxiSentence = address
-    ? `${address} ${place.name_ko}으로 가주세요.`
-    : place.name_ko
-      ? `${place.name_ko}으로 가주세요.`
-      : common.noInfo;
+  const taxiSentence = buildKoreanTaxiSentence(place.address_ko, place.name_ko) || common.noInfo;
   const orderSentence = representativeMenu?.orderKo || place.recommended_order_ko.trim() || common.noInfo;
   const verified = verificationDateLabel(place.china_info?.verified_at ?? place.last_verified_at, locale) || common.noInfo;
 

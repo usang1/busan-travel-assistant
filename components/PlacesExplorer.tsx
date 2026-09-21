@@ -491,7 +491,7 @@ function buildSearchText(place: PlaceWithRelations, locale: Locale) {
   const cityLabel = placeCities.find((option) => option.key === city)?.label;
 
   return [
-    `${cityLabel} ${placeRegionLabel(city, region_key, place.address_ko)}`,
+    city ? `${cityLabel} ${placeRegionLabel(city, region_key, place.address_ko)}` : "",
     content.name,
     content.secondaryName,
     content.description,

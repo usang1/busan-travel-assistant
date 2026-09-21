@@ -9,7 +9,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { formatPriceRange } from "@/lib/place-store";
-import { getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay, getTrustedPlaceImageUrl } from "@/lib/place-trust";
+import { getConfirmedTransitLabel, getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import type { PlaceWithRelations } from "@/types/database";
 
 type LuggageExplorerProps = {
@@ -130,7 +130,7 @@ function LuggagePlaceCard({
             />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <Info icon={MapPin} label={copy.placeDetail.location} value={`${place.nearest_station} ${place.nearest_exit}`} />
+            <Info icon={MapPin} label={copy.placeDetail.location} value={getConfirmedTransitLabel(place, locale) || copy.common.noInfo} />
             <Info icon={Clock3} label={luggageCopy.hours} value={place.opening_hours || copy.common.notRegistered} />
             <Info icon={WalletCards} label={copy.placeDetail.payment} value={formatPriceRange(place, locale)} />
             <Info icon={Luggage} label={luggageCopy.largeBag} value={place.luggage_friendly ? luggageCopy.available : luggageCopy.confirm} />

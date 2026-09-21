@@ -100,7 +100,8 @@ const aiGenerator = readFileSync(new URL("../lib/place-ai/generator.ts", import.
 assert.match(migration, /traveler_insights jsonb not null default '\{\}'::jsonb/);
 assert.match(migration, /jsonb_typeof\(traveler_insights\) = 'object'/);
 assert.match(migration, /Existing RLS policies on place_china_info cover this column/);
-assert.match(detailPanel, /if \(!tags\.length && !dateLabel\) return null/);
+assert.match(detailPanel, /getTrustEvidenceLabel\(place, locale\)/);
+assert.match(detailPanel, /has_information_conflict/);
 assert.match(detailPanel, /최근 정보가 오래되었습니다/);
 assert.match(correctionForm, /정보가 달라요/);
 assert.match(correctionForm, /"closed"/);

@@ -524,7 +524,8 @@ function findSubmissionPlace(submission: PlaceSubmissionRecord, places: PlaceWit
 function buildPayload(form: PublishForm): PlacePayload {
   const category = form.category as PlaceCategory;
   const name = unifiedPlaceName(form);
-  const city = form.city || inferPlaceCity(form.address_ko) || "busan";
+  const city = form.city || inferPlaceCity(form.address_ko);
+  const district = city ? form.region_key || inferCityRegion(city, form.address_ko) : "";
   const chinaInfo: PlaceChinaInfoPayload = {
     chinese_taste_score: null,
     spicy_level: null,
@@ -561,6 +562,9 @@ function buildPayload(form: PublishForm): PlacePayload {
       waiting: form.waiting_level === "none" ? "none" : form.waiting_level === "unknown" ? "unknown" : form.waiting_level === "short" ? "some" : "high",
     },
     verification_status: "unverified",
+    verification_basis: "unverified",
+    traveler_confirmation_count: 0,
+    has_information_conflict: false,
     verified_at: form.last_verified_at || null,
   };
   const zh: TranslationDraft = {
@@ -581,6 +585,8 @@ function buildPayload(form: PublishForm): PlacePayload {
     name_zh: name,
     name_ko: name,
     category,
+    city_code: city || null,
+    district_code: district || null,
     address: form.address_ko,
     phone: form.phone || null,
     website: form.website || null,
@@ -614,7 +620,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     thumbnail_url: form.thumbnail_url.trim(),
     is_featured: false,
     is_active: form.status === publishedPlaceStatus,
-    tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...buildPlaceRegionTags(city, form.region_key, form.address_ko)],
+    tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...(city ? buildPlaceRegionTags(city, district, form.address_ko) : [])],
     menu_items: form.menu_items.map((item, index) => ({
       name_ko: item.name_ko,
       name_zh: item.name_ko,

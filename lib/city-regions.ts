@@ -1,6 +1,7 @@
 import { busanDistrictOptions, inferBusanDistrictKey } from "@/lib/busan-districts";
+import type { PlaceCityCode } from "@/types/database";
 
-export type PlaceCity = "busan" | "seoul" | "jeju";
+export type PlaceCity = PlaceCityCode;
 export const placeCities: Array<{ key: PlaceCity; label: string }> = [
   { key: "busan", label: "부산" },
   { key: "seoul", label: "서울" },
@@ -68,13 +69,23 @@ export function isPlaceRegionTag(slug: string) {
     cityRegions(key).some((region) => slug === `${key}-district-${region.key}`));
 }
 
-export function getPlaceRegion(place: { address_ko?: string | null; address?: string | null; tags?: Array<{ slug: string }> }) {
+export function getPlaceRegion(place: {
+  city_code?: PlaceCity | null;
+  district_code?: string | null;
+  address_ko?: string | null;
+  address?: string | null;
+  tags?: Array<{ slug: string }> | null;
+}) {
   const tags = place.tags ?? [];
-  const city = placeCities.find(({ key }) => tags.some((tag) => tag.slug === `place-city-${key}`))?.key
+  const city = place.city_code
+    ?? placeCities.find(({ key }) => tags.some((tag) => tag.slug === `place-city-${key}`))?.key
     ?? placeCities.find(({ key }) => cityRegions(key).some((region) => tags.some((tag) => tag.slug === `${key}-district-${region.key}`)))?.key
-    ?? (inferPlaceCity(place.address_ko || place.address) || "busan");
-  const region = cityRegions(city).find((region) => tags.some((tag) => tag.slug === `${city}-district-${region.key}`))?.key
-    ?? inferCityRegion(city, place.address_ko || place.address);
+    ?? inferPlaceCity(place.address_ko || place.address);
+  const region = city
+    ? place.district_code
+      ?? cityRegions(city).find((region) => tags.some((tag) => tag.slug === `${city}-district-${region.key}`))?.key
+      ?? inferCityRegion(city, place.address_ko || place.address)
+    : "";
   return { city, region_key: region };
 }
 
