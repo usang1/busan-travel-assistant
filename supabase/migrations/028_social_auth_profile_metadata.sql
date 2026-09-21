@@ -1,7 +1,13 @@
 alter table public.profiles
+  add column if not exists display_name text,
   add column if not exists email text,
+  add column if not exists avatar_url text,
+  add column if not exists role public.profile_role not null default 'user',
+  add column if not exists preferred_locale public.app_locale not null default 'zh',
   add column if not exists auth_provider text,
-  add column if not exists auth_provider_id text;
+  add column if not exists auth_provider_id text,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
 
 create index if not exists profiles_email_idx
 on public.profiles(email)
@@ -84,3 +90,8 @@ begin
   return new;
 end;
 $$;
+
+drop trigger if exists on_auth_user_created_create_profile on auth.users;
+create trigger on_auth_user_created_create_profile
+after insert on auth.users
+for each row execute function public.handle_new_user_profile();
