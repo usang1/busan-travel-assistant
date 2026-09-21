@@ -1,9 +1,14 @@
 export function buildKoreanTaxiSentence(address: string | null | undefined, placeName: string | null | undefined) {
   const koreanAddress = address?.trim() ?? "";
   const koreanName = placeName?.trim() ?? "";
-  const destination = [koreanAddress, koreanName].filter(Boolean).join(" ");
+  const addressIncludesName = Boolean(koreanName && normalizeSpacing(koreanAddress).includes(normalizeSpacing(koreanName)));
+  const destination = [koreanAddress, addressIncludesName ? "" : koreanName].filter(Boolean).join(" ");
   if (!destination) return "";
   return `${destination}${directionParticle(koreanName || koreanAddress)} 가주세요.`;
+}
+
+function normalizeSpacing(value: string) {
+  return value.replace(/\s+/g, "");
 }
 
 function directionParticle(value: string) {

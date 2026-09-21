@@ -60,6 +60,7 @@ assert.equal(
   "부산광역시 수영구 광안로49번길 87 1층 하우스멜로 가주세요.",
 );
 assert.equal(phrases.buildKoreanTaxiSentence("부산광역시 수영구", "맛있는집"), "부산광역시 수영구 맛있는집으로 가주세요.");
+assert.equal(phrases.buildKoreanTaxiSentence("부산광역시 기장군 일광읍 미청식당", "미청식당"), "부산광역시 기장군 일광읍 미청식당으로 가주세요.");
 
 const nearbyPage = readFileSync("app/[locale]/nearby/page.tsx", "utf8");
 const placesPage = readFileSync("app/[locale]/places/page.tsx", "utf8");
