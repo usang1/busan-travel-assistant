@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { defaultLocale, isLocale } from "@/lib/i18n";
 
 const PUBLIC_FILE = /\.[^/]+$/;
-const PASSTHROUGH_PATHS = new Set(["/robots.txt", "/sitemap.xml", "/manifest.webmanifest"]);
+const PASSTHROUGH_PATHS = new Set(["/auth/callback", "/robots.txt", "/sitemap.xml", "/manifest.webmanifest"]);
 
 function shouldPassThrough(pathname: string) {
   return (

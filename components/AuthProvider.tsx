@@ -8,10 +8,13 @@ import { defaultLocale, getLocaleFromPath, type Locale } from "@/lib/i18n";
 
 export type UserProfile = {
   id: string;
+  email: string | null;
   display_name: string | null;
   avatar_url: string | null;
   role: "user" | "admin";
   preferred_locale: Locale;
+  auth_provider: string | null;
+  auth_provider_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -58,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error } = await client
       .from("profiles")
-      .select("id, display_name, avatar_url, role, preferred_locale, created_at, updated_at")
+      .select("id, email, display_name, avatar_url, role, preferred_locale, auth_provider, auth_provider_id, created_at, updated_at")
       .eq("id", userId)
       .maybeSingle();
 

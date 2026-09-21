@@ -250,10 +250,13 @@ create table if not exists public.photo_spots (
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  email text,
   display_name text,
   avatar_url text,
   role public.profile_role not null default 'user',
   preferred_locale public.app_locale not null default 'zh',
+  auth_provider text,
+  auth_provider_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -489,14 +492,50 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  provider_name text := new.raw_app_meta_data ->> 'provider';
+  provider_subject text := coalesce(
+    new.raw_user_meta_data ->> 'provider_id',
+    new.raw_user_meta_data ->> 'sub'
+  );
+  profile_name text := coalesce(
+    new.raw_user_meta_data ->> 'display_name',
+    new.raw_user_meta_data ->> 'full_name',
+    new.raw_user_meta_data ->> 'name',
+    new.raw_user_meta_data ->> 'nickname',
+    split_part(new.email, '@', 1)
+  );
+  profile_avatar text := coalesce(
+    new.raw_user_meta_data ->> 'avatar_url',
+    new.raw_user_meta_data ->> 'picture',
+    new.raw_user_meta_data ->> 'profile_image'
+  );
 begin
-  insert into public.profiles (id, display_name, preferred_locale)
+  insert into public.profiles (
+    id,
+    email,
+    display_name,
+    avatar_url,
+    preferred_locale,
+    auth_provider,
+    auth_provider_id
+  )
   values (
     new.id,
-    coalesce(new.raw_user_meta_data ->> 'display_name', split_part(new.email, '@', 1)),
-    'zh'
+    new.email,
+    profile_name,
+    profile_avatar,
+    'zh',
+    provider_name,
+    provider_subject
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update set
+    email = coalesce(public.profiles.email, excluded.email),
+    display_name = coalesce(public.profiles.display_name, excluded.display_name),
+    avatar_url = coalesce(public.profiles.avatar_url, excluded.avatar_url),
+    auth_provider = coalesce(public.profiles.auth_provider, excluded.auth_provider),
+    auth_provider_id = coalesce(public.profiles.auth_provider_id, excluded.auth_provider_id),
+    updated_at = now();
 
   return new;
 end;
@@ -539,6 +578,11 @@ create index if not exists place_menu_items_place_sort_idx on public.place_menu_
 create index if not exists photo_spots_active_idx on public.photo_spots(is_active);
 create index if not exists photo_spots_updated_at_idx on public.photo_spots(updated_at desc);
 create index if not exists profiles_role_idx on public.profiles(role);
+create index if not exists profiles_email_idx on public.profiles(email) where email is not null;
+create unique index if not exists profiles_auth_provider_id_uidx
+on public.profiles(auth_provider, auth_provider_id)
+where auth_provider is not null
+  and auth_provider_id is not null;
 create index if not exists place_translations_locale_idx on public.place_translations(locale);
 create index if not exists place_translations_search_idx on public.place_translations using gin (
   to_tsvector('simple', coalesce(name, '') || ' ' || coalesce(description, '') || ' ' || coalesce(travel_tip, ''))

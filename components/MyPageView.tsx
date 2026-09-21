@@ -38,6 +38,7 @@ export function MyPageView({ locale }: MyPageViewProps) {
   }
 
   const joinedAt = profile?.created_at ?? user.created_at;
+  const email = profile?.email || user.email || "-";
   const nickname = profile?.display_name || user.email?.split("@")[0] || "-";
 
   return (
@@ -80,7 +81,7 @@ export function MyPageView({ locale }: MyPageViewProps) {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <ProfileItem icon={Mail} label={copy.mypage.email} value={user.email ?? "-"} />
+          <ProfileItem icon={Mail} label={copy.mypage.email} value={email} />
           <ProfileItem icon={UserRound} label={copy.mypage.nickname} value={nickname} />
           <ProfileItem icon={CalendarDays} label={copy.mypage.joinedAt} value={joinedAt ? new Date(joinedAt).toLocaleDateString(locale === "ko" ? "ko-KR" : undefined) : "-"} />
         </div>
