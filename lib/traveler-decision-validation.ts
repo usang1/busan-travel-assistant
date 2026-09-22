@@ -134,7 +134,9 @@ function validateMenus(value: unknown): TravelerDecisionBundle["menus"] {
       recommendation_status: recommendation, recommendation_basis: basis,
       spicy_level: nullableInteger(row.spicy_level, 1, 5), oily_level: nullableInteger(row.oily_level, 1, 5),
       aroma_level: nullableInteger(row.aroma_level, 1, 5), portion_size: nullableInteger(row.portion_size, 1, 5),
-      recommended_party_size: nullableInteger(row.recommended_party_size, 1, 20), ordering_note: localeText(row.ordering_note),
+      recommended_party_size: nullableInteger(row.recommended_party_size, 1, 20),
+      contains_seafood: oneOf(row.contains_seafood ?? "unknown", tristates, "해산물 포함 여부"), contains_cilantro: oneOf(row.contains_cilantro ?? "unknown", tristates, "고수 포함 여부"),
+      meal_type: nullableOneOf(row.meal_type, ["meal", "snack", "both"] as const), ordering_note: localeText(row.ordering_note),
       menu_warning: localeText(row.menu_warning), availability_time: ranges(row.availability_time),
       sold_out_risk: nullableInteger(row.sold_out_risk, 1, 5), sort_order: integer(row.sort_order ?? index, 0, 10000),
     };

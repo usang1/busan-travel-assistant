@@ -23,6 +23,8 @@ import {
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { TasteProfileCard } from "@/components/TasteProfileCard";
+import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { RelatedGuidesSection } from "@/components/RelatedGuidesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
@@ -37,7 +39,8 @@ import { TagChip } from "@/components/TagChip";
 import { getCachedPublicPlaceBySlug, getCachedRelatedGuidesForPlace } from "@/lib/public-cache";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
-import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
+import { estimateWalkingMinutes, formatOpeningStatus, hasCoordinates } from "@/lib/location";
+import { distanceFromGwangalli } from "@/lib/place-display";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   getLastVerifiedLabel,
@@ -296,6 +299,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             <InfoTile icon={Clock3} label={copy.common.walk} value={walkingText} />
             <InfoTile icon={Route} label={localizedHoursLabel} value={place.opening_hours ? opening.text : copy.common.notRegistered} />
           </div>
+          <TimeAwareStatus place={place} locale={locale} travelMinutes={estimateWalkingMinutes(distanceFromGwangalli(place))} variant="detail" />
 
           <section className="mt-6">
             <SectionTitle title={copy.placeDetail.recommendation} />
@@ -330,6 +334,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
       <PlaceVisitTools place={place} locale={locale} coordinates={coordinates} />
       <TravelerDecisionCard place={place} locale={locale} variant="detail" className="mt-6 rounded-lg" />
+      <TasteProfileCard place={place} locale={locale} variant="detail" />
 
       <section className="mt-6 space-y-3">
         <SectionTitle title={copy.placeDetail.menu} />

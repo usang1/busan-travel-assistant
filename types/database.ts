@@ -147,6 +147,9 @@ export type PlaceMenuItem = {
   aroma_level?: number | null;
   portion_size?: number | null;
   recommended_party_size?: number | null;
+  contains_seafood?: PlaceFactTristate;
+  contains_cilantro?: PlaceFactTristate;
+  meal_type?: "meal" | "snack" | "both" | null;
   ordering_note?: { ko: string; zh: string; en: string; ja: string };
   menu_warning?: { ko: string; zh: string; en: string; ja: string };
   availability_time?: Array<{ weekdays: number[]; start: string; end: string; note?: string }>;
@@ -287,6 +290,7 @@ export type TripPlaceRecord = {
   day_number: number;
   sort_order: number;
   memo: string;
+  planned_time: string | null;
   created_at: string;
   updated_at: string;
 };

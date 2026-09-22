@@ -21,6 +21,8 @@ import {
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { TasteProfileCard } from "@/components/TasteProfileCard";
+import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
@@ -30,7 +32,8 @@ import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
 import { TagChip } from "@/components/TagChip";
 import { absoluteUrl, siteConfig } from "@/config/site";
-import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
+import { estimateWalkingMinutes, formatOpeningStatus, hasCoordinates } from "@/lib/location";
+import { distanceFromGwangalli } from "@/lib/place-display";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import { getCachedPublicPlaceBySlug } from "@/lib/public-cache";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
@@ -221,6 +224,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
             <InfoTile icon={Clock3} label="距离" value={walkingText} />
             <InfoTile icon={Route} label="营业" value={place.opening_hours ? opening.text : "未登记"} />
           </div>
+          <TimeAwareStatus place={place} locale="zh" travelMinutes={estimateWalkingMinutes(distanceFromGwangalli(place))} variant="detail" />
 
           <section className="mt-6">
             <SectionTitle title="推荐理由" />
@@ -247,6 +251,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
       </section>
 
       <TravelerDecisionCard place={place} locale="zh" variant="detail" className="mt-6 rounded-lg" />
+      <TasteProfileCard place={place} locale="zh" variant="detail" />
 
       <section className="mt-6 space-y-3">
         <SectionTitle title="推荐菜单" />

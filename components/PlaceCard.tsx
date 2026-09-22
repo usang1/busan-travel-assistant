@@ -3,9 +3,10 @@ import Link from "next/link";
 import { Camera, Clock3, ExternalLink, MapPin, MessageSquarePlus, Soup, WalletCards } from "lucide-react";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { SaveButton } from "@/components/SaveButton";
-import { TagChip } from "@/components/TagChip";
+import { TasteProfileCard } from "@/components/TasteProfileCard";
+import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
-import { formatOpeningStatus, hasCoordinates, type Coordinates } from "@/lib/location";
+import { hasCoordinates, type Coordinates } from "@/lib/location";
 import {
   distanceFromGwangalli,
   formatPlaceDistance,
@@ -46,7 +47,6 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
   const naverPlaceUrl = getRegisteredNaverPlaceUrl(place);
   const priorityFacts = cardFacts.facts.filter((fact) => fact.key === "menu" || fact.key === "price" || fact.key === "hours").slice(0, 3);
-  const opening = formatOpeningStatus(place.opening_hours, locale);
 
   return (
     <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -95,7 +95,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
             }}
           />
         </div>
-        <div className="mt-2"><TagChip tone={opening.tone}>{opening.text}</TagChip></div>
+        <TimeAwareStatus place={place} locale={locale} travelMinutes={displayDistance === null ? 0 : Math.max(1, Math.round(displayDistance / 72))} />
         <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
           {priorityFacts.map((fact) => (
             <span key={fact.key} className="inline-flex min-h-9 items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
@@ -123,6 +123,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         </div>
         {distanceWarning ? <p className="mt-2 text-xs font-bold text-amber-800">{distanceWarning}</p> : null}
         <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-slate-100 pt-3" />
+        <TasteProfileCard place={place} locale={locale} />
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
             <Link href={correctionHref} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">

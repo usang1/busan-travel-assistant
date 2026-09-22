@@ -105,6 +105,9 @@ export type TravelerMenuItem = {
   aroma_level: number | null;
   portion_size: number | null;
   recommended_party_size: number | null;
+  contains_seafood: PlaceFactTristate;
+  contains_cilantro: PlaceFactTristate;
+  meal_type: "meal" | "snack" | "both" | null;
   ordering_note: LocaleText;
   menu_warning: LocaleText;
   availability_time: TimeRange[];

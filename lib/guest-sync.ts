@@ -151,6 +151,7 @@ async function mergeGuestTrips(client: SupabaseClient, userId: string) {
             day_number: item.day_number,
             sort_order: item.sort_order,
             memo: item.memo,
+            ...(item.planned_time ? { planned_time: item.planned_time } : {}),
           })),
           { onConflict: "trip_id,place_id" },
         )

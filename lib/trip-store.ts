@@ -54,6 +54,7 @@ export async function getPublicTripByShareSlug(shareSlug: string): Promise<Share
       day_number: row.day_number ?? 1,
       sort_order: row.sort_order ?? 0,
       memo: row.memo ?? "",
+      planned_time: row.planned_time ?? null,
       created_at: row.trip_place_created_at ?? first.trip_created_at,
       updated_at: row.trip_place_updated_at ?? first.trip_updated_at,
       place,
@@ -189,7 +190,7 @@ export async function addPlaceToTrip(tripId: string, placeId: string, dayNumber 
 
 export async function saveTripLayout(
   tripId: string,
-  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string }>,
+  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null }>,
   client = getSupabaseClient(),
 ) {
   if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
@@ -201,6 +202,7 @@ export async function saveTripLayout(
       day_number: item.dayNumber,
       sort_order: item.sortOrder,
       memo: item.memo ?? "",
+      ...(item.plannedTime ? { planned_time: item.plannedTime } : {}),
     })),
     { onConflict: "trip_id,place_id" },
   );
@@ -209,7 +211,7 @@ export async function saveTripLayout(
 
 export async function updateTripPlace(
   id: string,
-  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo">>,
+  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo" | "planned_time">>,
   client = getSupabaseClient(),
 ) {
   if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
@@ -256,6 +258,7 @@ type SharedTripRpcRow = {
   day_number: number | null;
   sort_order: number | null;
   memo: string | null;
+  planned_time: string | null;
   trip_place_created_at: string | null;
   trip_place_updated_at: string | null;
 };

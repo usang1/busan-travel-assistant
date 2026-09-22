@@ -1,10 +1,20 @@
-import { getOpeningStatus, hasCoordinates } from "@/lib/location";
+import { estimateWalkingMinutes, getPlaceDistance, gwangalliCenter, hasCoordinates } from "@/lib/location";
+import { getTimeAwarePlaceState, hasReviewedTimeData, hasTimeFilterData } from "@/lib/time-aware-place";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import type { Locale } from "@/lib/i18n";
 import type { ChinaWaitingLevel, PlaceWithRelations } from "@/types/database";
 
 export type ChinaDiscoveryFilter =
   | "openNow"
+  | "recommendedNow"
+  | "canVisitNow"
+  | "withinHour"
+  | "morningRecommended"
+  | "sunsetRecommended"
+  | "nightRecommended"
+  | "after22"
+  | "lowWaitTime"
+  | "mondayAvailable"
   | "chineseMenu"
   | "foreignCard"
   | "alipay"
@@ -69,19 +79,38 @@ const discoveryTagBySlug = new Map(chinaDiscoveryTagOptions.map((option) => [opt
 
 export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
   {
+    key: "recommendedNow", queryKey: "recommendedNow",
+    label: { ko: "지금 추천", zh: "现在推荐", en: "Recommended now", ja: "今おすすめ" }, compactLabel: { ko: "지금 추천", zh: "现在推荐", en: "Now", ja: "今おすすめ" },
+    match: (place) => matchesTimeAwareFilter(place, "recommendedNow", defaultTravelMinutes(place)), enabled: (places) => places.some((place) => hasReviewedTimeData(place) && Boolean(place.operating_profile?.recommended_time_ranges.length)),
+  },
+  {
+    key: "canVisitNow", queryKey: "canVisitNow",
+    label: { ko: "지금 갈 수 있음", zh: "现在可以去", en: "Can go now", ja: "今行ける" }, compactLabel: { ko: "지금 가능", zh: "现在可去", en: "Go now", ja: "今行ける" },
+    match: (place) => matchesTimeAwareFilter(place, "canVisitNow", defaultTravelMinutes(place)), enabled: (places) => places.some(hasReviewedTimeData),
+  },
+  {
+    key: "withinHour", queryKey: "withinHour",
+    label: { ko: "1시간 안에 갈 수 있음", zh: "1小时内可去", en: "Reachable within 1 hour", ja: "1時間以内に行ける" }, compactLabel: { ko: "1시간 내", zh: "1小时内", en: "Within 1h", ja: "1時間内" },
+    match: (place) => matchesTimeAwareFilter(place, "withinHour", defaultTravelMinutes(place)), enabled: (places) => places.some(hasReviewedTimeData),
+  },
+  ...([
+    ["morningRecommended", "morning", "오전 추천", "上午推荐", "Morning", "午前おすすめ"],
+    ["sunsetRecommended", "sunset", "일몰 전 추천", "日落前推荐", "Before sunset", "日没前おすすめ"],
+    ["nightRecommended", "night", "야간 추천", "夜间推荐", "Night", "夜おすすめ"],
+    ["after22", "after22", "밤 10시 이후", "晚上10点后", "After 10 PM", "22時以降"],
+    ["lowWaitTime", "lowWait", "대기 적은 시간", "少等位时段", "Low-wait times", "待ち時間少なめ"],
+    ["mondayAvailable", "monday", "월요일 이용 가능", "周一可用", "Open Monday", "月曜利用可"],
+  ] as const).map(([key, dataKey, ko, zh, en, ja]) => ({
+    key, queryKey: key, label: { ko, zh, en, ja }, compactLabel: { ko, zh, en, ja },
+    match: (place: PlaceWithRelations) => hasTimeFilterData(place, dataKey), enabled: (places: PlaceWithRelations[]) => places.some((place) => hasTimeFilterData(place, dataKey)),
+  })),
+  {
     key: "openNow",
     queryKey: "openNow",
     label: { zh: "现在营业", en: "Open now", ja: "現在営業中", ko: "지금 영업 중" },
     compactLabel: { zh: "营业中", en: "Open", ja: "営業中", ko: "영업중" },
-    match: (place) => {
-      const status = getOpeningStatus(place.opening_hours);
-      return status === "open" || status === "closing_soon";
-    },
-    enabled: (places) =>
-      places.some((place) => {
-        const status = getOpeningStatus(place.opening_hours);
-        return status === "open" || status === "closing_soon";
-      }),
+    match: (place) => getTimeAwarePlaceState(place).openNow === true,
+    enabled: (places) => places.some((place) => hasReviewedTimeData(place) && getTimeAwarePlaceState(place).openNow === true),
   },
   {
     key: "chineseMenu",
@@ -243,8 +272,8 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
     queryKey: "rainyDay",
     label: { zh: "雨天也适合", en: "Rainy day", ja: "雨の日向き", ko: "비 오는 날" },
     compactLabel: { zh: "雨天", en: "Rain", ja: "雨の日", ko: "비오는날" },
-    match: (place) => placeTextIncludes(place, ["下雨", "雨天", "rain", "rainy", "비", "우천", "雨の日"]),
-    enabled: (places) => places.some((place) => placeTextIncludes(place, ["下雨", "雨天", "rain", "rainy", "비", "우천", "雨の日"])),
+    match: (place) => reviewedDecisionProfile(place) && place.decision_profile?.recommended_for.includes("rainy_day") === true,
+    enabled: (places) => places.some((place) => reviewedDecisionProfile(place) && place.decision_profile?.recommended_for.includes("rainy_day") === true),
   },
   {
     key: "xiaohongshu",
@@ -259,8 +288,8 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
     queryKey: "openNight",
     label: { zh: "晚上营业", en: "Open at night", ja: "夜営業", ko: "밤 영업" },
     compactLabel: { zh: "晚上营业", en: "Night", ja: "夜", ko: "밤영업" },
-    match: (place) => isOpenAtNight(place.opening_hours),
-    enabled: (places) => places.some((place) => isOpenAtNight(place.opening_hours)),
+    match: (place) => hasTimeFilterData(place, "after22"),
+    enabled: (places) => places.some((place) => hasTimeFilterData(place, "after22")),
   },
   {
     key: "firstBusan",
@@ -312,6 +341,8 @@ function subwayWalkingMinutes(place: PlaceWithRelations) {
 }
 
 export const chinaQuickFilters: ChinaDiscoveryFilter[] = [
+  "recommendedNow",
+  "canVisitNow",
   "openNow",
   "lowWait",
   "solo",
@@ -323,6 +354,16 @@ export const chinaQuickFilters: ChinaDiscoveryFilter[] = [
   "restroom",
   "luggageStorage",
 ];
+
+export const timeAwareDiscoveryFilters: ChinaDiscoveryFilter[] = ["recommendedNow", "canVisitNow", "withinHour"];
+
+export function matchesTimeAwareFilter(place: PlaceWithRelations, filter: ChinaDiscoveryFilter, travelMinutes: number | null) {
+  const state = getTimeAwarePlaceState(place, { travelMinutes });
+  if (filter === "recommendedNow") return state.recommendedAtArrival === true;
+  if (filter === "canVisitNow") return state.openAtArrival === true;
+  if (filter === "withinHour") return (travelMinutes ?? Number.MAX_SAFE_INTEGER) <= 60 && state.openAtArrival === true;
+  return true;
+}
 
 export const chinaPriceBuckets: Array<{
   value: ChinaPriceBucket;
@@ -478,36 +519,16 @@ function waitingRank(value: ChinaWaitingLevel | null | undefined) {
   }[value ?? "unknown"];
 }
 
-function isOpenAtNight(openingHours: string) {
-  const normalized = openingHours.trim().toLowerCase();
-
-  if (!normalized) {
-    return false;
-  }
-
-  if (normalized.includes("24시간") || normalized.includes("24h")) {
-    return true;
-  }
-
-  const match = normalized.match(/(\d{1,2}):(\d{2})\s*[-~]\s*(\d{1,2}):(\d{2})/);
-
-  if (!match) {
-    return getOpeningStatus(openingHours) === "open";
-  }
-
-  const closeHour = Number(match[3]);
-  const closeMinute = Number(match[4]);
-  const closeMinutes = closeHour * 60 + closeMinute;
-
-  return closeHour < Number(match[1]) || closeMinutes >= 21 * 60;
-}
-
 function maxKnownPrice(place: PlaceWithRelations) {
   if (place.price_max !== null) {
     return place.price_max;
   }
 
   return place.price_min;
+}
+
+function reviewedDecisionProfile(place: PlaceWithRelations) {
+  return Boolean(place.decision_profile && ["verified", "partially_verified"].includes(place.decision_profile.verification_status));
 }
 
 function hasChinaDiscoveryTag(place: PlaceWithRelations, key: ChinaDiscoveryTagKey) {
@@ -549,6 +570,10 @@ function placeTextIncludes(place: PlaceWithRelations, keywords: string[]) {
 function hasNonKoreanKiosk(place: PlaceWithRelations) {
   const kiosk = place.china_info?.kiosk_language_support;
   return kiosk?.status === "yes" && kiosk.languages.some((language) => language.toLowerCase() !== "ko");
+}
+
+function defaultTravelMinutes(place: PlaceWithRelations) {
+  return estimateWalkingMinutes(getPlaceDistance(place, gwangalliCenter));
 }
 
 function verificationRank(place: PlaceWithRelations) {

@@ -21,7 +21,7 @@ export function readGuestTripStore(): GuestTripStore {
     const parsed = JSON.parse(window.localStorage.getItem(guestTripsStorageKey) ?? "{}") as Partial<GuestTripStore>;
     return {
       trips: Array.isArray(parsed.trips) ? parsed.trips.filter(isTripRecord) : [],
-      tripPlaces: Array.isArray(parsed.tripPlaces) ? parsed.tripPlaces.filter(isTripPlaceRecord) : [],
+      tripPlaces: Array.isArray(parsed.tripPlaces) ? parsed.tripPlaces.filter(isTripPlaceRecord).map((item) => ({ ...item, planned_time: normalizePlannedTime(item.planned_time) })) : [],
     };
   } catch {
     return emptyGuestTripStore();
@@ -116,6 +116,7 @@ export function addGuestPlaceToTrip(tripId: string, placeId: string, dayNumber =
     day_number: dayNumber,
     sort_order: lastOrder + 1,
     memo: "",
+    planned_time: null,
     created_at: now,
     updated_at: now,
   };
@@ -126,7 +127,7 @@ export function addGuestPlaceToTrip(tripId: string, placeId: string, dayNumber =
 
 export function saveGuestTripLayout(
   tripId: string,
-  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string }>,
+  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null }>,
 ) {
   const store = readGuestTripStore();
   const byPlace = new Map(
@@ -146,6 +147,7 @@ export function saveGuestTripLayout(
         day_number: item.dayNumber,
         sort_order: item.sortOrder,
         memo: item.memo ?? existing?.memo ?? "",
+        planned_time: item.plannedTime ?? existing?.planned_time ?? null,
         created_at: existing?.created_at ?? now,
         updated_at: now,
       } satisfies TripPlaceRecord;
@@ -160,7 +162,7 @@ export function saveGuestTripLayout(
 
 export function updateGuestTripPlace(
   id: string,
-  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo">>,
+  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo" | "planned_time">>,
 ) {
   const now = new Date().toISOString();
   const store = readGuestTripStore();
@@ -241,4 +243,8 @@ function isTripPlaceRecord(value: unknown): value is TripPlaceRecord {
     typeof item.created_at === "string" &&
     typeof item.updated_at === "string"
   );
+}
+
+function normalizePlannedTime(value: unknown) {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value) ? value.slice(0, 5) : null;
 }

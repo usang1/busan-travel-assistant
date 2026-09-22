@@ -13,6 +13,8 @@ import { SaveButton } from "@/components/SaveButton";
 import { NearbyPopularPlaces } from "@/components/NearbyPopularPlaces";
 import { TagChip } from "@/components/TagChip";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { TasteProfileCard } from "@/components/TasteProfileCard";
+import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { TravelMap } from "@/components/TravelMap";
 import {
   calculateDistanceMeters,
@@ -34,7 +36,9 @@ import {
   filterPlacesForChineseTraveler,
   getChinaDiscoveryTags,
   getEnabledChinaFilters,
+  matchesTimeAwareFilter,
   sortPlacesForChineseTraveler,
+  timeAwareDiscoveryFilters,
   type ChinaDiscoveryFilter,
   type ChinaDiscoverySort,
   type ChinaPriceBucket,
@@ -61,6 +65,7 @@ import {
   getTrustedPlaceImageUrl,
 } from "@/lib/place-trust";
 import { getSupabaseClient } from "@/lib/supabase";
+import { formatTimeAwarePrimary, getTimeAwarePlaceState } from "@/lib/time-aware-place";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 
 type NearbyExplorerProps = {
@@ -134,6 +139,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const [mapMoved, setMapMoved] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [desktopMapMounted, setDesktopMapMounted] = useState(false);
+  const [clock, setClock] = useState<Date | null>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
   const initialSelectionAppliedRef = useRef(false);
   const origin = originMode === "current" && userLocation ? userLocation : gwangalliCenter;
@@ -150,6 +156,13 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
     [availableChinaFilters],
   );
   const activeFilterCount = countActiveChinaFilters(showChinaFilters ? activeChinaFilters : [], priceBucket);
+
+  useEffect(() => {
+    const update = () => setClock(new Date());
+    update();
+    const timer = window.setInterval(update, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
@@ -252,7 +265,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
     const chinaFilteredPlaces = new Set(
       filterPlacesForChineseTraveler(
         baseItems.map((item) => item.place),
-        showChinaFilters ? activeChinaFilters : [],
+        showChinaFilters ? activeChinaFilters.filter((filter) => !timeAwareDiscoveryFilters.includes(filter)) : [],
         priceBucket,
       ).map((place) => place.id),
     );
@@ -270,6 +283,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
         const distanceMatch = distanceLimit === null || (distanceFromUser !== null && distanceFromUser <= distanceLimit);
         const boundsMatch = isInsideBounds(item.place, appliedBounds);
         const chinaMatch = chinaFilteredPlaces.has(item.place.id);
+        const timeMatch = activeChinaFilters.filter((filter) => timeAwareDiscoveryFilters.includes(filter)).every((filter) => matchesTimeAwareFilter(item.place, filter, item.walkingMinutes));
         const searchText = [
           content.name,
           content.secondaryName,
@@ -288,7 +302,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           .toLowerCase();
         const searchMatch = lowered.length === 0 || searchText.includes(lowered);
 
-        return categoryMatch && boundsMatch && searchMatch && chinaMatch && distanceMatch;
+        return categoryMatch && boundsMatch && searchMatch && chinaMatch && timeMatch && distanceMatch;
       });
 
     return sortPlacesForChineseTraveler(filtered, sortMode);
@@ -299,6 +313,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       const content = getPlaceContent(place, locale);
       const recommendation = getLocalizedRecommendationDisplay(place, locale);
       const nameDisplay = getPlaceNameDisplay(place, locale);
+      const timeState = clock ? getTimeAwarePlaceState(place, { now: clock, travelMinutes: walkingMinutes }) : null;
+      const timeLabel = timeState?.hasStructuredData ? (timeState.recommendedAtArrival ? localizedCopy.nowRecommended : formatTimeAwarePrimary(timeState, locale).text) : "";
 
       return {
         id: place.id,
@@ -318,10 +334,10 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
         price: formatPriceRange(place, locale),
         recommendationLabel: recommendation.label,
         recommendation: recommendation.value,
-        tags: getChinaDiscoveryTags(place, locale, 4),
+        tags: [timeLabel, ...getChinaDiscoveryTags(place, locale, 3)].filter(Boolean),
       };
     });
-  }, [copy.common.minutes, copy.placeDetail.walkingApprox, filteredItems, locale, localizedCopy.detail]);
+  }, [clock, copy.common.minutes, copy.placeDetail.walkingApprox, filteredItems, locale, localizedCopy.detail, localizedCopy.nowRecommended]);
 
   const selectedItem = useMemo(() => {
     return selectedId ? filteredItems.find((item) => item.place.id === selectedId) ?? null : null;
@@ -1032,6 +1048,8 @@ function PlaceListCard({
         {distanceWarning ? <p className="text-amber-700">{distanceWarning}</p> : null}
       </div>
       <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-slate-100 pt-3" />
+      <TimeAwareStatus place={place} locale={locale} travelMinutes={walkingMinutes} />
+      <TasteProfileCard place={place} locale={locale} />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
         <Link
           href={href}
@@ -1092,6 +1110,7 @@ function SelectedPlaceSummary({ item, locale }: { item: PlaceListItem; locale: L
         <ArrowRight size={18} className="shrink-0 text-teal-700" aria-hidden="true" />
       </Link>
       <TravelerDecisionCard place={place} locale={locale} className="mt-2 border-t border-slate-100 pt-2" />
+      <TimeAwareStatus place={place} locale={locale} travelMinutes={walkingMinutes} />
     </article>
   );
 }
@@ -1138,6 +1157,7 @@ const nearbyCopy: Record<Locale, {
   savedLoginRequired: string;
   savedLoadFailed: string;
   savedCount: string;
+  nowRecommended: string;
 }> = {
   zh: {
     gwangalliBase: "以广安里为基准显示。",
@@ -1181,6 +1201,7 @@ const nearbyCopy: Record<Locale, {
     savedLoginRequired: "登录后可以只查看已保存的地点。",
     savedLoadFailed: "无法读取已保存的地点，请稍后重试。",
     savedCount: "收藏",
+    nowRecommended: "现在推荐",
   },
   en: {
     gwangalliBase: "Showing results from Gwangalli.",
@@ -1224,6 +1245,7 @@ const nearbyCopy: Record<Locale, {
     savedLoginRequired: "Sign in to show only your saved places.",
     savedLoadFailed: "Saved places could not be loaded. Please try again.",
     savedCount: "Saved",
+    nowRecommended: "Recommended now",
   },
   ja: {
     gwangalliBase: "広安里を基準に表示しています。",
@@ -1267,6 +1289,7 @@ const nearbyCopy: Record<Locale, {
     savedLoginRequired: "ログインすると保存したスポットだけを表示できます。",
     savedLoadFailed: "保存したスポットを読み込めませんでした。時間をおいて再度お試しください。",
     savedCount: "保存",
+    nowRecommended: "今おすすめ",
   },
   ko: {
     gwangalliBase: "광안리 기준으로 표시 중입니다.",
@@ -1310,6 +1333,7 @@ const nearbyCopy: Record<Locale, {
     savedLoginRequired: "로그인하면 저장한 장소만 지도에서 볼 수 있습니다.",
     savedLoadFailed: "저장한 장소를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
     savedCount: "저장",
+    nowRecommended: "지금 추천",
   },
 };
 

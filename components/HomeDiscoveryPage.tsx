@@ -29,6 +29,8 @@ import { getHomeQuickFilters, type HomeQuickFilterKey } from "@/lib/home-discove
 import { getProblemGuides, resolveHomeIntentCards, type ResolvedHomeIntentCard } from "@/lib/home-intent-links";
 import { type Locale, ui, withLocale } from "@/lib/i18n";
 import { distanceFromGwangalli } from "@/lib/place-display";
+import { estimateWalkingMinutes } from "@/lib/location";
+import { getTimeAwarePlaceState } from "@/lib/time-aware-place";
 import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import type { PlaceWithRelations } from "@/types/database";
 import type { Guide } from "@/types/guide";
@@ -65,6 +67,8 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
     .filter((district) => district.count > 0)
     .sort((a, b) => b.count - a.count);
   const preparingDistrictCount = busanDistrictOptions.length - activeDistricts.length;
+  const now = new Date();
+  const nowWorthPlaces = places.filter((place) => getTimeAwarePlaceState(place, { now, travelMinutes: estimateWalkingMinutes(distanceFromGwangalli(place)) }).recommendedAtArrival === true).slice(0, 4);
 
   return (
     <main className="safe-bottom mx-auto max-w-5xl px-4 pb-6 pt-5">
@@ -77,7 +81,7 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">{copy.supporting}</p>
         <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { href: "/places?sort=chinaRecommended", label: copy.nowWorth, icon: Compass },
+            { href: "/places?recommendedNow=true&sort=verified", label: copy.nowWorth, icon: Compass },
             { href: "/busan", label: copy.bySituation, icon: MapPin },
             { href: "#sns-place-search", label: copy.findFromSns, icon: Search },
             { href: "/itinerary", label: copy.buildItinerary, icon: Bookmark },
@@ -93,6 +97,11 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
             );
           })}
         </div>
+      </section>
+
+      <section className="border-b border-slate-200 py-7">
+        <SectionTitle title={copy.nowWorth} subtitle={copy.nowWorthSubtitle} action={<Link href={withLocale("/places?recommendedNow=true&sort=verified", locale)} className="inline-flex min-h-11 items-center gap-1 text-sm font-black text-teal-700">{ui[locale].common.viewAll}<ArrowRight size={16} aria-hidden="true" /></Link>} />
+        {nowWorthPlaces.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2">{nowWorthPlaces.map((place) => <PlaceCard key={place.id} place={place} locale={locale} distanceMeters={distanceFromGwangalli(place)} />)}</div> : <p className="mt-4 rounded-lg bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.nowWorthEmpty}</p>}
       </section>
 
       <section id="sns-place-search" className="scroll-mt-40 border-b border-slate-200 py-7">
@@ -368,6 +377,8 @@ type CityHomeCopy = {
   heading: string;
   supporting: string;
   nowWorth: string;
+  nowWorthSubtitle: string;
+  nowWorthEmpty: string;
   bySituation: string;
   findFromSns: string;
   buildItinerary: string;
@@ -394,6 +405,8 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     heading: "부산에서 실패하지 않는 여행",
     supporting: "지금 가도 되는지, 무엇을 주문할지, 외국인이 이용하기 쉬운지 먼저 확인하세요.",
     nowWorth: "지금 갈 만한 곳",
+    nowWorthSubtitle: "광안리에서 지금 출발할 때 도착 시각이 검수된 추천 시간대와 맞는 장소입니다.",
+    nowWorthEmpty: "검수된 시간대 데이터가 더 쌓이면 도착 시각 기준 추천을 표시합니다.",
     bySituation: "상황별로 찾기",
     findFromSns: "SNS에서 본 장소 찾기",
     buildItinerary: "저장한 장소로 일정 만들기",
@@ -418,6 +431,8 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     heading: "在釜山旅行，少踩坑",
     supporting: "先确认现在值不值得去、该点什么，以及外国游客使用是否方便。",
     nowWorth: "现在值得去的地方",
+    nowWorthSubtitle: "从广安里现在出发，预计到达时间符合已审核推荐时段的地点。",
+    nowWorthEmpty: "审核后的时段数据增加后，将显示按到达时间计算的推荐。",
     bySituation: "按旅行场景找",
     findFromSns: "查找社交平台看到的店",
     buildItinerary: "用收藏地点做行程",
@@ -442,6 +457,8 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     heading: "Make fewer mistakes in Busan",
     supporting: "Check whether a place is worth going now, what to order, and how easy it is for international travelers.",
     nowWorth: "Worth going now",
+    nowWorthSubtitle: "Places whose reviewed recommendation window matches an estimated departure from Gwangalli now.",
+    nowWorthEmpty: "Arrival-time recommendations will appear as reviewed time data grows.",
     bySituation: "Find by situation",
     findFromSns: "Find a place from social media",
     buildItinerary: "Plan with saved places",
@@ -466,6 +483,8 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     heading: "釜山で失敗しない旅",
     supporting: "今行く価値があるか、何を注文するか、外国人にも利用しやすいかを先に確認できます。",
     nowWorth: "今行く価値がある場所",
+    nowWorthSubtitle: "広安里から今出発した場合、到着予想時刻が確認済みの推奨時間帯に合う場所です。",
+    nowWorthEmpty: "確認済み時間帯データが増えると、到着時刻基準のおすすめを表示します。",
     bySituation: "状況別に探す",
     findFromSns: "SNSで見た場所を探す",
     buildItinerary: "保存スポットで旅程作成",

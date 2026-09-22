@@ -103,6 +103,7 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
       korean_original_name: item.korean_original_name, recommendation_status: item.recommendation_status,
       recommendation_basis: item.recommendation_basis || null, spicy_level: item.spicy_level, oily_level: item.oily_level,
       aroma_level: item.aroma_level, portion_size: item.portion_size, recommended_party_size: item.recommended_party_size,
+      contains_seafood: item.contains_seafood, contains_cilantro: item.contains_cilantro, meal_type: item.meal_type,
       ordering_note: item.ordering_note, menu_warning: item.menu_warning, availability_time: item.availability_time,
       sold_out_risk: item.sold_out_risk, sort_order: item.sort_order,
     }));
@@ -158,7 +159,10 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
       korean_original_name: stringValue(row.korean_original_name) || stringValue(row.name_ko), price: numberOrNull(row.price),
       recommendation_status: tristate(row.recommendation_status, row.is_recommended === true ? "yes" : "unknown"), recommendation_basis: stringValue(row.recommendation_basis),
       spicy_level: numberOrNull(row.spicy_level), oily_level: numberOrNull(row.oily_level), aroma_level: numberOrNull(row.aroma_level),
-      portion_size: numberOrNull(row.portion_size), recommended_party_size: numberOrNull(row.recommended_party_size), ordering_note: localeValue(row.ordering_note),
+      portion_size: numberOrNull(row.portion_size), recommended_party_size: numberOrNull(row.recommended_party_size),
+      contains_seafood: tristate(row.contains_seafood), contains_cilantro: tristate(row.contains_cilantro),
+      meal_type: ["meal", "snack", "both"].includes(stringValue(row.meal_type)) ? row.meal_type as TravelerDecisionBundle["menus"][number]["meal_type"] : null,
+      ordering_note: localeValue(row.ordering_note),
       menu_warning: localeValue(row.menu_warning), availability_time: Array.isArray(row.availability_time) ? row.availability_time as TravelerDecisionBundle["menus"][number]["availability_time"] : [],
       sold_out_risk: numberOrNull(row.sold_out_risk), sort_order: typeof row.sort_order === "number" ? row.sort_order : index,
     })),
@@ -174,7 +178,7 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
 }
 
 function migrationError(error: { code?: string; message?: string }) {
-  if (["42P01", "42703", "PGRST200", "PGRST204", "PGRST205"].includes(error.code ?? "")) return publicError("여행자 의사결정 DB migration(030)을 먼저 적용해주세요.", 503);
+  if (["42P01", "42703", "PGRST200", "PGRST204", "PGRST205"].includes(error.code ?? "")) return publicError("여행자 의사결정 DB migration(030, 031)을 먼저 적용해주세요.", 503);
   return error;
 }
 function publicError(message: string, status: number) { return Object.assign(new Error(message), { status, expose: true }); }

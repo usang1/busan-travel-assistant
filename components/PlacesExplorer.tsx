@@ -12,6 +12,7 @@ import { busanDistrictOptions, getBusanDistrictKey, isBusanDistrictKey } from "@
 import { getPlaceRegion, placeCities, placeRegionLabel } from "@/lib/city-regions";
 import {
   calculateDistanceMeters,
+  estimateWalkingMinutes,
   formatDistance,
   formatOpeningStatus,
   gwangalliCenter,
@@ -25,7 +26,9 @@ import {
   filterPlacesForChineseTraveler,
   getEnabledChinaFilters,
   hasVerifiedRecommendationScores,
+  matchesTimeAwareFilter,
   sortPlacesForChineseTraveler,
+  timeAwareDiscoveryFilters,
   type ChinaDiscoveryFilter,
   type ChinaDiscoverySort,
   type ChinaPriceBucket,
@@ -140,20 +143,21 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     const chinaFilteredPlaces = new Set(
       filterPlacesForChineseTraveler(
         enrichedPlaces.map((item) => item.place),
-        showChinaFilters ? activeChinaFilters : [],
+        showChinaFilters ? activeChinaFilters.filter((filter) => !timeAwareDiscoveryFilters.includes(filter)) : [],
         priceBucket,
       ).map((place) => place.id),
     );
 
     const filtered = enrichedPlaces
-      .filter(({ place }) => {
+      .filter(({ place, distance }) => {
         const categoryMatch = category === "all" || place.category === category;
         const regionMatch = region === "all" || getBusanDistrictKey(place) === region;
         const searchMatch = lowered.length === 0 || buildSearchText(place, locale).includes(lowered);
         const chinaMatch = chinaFilteredPlaces.has(place.id);
+        const timeMatch = activeChinaFilters.filter((filter) => timeAwareDiscoveryFilters.includes(filter)).every((filter) => matchesTimeAwareFilter(place, filter, estimateWalkingMinutes(distance)));
         const intentMatch = !homeIntent || place.tags.some((tag) => getHomeIntentKeyFromSlug(tag.slug) === homeIntent);
 
-        return categoryMatch && regionMatch && searchMatch && chinaMatch && intentMatch;
+        return categoryMatch && regionMatch && searchMatch && chinaMatch && timeMatch && intentMatch;
       });
 
     return sortPlacesForChineseTraveler(filtered, sortMode);

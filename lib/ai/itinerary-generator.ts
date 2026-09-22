@@ -1,4 +1,5 @@
 import { calculateDistanceMeters, getOpeningStatus, gwangalliCenter, type Coordinates } from "@/lib/location";
+import { addSeoulDays, getTimeAwarePlaceState, getTimeAwareWarningCodes, seoulDateTimeToDate } from "@/lib/time-aware-place";
 import type { PlaceCategory, PlaceWithRelations } from "@/types/database";
 
 export type ItineraryInterest = "food" | "cafe" | "photo" | "shopping" | "sea" | "nightlife";
@@ -12,6 +13,7 @@ export type ItineraryPreferences = {
   interests: ItineraryInterest[];
   style: TravelStyle;
   rainyAlternative: boolean;
+  startDate: string;
 };
 
 export type GeneratedItineraryStop = {
@@ -24,6 +26,7 @@ export type GeneratedItineraryStop = {
   descriptionKo: string;
   walkingFromPreviousMinutes: number | null;
   openingStatus: ReturnType<typeof getOpeningStatus>;
+  timeWarnings: string[];
 };
 
 export type GeneratedItineraryDay = {
@@ -82,8 +85,10 @@ function generateDay(places: PlaceWithRelations[], preferences: ItineraryPrefere
   const usedPlaceIds = new Set<string>();
   let previousCoordinate: Coordinates = gwangalliCenter;
 
-  const stops = slots.map((slot) => {
-    const selected = selectPlace(places, slot.category, preferences, usedPlaceIds, previousCoordinate);
+  const dateKey = addSeoulDays(preferences.startDate, day - 1);
+  const stops = slots.map((slot, index) => {
+    const scheduledAt = seoulDateTimeToDate(dateKey, slot.time);
+    const selected = selectPlace(places, slot.category, preferences, usedPlaceIds, previousCoordinate, scheduledAt);
 
     if (selected) {
       usedPlaceIds.add(selected.id);
@@ -97,6 +102,12 @@ function generateDay(places: PlaceWithRelations[], preferences: ItineraryPrefere
           }
         : previousCoordinate;
     const distance = selected ? calculateDistanceMeters(previousCoordinate, nextCoordinate) : null;
+    const walkingFromPreviousMinutes = distance === null ? null : Math.max(1, Math.round(distance / 72));
+    const state = selected ? getTimeAwarePlaceState(selected, { scheduledAt }) : null;
+    const previousSlot = slots[index - 1];
+    const availableTravelMinutes = previousSlot ? minutesOfDay(slot.time) - minutesOfDay(previousSlot.time) : null;
+    const timeWarnings = state ? getTimeAwareWarningCodes(state) : [];
+    if (walkingFromPreviousMinutes !== null && availableTravelMinutes !== null && walkingFromPreviousMinutes > availableTravelMinutes) timeWarnings.push("insufficient_travel_time");
     previousCoordinate = nextCoordinate;
 
     return {
@@ -107,8 +118,9 @@ function generateDay(places: PlaceWithRelations[], preferences: ItineraryPrefere
       placeSlug: selected?.slug ?? "",
       descriptionZh: selected?.short_description_zh ?? "暂无合适地点，请在附近推荐里确认。",
       descriptionKo: selected?.short_description_ko ?? "조건에 맞는 장소가 없습니다. 주변 추천에서 다시 확인해 주세요.",
-      walkingFromPreviousMinutes: distance === null ? null : Math.max(1, Math.round(distance / 72)),
-      openingStatus: getOpeningStatus(selected?.opening_hours ?? ""),
+      walkingFromPreviousMinutes,
+      openingStatus: getOpeningStatus(selected?.opening_hours ?? "", scheduledAt),
+      timeWarnings,
     };
   });
 
@@ -148,6 +160,7 @@ function selectPlace(
   preferences: ItineraryPreferences,
   usedPlaceIds: Set<string>,
   origin: Coordinates,
+  scheduledAt: Date,
 ) {
   const categoryCandidates = places.filter((place) => {
     if (usedPlaceIds.has(place.id)) {
@@ -166,12 +179,12 @@ function selectPlace(
   return fallbackCandidates
     .map((place) => ({
       place,
-      score: scorePlace(place, preferences, origin),
+      score: scorePlace(place, preferences, origin, scheduledAt),
     }))
     .sort((a, b) => b.score - a.score)[0]?.place;
 }
 
-function scorePlace(place: PlaceWithRelations, preferences: ItineraryPreferences, origin: Coordinates) {
+function scorePlace(place: PlaceWithRelations, preferences: ItineraryPreferences, origin: Coordinates, scheduledAt: Date) {
   let score = 0;
 
   if (place.is_featured) {
@@ -214,7 +227,12 @@ function scorePlace(place: PlaceWithRelations, preferences: ItineraryPreferences
     score += Math.max(0, 18 - distance / 120);
   }
 
-  const openingStatus = getOpeningStatus(place.opening_hours);
+  const timeState = getTimeAwarePlaceState(place, { scheduledAt });
+  const openingStatus = getOpeningStatus(place.opening_hours, scheduledAt);
+
+  if (timeState.hasStructuredData && !timeState.openAtArrival) score -= 100;
+  if (timeState.recommendedAtArrival === true) score += 16;
+  if (timeState.avoidAtArrival === true) score -= 20;
 
   if (openingStatus === "open") {
     score += 8;
@@ -225,4 +243,9 @@ function scorePlace(place: PlaceWithRelations, preferences: ItineraryPreferences
   }
 
   return score;
+}
+
+function minutesOfDay(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
 }

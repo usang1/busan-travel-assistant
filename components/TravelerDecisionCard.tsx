@@ -6,13 +6,13 @@ import {
   getDecisionStatus,
   getDecisionStatusLabel,
   getDecisionWarnings,
-  getDifficultyLabel,
   getLocalizedDecisionText,
   getPracticalFacts,
   getThemeLabels,
   getWorthLabel,
 } from "@/lib/traveler-decision-display";
 import type { PlaceFactTristate, PlaceWithRelations } from "@/types/database";
+import { getForeignerDifficultyDimensions, getLargestKnownObstacle } from "@/lib/traveler-practical-display";
 
 type TravelerDecisionCardProps = {
   place: PlaceWithRelations;
@@ -29,6 +29,7 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
   const warnings = getDecisionWarnings(place, locale);
   const evidence = getDecisionEvidence(place, locale);
   const summary = getLocalizedDecisionText(place.decision_profile?.visit_summary, locale);
+  const obstacle = getLargestKnownObstacle(place, locale);
 
   if (variant === "compact") {
     return (
@@ -51,16 +52,13 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
             <span className="line-clamp-2">{warnings[0]}</span>
           </p>
         ) : null}
+        {obstacle ? <p className="flex items-start gap-1.5 text-xs font-bold leading-5 text-rose-800"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{obstacle.label}: {obstacle.value}</p> : null}
       </section>
     );
   }
 
   const practicalFacts = getPracticalFacts(place, locale);
-  const difficultyItems = [
-    { key: "foreigner", label: text.foreigner, value: place.decision_profile?.foreigner_difficulty },
-    { key: "solo", label: text.solo, value: place.decision_profile?.solo_difficulty },
-    { key: "order", label: text.order, value: place.china_info?.ordering_difficulty },
-  ];
+  const difficultyItems = getForeignerDifficultyDimensions(place, locale);
 
   return (
     <section className={`bg-white px-5 py-6 ring-1 ring-slate-200 ${className}`} aria-labelledby={`decision-${place.id}`}>
@@ -83,11 +81,11 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
         </div>
       ) : null}
 
-      <div className="mt-4 grid grid-cols-3 gap-2" aria-label={text.difficulty}>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label={text.difficulty}>
         {difficultyItems.map((item) => (
           <div key={item.key} className="min-w-0 rounded-md bg-slate-50 px-2 py-3 text-center ring-1 ring-slate-100">
             <p className="text-xs font-bold text-slate-500">{item.label}</p>
-            <p className="mt-1 break-words text-sm font-black text-slate-900">{getDifficultyLabel(item.value, locale)}</p>
+            <p className="mt-1 break-words text-sm font-black text-slate-900">{item.value}</p>
           </div>
         ))}
       </div>

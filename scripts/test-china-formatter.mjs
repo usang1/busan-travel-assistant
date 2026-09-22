@@ -154,7 +154,14 @@ assert.match(missingPaymentSummary, /暂未确认/);
 
 const discovery = loadTsModule("lib/place-china/discovery.ts", {
   "@/lib/location": {
-    getOpeningStatus: () => "unknown",
+    estimateWalkingMinutes: () => null,
+    getPlaceDistance: () => null,
+    gwangalliCenter: { latitude: 35.1532, longitude: 129.1186 },
+  },
+  "@/lib/time-aware-place": {
+    getTimeAwarePlaceState: () => ({ openAtArrival: null, recommendedAtArrival: null }),
+    hasReviewedTimeData: () => false,
+    hasTimeFilterData: () => false,
   },
   "@/lib/place-china/format": {
     buildChinaPlaceSummary,
@@ -568,7 +575,7 @@ const discoveryPlaces = [strictPlace, unknownPlace, easyPlace];
 assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["foreignCard"]).map((place) => place.id), ["easy"]);
 assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["solo", "nonSpicy"]).map((place) => place.id), ["easy"]);
 assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["lowWait"]).map((place) => place.id), ["easy"]);
-assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["openNight"]).map((place) => place.id), ["unknown", "easy"]);
+assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["openNight"]).map((place) => place.id), [], "Legacy hours must not activate a time filter without reviewed structured data");
 assert.deepEqual(filterPlacesForChineseTraveler(discoveryPlaces, ["foreignCard"], "low").map((place) => place.id), []);
 assert.equal(getChinaRecommendationLabel(easyPlace), "5/5");
 assert.equal(getChinaRecommendationLabel(unknownPlace), "暂未确认");

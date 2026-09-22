@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, CloudRain, Crown, RefreshCw, Save } from "lucide-react";
+import { AlertTriangle, CalendarDays, CloudRain, Crown, RefreshCw, Save } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useProEntitlement } from "@/components/ProEntitlementProvider";
 import { ShareButton } from "@/components/ShareButton";
@@ -15,6 +15,7 @@ import {
   type TravelStyle,
 } from "@/lib/ai/itinerary-generator";
 import { getOpeningStatusLabel } from "@/lib/location";
+import { formatTimeAwareWarning, getSeoulDateKey } from "@/lib/time-aware-place";
 import type { PlaceWithRelations } from "@/types/database";
 
 type ItineraryPlannerProps = {
@@ -46,6 +47,7 @@ function defaultPreferences(locale: Locale): ItineraryPreferences {
     interests: ["food", "cafe", "photo", "sea"],
     style: "normal",
     rainyAlternative: false,
+    startDate: getSeoulDateKey(),
   };
 }
 
@@ -147,6 +149,15 @@ export function ItineraryPlanner({ places, locale = "zh" }: ItineraryPlannerProp
                 </option>
               ))}
             </select>
+          </Field>
+          <Field label={copy.startDate}>
+            <input
+              type="date"
+              value={preferences.startDate}
+              min={getSeoulDateKey()}
+              onChange={(event) => updatePreferences({ startDate: event.target.value })}
+              className={inputClass}
+            />
           </Field>
           <Field label={copy.lodging}>
             <input value={preferences.lodging} onChange={(event) => updatePreferences({ lodging: event.target.value })} className={inputClass} />
@@ -308,6 +319,17 @@ export function ItineraryPlanner({ places, locale = "zh" }: ItineraryPlannerProp
                         {stop.walkingFromPreviousMinutes !== null ? (
                           <p className="mt-2 text-xs font-bold text-teal-700">{copy.walkFromPrevious} {stop.walkingFromPreviousMinutes}{copy.minuteSuffix}</p>
                         ) : null}
+                        {(stop.timeWarnings ?? []).length ? (
+                          <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-950">
+                            {(stop.timeWarnings ?? []).map((warning) => (
+                              <p key={warning} className="flex items-start gap-2">
+                                <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                                <span>{formatTimeAwareWarning(warning, locale)}</span>
+                              </p>
+                            ))}
+                            <p className="mt-2 font-medium text-amber-800">{copy.scheduleWarning}</p>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -352,6 +374,7 @@ const itineraryCopy: Record<Locale, {
   days: string;
   daySuffix: string;
   lodging: string;
+  startDate: string;
   people: string;
   peopleSuffix: string;
   budget: string;
@@ -376,6 +399,7 @@ const itineraryCopy: Record<Locale, {
   walkFromPrevious: string;
   minuteSuffix: string;
   notes: string;
+  scheduleWarning: string;
 }> = {
   zh: {
     hero: "帮你安排广安里行程",
@@ -385,6 +409,7 @@ const itineraryCopy: Record<Locale, {
     days: "旅行几天？",
     daySuffix: "日",
     lodging: "住在哪里？",
+    startDate: "行程开始日期",
     people: "几个人？",
     peopleSuffix: "人",
     budget: "预算？",
@@ -409,6 +434,7 @@ const itineraryCopy: Record<Locale, {
     walkFromPrevious: "从上一地点步行约",
     minuteSuffix: "分钟",
     notes: "生成原则",
+    scheduleWarning: "行程不会自动更改。请查看地点详情，并在需要时选择附近的其他地点。",
   },
   en: {
     hero: "Plan a Gwangalli itinerary",
@@ -418,6 +444,7 @@ const itineraryCopy: Record<Locale, {
     days: "Trip length",
     daySuffix: " day",
     lodging: "Where are you staying?",
+    startDate: "Start date",
     people: "People",
     peopleSuffix: " people",
     budget: "Budget",
@@ -442,6 +469,7 @@ const itineraryCopy: Record<Locale, {
     walkFromPrevious: "Walk from previous stop about",
     minuteSuffix: " min",
     notes: "Generation rules",
+    scheduleWarning: "The itinerary was not changed automatically. Check the place details and choose a nearby alternative if needed.",
   },
   ja: {
     hero: "広安里の旅程を作成",
@@ -451,6 +479,7 @@ const itineraryCopy: Record<Locale, {
     days: "旅行日数",
     daySuffix: "日",
     lodging: "宿泊場所",
+    startDate: "開始日",
     people: "人数",
     peopleSuffix: "人",
     budget: "予算",
@@ -475,6 +504,7 @@ const itineraryCopy: Record<Locale, {
     walkFromPrevious: "前の場所から徒歩約",
     minuteSuffix: "分",
     notes: "生成ルール",
+    scheduleWarning: "旅程は自動変更されません。スポット詳細を確認し、必要なら近くの代替候補を選んでください。",
   },
   ko: {
     hero: "광안리 일정 짜기",
@@ -484,6 +514,7 @@ const itineraryCopy: Record<Locale, {
     days: "여행 일수",
     daySuffix: "일",
     lodging: "숙소 위치",
+    startDate: "일정 시작일",
     people: "인원",
     peopleSuffix: "명",
     budget: "예산",
@@ -508,6 +539,7 @@ const itineraryCopy: Record<Locale, {
     walkFromPrevious: "이전 장소에서 도보 약",
     minuteSuffix: "분",
     notes: "생성 원칙",
+    scheduleWarning: "일정은 자동으로 바꾸지 않습니다. 장소 상세를 확인하고 필요하면 가까운 대안을 선택하세요.",
   },
 };
 
