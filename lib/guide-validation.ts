@@ -1,4 +1,5 @@
 import { guideTypes, type GuideEditorial, type GuidePayload, type GuideText } from "@/types/guide";
+import { travelerThemes } from "@/types/traveler-decision";
 
 const languages = ["ko", "zh", "en", "ja"] as const;
 export const emptyGuideText = (): GuideText => ({ ko: "", zh: "", en: "", ja: "" });
@@ -23,6 +24,12 @@ function integer(value: unknown, max: number, nullable = false): number | null {
 function translated(value: unknown): GuideText {
   const input = value === undefined ? {} : object(value);
   return Object.fromEntries(languages.map((locale) => [locale, text(input[locale])])) as GuideText;
+}
+function nullableTime(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const result = text(value, 8);
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(result)) throw guideInputError("시작 시간은 HH:MM 형식으로 입력해주세요.");
+  return result.slice(0, 5);
 }
 export function validateGuidePayload(value: unknown): GuidePayload {
   const input = object(value);
@@ -56,13 +63,29 @@ export function validateGuidePayload(value: unknown): GuidePayload {
       custom_title: translated(stop.custom_title), custom_description: translated(stop.custom_description),
       transportation_note: translated(stop.transportation_note), tip: translated(stop.tip),
       stay_minutes: integer(stop.stay_minutes, 10080, true),
+      travel_minutes: integer(stop.travel_minutes, 1440, true),
+      travel_mode: stop.travel_mode === null || stop.travel_mode === undefined || stop.travel_mode === "" ? null
+        : (["walk", "transit", "taxi", "car", "mixed"].includes(String(stop.travel_mode)) ? stop.travel_mode as GuidePayload["places"][number]["travel_mode"] : (() => { throw guideInputError("이동수단을 확인해주세요."); })()),
     };
   });
   if (typeof input.is_featured !== "boolean") throw guideInputError("추천 여부가 올바르지 않습니다.");
+  const themes = Array.isArray(input.trip_themes) ? input.trip_themes : [];
+  if (themes.some((theme) => !travelerThemes.includes(theme as (typeof travelerThemes)[number]))) throw guideInputError("여행 유형을 확인해주세요.");
+  const verificationStatus = String(input.verification_status ?? "unverified") as GuidePayload["verification_status"];
+  if (!["verified", "partially_verified", "unverified", "stale", "conflicting", "rejected"].includes(verificationStatus)) throw guideInputError("코스 검수 상태를 확인해주세요.");
+  const lastVerifiedAt = input.last_verified_at === null || input.last_verified_at === undefined || input.last_verified_at === "" ? null : text(input.last_verified_at, 40);
+  if (lastVerifiedAt && !Number.isFinite(Date.parse(lastVerifiedAt))) throw guideInputError("코스 확인일을 확인해주세요.");
+  if (input.status === "PUBLISHED" && !["verified", "partially_verified"].includes(verificationStatus)) throw guideInputError("검수 완료 또는 일부 확인된 코스만 공개할 수 있습니다.");
+  if (["verified", "partially_verified"].includes(verificationStatus) && !lastVerifiedAt) throw guideInputError("검수 상태에는 마지막 확인일이 필요합니다.");
+  const costMin = integer(input.estimated_cost_min, 100000000, true);
+  const costMax = integer(input.estimated_cost_max, 100000000, true);
+  if (costMin !== null && costMax !== null && costMin > costMax) throw guideInputError("예상 최대 비용은 최소 비용보다 작을 수 없습니다.");
   return {
     ...copy, slug, status: input.status, guide_type: input.guide_type as GuidePayload["guide_type"],
     ...(input.editorial === undefined ? {} : { editorial: validateGuideEditorial(input.editorial) }),
     cover_image: cover, area: text(input.area, 100), estimated_duration: integer(input.estimated_duration, 43200, true),
+    estimated_cost_min: costMin, estimated_cost_max: costMax, recommended_start_time: nullableTime(input.recommended_start_time),
+    trip_themes: themes as GuidePayload["trip_themes"], verification_status: verificationStatus, last_verified_at: lastVerifiedAt,
     recommended_for: translated(input.recommended_for), weather_type: input.weather_type as GuidePayload["weather_type"],
     sort_order: integer(input.sort_order, 100000) as number, is_featured: input.is_featured, places,
   };

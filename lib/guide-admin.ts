@@ -3,6 +3,8 @@ import { guideInputError, validateGuidePayload } from "@/lib/guide-validation";
 
 export async function saveOfficialGuide(client: SupabaseClient, id: string | null, value: unknown) {
   const payload = validateGuidePayload(value);
+  const { error: decisionSchemaError } = await client.from("guides").select("trip_themes,verification_status").limit(0);
+  if (decisionSchemaError) throw guideInputError("여행자 의사결정 DB migration(030)을 적용한 후 다시 저장해주세요.", 503);
   if (payload.editorial !== undefined) {
     const { error } = await client.from("guides").select("editorial").limit(0);
     if (error) throw guideInputError("가이드 상세 편집 기능의 DB migration(024)을 적용한 후 다시 저장해주세요.", 503);

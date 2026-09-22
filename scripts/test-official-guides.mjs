@@ -34,8 +34,13 @@ assert.equal(reordered.places[0].place_id, second.place_id);
 assert.equal(reordered.places[0].sequence, 0);
 assert.equal(reordered.places[1].sequence, 1);
 assert.equal(reordered.id, undefined);
-const published = { ...base, status: "PUBLISHED", ...Object.fromEntries(["ko", "zh", "en", "ja"].flatMap((locale) => [[`title_${locale}`, locale], [`description_${locale}`, `Description ${locale}`]])) };
+const published = { ...base, status: "PUBLISHED", verification_status: "verified", last_verified_at: "2026-09-22T03:00:00Z", ...Object.fromEntries(["ko", "zh", "en", "ja"].flatMap((locale) => [[`title_${locale}`, locale], [`description_${locale}`, `Description ${locale}`]])) };
 assert.equal(validateGuidePayload(published).status, "PUBLISHED");
+assert.throws(() => validateGuidePayload({ ...published, verification_status: "unverified" }), /검수 완료/);
+assert.throws(() => validateGuidePayload({ ...published, estimated_cost_min: 20000, estimated_cost_max: 10000 }), /최대 비용/);
+assert.throws(() => validateGuidePayload({ ...published, trip_themes: ["invented"] }), /여행 유형/);
+assert.throws(() => validateGuidePayload({ ...published, places: [{ ...first, travel_minutes: 1500 }] }), /범위/);
+assert.equal(validateGuidePayload({ ...published, recommended_start_time: "10:30:00" }).recommended_start_time, "10:30");
 const editorial = { ko: { question: "어떻게 여행할까요?", answer: "확인된 답변", faq: [{ question: "언제 가나요?", answer: "공식 영업시간을 확인하세요." }], sources: [{ label: "공식 출처", url: "https://example.com" }], last_checked: "2026-09-09" } };
 assert.equal(validateGuidePayload({ ...published, editorial }).editorial.ko.answer, "확인된 답변");
 assert.throws(() => validateGuidePayload({ ...published, editorial: { ko: { ...editorial.ko, sources: [{ label: "Bad", url: "javascript:alert(1)" }] } } }));
@@ -47,6 +52,8 @@ for (const status of [401, 403]) {
   let calls = 0;
   const mocks = {
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
+    "next/cache": { revalidateTag: () => {} },
+    "@/lib/cache-tags": { publicGuidesCacheTag: "public-guides" },
     "@/lib/admin-auth": {
       requireAdmin: async () => { calls++; throw Object.assign(new Error("Denied"), { status }); },
       adminErrorResponse: (error) => ({ message: error.message, status: error.status }),

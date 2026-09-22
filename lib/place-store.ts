@@ -656,6 +656,7 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
   }
 
   const rows = menuItems.map((item, index) => ({
+    ...(item.id ? { id: item.id } : {}),
     place_id: placeId,
     name_ko: item.name_ko,
     name_zh: item.name_zh,
@@ -663,9 +664,31 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
     price: item.price,
     is_recommended: item.is_recommended,
     sort_order: item.sort_order || index + 1,
+    ...(item.localized_name ? { localized_name: item.localized_name } : {}),
+    ...(item.korean_original_name !== undefined ? { korean_original_name: item.korean_original_name } : {}),
+    ...(item.recommendation_status ? { recommendation_status: item.recommendation_status } : {}),
+    ...(item.recommendation_basis !== undefined ? { recommendation_basis: item.recommendation_basis } : {}),
+    spicy_level: item.spicy_level ?? null,
+    oily_level: item.oily_level ?? null,
+    aroma_level: item.aroma_level ?? null,
+    portion_size: item.portion_size ?? null,
+    recommended_party_size: item.recommended_party_size ?? null,
+    ...(item.ordering_note ? { ordering_note: item.ordering_note } : {}),
+    ...(item.menu_warning ? { menu_warning: item.menu_warning } : {}),
+    ...(item.availability_time ? { availability_time: item.availability_time } : {}),
+    sold_out_risk: item.sold_out_risk ?? null,
   }));
 
-  const { error } = await resolvedClient.from("place_menu_items").insert(rows);
+  let { error } = await resolvedClient.from("place_menu_items").insert(rows);
+
+  if (error && (error.code === "PGRST204" || error.code === "42703")) {
+    const legacyRows = rows.map((row) => ({
+      ...(row.id ? { id: row.id } : {}), place_id: row.place_id, name_ko: row.name_ko, name_zh: row.name_zh,
+      description_zh: row.description_zh, price: row.price, is_recommended: row.is_recommended, sort_order: row.sort_order,
+    }));
+    const retry = await resolvedClient.from("place_menu_items").insert(legacyRows);
+    error = retry.error;
+  }
 
   if (error) {
     throw new Error(error.message);

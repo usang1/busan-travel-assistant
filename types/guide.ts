@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/i18n";
+import type { PlaceTravelMode, TravelerTheme, TravelerVerificationStatus } from "@/types/traveler-decision";
 
 export const guideTypes = ["AREA", "FOOD", "SITUATION", "ITINERARY", "PRACTICAL"] as const;
 export type GuideType = (typeof guideTypes)[number];
@@ -18,6 +19,8 @@ export type GuideStop = {
   custom_title: GuideText;
   custom_description: GuideText;
   stay_minutes: number | null;
+  travel_minutes: number | null;
+  travel_mode: PlaceTravelMode | null;
   transportation_note: GuideText;
   tip: GuideText;
 };
@@ -37,6 +40,12 @@ export type GuidePayload = {
   cover_image: string;
   area: string;
   estimated_duration: number | null;
+  estimated_cost_min: number | null;
+  estimated_cost_max: number | null;
+  recommended_start_time: string | null;
+  trip_themes: TravelerTheme[];
+  verification_status: TravelerVerificationStatus;
+  last_verified_at: string | null;
   recommended_for: GuideText;
   weather_type: "ANY" | "SUNNY" | "RAINY" | "INDOOR";
   sort_order: number;

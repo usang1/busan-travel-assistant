@@ -138,6 +138,19 @@ export type PlaceMenuItem = {
   price: number | null;
   is_recommended: boolean;
   sort_order: number;
+  localized_name?: { ko: string; zh: string; en: string; ja: string };
+  korean_original_name?: string;
+  recommendation_status?: PlaceFactTristate;
+  recommendation_basis?: string | null;
+  spicy_level?: number | null;
+  oily_level?: number | null;
+  aroma_level?: number | null;
+  portion_size?: number | null;
+  recommended_party_size?: number | null;
+  ordering_note?: { ko: string; zh: string; en: string; ja: string };
+  menu_warning?: { ko: string; zh: string; en: string; ja: string };
+  availability_time?: Array<{ weekdays: number[]; start: string; end: string; note?: string }>;
+  sold_out_risk?: number | null;
 };
 
 export type PlaceChinaInfoRecord = {
@@ -313,7 +326,7 @@ export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at">
   closed_days: string;
   last_verified_at?: string | null;
   tags: Array<Pick<TagRecord, "label_zh" | "label_ko" | "slug">>;
-  menu_items: Array<Omit<PlaceMenuItem, "id" | "place_id">>;
+  menu_items: Array<Omit<PlaceMenuItem, "id" | "place_id"> & { id?: string }>;
   translations?: Array<Pick<PlaceTranslationRecord, "locale" | "name" | "description" | "travel_tip" | "address">>;
   source?: {
     provider: PlaceSourceProvider;

@@ -8,6 +8,7 @@ import { emptyGuideText } from "@/lib/guide-validation";
 import { isPublicPlace } from "@/lib/place-publishing";
 import { guideTypes, type Guide, type GuideDetail, type GuidePayload, type GuideStop } from "@/types/guide";
 import type { PlaceWithRelations } from "@/types/database";
+import { travelerThemes } from "@/types/traveler-decision";
 
 const languageNames = { ko: "한국어", zh: "중국어", en: "영어", ja: "일본어" };
 const languages = ["ko", "zh", "en", "ja"] as const;
@@ -17,7 +18,9 @@ function freshGuide(): GuidePayload {
   return {
     slug: "", status: "DRAFT", guide_type: "AREA", title_ko: "", title_zh: "", title_en: "", title_ja: "",
     description_ko: "", description_zh: "", description_en: "", description_ja: "", cover_image: "", area: "",
-    estimated_duration: null, recommended_for: emptyGuideText(), weather_type: "ANY", sort_order: 0, is_featured: false, places: [],
+    estimated_duration: null, estimated_cost_min: null, estimated_cost_max: null, recommended_start_time: null,
+    trip_themes: [], verification_status: "unverified", last_verified_at: null,
+    recommended_for: emptyGuideText(), weather_type: "ANY", sort_order: 0, is_featured: false, places: [],
   };
 }
 type Draft = GuidePayload & { id?: string; updated_at?: string };
@@ -50,7 +53,17 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
   }
   async function edit(id: string) {
     const { guide } = await api(`/${id}`) as { guide: GuideDetail };
-    setDraft({ ...guide, places: [...guide.guide_places].sort((a, b) => a.sequence - b.sequence) });
+    const defaults = freshGuide();
+    setDraft({
+      ...defaults,
+      ...guide,
+      trip_themes: guide.trip_themes ?? [],
+      verification_status: guide.verification_status ?? "unverified",
+      last_verified_at: guide.last_verified_at ?? null,
+      places: [...guide.guide_places]
+        .sort((a, b) => a.sequence - b.sequence)
+        .map((stop) => ({ ...stop, travel_minutes: stop.travel_minutes ?? null, travel_mode: stop.travel_mode ?? null })),
+    });
     setDeleteId(null);
   }
   function update(patch: Partial<Draft>) { setDraft((current) => current ? { ...current, ...patch } : current); }
@@ -100,10 +113,16 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
             <label className="text-sm font-bold">코스 유형<select className={inputStyle} value={draft.guide_type} onChange={(e) => update({ guide_type: e.target.value as Draft["guide_type"] })}>{guideTypes.map((type) => <option key={type} value={type}>{guideCopy.ko.types[type]}</option>)}</select></label>
             <label className="text-sm font-bold">지역<input className={inputStyle} maxLength={100} value={draft.area} onChange={(e) => update({ area: e.target.value })} /></label>
             <label className="text-sm font-bold">소요시간 (분)<input type="number" min={0} max={43200} className={inputStyle} value={draft.estimated_duration ?? ""} onChange={(e) => update({ estimated_duration: e.target.value === "" ? null : Number(e.target.value) })} /></label>
+            <label className="text-sm font-bold">예상 최소 비용<input type="number" min={0} max={100000000} className={inputStyle} value={draft.estimated_cost_min ?? ""} onChange={(e) => update({ estimated_cost_min: e.target.value === "" ? null : Number(e.target.value) })} /></label>
+            <label className="text-sm font-bold">예상 최대 비용<input type="number" min={0} max={100000000} className={inputStyle} value={draft.estimated_cost_max ?? ""} onChange={(e) => update({ estimated_cost_max: e.target.value === "" ? null : Number(e.target.value) })} /></label>
+            <label className="text-sm font-bold">권장 시작시간<input type="time" className={inputStyle} value={draft.recommended_start_time ?? ""} onChange={(e) => update({ recommended_start_time: e.target.value || null })} /></label>
+            <label className="text-sm font-bold">검수 상태<select className={inputStyle} value={draft.verification_status} onChange={(e) => update({ verification_status: e.target.value as Draft["verification_status"] })}><option value="unverified">미확인</option><option value="partially_verified">일부 확인</option><option value="verified">확인 완료</option><option value="stale">오래됨</option><option value="conflicting">정보 충돌</option><option value="rejected">반려</option></select></label>
+            <label className="text-sm font-bold">마지막 확인일<input type="datetime-local" className={inputStyle} value={draft.last_verified_at?.slice(0, 16) ?? ""} onChange={(e) => update({ last_verified_at: e.target.value || null })} /></label>
             <label className="text-sm font-bold">날씨<select className={inputStyle} value={draft.weather_type} onChange={(e) => update({ weather_type: e.target.value as Draft["weather_type"] })}>{Object.entries(guideCopy.ko.weatherTypes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label className="text-sm font-bold">정렬 순서<input className={inputStyle} type="number" min={0} max={100000} value={draft.sort_order} onChange={(e) => update({ sort_order: Number(e.target.value) })} /></label>
             <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={draft.is_featured} onChange={(e) => update({ is_featured: e.target.checked })} />추천 가이드</label>
           </div>
+          <fieldset><legend className="text-sm font-bold">여행 유형</legend><div className="mt-2 flex flex-wrap gap-2">{travelerThemes.map((theme) => <label key={theme} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm"><input type="checkbox" checked={draft.trip_themes.includes(theme)} onChange={(e) => update({ trip_themes: e.target.checked ? [...draft.trip_themes, theme] : draft.trip_themes.filter((item) => item !== theme) })} />{theme}</label>)}</div></fieldset>
           <label className="block text-sm font-bold">대표 이미지 HTTPS URL<input className={inputStyle} type="url" value={draft.cover_image} onChange={(e) => update({ cover_image: e.target.value })} /></label>
           <p className="text-sm text-slate-500">공개 전 네 언어의 제목과 설명을 모두 입력해주세요. 장소별 이동 메모는 해당 장소에서 다음 장소로 가는 안내입니다.</p>
           {languages.map((locale) => <details key={locale} open={locale === "ko"} className="min-w-0 rounded-2xl border border-slate-200 p-3">
@@ -120,14 +139,14 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
                 <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="min-w-0 break-words font-bold">{index + 1}. {place?.name_ko ?? "장소 확인 필요"}{place && !isPublicPlace(place) ? " (비공개 장소)" : ""}</h4>
                   <div className="flex gap-1"><button type="button" className={buttonStyle} disabled={index === 0} onClick={() => move(index, -1)} aria-label={`${index + 1}번 장소 위로`}>↑</button><button type="button" className={buttonStyle} disabled={index === draft.places.length - 1} onClick={() => move(index, 1)} aria-label={`${index + 1}번 장소 아래로`}>↓</button><button type="button" className={buttonStyle} onClick={() => update({ places: draft.places.filter((_, i) => i !== index) })}>제거</button></div>
                 </div>
-                <label className="block text-sm">체류시간 (분)<input type="number" min={0} max={10080} className={inputStyle} value={stop.stay_minutes ?? ""} onChange={(e) => stopUpdate(index, { stay_minutes: e.target.value === "" ? null : Number(e.target.value) })} /></label>
+                <div className="grid gap-3 sm:grid-cols-3"><label className="block text-sm">체류시간 (분)<input type="number" min={0} max={10080} className={inputStyle} value={stop.stay_minutes ?? ""} onChange={(e) => stopUpdate(index, { stay_minutes: e.target.value === "" ? null : Number(e.target.value) })} /></label><label className="block text-sm">다음 장소 이동시간 (분)<input type="number" min={0} max={1440} className={inputStyle} value={stop.travel_minutes ?? ""} onChange={(e) => stopUpdate(index, { travel_minutes: e.target.value === "" ? null : Number(e.target.value) })} /></label><label className="block text-sm">이동수단<select className={inputStyle} value={stop.travel_mode ?? ""} onChange={(e) => stopUpdate(index, { travel_mode: (e.target.value || null) as GuideStop["travel_mode"] })}><option value="">미확인</option><option value="walk">도보</option><option value="transit">대중교통</option><option value="taxi">택시</option><option value="car">자동차</option><option value="mixed">혼합</option></select></label></div>
                 {languages.map((locale) => <details key={locale} className="min-w-0"><summary className="cursor-pointer text-sm font-bold">{languageNames[locale]} 장소 안내</summary>
                   {(["custom_title", "custom_description", "transportation_note", "tip"] as const).map((field) => <label key={field} className="mt-2 block text-sm">{{ custom_title: "장소별 제목", custom_description: "설명", transportation_note: "다음 장소 이동 메모", tip: "추천 팁" }[field]}<textarea rows={2} maxLength={4000} className={inputStyle} value={stop[field][locale] ?? ""} onChange={(e) => stopUpdate(index, { [field]: { ...stop[field], [locale]: e.target.value } })} /></label>)}
                 </details>)}
               </div>;
             })}
             <label className="block text-sm font-bold">기존 장소 검색<input type="search" className={inputStyle} value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-            <div className="max-h-64 space-y-2 overflow-y-auto">{candidates.map((place) => <button type="button" key={place.id} className={`${buttonStyle} w-full text-left`} disabled={draft.places.length >= 80} onClick={() => update({ places: [...draft.places, { place_id: place.id, sequence: draft.places.length, custom_title: emptyGuideText(), custom_description: emptyGuideText(), stay_minutes: null, transportation_note: emptyGuideText(), tip: emptyGuideText() }] })}>{place.name_ko} · {place.name_zh} {isPublicPlace(place) ? "추가" : "비공개 · 추가"}</button>)}</div>
+            <div className="max-h-64 space-y-2 overflow-y-auto">{candidates.map((place) => <button type="button" key={place.id} className={`${buttonStyle} w-full text-left`} disabled={draft.places.length >= 80} onClick={() => update({ places: [...draft.places, { place_id: place.id, sequence: draft.places.length, custom_title: emptyGuideText(), custom_description: emptyGuideText(), stay_minutes: null, travel_minutes: null, travel_mode: null, transportation_note: emptyGuideText(), tip: emptyGuideText() }] })}>{place.name_ko} · {place.name_zh} {isPublicPlace(place) ? "추가" : "비공개 · 추가"}</button>)}</div>
           </div>
           <div className="flex flex-wrap gap-2"><button type="submit" className="min-h-11 rounded-xl bg-teal-700 px-5 py-2 font-bold text-white disabled:opacity-40">{busy ? "저장 중…" : "코스 저장"}</button><button type="button" className={buttonStyle} onClick={() => setDraft(null)}>편집 닫기</button></div>
         </fieldset>

@@ -65,12 +65,26 @@ type AdminPlaceManagerProps = {
 };
 
 type MenuDraft = {
+  id?: string;
   name_ko: string;
   name_zh: string;
   description_zh: string;
   price: string;
   is_recommended: boolean;
   sort_order: string;
+  localized_name?: { ko: string; zh: string; en: string; ja: string };
+  korean_original_name?: string;
+  recommendation_status?: PlaceFactTristate;
+  recommendation_basis?: string | null;
+  spicy_level?: number | null;
+  oily_level?: number | null;
+  aroma_level?: number | null;
+  portion_size?: number | null;
+  recommended_party_size?: number | null;
+  ordering_note?: { ko: string; zh: string; en: string; ja: string };
+  menu_warning?: { ko: string; zh: string; en: string; ja: string };
+  availability_time?: Array<{ weekdays: number[]; start: string; end: string; note?: string }>;
+  sold_out_risk?: number | null;
 };
 
 type FormState = {
@@ -442,12 +456,26 @@ function toForm(place: PlaceWithRelations): FormState {
     home_intent_keys: getHomeIntentKeysFromTags(place.tags),
     china_discovery_keys: getChinaDiscoveryKeysFromTags(place.tags),
     menu_items: place.menu_items.map((item) => ({
+      id: item.id,
       name_ko: item.name_ko,
       name_zh: item.name_zh,
       description_zh: item.description_zh,
       price: item.price?.toString() ?? "",
       is_recommended: item.is_recommended,
       sort_order: item.sort_order.toString(),
+      localized_name: item.localized_name,
+      korean_original_name: item.korean_original_name,
+      recommendation_status: item.recommendation_status,
+      recommendation_basis: item.recommendation_basis,
+      spicy_level: item.spicy_level,
+      oily_level: item.oily_level,
+      aroma_level: item.aroma_level,
+      portion_size: item.portion_size,
+      recommended_party_size: item.recommended_party_size,
+      ordering_note: item.ordering_note,
+      menu_warning: item.menu_warning,
+      availability_time: item.availability_time,
+      sold_out_risk: item.sold_out_risk,
     })),
     china_info: {
       ...chinaInfo,
@@ -690,12 +718,26 @@ function toPayload(form: FormState): PlacePayload {
     menu_items: form.menu_items
       .filter((item) => item.name_ko.trim() || item.name_zh.trim())
       .map((item, index) => ({
+        ...(item.id ? { id: item.id } : {}),
         name_ko: item.name_ko,
         name_zh: item.name_zh,
         description_zh: item.description_zh,
         price: nullableNumber(item.price),
         is_recommended: item.is_recommended,
         sort_order: Number(item.sort_order) || index + 1,
+        ...(item.localized_name ? { localized_name: item.localized_name } : {}),
+        ...(item.korean_original_name !== undefined ? { korean_original_name: item.korean_original_name } : {}),
+        ...(item.recommendation_status ? { recommendation_status: item.recommendation_status } : {}),
+        ...(item.recommendation_basis !== undefined ? { recommendation_basis: item.recommendation_basis } : {}),
+        spicy_level: item.spicy_level ?? null,
+        oily_level: item.oily_level ?? null,
+        aroma_level: item.aroma_level ?? null,
+        portion_size: item.portion_size ?? null,
+        recommended_party_size: item.recommended_party_size ?? null,
+        ...(item.ordering_note ? { ordering_note: item.ordering_note } : {}),
+        ...(item.menu_warning ? { menu_warning: item.menu_warning } : {}),
+        ...(item.availability_time ? { availability_time: item.availability_time } : {}),
+        sold_out_risk: item.sold_out_risk ?? null,
       })),
     translations: [
       {
