@@ -114,6 +114,8 @@ async function mergeGuestTrips(client: SupabaseClient, userId: string) {
       end_date: guestTrip.end_date,
       visibility: guestTrip.visibility,
       client_merge_key: clientMergeKey,
+      source_guide_id: guestTrip.source_guide_id ?? null,
+      source_guide_updated_at: guestTrip.source_guide_updated_at ?? null,
     };
     let { data, error } = await client
       .from("trips")
@@ -121,7 +123,7 @@ async function mergeGuestTrips(client: SupabaseClient, userId: string) {
       .select("id")
       .single();
 
-    if (isMissingClientMergeKey(error)) {
+    if (isMissingTripSnapshotColumn(error)) {
       const fallback = await client
         .from("trips")
         .insert({
@@ -143,7 +145,7 @@ async function mergeGuestTrips(client: SupabaseClient, userId: string) {
 
     const tripId = String(data.id);
     const places = store.tripPlaces.filter((item) => item.trip_id === guestTrip.id);
-    const { error: placesError } = places.length
+    let { error: placesError } = places.length
       ? await client.from("trip_places").upsert(
           places.map((item) => ({
             trip_id: tripId,
@@ -152,10 +154,22 @@ async function mergeGuestTrips(client: SupabaseClient, userId: string) {
             sort_order: item.sort_order,
             memo: item.memo,
             ...(item.planned_time ? { planned_time: item.planned_time } : {}),
+            stay_minutes: item.stay_minutes ?? null,
+            travel_minutes: item.travel_minutes ?? null,
+            travel_mode: item.travel_mode ?? null,
+            source_guide_sequence: item.source_guide_sequence ?? null,
           })),
           { onConflict: "trip_id,place_id" },
         )
       : { error: null };
+
+    if (placesError && isMissingTripSnapshotColumn(placesError)) {
+      const fallback = await client.from("trip_places").upsert(
+        places.map((item) => ({ trip_id: tripId, place_id: item.place_id, day_number: item.day_number, sort_order: item.sort_order, memo: item.memo, ...(item.planned_time ? { planned_time: item.planned_time } : {}) })),
+        { onConflict: "trip_id,place_id" },
+      );
+      placesError = fallback.error;
+    }
 
     if (placesError) {
       return { count, error: placesError.message };
@@ -170,4 +184,9 @@ async function mergeGuestTrips(client: SupabaseClient, userId: string) {
 function isMissingClientMergeKey(error: { code?: string; message?: string } | null) {
   const message = error?.message ?? "";
   return error?.code === "PGRST204" || message.includes("client_merge_key");
+}
+
+function isMissingTripSnapshotColumn(error: { code?: string; message?: string } | null) {
+  const message = error?.message ?? "";
+  return isMissingClientMergeKey(error) || error?.code === "PGRST204" || message.includes("source_guide_") || message.includes("stay_minutes") || message.includes("travel_minutes") || message.includes("source_guide_sequence");
 }

@@ -283,4 +283,5 @@ const warningCopy: Record<string, Record<Locale, string>> = {
   outside_recommended_time: { ko: "등록된 추천 시간대가 아닙니다.", zh: "不在已登记的推荐时段内。", en: "This is outside the registered recommended time.", ja: "登録済みのおすすめ時間帯ではありません。" },
   season_unavailable: { ko: "등록된 추천 계절과 맞지 않습니다.", zh: "不符合已登记的推荐季节。", en: "This is outside the registered recommended season.", ja: "登録済みのおすすめ季節ではありません。" },
   insufficient_travel_time: { ko: "이전 장소에서 이동할 시간이 부족할 수 있습니다.", zh: "从上一地点移动的时间可能不足。", en: "There may not be enough travel time from the previous stop.", ja: "前の場所からの移動時間が足りない可能性があります。" },
+  distant_route: { ko: "앞 장소와 거리가 멀어 동선을 다시 확인해야 합니다.", zh: "与上一地点距离较远，请重新确认路线。", en: "This stop is far from the previous one; review the route.", ja: "前の場所から遠いため、動線を再確認してください。" },
 };

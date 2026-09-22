@@ -8,7 +8,7 @@ import { travelerThemes, type LocaleText, type PlaceFactEvidence, type TimeRange
 
 const languages = ["ko", "zh", "en", "ja"] as const;
 const languageNames = { ko: "한국어", zh: "중국어", en: "영어", ja: "일본어" };
-const themeLabels = { first_trip: "첫 부산 여행", solo: "혼자", couple: "커플", parents: "부모님", rainy_day: "비 오는 날", food_trip: "먹방", photo_trip: "사진", cafe_trip: "카페", night_view: "야경", low_walking: "걷기 적게", luggage_day: "짐 있는 날", late_night: "늦은 밤" };
+const themeLabels = { first_trip: "첫 부산 여행", solo: "혼자", couple: "커플", parents: "부모님", rainy_day: "비 오는 날", food_trip: "먹방", photo_trip: "사진", cafe_trip: "카페", night_view: "야경", low_walking: "걷기 적게", luggage_day: "짐 있는 날", late_night: "늦은 밤", two_nights_three_days: "2박 3일", gwangalli_half_day: "광안리 반나절", haeundae_three_hours: "해운대 3시간" };
 const inputClass = "mt-1 min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 focus:border-teal-600 focus:outline-none";
 const buttonClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-800 disabled:opacity-40";
 

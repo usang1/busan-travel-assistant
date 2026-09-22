@@ -54,6 +54,9 @@ const themeLabels: Record<string, Record<Locale, string>> = {
   low_walking: { ko: "적게 걷기", zh: "少走路", en: "Low walking", ja: "歩行少なめ" },
   luggage_day: { ko: "캐리어 동반", zh: "带行李", en: "With luggage", ja: "荷物あり" },
   late_night: { ko: "늦은 밤", zh: "深夜", en: "Late night", ja: "深夜" },
+  two_nights_three_days: { ko: "2박 3일", zh: "3天2晚", en: "3 days / 2 nights", ja: "2泊3日" },
+  gwangalli_half_day: { ko: "광안리 반나절", zh: "广安里半日", en: "Gwangalli half day", ja: "広安里半日" },
+  haeundae_three_hours: { ko: "해운대 3시간", zh: "海云台3小时", en: "Haeundae in 3 hours", ja: "海雲台3時間" },
 };
 
 const practicalLabels: Record<string, Record<Locale, string>> = {

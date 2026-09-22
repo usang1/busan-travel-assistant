@@ -18,6 +18,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { ShareButton } from "@/components/ShareButton";
 import { TripDayMap } from "@/components/TripDayMap";
+import { DirectionsButton } from "@/components/DirectionsButton";
 import { useAuth } from "@/components/AuthProvider";
 import {
   addGuestPlaceToTrip,
@@ -60,6 +61,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const text = copy[locale];
+  const routeText = tripRouteCopy[locale];
   const isGuest = !user;
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [activeTripId, setActiveTripId] = useState("");
@@ -202,6 +204,10 @@ export function TripPlanner({ locale }: TripPlannerProps) {
           sortOrder: item.sort_order,
           memo: item.memo,
           plannedTime: item.planned_time,
+          stayMinutes: item.stay_minutes,
+          travelMinutes: item.travel_minutes,
+          travelMode: item.travel_mode,
+          sourceGuideSequence: item.source_guide_sequence,
         })));
         setTrips((current) => current.map((item) => item.id === trip.id ? trip : item));
         await refreshTripPlaces(activeTrip.id);
@@ -222,6 +228,10 @@ export function TripPlanner({ locale }: TripPlannerProps) {
         sortOrder: item.sort_order,
         memo: item.memo,
         plannedTime: item.planned_time,
+        stayMinutes: item.stay_minutes,
+        travelMinutes: item.travel_minutes,
+        travelMode: item.travel_mode,
+        sourceGuideSequence: item.source_guide_sequence,
       }));
       const layoutError = await saveTripLayout(activeTrip.id, clampedLayout);
       setTrips((current) => current.map((trip) => trip.id === result.trip?.id ? result.trip as TripRecord : trip));
@@ -289,6 +299,10 @@ export function TripPlanner({ locale }: TripPlannerProps) {
       ...position,
       memo: existingByPlace.get(position.placeId)?.memo ?? "",
       plannedTime: existingByPlace.get(position.placeId)?.planned_time ?? null,
+      stayMinutes: existingByPlace.get(position.placeId)?.stay_minutes ?? null,
+      travelMinutes: existingByPlace.get(position.placeId)?.travel_minutes ?? null,
+      travelMode: existingByPlace.get(position.placeId)?.travel_mode ?? null,
+      sourceGuideSequence: existingByPlace.get(position.placeId)?.source_guide_sequence ?? null,
     }));
     const error = user ? await saveTripLayout(activeTrip.id, layout) : undefined;
     if (!user) saveGuestTripLayout(activeTrip.id, layout);
@@ -341,6 +355,13 @@ export function TripPlanner({ locale }: TripPlannerProps) {
     const plannedTime = value || null;
     const error = user ? await updateTripPlace(itemId, { planned_time: plannedTime }) : undefined;
     if (!user) updateGuestTripPlace(itemId, { planned_time: plannedTime });
+    if (error) setStatus(error);
+  }
+
+  async function saveDuration(itemId: string, field: "stay_minutes" | "travel_minutes", value: string) {
+    const parsed = value === "" ? null : Math.max(0, Number(value));
+    const error = user ? await updateTripPlace(itemId, { [field]: parsed }) : undefined;
+    if (!user) updateGuestTripPlace(itemId, { [field]: parsed });
     if (error) setStatus(error);
   }
 
@@ -413,6 +434,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
                 <div>
                   <h2 className="text-xl font-black text-slate-950">{activeTrip.title}</h2>
                   <p className="mt-1 text-sm text-slate-500">{activeTrip.start_date} - {activeTrip.end_date}</p>
+                  {activeTrip.source_guide_id ? <p className="mt-1 text-xs font-bold text-teal-700">{routeText.personalCopy}</p> : null}
                 </div>
                 <div className="flex gap-2">
                   {activeTrip.visibility === "unlisted" ? (
@@ -473,13 +495,15 @@ export function TripPlanner({ locale }: TripPlannerProps) {
                         <IconButton label={text.remove} disabled={busy} onClick={() => void handleRemove(item)} icon={Trash2} danger />
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-[120px_140px_1fr]">
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[100px_125px_110px_110px_1fr]">
                       <label className="text-xs font-bold text-slate-600">
                         {text.day}
                         <select value={item.day_number} onChange={(event) => void moveToDay(item, Number(event.target.value))} className={smallInputClass}>
                           {Array.from({ length: dayCount }, (_, dayIndex) => <option key={dayIndex + 1} value={dayIndex + 1}>DAY {dayIndex + 1}</option>)}
                         </select>
                       </label>
+                      <label className="text-xs font-bold text-slate-600">{routeText.stayMinutes}<input type="number" min={0} max={10080} value={item.stay_minutes ?? ""} onChange={(event) => setTripPlaces((current) => current.map((target) => target.id === item.id ? { ...target, stay_minutes: event.target.value === "" ? null : Number(event.target.value) } : target))} onBlur={(event) => void saveDuration(item.id, "stay_minutes", event.target.value)} className={smallInputClass} /></label>
+                      <label className="text-xs font-bold text-slate-600">{routeText.travelMinutes}<input type="number" min={0} max={1440} value={item.travel_minutes ?? ""} onChange={(event) => setTripPlaces((current) => current.map((target) => target.id === item.id ? { ...target, travel_minutes: event.target.value === "" ? null : Number(event.target.value) } : target))} onBlur={(event) => void saveDuration(item.id, "travel_minutes", event.target.value)} className={smallInputClass} /></label>
                       <label className="text-xs font-bold text-slate-600">
                         {text.visitTime}
                         <input
@@ -502,6 +526,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
                         />
                       </label>
                     </div>
+                    {index < dayItems.length - 1 ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3"><p className="text-xs font-bold text-slate-500">{routeText.nextSegment}{item.travel_minutes !== null && item.travel_minutes !== undefined ? ` · ${item.travel_minutes}${routeText.minuteUnit}` : ` · ${routeText.travelUnknown}`}</p><DirectionsButton compact placeId={dayItems[index + 1].place.id} name={getPlaceContent(dayItems[index + 1].place, locale).name} address={getPlaceContent(dayItems[index + 1].place, locale).address} coordinates={placeCoordinates(dayItems[index + 1].place)} origin={{ name: content.name, coordinates: placeCoordinates(item.place) }} locale={locale} /></div> : null}
                     {!item.planned_time ? (
                       <p className="mt-3 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-600">
                         <Clock3 size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{text.visitTimeNeeded}
@@ -628,7 +653,13 @@ function getTripScheduleState(items: TripPlaceWithPlace[], index: number, dateKe
       { latitude: previous.place.latitude, longitude: previous.place.longitude },
       { latitude: item.place.latitude, longitude: item.place.longitude },
     ));
-    if (walkingMinutes !== null && walkingMinutes > availableMinutes) warningCodes.push("insufficient_travel_time");
+    const requiredMinutes = (previous.stay_minutes ?? 0) + (previous.travel_minutes ?? walkingMinutes ?? 0);
+    if (requiredMinutes > availableMinutes) warningCodes.push("insufficient_travel_time");
+    const distance = calculateDistanceMeters(
+      { latitude: previous.place.latitude, longitude: previous.place.longitude },
+      { latitude: item.place.latitude, longitude: item.place.longitude },
+    );
+    if (distance !== null && distance > 15_000) warningCodes.push("distant_route");
   }
 
   return { hasStructuredData: state.hasStructuredData, warningCodes: Array.from(new Set(warningCodes)) };
@@ -638,6 +669,8 @@ function clockMinutes(value: string) {
   const [hour, minute] = value.slice(0, 5).split(":").map(Number);
   return hour * 60 + minute;
 }
+
+function placeCoordinates(place: PlaceWithRelations) { return hasCoordinates(place) ? { latitude: place.latitude, longitude: place.longitude } : null; }
 
 async function getGuestSavedPlaces() {
   return getPublicPlacesByIds(getSavedPlaceIds());
@@ -707,6 +740,13 @@ const primaryButtonClass = "inline-flex min-h-11 items-center justify-center gap
 const inputClass = "mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base text-slate-900 outline-none ring-1 ring-slate-200 focus:ring-teal-300";
 const smallInputClass = "mt-1.5 h-11 w-full rounded-xl bg-slate-50 px-3 text-sm text-slate-900 outline-none ring-1 ring-slate-200 focus:ring-teal-300";
 const labelClass = "block text-sm font-black text-slate-700";
+
+const tripRouteCopy = {
+  ko: { personalCopy: "공식 코스에서 만든 개인 사본", stayMinutes: "체류시간(분)", travelMinutes: "다음 이동(분)", nextSegment: "다음 장소로 이동", minuteUnit: "분", travelUnknown: "이동시간 미확인" },
+  zh: { personalCopy: "由官方路线创建的个人副本", stayMinutes: "停留(分钟)", travelMinutes: "下一段交通(分钟)", nextSegment: "前往下一站", minuteUnit: "分钟", travelUnknown: "交通时间未确认" },
+  en: { personalCopy: "Personal copy of an official course", stayMinutes: "Stay (min)", travelMinutes: "Next travel (min)", nextSegment: "To the next stop", minuteUnit: " min", travelUnknown: "Travel time unverified" },
+  ja: { personalCopy: "公式コースから作成した個人コピー", stayMinutes: "滞在(分)", travelMinutes: "次の移動(分)", nextSegment: "次の場所へ", minuteUnit: "分", travelUnknown: "移動時間未確認" },
+};
 
 const copy = {
   ko: { eyebrow: "저장 장소로 만드는 일정", title: "내 여행 일정", description: "저장한 장소를 날짜별로 배치하고 이동 순서를 직접 조정하세요.", loading: "여행 일정을 불러오는 중입니다.", loginTitle: "여행 일정을 만들려면 로그인하세요", loginDescription: "로그인하면 여러 일정을 만들고 비공개로 관리하거나 링크로 공유할 수 있습니다.", guestNotice: "로그인하지 않아도 이 기기에서 일정 1개 이상을 만들고 편집할 수 있습니다.", loginToSync: "로그인하면 계정에 병합됩니다.", guestCreated: "이 기기에 새 일정을 만들었습니다.", guestSaved: "이 기기에 일정을 저장했습니다.", shareSummary: "요약 공유", sharedSummary: "요약을 공유했습니다.", copiedSummary: "요약을 복사했습니다.", shareFailed: "공유에 실패했습니다.", newTrip: "새 일정", create: "일정 만들기", created: "새 일정을 만들었습니다.", failed: "일정 처리에 실패했습니다.", emptyTitle: "아직 여행 일정이 없습니다", emptyDescription: "새 일정을 만들고 저장한 장소를 추가해 보세요.", tripTitle: "일정 제목", startDate: "시작일", endDate: "종료일", visibility: "공개 범위", private: "비공개", unlisted: "링크가 있는 사람만", saveTrip: "일정 정보 저장", saved: "일정을 저장했습니다.", delete: "일정 삭제", deleteConfirm: "이 일정을 삭제할까요?", deleted: "일정을 삭제했습니다.", shareText: "여행 일정을 확인해 보세요.", moveUp: "위로 이동", moveDown: "아래로 이동", remove: "일정에서 제거", day: "날짜", visitTime: "방문 예정 시각", visitTimeNeeded: "방문 예정 시각을 입력하면 휴무·라스트오더·추천 시간대 충돌을 확인합니다.", timeDataUnavailable: "이 장소는 구조화된 영업시간이 없어 시간 충돌을 판단하지 않습니다.", noAutoChange: "일정은 자동으로 바꾸지 않습니다.", findAlternative: "주변 대안 보기", noTimeConflict: "등록된 시간 데이터와 충돌이 없습니다.", memo: "메모", memoPlaceholder: "예약 시간, 주문할 메뉴 등", noPlacesDay: "이 날짜에는 아직 장소가 없습니다.", savedPlaces: "저장한 장소", autoDescription: "여러 장소를 선택하면 거리, 카테고리와 확인된 영업시간을 기준으로 날짜별 초안을 만듭니다.", autoArrange: "자동 배치", arranged: "선택한 장소를 자동 배치했습니다.", placeAdded: "일정에 장소를 추가했습니다.", placeRemoved: "일정에서 장소를 제거했습니다.", alreadyAdded: "추가됨", noSavedPlaces: "저장한 장소가 없습니다.", defaultTitle: "한국 여행" },

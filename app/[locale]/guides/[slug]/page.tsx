@@ -7,16 +7,19 @@ import { breadcrumbSchema, translatedGuideLocales } from "@/lib/public-seo";
 import { guidePlanningCopy, guideQuestion } from "@/lib/guide-planning-copy";
 import { GuidePlaceLink } from "@/components/GuidePlaceLink";
 import { GuideSaveButton } from "@/components/GuideSaveButton";
+import { GuideCourseActions } from "@/components/GuideCourseActions";
+import { DirectionsButton } from "@/components/DirectionsButton";
 import { GuideViewTracker } from "@/components/GuideViewTracker";
 import { SaveButton } from "@/components/SaveButton";
 import { ShareButton } from "@/components/ShareButton";
 import { guideContent, guideCopy } from "@/lib/guide-copy";
-import { getPublishedGuide, createPublicGuideClient, getRelatedGuidesForGuide } from "@/lib/guide-store";
+import { getPublishedGuide, createPublicGuideClient, getRelatedGuidesForGuide, getVerifiedGuideWalkingDistance } from "@/lib/guide-store";
 import { getPublicPlacesByIds } from "@/lib/place-store";
 import { getRepresentativeMenu } from "@/lib/place-display";
 import { buildLocalizedMetadata, isLocale, getPlaceContent, withLocale, localizedCanonical, localeMeta, ui } from "@/lib/i18n";
 import { getPlaceCategoryLabel, getTrustedPlaceImageUrl } from "@/lib/place-trust";
 import { RelatedGuidesSection } from "@/components/RelatedGuidesSection";
+import { getThemeLabels } from "@/lib/traveler-decision-display";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ locale: string; slug: string }> };
@@ -40,12 +43,15 @@ export default async function GuidePage({ params }: Props) {
   const title = guide.editorial?.[locale]?.question || guideQuestion(content.title, locale);
   const answer = guide.editorial?.[locale]?.answer || content.description;
   const client = createPublicGuideClient();
-  const places = client ? await getPublicPlacesByIds(guide.guide_places.map((stop) => stop.place_id), client).catch(() => []) : [];
+  const [places, relatedGuides, walkingDistance] = client ? await Promise.all([
+    getPublicPlacesByIds(guide.guide_places.map((stop) => stop.place_id), client).catch(() => []),
+    getRelatedGuidesForGuide(guide, 4).catch(() => []),
+    getVerifiedGuideWalkingDistance(guide.guide_places, client).catch(() => null),
+  ]) : [[], [], null];
   const stops = guide.guide_places.flatMap((stop) => {
     const place = places.find((place) => place.id === stop.place_id);
     return place ? [{ ...stop, place }] : [];
   });
-  const relatedGuides = await getRelatedGuidesForGuide(guide, 4).catch(() => []);
   const incomplete = stops.some((stop, i) => stop.sequence !== i) || stops.length !== guide.guide_places.length;
   return <main className="safe-bottom mx-auto max-w-3xl space-y-6 px-4 pb-6 pt-5">
     <GuideViewTracker guideId={guide.id} guideType={guide.guide_type} area={guide.area} locale={locale} />
@@ -72,7 +78,11 @@ export default async function GuidePage({ params }: Props) {
           {guide.estimated_duration !== null ? <div><dt className="text-slate-500">{copy.duration}</dt><dd className="font-bold">{guide.estimated_duration} {copy.minutes}</dd></div> : null}
           {guide.recommended_for[locale] ? <div><dt className="text-slate-500">{copy.audience}</dt><dd className="break-words font-bold">{guide.recommended_for[locale]}</dd></div> : null}
           <div><dt className="text-slate-500">{copy.weather}</dt><dd className="font-bold">{copy.weatherTypes[guide.weather_type]}</dd></div>
+          {guide.recommended_start_time ? <div><dt className="text-slate-500">{courseMetaCopy[locale].start}</dt><dd className="font-bold">{guide.recommended_start_time.slice(0, 5)}</dd></div> : null}
+          {guide.estimated_cost_min !== null || guide.estimated_cost_max !== null ? <div><dt className="text-slate-500">{courseMetaCopy[locale].cost}</dt><dd className="font-bold">{formatCourseCost(guide.estimated_cost_min, guide.estimated_cost_max, locale)}</dd></div> : null}
+          {walkingDistance !== null ? <div><dt className="text-slate-500">{courseMetaCopy[locale].walking}</dt><dd className="font-bold">{formatWalkingDistance(walkingDistance)}</dd></div> : null}
         </dl>
+        {guide.trip_themes.length ? <div className="flex flex-wrap gap-2">{getThemeLabels(guide.trip_themes, locale).map((label) => <span key={label} className="rounded-full bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-800">{label}</span>)}</div> : null}
         <p className="text-sm font-bold">{stops.length} {copy.stops}</p>
         <div className="flex flex-wrap items-center gap-2">
           <GuideSaveButton
@@ -99,6 +109,7 @@ export default async function GuidePage({ params }: Props) {
       </div>
     </section>
     <GuidePlanningDetails guide={guide} locale={locale} stops={stops} section="comparison" />
+    <GuideCourseActions guide={guide} stops={stops} locale={locale} />
     <h2 className="text-xl font-bold">{guidePlanningCopy[locale].route}</h2>
     {incomplete ? <p className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">{copy.unavailableStop}</p> : null}
     <ol className="space-y-5">
@@ -122,7 +133,7 @@ export default async function GuidePage({ params }: Props) {
               <div className="flex flex-wrap items-center justify-between gap-3"><GuidePlaceLink href={href} className="inline-flex min-h-11 items-center text-sm font-bold text-teal-700" guideId={guide.id} guideType={guide.guide_type} area={guide.area} placeId={place.id} locale={locale} position={i + 1}>{copy.details} →</GuidePlaceLink><SaveButton locale={locale} initialSaveCount={place.save_count ?? 0} label={placeSaveLabel[locale]} item={{ id: place.id, type: "place", titleKo: place.name_ko, titleZh: place.name_zh, href, imageUrl: getTrustedPlaceImageUrl(place), meta: getPlaceCategoryLabel(place.category, locale) }} /></div>
             </div>
           </article>
-          {nextStop ? <div className="px-4 pt-5 text-sm text-slate-600"><span aria-hidden="true">↓ </span>{copy.next}{nextStop.sequence === stop.sequence + 1 && stop.transportation_note[locale] ? <p className="mt-1 whitespace-pre-wrap break-words font-bold">{stop.transportation_note[locale]}</p> : null}</div> : null}
+          {nextStop ? <div className="px-4 pt-5 text-sm text-slate-600"><span aria-hidden="true">↓ </span>{copy.next}{stop.travel_minutes !== null ? ` · ${stop.travel_minutes} ${copy.minutes}` : ""}{stop.travel_mode ? ` · ${travelModeCopy[locale][stop.travel_mode]}` : ""}{nextStop.sequence === stop.sequence + 1 && stop.transportation_note[locale] ? <p className="mt-1 whitespace-pre-wrap break-words font-bold">{stop.transportation_note[locale]}</p> : null}<div className="mt-2"><DirectionsButton compact placeId={nextStop.place.id} name={getPlaceContent(nextStop.place, locale).name} address={getPlaceContent(nextStop.place, locale).address} coordinates={placeCoordinates(nextStop.place)} origin={{ name: placeContent.name, coordinates: placeCoordinates(place) }} locale={locale} /></div></div> : null}
         </li>;
       })}
     </ol>
@@ -153,3 +164,19 @@ const placeSaveLabel = {
   ja: "スポットを保存",
   ko: "장소 저장",
 };
+
+const courseMetaCopy = {
+  ko: { start: "추천 시작", cost: "예상 비용", walking: "확인된 도보 거리" }, zh: { start: "建议开始", cost: "预计费用", walking: "已确认步行距离" },
+  en: { start: "Suggested start", cost: "Estimated cost", walking: "Verified walking distance" }, ja: { start: "おすすめ開始", cost: "予算目安", walking: "確認済み徒歩距離" },
+};
+const travelModeCopy = {
+  ko: { walk: "도보", transit: "대중교통", taxi: "택시", car: "자동차", mixed: "혼합" }, zh: { walk: "步行", transit: "公共交通", taxi: "出租车", car: "汽车", mixed: "多种方式" },
+  en: { walk: "Walk", transit: "Transit", taxi: "Taxi", car: "Car", mixed: "Mixed" }, ja: { walk: "徒歩", transit: "公共交通", taxi: "タクシー", car: "車", mixed: "複合" },
+};
+function formatCourseCost(min: number | null, max: number | null, locale: "ko" | "zh" | "en" | "ja") {
+  const format = (value: number) => new Intl.NumberFormat(locale === "ko" ? "ko-KR" : locale === "zh" ? "zh-CN" : locale === "ja" ? "ja-JP" : "en-US").format(value);
+  if (min !== null && max !== null) return `₩${format(min)} - ₩${format(max)}`;
+  return `₩${format(min ?? max ?? 0)}`;
+}
+function placeCoordinates(place: { latitude: number | null; longitude: number | null }) { return typeof place.latitude === "number" && typeof place.longitude === "number" ? { latitude: place.latitude, longitude: place.longitude } : null; }
+function formatWalkingDistance(meters: number) { return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`; }

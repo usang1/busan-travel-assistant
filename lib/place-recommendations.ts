@@ -12,6 +12,7 @@ import { getPublicPlacesByIds, getPublicPlacesInBounds } from "@/lib/place-store
 import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { PlaceCategory, PlaceRankingCollection, PlaceWithRelations } from "@/types/database";
+import type { PublicPlaceConnection } from "@/lib/practical-route";
 
 type PlaceRankingRow = {
   place_id: string;
@@ -73,6 +74,38 @@ export async function getRelatedPlaces(place: PlaceWithRelations, limit = 4) {
     .sort((a, b) => b.result.score - a.result.score || a.result.distance - b.result.distance)
     .slice(0, Math.max(1, Math.min(limit, 8)))
     .map(({ candidate, result }) => ({ ...candidate, recommendation_distance: result.distance }));
+}
+
+export async function getPracticalRouteContext(place: PlaceWithRelations) {
+  if (typeof place.latitude !== "number" || typeof place.longitude !== "number") {
+    return { candidates: [] as PlaceWithRelations[], connections: [] as PublicPlaceConnection[] };
+  }
+  const client = getSupabaseClient();
+  const bounds = buildCoordinateBounds({ latitude: place.latitude, longitude: place.longitude }, relatedPlaceRadiusMeters);
+  const nearby = (await getPublicPlacesInBounds(bounds, 60)).filter((candidate) => isVerifiedPlace(candidate));
+  if (!client) return { candidates: nearby, connections: [] as PublicPlaceConnection[] };
+
+  const directResult = await client
+    .from("place_connections")
+    .select("*")
+    .eq("from_place_id", place.id)
+    .eq("active", true)
+    .order("priority", { ascending: false });
+  const direct = directResult.error ? [] : directResult.data as PublicPlaceConnection[];
+  const linked = (await getPublicPlacesByIds(direct.map((edge) => edge.to_place_id), client)).filter((candidate) => isVerifiedPlace(candidate));
+  const candidates = Array.from(new Map([...linked, ...nearby].map((candidate) => [candidate.id, candidate])).values());
+  const fromIds = [place.id, ...candidates.map((candidate) => candidate.id)].slice(0, 100);
+  const allResult = await client
+    .from("place_connections")
+    .select("*")
+    .in("from_place_id", fromIds)
+    .eq("active", true)
+    .order("priority", { ascending: false });
+
+  return {
+    candidates,
+    connections: allResult.error ? direct : allResult.data as PublicPlaceConnection[],
+  };
 }
 
 export async function getNearbyPopularPlaces(origin: Coordinates, limit = 4) {

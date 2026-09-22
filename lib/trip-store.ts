@@ -16,6 +16,8 @@ export type TripInput = {
   endDate: string;
   visibility: TripVisibility;
   clientMergeKey?: string | null;
+  sourceGuideId?: string | null;
+  sourceGuideUpdatedAt?: string | null;
 };
 
 export async function getUserTrips(userId: string, client = getSupabaseClient()) {
@@ -55,6 +57,10 @@ export async function getPublicTripByShareSlug(shareSlug: string): Promise<Share
       sort_order: row.sort_order ?? 0,
       memo: row.memo ?? "",
       planned_time: row.planned_time ?? null,
+      stay_minutes: row.stay_minutes ?? null,
+      travel_minutes: row.travel_minutes ?? null,
+      travel_mode: row.travel_mode ?? null,
+      source_guide_sequence: row.source_guide_sequence ?? null,
       created_at: row.trip_place_created_at ?? first.trip_created_at,
       updated_at: row.trip_place_updated_at ?? first.trip_updated_at,
       place,
@@ -119,11 +125,13 @@ export async function createTrip(userId: string, input: TripInput, client = getS
       end_date: input.endDate,
       visibility: input.visibility,
       client_merge_key: input.clientMergeKey ?? null,
+      source_guide_id: input.sourceGuideId ?? null,
+      source_guide_updated_at: input.sourceGuideUpdatedAt ?? null,
     })
     .select("*")
     .single();
 
-  if (isMissingClientMergeKeyColumn(error)) {
+  if (isMissingTripSnapshotColumn(error)) {
     const retry = await client
       .from("trips")
       .insert({
@@ -145,6 +153,11 @@ export async function createTrip(userId: string, input: TripInput, client = getS
 function isMissingClientMergeKeyColumn(error: { code?: string; message?: string } | null) {
   const message = error?.message ?? "";
   return error?.code === "PGRST204" || message.includes("client_merge_key");
+}
+
+function isMissingTripSnapshotColumn(error: { code?: string; message?: string } | null) {
+  const message = error?.message ?? "";
+  return isMissingClientMergeKeyColumn(error) || error?.code === "PGRST204" || message.includes("source_guide_");
 }
 
 export async function updateTrip(tripId: string, input: TripInput, client = getSupabaseClient()) {
@@ -190,28 +203,40 @@ export async function addPlaceToTrip(tripId: string, placeId: string, dayNumber 
 
 export async function saveTripLayout(
   tripId: string,
-  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null }>,
+  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null; stayMinutes?: number | null; travelMinutes?: number | null; travelMode?: TripPlaceRecord["travel_mode"]; sourceGuideSequence?: number | null }>,
   client = getSupabaseClient(),
 ) {
   if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
   if (!layout.length) return undefined;
-  const { error } = await client.from("trip_places").upsert(
-    layout.map((item) => ({
+  const rows = layout.map((item) => ({
       trip_id: tripId,
       place_id: item.placeId,
       day_number: item.dayNumber,
       sort_order: item.sortOrder,
       memo: item.memo ?? "",
       ...(item.plannedTime ? { planned_time: item.plannedTime } : {}),
-    })),
+      stay_minutes: item.stayMinutes ?? null,
+      travel_minutes: item.travelMinutes ?? null,
+      travel_mode: item.travelMode ?? null,
+      source_guide_sequence: item.sourceGuideSequence ?? null,
+    }));
+  let { error } = await client.from("trip_places").upsert(
+    rows,
     { onConflict: "trip_id,place_id" },
   );
+  if (error && isMissingTripSnapshotColumn(error)) {
+    const fallback = await client.from("trip_places").upsert(
+      rows.map(({ stay_minutes: _stay, travel_minutes: _travel, travel_mode: _mode, source_guide_sequence: _sequence, ...row }) => row),
+      { onConflict: "trip_id,place_id" },
+    );
+    error = fallback.error;
+  }
   return error?.message;
 }
 
 export async function updateTripPlace(
   id: string,
-  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo" | "planned_time">>,
+  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo" | "planned_time" | "stay_minutes" | "travel_minutes" | "travel_mode">>,
   client = getSupabaseClient(),
 ) {
   if (!client) return "일정 저장 서비스를 사용할 수 없습니다.";
@@ -259,6 +284,10 @@ type SharedTripRpcRow = {
   sort_order: number | null;
   memo: string | null;
   planned_time: string | null;
+  stay_minutes?: number | null;
+  travel_minutes?: number | null;
+  travel_mode?: TripPlaceRecord["travel_mode"];
+  source_guide_sequence?: number | null;
   trip_place_created_at: string | null;
   trip_place_updated_at: string | null;
 };

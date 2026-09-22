@@ -14,7 +14,7 @@ export async function getPublishedGuides(): Promise<{ guides: Guide[]; unavailab
   try {
     const guides: Guide[] = [];
     for (let offset = 0; ; offset += 500) {
-      const { data, error } = await client.from("guides").select("*").eq("status", "PUBLISHED")
+      const { data, error } = await client.from("guides").select("*").eq("status", "PUBLISHED").in("verification_status", ["verified", "partially_verified"])
         .order("is_featured", { ascending: false }).order("sort_order").order("id").range(offset, offset + 499);
       if (error) return { guides: [], unavailable: true };
       guides.push(...(data as Guide[]));
@@ -26,7 +26,7 @@ export async function getPublishedGuide(slug: string): Promise<GuideDetail | nul
   const client = createPublicGuideClient();
   if (!client) throw new Error("Guide service unavailable");
   const { data, error } = await client.from("guides").select("*,guide_places(*)")
-    .eq("slug", slug).eq("status", "PUBLISHED").maybeSingle();
+    .eq("slug", slug).eq("status", "PUBLISHED").in("verification_status", ["verified", "partially_verified"]).maybeSingle();
   if (error) throw new Error("Guide service unavailable");
   if (!data) return null;
   const guide = data as GuideDetail;
@@ -45,6 +45,7 @@ export async function getPublishedGuidesByIds(ids: string[]): Promise<Guide[]> {
     .from("guides")
     .select("*")
     .eq("status", "PUBLISHED")
+    .in("verification_status", ["verified", "partially_verified"])
     .in("id", uniqueIds);
 
   if (error || !data) return [];
@@ -117,6 +118,20 @@ export async function getRelatedGuidesForGuide(guide: GuideDetail, limit = 4): P
   return related;
 }
 
+export async function getVerifiedGuideWalkingDistance(stops: GuideStop[], client = createPublicGuideClient()) {
+  if (!client || stops.length < 2) return null;
+  const fromIds = stops.slice(0, -1).map((stop) => stop.place_id);
+  const { data, error } = await client.from("place_connections").select("from_place_id,to_place_id,travel_distance,travel_mode,active").in("from_place_id", fromIds).eq("active", true);
+  if (error || !data) return null;
+  let total = 0;
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const edge = data.find((row) => row.from_place_id === stops[index].place_id && row.to_place_id === stops[index + 1].place_id);
+    if (!edge || edge.travel_mode !== "walk" || typeof edge.travel_distance !== "number") return null;
+    total += edge.travel_distance;
+  }
+  return total;
+}
+
 async function getPublishedGuideDetails(client = createPublicGuideClient()): Promise<{ guides: GuideDetail[]; unavailable: boolean }> {
   if (!client) return { guides: [], unavailable: true };
 
@@ -124,6 +139,7 @@ async function getPublishedGuideDetails(client = createPublicGuideClient()): Pro
     .from("guides")
     .select("*,guide_places(*)")
     .eq("status", "PUBLISHED")
+    .in("verification_status", ["verified", "partially_verified"])
     .order("is_featured", { ascending: false })
     .order("sort_order")
     .limit(200);

@@ -3,6 +3,7 @@ import type { PlaceFactTristate } from "@/types/database";
 export const travelerThemes = [
   "first_trip", "solo", "couple", "parents", "rainy_day", "food_trip",
   "photo_trip", "cafe_trip", "night_view", "low_walking", "luggage_day", "late_night",
+  "two_nights_three_days", "gwangalli_half_day", "haeundae_three_hours",
 ] as const;
 
 export type TravelerTheme = (typeof travelerThemes)[number];
@@ -130,6 +131,7 @@ export type PlaceFactEvidence = {
 
 export type PlaceConnection = {
   id?: string;
+  from_place_id?: string;
   to_place_id: string;
   travel_minutes: number | null;
   travel_distance: number | null;

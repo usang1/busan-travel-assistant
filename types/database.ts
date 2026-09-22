@@ -279,6 +279,8 @@ export type TripRecord = {
   visibility: TripVisibility;
   share_slug: string;
   client_merge_key?: string | null;
+  source_guide_id?: string | null;
+  source_guide_updated_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -291,6 +293,10 @@ export type TripPlaceRecord = {
   sort_order: number;
   memo: string;
   planned_time: string | null;
+  stay_minutes?: number | null;
+  travel_minutes?: number | null;
+  travel_mode?: "walk" | "transit" | "taxi" | "car" | "mixed" | null;
+  source_guide_sequence?: number | null;
   created_at: string;
   updated_at: string;
 };

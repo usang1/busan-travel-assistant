@@ -27,6 +27,7 @@ import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { RelatedGuidesSection } from "@/components/RelatedGuidesSection";
+import { Next90MinuteRoute } from "@/components/Next90MinuteRoute";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceVisitTools } from "@/components/PlaceVisitTools";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
@@ -38,7 +39,7 @@ import { breadcrumbSchema, placeSchema, translatedPlaceLocales } from "@/lib/pub
 import { TagChip } from "@/components/TagChip";
 import { getCachedPublicPlaceBySlug, getCachedRelatedGuidesForPlace } from "@/lib/public-cache";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
-import { getRelatedPlaces } from "@/lib/place-recommendations";
+import { getPracticalRouteContext, getRelatedPlaces } from "@/lib/place-recommendations";
 import { estimateWalkingMinutes, formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { distanceFromGwangalli } from "@/lib/place-display";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
@@ -137,7 +138,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     notFound();
   }
 
-  const [relatedPlacesResult, relatedGuides] = await Promise.all([
+  const [relatedPlacesResult, relatedGuides, practicalRoute] = await Promise.all([
     getRelatedPlaces(place),
     getCachedRelatedGuidesForPlace({
       placeId: place.id,
@@ -145,6 +146,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       category: place.category,
       limit: 4,
     }),
+    getPracticalRouteContext(place),
   ]);
   const relatedPlaces = relatedPlacesResult.filter((relatedPlace) => translatedPlaceLocales(relatedPlace).includes(locale));
 
@@ -409,6 +411,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         {copy.placeDetail.confirmationNote}
       </section>
 
+      <Next90MinuteRoute origin={place} candidates={practicalRoute.candidates} connections={practicalRoute.connections} locale={locale} />
       <RelatedPlacesSection places={relatedPlaces} locale={locale} />
       <RelatedGuidesSection guides={relatedGuides} locale={locale} />
 

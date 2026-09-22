@@ -52,6 +52,7 @@ export function validateGuidePayload(value: unknown): GuidePayload {
     catch { throw guideInputError("대표 이미지는 HTTPS URL을 입력해주세요."); }
   }
   if (!Array.isArray(input.places) || input.places.length > 80) throw guideInputError("장소는 최대 80개까지 추가할 수 있습니다.");
+  if (input.status === "PUBLISHED" && input.places.length === 0) throw guideInputError("공개 코스에는 장소가 한 곳 이상 필요합니다.");
   const seen = new Set<string>();
   const places = input.places.map((value, sequence) => {
     const stop = object(value);

@@ -14,6 +14,7 @@ type DirectionsButtonProps = {
   name: string;
   address?: string;
   coordinates?: Coordinates | null;
+  origin?: { name: string; coordinates?: Coordinates | null };
   locale: Locale;
   compact?: boolean;
   className?: string;
@@ -37,6 +38,7 @@ export function DirectionsButton({
   name,
   address,
   coordinates,
+  origin,
   locale,
   compact = false,
   className,
@@ -76,7 +78,7 @@ export function DirectionsButton({
           {providers.map((provider) => (
             <a
               key={provider.id}
-              href={buildDirectionsUrl({ provider: provider.id, name, address, coordinates })}
+              href={buildDirectionsUrl({ provider: provider.id, name, address, coordinates, origin })}
               target="_blank"
               rel="noreferrer"
               onClick={() => recordProvider(provider.id)}

@@ -55,6 +55,8 @@ export function createGuestTrip(input: TripInput) {
     visibility: input.visibility,
     share_slug: createLocalId("share"),
     client_merge_key: null,
+    source_guide_id: input.sourceGuideId ?? null,
+    source_guide_updated_at: input.sourceGuideUpdatedAt ?? null,
     created_at: now,
     updated_at: now,
   };
@@ -117,6 +119,10 @@ export function addGuestPlaceToTrip(tripId: string, placeId: string, dayNumber =
     sort_order: lastOrder + 1,
     memo: "",
     planned_time: null,
+    stay_minutes: null,
+    travel_minutes: null,
+    travel_mode: null,
+    source_guide_sequence: null,
     created_at: now,
     updated_at: now,
   };
@@ -127,7 +133,7 @@ export function addGuestPlaceToTrip(tripId: string, placeId: string, dayNumber =
 
 export function saveGuestTripLayout(
   tripId: string,
-  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null }>,
+  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null; stayMinutes?: number | null; travelMinutes?: number | null; travelMode?: TripPlaceRecord["travel_mode"]; sourceGuideSequence?: number | null }>,
 ) {
   const store = readGuestTripStore();
   const byPlace = new Map(
@@ -148,6 +154,10 @@ export function saveGuestTripLayout(
         sort_order: item.sortOrder,
         memo: item.memo ?? existing?.memo ?? "",
         planned_time: item.plannedTime ?? existing?.planned_time ?? null,
+        stay_minutes: item.stayMinutes ?? existing?.stay_minutes ?? null,
+        travel_minutes: item.travelMinutes ?? existing?.travel_minutes ?? null,
+        travel_mode: item.travelMode ?? existing?.travel_mode ?? null,
+        source_guide_sequence: item.sourceGuideSequence ?? existing?.source_guide_sequence ?? null,
         created_at: existing?.created_at ?? now,
         updated_at: now,
       } satisfies TripPlaceRecord;
@@ -162,7 +172,7 @@ export function saveGuestTripLayout(
 
 export function updateGuestTripPlace(
   id: string,
-  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo" | "planned_time">>,
+  patch: Partial<Pick<TripPlaceRecord, "day_number" | "sort_order" | "memo" | "planned_time" | "stay_minutes" | "travel_minutes" | "travel_mode">>,
 ) {
   const now = new Date().toISOString();
   const store = readGuestTripStore();

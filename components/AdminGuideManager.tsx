@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type DragEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { GuideEditorialFields } from "@/components/GuideEditorialFields";
 import { guideCopy } from "@/lib/guide-copy";
@@ -31,6 +31,7 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const api = useCallback(async (path: string, init: RequestInit = {}) => {
     const response = await fetch(`/api/admin/guides${path}`, {
       ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -75,6 +76,15 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
     const stops = [...draft.places];
     [stops[index], stops[index + delta]] = [stops[index + delta], stops[index]];
     update({ places: stops.map((stop, sequence) => ({ ...stop, sequence })) });
+  }
+  function dropStop(event: DragEvent<HTMLDivElement>, targetIndex: number) {
+    event.preventDefault();
+    if (!draft || dragIndex === null || dragIndex === targetIndex) return setDragIndex(null);
+    const stops = [...draft.places];
+    const [moved] = stops.splice(dragIndex, 1);
+    stops.splice(targetIndex, 0, moved);
+    update({ places: stops.map((stop, sequence) => ({ ...stop, sequence })) });
+    setDragIndex(null);
   }
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -135,8 +145,8 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
           <div className="space-y-3"><h3 className="font-black">코스 장소 ({draft.places.length}/80)</h3>
             {draft.places.map((stop, index) => {
               const place = places.find((place) => place.id === stop.place_id);
-              return <div key={stop.place_id} className="min-w-0 space-y-3 rounded-2xl bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="min-w-0 break-words font-bold">{index + 1}. {place?.name_ko ?? "장소 확인 필요"}{place && !isPublicPlace(place) ? " (비공개 장소)" : ""}</h4>
+              return <div key={stop.place_id} draggable onDragStart={() => setDragIndex(index)} onDragEnd={() => setDragIndex(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropStop(event, index)} className={`min-w-0 space-y-3 rounded-2xl bg-slate-50 p-3 ring-1 ${dragIndex === index ? "ring-teal-400 opacity-70" : "ring-transparent"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="min-w-0 cursor-grab break-words font-bold" title="드래그하여 순서 변경">⠿ {index + 1}. {place?.name_ko ?? "장소 확인 필요"}{place && !isPublicPlace(place) ? " (비공개 장소)" : ""}</h4>
                   <div className="flex gap-1"><button type="button" className={buttonStyle} disabled={index === 0} onClick={() => move(index, -1)} aria-label={`${index + 1}번 장소 위로`}>↑</button><button type="button" className={buttonStyle} disabled={index === draft.places.length - 1} onClick={() => move(index, 1)} aria-label={`${index + 1}번 장소 아래로`}>↓</button><button type="button" className={buttonStyle} onClick={() => update({ places: draft.places.filter((_, i) => i !== index) })}>제거</button></div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3"><label className="block text-sm">체류시간 (분)<input type="number" min={0} max={10080} className={inputStyle} value={stop.stay_minutes ?? ""} onChange={(e) => stopUpdate(index, { stay_minutes: e.target.value === "" ? null : Number(e.target.value) })} /></label><label className="block text-sm">다음 장소 이동시간 (분)<input type="number" min={0} max={1440} className={inputStyle} value={stop.travel_minutes ?? ""} onChange={(e) => stopUpdate(index, { travel_minutes: e.target.value === "" ? null : Number(e.target.value) })} /></label><label className="block text-sm">이동수단<select className={inputStyle} value={stop.travel_mode ?? ""} onChange={(e) => stopUpdate(index, { travel_mode: (e.target.value || null) as GuideStop["travel_mode"] })}><option value="">미확인</option><option value="walk">도보</option><option value="transit">대중교통</option><option value="taxi">택시</option><option value="car">자동차</option><option value="mixed">혼합</option></select></label></div>
@@ -148,6 +158,7 @@ export function AdminGuideManager({ accessToken, places }: { accessToken: string
             <label className="block text-sm font-bold">기존 장소 검색<input type="search" className={inputStyle} value={query} onChange={(e) => setQuery(e.target.value)} /></label>
             <div className="max-h-64 space-y-2 overflow-y-auto">{candidates.map((place) => <button type="button" key={place.id} className={`${buttonStyle} w-full text-left`} disabled={draft.places.length >= 80} onClick={() => update({ places: [...draft.places, { place_id: place.id, sequence: draft.places.length, custom_title: emptyGuideText(), custom_description: emptyGuideText(), stay_minutes: null, travel_minutes: null, travel_mode: null, transportation_note: emptyGuideText(), tip: emptyGuideText() }] })}>{place.name_ko} · {place.name_zh} {isPublicPlace(place) ? "추가" : "비공개 · 추가"}</button>)}</div>
           </div>
+          {draft.places.length ? <section className="rounded-2xl border border-slate-200 p-4"><h3 className="font-black">코스 미리보기</h3><p className="mt-1 text-sm text-slate-500">공개 전 비공개 장소와 미확인 이동시간을 확인하세요.</p><ol className="mt-3 space-y-2">{draft.places.map((stop, index) => { const place = places.find((item) => item.id === stop.place_id); return <li key={stop.place_id} className={`flex items-start gap-3 rounded-xl p-3 text-sm ${place && isPublicPlace(place) ? "bg-slate-50" : "bg-amber-50 text-amber-900"}`}><span className="font-black">{index + 1}</span><span className="min-w-0 flex-1 break-words"><strong>{place?.name_ko ?? "장소 확인 필요"}</strong><br />{stop.stay_minutes === null ? "체류 미확인" : `체류 ${stop.stay_minutes}분`}{index < draft.places.length - 1 ? ` · ${stop.travel_minutes === null ? "다음 이동 미확인" : `다음 이동 ${stop.travel_minutes}분`}` : ""}{place && !isPublicPlace(place) ? " · 비공개 장소: 공개 코스로 저장 불가" : ""}</span></li>; })}</ol></section> : null}
           <div className="flex flex-wrap gap-2"><button type="submit" className="min-h-11 rounded-xl bg-teal-700 px-5 py-2 font-bold text-white disabled:opacity-40">{busy ? "저장 중…" : "코스 저장"}</button><button type="button" className={buttonStyle} onClick={() => setDraft(null)}>편집 닫기</button></div>
         </fieldset>
       </form> : null}
