@@ -42,6 +42,9 @@ npm run dev
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+TRAVELER_REPORT_HASH_SECRET=
+NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED=false
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_CONTACT_EMAIL=
@@ -57,6 +60,9 @@ OPENAI_TRANSLATION_MODEL=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
+- `SUPABASE_SERVICE_ROLE_KEY`: 익명 현장 확인을 서버에서 원자적으로 저장할 때만 사용하는 Supabase 서버 키입니다. Vercel 서버 환경변수에만 넣고 `NEXT_PUBLIC_` 접두사를 붙이지 마세요.
+- `TRAVELER_REPORT_HASH_SECRET`: 익명 기기 쿠키를 DB 저장 전에 HMAC 처리하는 32자 이상의 무작위 서버 secret입니다. 기존 값 변경 시 익명 rate limit 식별이 초기화됩니다.
+- `NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED`: 여행자 사진·영수증 스토리지와 개인정보 검수 절차가 준비된 뒤에만 `true`로 전환할 feature flag입니다. 현재 UI는 업로드를 공개하지 않습니다.
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
 - `NEXT_PUBLIC_CONTACT_EMAIL`: 공개 문의 이메일입니다. 비워두면 문의 페이지에 이메일을 표시하지 않고 문의/제보 폼만 제공합니다.
@@ -104,7 +110,19 @@ supabase/migrations/017_place_rankings_and_recommendations.sql
 supabase/migrations/018_trip_planning_and_sharing.sql
 supabase/migrations/019_fix_place_rankings_signature.sql
 supabase/migrations/020_place_quality_workflow.sql
+supabase/migrations/021_guest_trip_merge_keys.sql
+supabase/migrations/022_official_guides.sql
+supabase/migrations/023_growth_analytics_events.sql
+supabase/migrations/024_guide_editorial_content.sql
+supabase/migrations/025_place_publication_quality.sql
+supabase/migrations/026_public_page_performance_indexes.sql
 supabase/migrations/027_place_image_storage.sql
+supabase/migrations/028_social_auth_profile_metadata.sql
+supabase/migrations/029_location_scope_and_trust_integrity.sql
+supabase/migrations/030_traveler_decision_data.sql
+supabase/migrations/031_menu_guidance_facts.sql
+supabase/migrations/032_practical_routes_and_course_snapshots.sql
+supabase/migrations/033_traveler_verification_and_trust_signals.sql
 supabase/seed.sql
 ```
 
@@ -124,6 +142,9 @@ supabase/seed.sql
 - `place_corrections`: 장소 정보 수정 요청
 - `place_china_info`: 중국인 자유여행객용 구조화 장소 정보. 점수형 항목은 1~5 또는 `null`, 확인형 항목은 `yes` / `no` / `unknown`으로 저장해 미확인 정보를 false처럼 취급하지 않습니다.
 - `place_ai_generation_drafts`: 관리자 전용 AI 생성 초안. `source_data`에는 사실 데이터만, `generated_content`에는 관리자가 검토할 생성 후보만 저장합니다.
+- `place_checkins`, `place_fact_reports`: 10초 현장 확인과 항목별 원본 제보입니다. 원본은 공개 읽기를 허용하지 않고 관리자 검수 후 집계 함수로만 공개합니다.
+- `place_report_evidence`: 사진·영수증 등 추가 근거의 비공개 메타데이터입니다. 스토리지와 개인정보 검수 준비 전에는 업로드 feature flag를 끈 상태로 유지합니다.
+- `user_trust_profiles`: 로그인 기여자의 승인·거절 수와 지역 검수자 등급 기반입니다. 내부 가중치는 공개 점수처럼 표시하지 않습니다.
 
 기존 `places.name_zh/name_ko` 계열 컬럼은 호환을 위해 유지합니다. `003_multilingual_place_architecture.sql`은 기존 중국어/한국어 데이터를 `place_translations`로 backfill하며, 새 기능은 점진적으로 번역 테이블을 우선 사용하도록 확장할 수 있습니다.
 

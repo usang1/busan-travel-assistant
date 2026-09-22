@@ -154,3 +154,40 @@ export type TravelerDecisionBundle = {
 };
 
 export type TravelerDecisionSection = keyof TravelerDecisionBundle;
+
+export type TravelerModerationStatus = "pending" | "approved" | "rejected" | "needs_review";
+export type TravelerVerificationMethod = "authenticated" | "location" | "receipt" | "photo" | "manual";
+
+export type PlaceCheckinRecord = {
+  id: string;
+  place_id: string;
+  user_id: string | null;
+  device_hash: string | null;
+  observed_at: string;
+  locale: "ko" | "zh" | "en" | "ja";
+  verification_method: TravelerVerificationMethod;
+  moderation_status: TravelerModerationStatus;
+  risk_flags: string[];
+  created_at: string;
+};
+
+export type PlaceFactReportRecord = {
+  id: string;
+  checkin_id: string | null;
+  place_id: string;
+  fact_type: string;
+  fact_value: unknown;
+  observed_at: string;
+  created_at: string;
+  locale: "ko" | "zh" | "en" | "ja";
+  user_id: string | null;
+  device_hash: string | null;
+  verification_method: TravelerVerificationMethod;
+  moderation_status: TravelerModerationStatus;
+  trust_weight: number | null;
+  moderator_id: string | null;
+  moderated_at: string | null;
+  flagged_at: string | null;
+  flag_reason: string | null;
+  review_notes: string | null;
+};

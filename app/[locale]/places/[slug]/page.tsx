@@ -23,6 +23,8 @@ import {
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { TravelerTrustSignals } from "@/components/TravelerTrustSignals";
+import { TravelerVerification } from "@/components/TravelerVerification";
 import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
@@ -336,6 +338,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
       <PlaceVisitTools place={place} locale={locale} coordinates={coordinates} />
       <TravelerDecisionCard place={place} locale={locale} variant="detail" className="mt-6 rounded-lg" />
+      <TravelerTrustSignals placeId={place.id} locale={locale} />
       <TasteProfileCard place={place} locale={locale} variant="detail" />
 
       <section className="mt-6 space-y-3">
@@ -414,6 +417,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       <Next90MinuteRoute origin={place} candidates={practicalRoute.candidates} connections={practicalRoute.connections} locale={locale} />
       <RelatedPlacesSection places={relatedPlaces} locale={locale} />
       <RelatedGuidesSection guides={relatedGuides} locale={locale} />
+
+      <TravelerVerification placeId={place.id} placeName={nameDisplay.name} locale={locale} coordinates={coordinates} />
 
       <PlaceCorrectionForm
         placeId={place.id}

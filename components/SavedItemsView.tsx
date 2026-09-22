@@ -10,6 +10,7 @@ import { AddToTripButton } from "@/components/AddToTripButton";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { TravelMap } from "@/components/TravelMap";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { TravelerVerification } from "@/components/TravelerVerification";
 import { useAuth } from "@/components/AuthProvider";
 import { formatOpeningStatus, gwangalliCenter, hasCoordinates } from "@/lib/location";
 import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
@@ -380,6 +381,7 @@ function SavedPlaceCard({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <AddToTripButton placeId={place.id} locale={locale} />
           <DirectionsButton placeId={place.id} name={content.name} address={content.address} coordinates={coordinates} locale={locale} compact />
+          <TravelerVerification placeId={place.id} placeName={nameDisplay.name} locale={locale} coordinates={coordinates} compact />
           <button type="button" onClick={onRemove} className="grid size-10 place-items-center rounded-xl bg-rose-50 text-rose-700 ring-1 ring-rose-100 transition active:scale-95" aria-label="저장 취소">
             <Trash2 size={16} aria-hidden="true" />
           </button>

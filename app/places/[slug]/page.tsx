@@ -21,6 +21,8 @@ import {
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { TravelerTrustSignals } from "@/components/TravelerTrustSignals";
+import { TravelerVerification } from "@/components/TravelerVerification";
 import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
@@ -115,6 +117,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
   const opening = formatOpeningStatus(place.opening_hours, "zh");
   const priceText = formatPriceRange(place);
   const placeHasCoordinates = hasCoordinates(place);
+  const coordinates = placeHasCoordinates ? { latitude: place.latitude, longitude: place.longitude } : null;
   const walkingText = placeHasCoordinates && place.walking_minutes > 0 ? `步行 ${place.walking_minutes}分钟` : "未登记";
   const directionsText = placeHasCoordinates && place.walking_minutes > 0
     ? `${[place.nearest_station, place.nearest_exit].filter(Boolean).join(" ")} · ${walkingText}`
@@ -251,6 +254,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
       </section>
 
       <TravelerDecisionCard place={place} locale="zh" variant="detail" className="mt-6 rounded-lg" />
+      <TravelerTrustSignals placeId={place.id} locale="zh" />
       <TasteProfileCard place={place} locale="zh" variant="detail" />
 
       <section className="mt-6 space-y-3">
@@ -323,6 +327,8 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
       </section>
 
       <RelatedPlacesSection places={relatedPlaces} locale="zh" />
+
+      <TravelerVerification placeId={place.id} placeName={place.name_zh || place.name_ko} locale="zh" coordinates={coordinates} />
 
       <PlaceCorrectionForm
         placeId={place.id}

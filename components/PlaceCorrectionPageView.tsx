@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Camera, MapPin } from "lucide-react";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
+import { TravelerVerification } from "@/components/TravelerVerification";
 import {
   getLocalizedMenuItem,
   getPlaceContent,
@@ -9,6 +10,7 @@ import {
   withLocale,
 } from "@/lib/i18n";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
+import { hasCoordinates } from "@/lib/location";
 import { getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay } from "@/lib/place-trust";
 import type { PlaceWithRelations } from "@/types/database";
 
@@ -17,6 +19,7 @@ export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRel
   const content = getPlaceContent(place, locale);
   const nameDisplay = getPlaceNameDisplay(place, locale);
   const photo = getPlacePhotoDisplay(place, locale);
+  const coordinates = hasCoordinates(place) ? { latitude: place.latitude, longitude: place.longitude } : null;
   const currentMenuText = place.menu_items.map((item) => {
     const menu = getLocalizedMenuItem(item, locale);
     return [menu.name, item.price === null ? "" : formatWon(item.price, locale)].filter(Boolean).join(" · ");
@@ -52,6 +55,8 @@ export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRel
           {content.address ? <p className="mt-1 flex items-start gap-1 text-xs leading-5 text-slate-500"><MapPin size={13} className="mt-0.5 shrink-0" />{content.address}</p> : null}
         </div>
       </section>
+
+      <TravelerVerification placeId={place.id} placeName={nameDisplay.name} locale={locale} coordinates={coordinates} />
 
       <PlaceCorrectionForm
         placeId={place.id}

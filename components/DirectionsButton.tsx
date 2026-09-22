@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { buildDirectionsUrl, type DirectionsProvider } from "@/lib/directions";
 import { recordPlaceEvent } from "@/lib/place-events";
+import { rememberMapOpen } from "@/lib/place-visit-memory";
 import type { Coordinates } from "@/lib/location";
 import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ export function DirectionsButton({
   const text = copy[locale];
 
   function recordProvider(provider: DirectionsProvider) {
+    rememberMapOpen(placeId);
     void recordPlaceEvent({
       eventType: "directions_click",
       placeId,
