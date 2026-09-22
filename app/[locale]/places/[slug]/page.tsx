@@ -22,8 +22,7 @@ import {
 } from "lucide-react";
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
-import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
-import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
+import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { RelatedGuidesSection } from "@/components/RelatedGuidesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
@@ -258,6 +257,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             {getPlaceCategoryLabel(place.category, locale)}
           </div>
         </div>
+        <TravelerDecisionCard place={place} locale={locale} className="border-b border-slate-100 px-5 py-4" />
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -329,16 +329,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       </section>
 
       <PlaceVisitTools place={place} locale={locale} coordinates={coordinates} />
-
-      {locale === "zh" ? (
-        <PlaceChinaDecisionPanel
-          place={place}
-          openingText={place.opening_hours ? opening.text : copy.common.notRegistered}
-          priceText={priceText}
-        />
-      ) : null}
-
-      <TravelerInsightsPanel place={place} locale={locale} />
+      <TravelerDecisionCard place={place} locale={locale} variant="detail" className="mt-6 rounded-lg" />
 
       <section className="mt-6 space-y-3">
         <SectionTitle title={copy.placeDetail.menu} />

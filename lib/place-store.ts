@@ -7,9 +7,11 @@ import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import type {
   PlaceChinaInfoRecord,
+  PlaceDecisionProfileRecord,
   PlaceTranslationRecord,
   PlaceListResult,
   PlaceMenuItem,
+  PlaceOperatingProfileRecord,
   PlacePayload,
   PlaceRecord,
   PlaceSourceRecord,
@@ -21,6 +23,8 @@ import type { PlaceCity } from "@/lib/city-regions";
 
 type SupabasePlaceRow = PlaceRecord & {
   place_china_info?: PlaceChinaInfoRecord | PlaceChinaInfoRecord[] | null;
+  place_decision_profiles?: PlaceDecisionProfileRecord | PlaceDecisionProfileRecord[] | null;
+  place_operating_profiles?: PlaceOperatingProfileRecord | PlaceOperatingProfileRecord[] | null;
   place_translations?: PlaceTranslationRecord[] | null;
   place_sources?: PlaceSourceRecord[] | null;
   place_tags?: Array<{
@@ -30,9 +34,11 @@ type SupabasePlaceRow = PlaceRecord & {
 };
 
 type PlaceWriteRow = Omit<PlacePayload, "tags" | "menu_items" | "china_info">;
+const publicPlaceSelectWithDecisionData: string = "*,place_decision_profiles(*),place_operating_profiles(*),place_china_info(*),place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const publicPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const publicPlaceSelectWithTranslations: string = "*,place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
-const adminPlaceSelectWithChinaInfo: string = "*,place_china_info(*),place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
+const adminPlaceSelectWithDecisionData: string = publicPlaceSelectWithDecisionData;
+const adminPlaceSelectWithChinaInfo: string = publicPlaceSelectWithChinaInfo;
 const adminPlaceSelectWithTranslations: string = "*,place_translations(*),place_sources(*),place_tags(tags(*)),place_menu_items(*)";
 const legacyPlaceSelect: string = "*,place_tags(tags(*)),place_menu_items(*)";
 const publicStatusFilters = [...publicReadablePlaceStatuses];
@@ -112,12 +118,20 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
   const chinaInfo = Array.isArray(row.place_china_info)
     ? (row.place_china_info[0] ?? null)
     : (row.place_china_info ?? null);
+  const decisionProfile = Array.isArray(row.place_decision_profiles)
+    ? (row.place_decision_profiles[0] ?? null)
+    : (row.place_decision_profiles ?? null);
+  const operatingProfile = Array.isArray(row.place_operating_profiles)
+    ? (row.place_operating_profiles[0] ?? null)
+    : (row.place_operating_profiles ?? null);
 
   return {
     ...row,
     latitude,
     longitude,
     china_info: chinaInfo,
+    decision_profile: decisionProfile,
+    operating_profile: operatingProfile,
     tags,
     menu_items: menuItems,
     translations: normalizePlaceTranslations(row),
@@ -231,11 +245,12 @@ export async function getPlaces(
   }
 
   const activeFilters = buildPlaceQueryDebug(options);
+  const selectWithDecisionData = options.includeAdminRelations ? adminPlaceSelectWithDecisionData : publicPlaceSelectWithDecisionData;
   const selectWithChinaInfo = options.includeAdminRelations ? adminPlaceSelectWithChinaInfo : publicPlaceSelectWithChinaInfo;
   const selectWithTranslations = options.includeAdminRelations ? adminPlaceSelectWithTranslations : publicPlaceSelectWithTranslations;
   let query = resolvedClient
     .from("places")
-    .select(selectWithChinaInfo)
+    .select(selectWithDecisionData)
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false });
 
@@ -261,7 +276,7 @@ export async function getPlaces(
 
     let compatibleQuery = resolvedClient
       .from("places")
-      .select(selectWithTranslations)
+      .select(selectWithChinaInfo)
       .order("is_featured", { ascending: false })
       .order("updated_at", { ascending: false });
 
@@ -301,21 +316,32 @@ export async function getPlaces(
       locale: options.locale,
     });
 
-    let legacyQuery = resolvedClient
+    let translationQuery = resolvedClient
       .from("places")
-      .select(legacyPlaceSelect)
+      .select(selectWithTranslations)
       .order("is_featured", { ascending: false })
       .order("updated_at", { ascending: false });
 
     if (options.activeOnly ?? true) {
-      legacyQuery = legacyQuery.eq("is_active", true);
-      legacyQuery = legacyQuery.in("status", publicStatusFilters);
+      translationQuery = translationQuery.eq("is_active", true);
+      translationQuery = translationQuery.in("status", publicStatusFilters);
     }
 
     if (options.featuredOnly) {
-      legacyQuery = legacyQuery.eq("is_featured", true);
+      translationQuery = translationQuery.eq("is_featured", true);
     }
 
+    if (options.range) translationQuery = translationQuery.order("id").range(options.range.from, options.range.to);
+    const translationResult = await translationQuery;
+
+    if (!translationResult.error && translationResult.data) {
+      const { places, candidateCount } = await finalizePlaceRows(translationResult.data, options.activeOnly ?? true, options.cityCode);
+      return { places, source: "supabase", candidateCount };
+    }
+
+    let legacyQuery = resolvedClient.from("places").select(legacyPlaceSelect).order("is_featured", { ascending: false }).order("updated_at", { ascending: false });
+    if (options.activeOnly ?? true) legacyQuery = legacyQuery.eq("is_active", true).in("status", publicStatusFilters);
+    if (options.featuredOnly) legacyQuery = legacyQuery.eq("is_featured", true);
     if (options.range) legacyQuery = legacyQuery.order("id").range(options.range.from, options.range.to);
     const legacyResult = await legacyQuery;
 
@@ -395,7 +421,7 @@ async function fetchBoundedPublicPlaces(
     limit: number;
   },
 ) {
-  const selectCandidates = [publicPlaceSelectWithChinaInfo, publicPlaceSelectWithTranslations, legacyPlaceSelect];
+  const selectCandidates = [publicPlaceSelectWithDecisionData, publicPlaceSelectWithChinaInfo, publicPlaceSelectWithTranslations, legacyPlaceSelect];
 
   for (const select of selectCandidates) {
     let query = client
@@ -437,11 +463,12 @@ export async function getPlaceBySlug(
     };
   }
 
+  const selectWithDecisionData = options.includeAdminRelations ? adminPlaceSelectWithDecisionData : publicPlaceSelectWithDecisionData;
   const selectWithChinaInfo = options.includeAdminRelations ? adminPlaceSelectWithChinaInfo : publicPlaceSelectWithChinaInfo;
   const selectWithTranslations = options.includeAdminRelations ? adminPlaceSelectWithTranslations : publicPlaceSelectWithTranslations;
   let query = resolvedClient
     .from("places")
-    .select(selectWithChinaInfo)
+    .select(selectWithDecisionData)
     .eq("slug", slug);
 
   if (options.activeOnly ?? true) {
@@ -454,7 +481,7 @@ export async function getPlaceBySlug(
   if (error || !data) {
     let compatibleQuery = resolvedClient
       .from("places")
-      .select(selectWithTranslations)
+      .select(selectWithChinaInfo)
       .eq("slug", slug);
 
     if (options.activeOnly ?? true) {
@@ -481,16 +508,26 @@ export async function getPlaceBySlug(
       };
     }
 
-    let legacyQuery = resolvedClient
+    let translationQuery = resolvedClient
       .from("places")
-      .select(legacyPlaceSelect)
+      .select(selectWithTranslations)
       .eq("slug", slug);
 
     if (options.activeOnly ?? true) {
-      legacyQuery = legacyQuery.eq("is_active", true);
-      legacyQuery = legacyQuery.in("status", publicStatusFilters);
+      translationQuery = translationQuery.eq("is_active", true);
+      translationQuery = translationQuery.in("status", publicStatusFilters);
     }
 
+    const translationResult = await translationQuery.limit(1).maybeSingle();
+
+    if (!translationResult.error && translationResult.data) {
+      const place = mapPlaceRow(translationResult.data);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
+      if (publicPlace) return { place: publicPlace, source: "supabase" };
+    }
+
+    let legacyQuery = resolvedClient.from("places").select(legacyPlaceSelect).eq("slug", slug);
+    if (options.activeOnly ?? true) legacyQuery = legacyQuery.eq("is_active", true).in("status", publicStatusFilters);
     const legacyResult = await legacyQuery.limit(1).maybeSingle();
 
     if (!legacyResult.error && legacyResult.data) {

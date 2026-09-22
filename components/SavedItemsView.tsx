@@ -7,9 +7,11 @@ import { Camera, List, Map, Trash2 } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { AddToTripButton } from "@/components/AddToTripButton";
+import { DirectionsButton } from "@/components/DirectionsButton";
 import { TravelMap } from "@/components/TravelMap";
+import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
 import { useAuth } from "@/components/AuthProvider";
-import { gwangalliCenter, hasCoordinates } from "@/lib/location";
+import { formatOpeningStatus, gwangalliCenter, hasCoordinates } from "@/lib/location";
 import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
 import { recordPlaceEvent } from "@/lib/place-events";
 import { getPlaceSaveCounts } from "@/lib/place-saves";
@@ -18,7 +20,7 @@ import { getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay, getPl
 import { getSavedPlaceIds, removeSavedItem, savedItemsChangeEvent } from "@/lib/saved-items";
 import { getSupabaseClient } from "@/lib/supabase";
 import { defaultLocale, getLocaleFromPath, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
-import type { PlaceTranslationRecord, PlaceWithRelations, TagRecord } from "@/types/database";
+import type { PlaceWithRelations } from "@/types/database";
 
 type SavedPlace = {
   savedAt: string;
@@ -32,13 +34,7 @@ type SavedItemsViewProps = {
 
 type SupabaseSavedPlaceRow = {
   created_at: string;
-  places: SupabaseSavedPlacePayload | SupabaseSavedPlacePayload[] | null;
-};
-
-type SupabaseSavedPlacePayload = PlaceWithRelations & {
-  place_translations?: PlaceTranslationRecord[] | null;
-  place_tags?: Array<{ tags: TagRecord | null }> | null;
-  place_menu_items?: PlaceWithRelations["menu_items"] | null;
+  place_id: string;
 };
 
 type SavedRegion = "all" | "gwangalli" | "haeundae" | "seomyeon" | "nampo" | "other";
@@ -98,7 +94,7 @@ export function SavedItemsView({ locale, compact = false }: SavedItemsViewProps)
       setIsLoading(true);
       const { data, error } = await withTimeout(client
         .from("place_saves")
-        .select("created_at, places(*, place_translations(*), place_tags(tags(*)), place_menu_items(*))")
+        .select("created_at, place_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }), 8000, { data: null, error: { message: text.loadFailed } });
 
@@ -113,13 +109,13 @@ export function SavedItemsView({ locale, compact = false }: SavedItemsViewProps)
         return;
       }
 
-      const places = (data as unknown as SupabaseSavedPlaceRow[])
-        .map((row) => ({ ...row, places: Array.isArray(row.places) ? row.places[0] : row.places }))
-        .filter((row): row is { created_at: string; places: SupabaseSavedPlacePayload } => Boolean(row.places))
-        .map((row) => ({
-          savedAt: row.created_at,
-          place: normalizePlace(row.places),
-        }));
+      const savedRows = data as unknown as SupabaseSavedPlaceRow[];
+      const publicPlaces = await getPublicPlacesByIds(savedRows.map((row) => row.place_id), client);
+      const placeById = new globalThis.Map(publicPlaces.map((place) => [place.id, place]));
+      const places = savedRows.flatMap((row) => {
+        const place = placeById.get(row.place_id);
+        return place ? [{ savedAt: row.created_at, place }] : [];
+      });
       const counts = await getPlaceSaveCounts(places.map((item) => item.place.id));
 
       if (mounted) {
@@ -347,6 +343,7 @@ function SavedMapSelection({ place, locale }: { place: PlaceWithRelations; local
         {nameDisplay.secondaryName ? <p className="mt-1 truncate text-xs text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
         <p className="mt-1 text-xs font-bold text-teal-700">{getPlaceCategoryLabel(place.category, locale)}</p>
         <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{description}</p>
+        <TravelerDecisionCard place={place} locale={locale} className="mt-2" />
         <Link href={href} className="mt-2 inline-flex min-h-10 items-center rounded-full bg-teal-700 px-4 text-sm font-black text-white">
           {text.detail}
         </Link>
@@ -367,6 +364,8 @@ function SavedPlaceCard({
   const content = getPlaceContent(place, locale);
   const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
+  const opening = formatOpeningStatus(place.opening_hours, locale);
+  const coordinates = hasCoordinates(place) ? { latitude: place.latitude, longitude: place.longitude } : null;
 
   return (
     <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
@@ -375,10 +374,12 @@ function SavedPlaceCard({
         <Link href={href} className="block min-w-0">
           <p className="truncate text-base font-black text-slate-950">{nameDisplay.name}</p>
           {nameDisplay.secondaryName ? <p className="mt-1 truncate text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
-          <p className="mt-2 text-xs font-semibold text-teal-700">{getPlaceCategoryLabel(place.category, locale)} · {place.save_count ?? 0}</p>
+          <p className="mt-2 text-xs font-semibold text-teal-700">{getPlaceCategoryLabel(place.category, locale)} · {opening.text} · {place.save_count ?? 0}</p>
         </Link>
+        <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-slate-100 pt-3" />
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <AddToTripButton placeId={place.id} locale={locale} />
+          <DirectionsButton placeId={place.id} name={content.name} address={content.address} coordinates={coordinates} locale={locale} compact />
           <button type="button" onClick={onRemove} className="grid size-10 place-items-center rounded-xl bg-rose-50 text-rose-700 ring-1 ring-rose-100 transition active:scale-95" aria-label="저장 취소">
             <Trash2 size={16} aria-hidden="true" />
           </button>
@@ -456,17 +457,4 @@ function viewToggleClass(active: boolean) {
     "inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-black transition active:scale-95",
     active ? "bg-white text-slate-950 shadow-sm" : "text-slate-500",
   ].join(" ");
-}
-
-function normalizePlace(
-  row: SupabaseSavedPlacePayload,
-): PlaceWithRelations {
-  const { place_translations: placeTranslations, place_tags: placeTags, place_menu_items: menuItems, ...place } = row;
-
-  return {
-    ...place,
-    translations: placeTranslations ?? [],
-    tags: placeTags?.map((item) => item.tags).filter((tag): tag is TagRecord => Boolean(tag)) ?? [],
-    menu_items: menuItems ?? [],
-  };
 }

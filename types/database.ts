@@ -160,6 +160,7 @@ export type PlaceChinaInfoRecord = {
   spicy_level: number | null;
   greasy_level: number | null;
   smell_level: number | null;
+  sweetness_level?: number | null;
   portion_level: number | null;
   ordering_difficulty: number | null;
   waiting_level: ChinaWaitingLevel;
@@ -177,6 +178,21 @@ export type PlaceChinaInfoRecord = {
   minimum_order_people: number | null;
   minimum_order_policy: ChinaMinimumOrderPolicy;
   minimum_order_note?: string | null;
+  minimum_order_amount?: number | null;
+  taste_notes_zh?: string | null;
+  taste_notes_ko?: string | null;
+  taste_notes_en?: string | null;
+  taste_notes_ja?: string | null;
+  kiosk_language_support?: { status: PlaceFactTristate; languages: string[] } | null;
+  restroom_location_note?: string | null;
+  wheelchair_access?: PlaceFactTristate;
+  elevator?: PlaceFactTristate;
+  stroller_friendly?: PlaceFactTristate;
+  power_outlet?: PlaceFactTristate;
+  wifi?: PlaceFactTristate;
+  smoking_policy?: "non_smoking" | "smoking_area" | "smoking_allowed" | null;
+  queue_available?: PlaceFactTristate;
+  queue_method?: string | null;
   xiaohongshu_popular: PlaceFactTristate;
   photo_recommended: PlaceFactTristate;
   tourism_recommended: PlaceFactTristate;
@@ -193,12 +209,51 @@ export type PlaceChinaInfoRecord = {
   updated_at: string;
 };
 
+export type PlaceDecisionProfileRecord = {
+  place_id: string;
+  tourist_fit_score: number | null;
+  recommended_for: string[];
+  not_recommended_for: string[];
+  primary_warning: Partial<Record<"ko" | "zh" | "en" | "ja", string>>;
+  visit_summary: Partial<Record<"ko" | "zh" | "en" | "ja", string>>;
+  worth_detour_level: "nearby_only" | "worth_short_detour" | "worth_long_detour" | "destination" | null;
+  solo_difficulty: number | null;
+  foreigner_difficulty: number | null;
+  confidence_score: number | null;
+  evidence_count: number;
+  last_verified_at: string | null;
+  verification_status: "verified" | "partially_verified" | "unverified" | "stale" | "conflicting" | "rejected";
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PlaceOperatingProfileRecord = {
+  place_id: string;
+  timezone: "Asia/Seoul";
+  structured_operating_hours: Array<{ weekday: number; open: string; close: string; closed: boolean; overnight: boolean }>;
+  last_order_time: string | null;
+  temporary_closures: Array<{ start_date: string; end_date: string; reason: string }>;
+  recommended_time_ranges: Array<{ weekdays: number[]; start: string; end: string; note?: string }>;
+  avoid_time_ranges: Array<{ weekdays: number[]; start: string; end: string; note?: string }>;
+  wait_time_by_weekday_hour: Record<string, number | null>;
+  sellout_risk_by_hour: Record<string, number | null>;
+  photo_time_ranges: Array<{ weekdays: number[]; start: string; end: string; note?: string }>;
+  seasonal_availability: Array<{ start_month: number; end_month: number; note: string }>;
+  holiday_notes: Partial<Record<"ko" | "zh" | "en" | "ja", string>>;
+  verification_status: "verified" | "partially_verified" | "unverified" | "stale" | "conflicting" | "rejected";
+  last_verified_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type PlaceWithRelations = PlaceRecord & {
   tags: TagRecord[];
   menu_items: PlaceMenuItem[];
   translations?: PlaceTranslationRecord[];
   sources?: PlaceSourceRecord[];
   china_info?: PlaceChinaInfoRecord | null;
+  decision_profile?: PlaceDecisionProfileRecord | null;
+  operating_profile?: PlaceOperatingProfileRecord | null;
   save_count?: number;
   recent_save_count?: number;
   recommendation_distance?: number;

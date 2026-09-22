@@ -20,8 +20,7 @@ import {
 } from "lucide-react";
 import { OrderGuide } from "@/components/OrderGuide";
 import { PlaceCorrectionForm } from "@/components/PlaceCorrectionForm";
-import { PlaceChinaDecisionPanel } from "@/components/PlaceChinaDecisionPanel";
-import { TravelerInsightsPanel } from "@/components/TravelerInsightsPanel";
+import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
 import { RelatedPlacesSection } from "@/components/RelatedPlacesSection";
 import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
@@ -185,6 +184,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
             {getPlaceCategoryLabel(place.category, "zh")} · {source === "demo" ? "Demo" : "Live"}
           </div>
         </div>
+        <TravelerDecisionCard place={place} locale="zh" className="border-b border-slate-100 px-5 py-4" />
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -246,13 +246,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
         </div>
       </section>
 
-      <PlaceChinaDecisionPanel
-        place={place}
-        openingText={place.opening_hours ? opening.text : "未登记"}
-        priceText={priceText}
-      />
-
-      <TravelerInsightsPanel place={place} locale="zh" />
+      <TravelerDecisionCard place={place} locale="zh" variant="detail" className="mt-6 rounded-lg" />
 
       <section className="mt-6 space-y-3">
         <SectionTitle title="推荐菜单" />

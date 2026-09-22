@@ -1,31 +1,23 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BadgeCheck, Camera, Clock3, ExternalLink, MapPin, MessageSquarePlus, Soup, UserRound, WalletCards } from "lucide-react";
+import { Camera, Clock3, ExternalLink, MapPin, MessageSquarePlus, Soup, WalletCards } from "lucide-react";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { SaveButton } from "@/components/SaveButton";
 import { TagChip } from "@/components/TagChip";
-import { hasCoordinates, type Coordinates } from "@/lib/location";
-import { getChinaDiscoveryTags } from "@/lib/place-china/discovery";
+import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { formatOpeningStatus, hasCoordinates, type Coordinates } from "@/lib/location";
 import {
   distanceFromGwangalli,
   formatPlaceDistance,
   getDistanceWarning,
-  getTravelerAdvantage,
 } from "@/lib/place-display";
-import { defaultLocale, getLocalizedTag, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
+import { defaultLocale, getPlaceContent, type Locale, withLocale } from "@/lib/i18n";
 import {
   buildPlaceCardFacts,
   getPlaceCategoryLabel,
   getPlaceNameDisplay,
-  getLastVerifiedLabel,
   getPlacePhotoDisplay,
-  getPlaceTrustCopy,
-  getPublicPlaceDescription,
-  getSourceSummary,
-  getTrustEvidenceLabel,
   getTrustedPlaceImageUrl,
-  getVerificationStatus,
-  getVerificationStatusLabel,
 } from "@/lib/place-trust";
 import type { PlaceWithRelations } from "@/types/database";
 
@@ -40,11 +32,8 @@ type PlaceCardProps = {
 export function PlaceCard({ place, priority = false, locale = defaultLocale, distanceMeters = null, compact = false }: PlaceCardProps) {
   const content = getPlaceContent(place, locale);
   const nameDisplay = getPlaceNameDisplay(place, locale);
-  const copy = ui[locale];
-  const trustCopy = getPlaceTrustCopy(locale);
   const placeHref = withLocale(`/places/${place.slug}`, locale);
   const correctionHref = withLocale(`/places/${place.slug}/report`, locale);
-  const chinaTags = locale === "zh" ? getChinaDiscoveryTags(place, locale, 4) : [];
   const correctionLabel = { zh: "补充商家信息", en: "Update info", ja: "店舗情報を報告", ko: "영업정보 제보" }[locale];
   const naverPlaceLabel = { zh: "Naver 地图", en: "Naver Map", ja: "Naver Map", ko: "네이버 플레이스" }[locale];
   const coordinates: Coordinates | null = hasCoordinates(place)
@@ -52,16 +41,12 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
     : null;
   const displayDistance = distanceMeters ?? distanceFromGwangalli(place);
   const distanceWarning = getDistanceWarning(displayDistance, locale);
-  const travelerAdvantage = getPublicPlaceDescription(place, locale) || getTravelerAdvantage(place, locale);
-  const publicDescription = getPublicPlaceDescription(place, locale);
   const photo = getPlacePhotoDisplay(place, locale);
   const cardFacts = buildPlaceCardFacts(place, locale);
-  const verificationStatus = getVerificationStatus(place);
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
   const naverPlaceUrl = getRegisteredNaverPlaceUrl(place);
-  const localizedTags = place.tags
-    .map((tag) => ({ slug: tag.slug, label: getLocalizedTag(tag, locale) }))
-    .filter((tag) => tag.label);
+  const priorityFacts = cardFacts.facts.filter((fact) => fact.key === "menu" || fact.key === "price" || fact.key === "hours").slice(0, 3);
+  const opening = formatOpeningStatus(place.opening_hours, locale);
 
   return (
     <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -110,8 +95,9 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
             }}
           />
         </div>
+        <div className="mt-2"><TagChip tone={opening.tone}>{opening.text}</TagChip></div>
         <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
-          {cardFacts.facts.map((fact) => (
+          {priorityFacts.map((fact) => (
             <span key={fact.key} className="inline-flex min-h-9 items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
               <PlaceFactIcon factKey={fact.key} />
               <span className="min-w-0">
@@ -134,41 +120,9 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
               {formatPlaceDistance(displayDistance, locale)}
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1">
-            <BadgeCheck size={14} aria-hidden="true" />
-            {getVerificationStatusLabel(verificationStatus, locale)}
-          </span>
-          <span>{getLastVerifiedLabel(place, locale)}</span>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <TagChip tone={verificationStatus === "verified" ? "green" : verificationStatus === "needs_review" ? "amber" : "default"}>
-            {getTrustEvidenceLabel(place, locale)}
-          </TagChip>
-          <TagChip tone={verificationStatus === "verified" ? "green" : verificationStatus === "needs_review" ? "amber" : "default"}>
-            {getSourceSummary(place, locale)}
-          </TagChip>
-          {distanceWarning ? <TagChip tone="amber">{distanceWarning}</TagChip> : null}
-        </div>
-        {travelerAdvantage !== copy.common.noInfo ? (
-          <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{travelerAdvantage}</p>
-        ) : null}
-        {publicDescription && publicDescription !== travelerAdvantage ? (
-          <p className="mt-2 line-clamp-1 text-xs font-semibold text-slate-500">{publicDescription}</p>
-        ) : null}
-        {(chinaTags.length || localizedTags.length) ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {chinaTags.map((tag) => (
-              <TagChip key={tag} tone="blue">
-                {tag}
-              </TagChip>
-            ))}
-            {localizedTags.slice(0, 3).map((tag) => (
-              <TagChip key={tag.slug} tone={place.is_active ? "green" : "amber"}>
-                {tag.label}
-              </TagChip>
-            ))}
-          </div>
-        ) : null}
+        {distanceWarning ? <p className="mt-2 text-xs font-bold text-amber-800">{distanceWarning}</p> : null}
+        <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-slate-100 pt-3" />
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
             <Link href={correctionHref} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
@@ -210,9 +164,7 @@ function PlaceFactIcon({ factKey }: { factKey: ReturnType<typeof buildPlaceCardF
     ? Soup
     : factKey === "price"
       ? WalletCards
-      : factKey === "solo"
-        ? UserRound
-        : factKey === "transit"
+      : factKey === "transit"
           ? MapPin
           : Clock3;
 

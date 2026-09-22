@@ -24,6 +24,7 @@ import {
   countActiveChinaFilters,
   filterPlacesForChineseTraveler,
   getEnabledChinaFilters,
+  hasVerifiedRecommendationScores,
   sortPlacesForChineseTraveler,
   type ChinaDiscoveryFilter,
   type ChinaDiscoverySort,
@@ -78,6 +79,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const copy = ui[locale];
   const explorerCopy = placesExplorerCopy[locale];
   const showChinaFilters = true;
+  const hasRecommendationScores = useMemo(() => hasVerifiedRecommendationScores(places), [places]);
   const availableChinaFilters = useMemo(() => (showChinaFilters ? getEnabledChinaFilters(places) : []), [places, showChinaFilters]);
   const availableQuickFilters = useMemo(
     () => availableChinaFilters.filter((filter) => chinaQuickFilters.includes(filter.key)),
@@ -91,13 +93,17 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const regions = busanDistrictOptions.map((district) => ({ key: district.key, label: district.labels[locale] }));
 
   useEffect(() => {
+    if (!hasRecommendationScores && sortMode === "chinaRecommended") setSortMode("verified");
+  }, [hasRecommendationScores, sortMode]);
+
+  useEffect(() => {
     const nextParams = new URLSearchParams();
 
     if (query.trim()) nextParams.set("search", query.trim());
     if (category !== "all") nextParams.set("category", category);
     if (region !== "all") nextParams.set("region", region);
     if (priceBucket !== "all") nextParams.set("price", priceBucket);
-    if (sortMode !== "chinaRecommended") nextParams.set("sort", sortMode);
+    if (sortMode !== "verified") nextParams.set("sort", sortMode);
     if (homeIntent) nextParams.set("intent", homeIntent);
 
     if (showChinaFilters) {
@@ -188,7 +194,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     setRegion("all");
     setPriceBucket("all");
     setActiveChinaFilters([]);
-    setSortMode("chinaRecommended");
+    setSortMode("verified");
     setHomeIntent(null);
   }
 
@@ -270,7 +276,9 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           <label className="block">
             <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.sort}</span>
             <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} className={selectClass}>
-              <option value="chinaRecommended">{explorerCopy.recommendedSort}</option>
+              <option value="verified">{explorerCopy.verifiedSort}</option>
+              <option value="recent">{explorerCopy.recentSort}</option>
+              {hasRecommendationScores ? <option value="chinaRecommended">{explorerCopy.recommendedSort}</option> : null}
               <option value="saved">{explorerCopy.savedSort}</option>
               <option value="distance" disabled={!userLocation}>{explorerCopy.distanceSort}</option>
               <option value="lowWait">{explorerCopy.lowWaitSort}</option>
@@ -374,6 +382,8 @@ const placesExplorerCopy: Record<Locale, {
   price: string;
   sort: string;
   recommendedSort: string;
+  verifiedSort: string;
+  recentSort: string;
   savedSort: string;
   distanceSort: string;
   lowWaitSort: string;
@@ -399,6 +409,8 @@ const placesExplorerCopy: Record<Locale, {
     price: "价格",
     sort: "排序",
     recommendedSort: "推荐顺序",
+    verifiedSort: "已审核优先",
+    recentSort: "最近确认优先",
     savedSort: "收藏顺序",
     distanceSort: "距离顺序",
     lowWaitSort: "少排队优先",
@@ -424,6 +436,8 @@ const placesExplorerCopy: Record<Locale, {
     price: "Price",
     sort: "Sort",
     recommendedSort: "Recommended",
+    verifiedSort: "Verified first",
+    recentSort: "Recently checked",
     savedSort: "Most saved",
     distanceSort: "Distance",
     lowWaitSort: "Short wait",
@@ -449,6 +463,8 @@ const placesExplorerCopy: Record<Locale, {
     price: "価格",
     sort: "並び替え",
     recommendedSort: "おすすめ順",
+    verifiedSort: "確認済み順",
+    recentSort: "最近確認順",
     savedSort: "保存順",
     distanceSort: "距離順",
     lowWaitSort: "待ち時間が短い順",
@@ -474,6 +490,8 @@ const placesExplorerCopy: Record<Locale, {
     price: "가격대",
     sort: "정렬",
     recommendedSort: "추천순",
+    verifiedSort: "검수 완료순",
+    recentSort: "최근 확인순",
     savedSort: "저장순",
     distanceSort: "거리순",
     lowWaitSort: "대기 적은 순",
@@ -562,7 +580,7 @@ function readPriceBucket(searchParams: URLSearchParams): ChinaPriceBucket {
 function readSortMode(searchParams: URLSearchParams): SortMode {
   const value = searchParams.get("sort");
 
-  return value === "saved" || value === "distance" || value === "lowWait" ? value : "chinaRecommended";
+  return value === "verified" || value === "recent" || value === "chinaRecommended" || value === "saved" || value === "distance" || value === "lowWait" ? value : "verified";
 }
 
 function readHomeIntent(searchParams: URLSearchParams): HomeIntentKey | null {

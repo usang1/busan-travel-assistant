@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { SaveButton } from "@/components/SaveButton";
 import { NearbyPopularPlaces } from "@/components/NearbyPopularPlaces";
 import { TagChip } from "@/components/TagChip";
+import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
 import { TravelMap } from "@/components/TravelMap";
 import {
   calculateDistanceMeters,
@@ -43,7 +44,6 @@ import {
   getPerPersonPrice,
   getRepresentativeMenu,
   getSoloDisplay,
-  getTravelerAdvantage,
   getWaitingDisplay,
 } from "@/lib/place-display";
 import { formatPriceRange } from "@/lib/place-store";
@@ -789,7 +789,8 @@ function SearchAndFilters({
         <label className="block">
           <span className="mb-1 block text-xs font-black text-slate-500">{localizedCopy.sort}</span>
           <select value={sortMode} onChange={(event) => onSortModeChange(event.target.value as ChinaDiscoverySort)} className={selectClass}>
-            <option value="chinaRecommended">{localizedCopy.recommendedSort}</option>
+            <option value="verified">{localizedCopy.verifiedSort}</option>
+            <option value="recent">{localizedCopy.recentSort}</option>
             <option value="saved">{localizedCopy.savedSort}</option>
             <option value="distance">{localizedCopy.distanceSort}</option>
             <option value="lowWait">{localizedCopy.lowWaitSort}</option>
@@ -885,7 +886,8 @@ function FilterSelects({
       <label className="block">
         <span className="mb-1 block text-xs font-black text-slate-500">{copy.sort}</span>
         <select value={sortMode} onChange={(event) => onSortModeChange(event.target.value as ChinaDiscoverySort)} className={selectClass}>
-          <option value="chinaRecommended">{copy.recommendedSort}</option>
+          <option value="verified">{copy.verifiedSort}</option>
+          <option value="recent">{copy.recentSort}</option>
           <option value="saved">{copy.savedSort}</option>
           <option value="distance">{copy.distanceSort}</option>
           <option value="lowWait">{copy.lowWaitSort}</option>
@@ -976,12 +978,8 @@ function PlaceListCard({
   const copy = ui[locale];
   const localizedCopy = nearbyCopy[locale];
   const coordinates = { latitude: place.latitude as number, longitude: place.longitude as number };
-  const chinaTags = getChinaDiscoveryTags(place, locale, 4);
-  const recommendation = getLocalizedRecommendationDisplay(place, locale);
   const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
   const menu = getRepresentativeMenu(place, locale);
-  const publicDescription = getPublicPlaceDescription(place, locale);
-  const advantage = publicDescription || getTravelerAdvantage(place, locale);
   const transitLabel = getConfirmedTransitLabel(place, locale);
   const distanceWarning = getDistanceWarning(distance, locale);
   const selectedLabel = { zh: "已选择", en: "Selected", ja: "選択中", ko: "선택됨" }[locale];
@@ -1016,7 +1014,6 @@ function PlaceListCard({
               {formatDistance(distance, locale)} · {walkingLabel}
             </TagChip>
             <TagChip tone="amber">{getWaitingDisplay(place, locale)}</TagChip>
-            {locale === "zh" ? <TagChip tone="amber">{recommendation.label} {recommendation.value}</TagChip> : null}
           </span>
           {transitLabel ? (
             <span className="mt-2 flex items-center gap-1.5 text-xs font-black leading-5 text-teal-800">
@@ -1032,22 +1029,9 @@ function PlaceListCard({
           {menu?.price ? <span className="ml-1 text-slate-500">{menu.price}</span> : null}
         </p>
         <p>{copy.common.perPerson} <span className="text-slate-950">{getPerPersonPrice(place, locale)}</span> · {getSoloDisplay(place, locale)}</p>
-        <p className="line-clamp-2 leading-5">{advantage}</p>
         {distanceWarning ? <p className="text-amber-700">{distanceWarning}</p> : null}
       </div>
-      {locale === "zh" && chinaTags.length ? (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {chinaTags.map((tag) => (
-            <TagChip key={tag}>{tag}</TagChip>
-          ))}
-        </div>
-      ) : null}
-      {publicDescription && publicDescription !== advantage ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{publicDescription}</p> : null}
-      {locale === "zh" ? (
-        <p className="mt-2 text-xs font-bold text-slate-500">
-          {formatPriceRange(place, locale)} · {localizedCopy.savedCount} {place.save_count ?? 0}
-        </p>
-      ) : null}
+      <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-slate-100 pt-3" />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
         <Link
           href={href}
@@ -1107,6 +1091,7 @@ function SelectedPlaceSummary({ item, locale }: { item: PlaceListItem; locale: L
         </span>
         <ArrowRight size={18} className="shrink-0 text-teal-700" aria-hidden="true" />
       </Link>
+      <TravelerDecisionCard place={place} locale={locale} className="mt-2 border-t border-slate-100 pt-2" />
     </article>
   );
 }
@@ -1136,6 +1121,8 @@ const nearbyCopy: Record<Locale, {
   price: string;
   sort: string;
   recommendedSort: string;
+  verifiedSort: string;
+  recentSort: string;
   savedSort: string;
   distanceSort: string;
   lowWaitSort: string;
@@ -1177,6 +1164,8 @@ const nearbyCopy: Record<Locale, {
     price: "价格",
     sort: "排序",
     recommendedSort: "中国游客推荐",
+    verifiedSort: "已审核优先",
+    recentSort: "最近确认优先",
     savedSort: "收藏顺序",
     distanceSort: "距离顺序",
     lowWaitSort: "少排队优先",
@@ -1218,6 +1207,8 @@ const nearbyCopy: Record<Locale, {
     price: "Price",
     sort: "Sort",
     recommendedSort: "Chinese traveler fit",
+    verifiedSort: "Verified first",
+    recentSort: "Recently checked",
     savedSort: "Most saved",
     distanceSort: "Distance",
     lowWaitSort: "Short wait",
@@ -1259,6 +1250,8 @@ const nearbyCopy: Record<Locale, {
     price: "価格",
     sort: "並び替え",
     recommendedSort: "中国旅行者向け",
+    verifiedSort: "確認済み順",
+    recentSort: "最近確認順",
     savedSort: "保存順",
     distanceSort: "距離順",
     lowWaitSort: "待ち時間が短い順",
@@ -1300,6 +1293,8 @@ const nearbyCopy: Record<Locale, {
     price: "가격대",
     sort: "정렬",
     recommendedSort: "중국인 추천도순",
+    verifiedSort: "검수 완료순",
+    recentSort: "최근 확인순",
     savedSort: "저장순",
     distanceSort: "거리순",
     lowWaitSort: "대기 적은 순",
@@ -1348,5 +1343,5 @@ function readPriceBucket(searchParams: URLSearchParams): ChinaPriceBucket {
 function readSortMode(searchParams: URLSearchParams, fallback: ChinaDiscoverySort): ChinaDiscoverySort {
   const value = searchParams.get("sort");
 
-  return value === "chinaRecommended" || value === "saved" || value === "distance" || value === "lowWait" ? value : fallback;
+  return value === "verified" || value === "recent" || value === "chinaRecommended" || value === "saved" || value === "distance" || value === "lowWait" ? value : fallback;
 }

@@ -11,6 +11,14 @@ export type ChinaDiscoveryFilter =
   | "wechatPay"
   | "solo"
   | "luggage"
+  | "luggageStorage"
+  | "restroom"
+  | "noMinimumOrder"
+  | "easyKiosk"
+  | "parents"
+  | "lowStairs"
+  | "photoTrip"
+  | "mobilePay"
   | "lowWait"
   | "nonSpicy"
   | "subwayWalk5"
@@ -21,7 +29,7 @@ export type ChinaDiscoveryFilter =
   | "openNight"
   | "firstBusan";
 
-export type ChinaDiscoverySort = "chinaRecommended" | "saved" | "distance" | "lowWait";
+export type ChinaDiscoverySort = "verified" | "recent" | "chinaRecommended" | "saved" | "distance" | "lowWait";
 
 export type ChinaPriceBucket = "all" | "low" | "mid" | "high";
 
@@ -122,6 +130,61 @@ export const chinaDiscoveryFilters: ChinaDiscoveryFilterOption[] = [
     compactLabel: { zh: "行李箱OK", en: "Luggage", ja: "荷物", ko: "캐리어" },
     match: (place) => triStateOrLegacy(place, "luggage_friendly", place.luggage_friendly),
     enabled: (places) => places.some((place) => place.china_info?.luggage_friendly === "yes" || place.luggage_friendly),
+  },
+  {
+    key: "luggageStorage", queryKey: "luggageStorage",
+    label: { zh: "可寄存行李", en: "Luggage storage", ja: "荷物預かり", ko: "짐 보관" },
+    compactLabel: { zh: "寄存行李", en: "Storage", ja: "荷物預かり", ko: "짐보관" },
+    match: (place) => place.china_info?.traveler_insights?.luggage_storage === "yes",
+    enabled: (places) => places.some((place) => place.china_info?.traveler_insights?.luggage_storage === "yes"),
+  },
+  {
+    key: "restroom", queryKey: "restroom",
+    label: { zh: "有店内厕所", en: "Restroom available", ja: "店内トイレ", ko: "화장실 있음" },
+    compactLabel: { zh: "厕所", en: "Restroom", ja: "トイレ", ko: "화장실" },
+    match: (place) => place.china_info?.toilet_available === "yes",
+    enabled: (places) => places.some((place) => place.china_info?.toilet_available === "yes"),
+  },
+  {
+    key: "noMinimumOrder", queryKey: "noMinimumOrder",
+    label: { zh: "无最低点餐", en: "No minimum order", ja: "最低注文なし", ko: "최소 주문 없음" },
+    compactLabel: { zh: "无低消", en: "No minimum", ja: "最低なし", ko: "최소주문 없음" },
+    match: (place) => place.china_info?.minimum_order_policy === "none",
+    enabled: (places) => places.some((place) => place.china_info?.minimum_order_policy === "none"),
+  },
+  {
+    key: "easyKiosk", queryKey: "easyKiosk",
+    label: { zh: "自助机支持外语", en: "Easy-language kiosk", ja: "多言語キオスク", ko: "키오스크 사용 쉬움" },
+    compactLabel: { zh: "外语自助机", en: "Easy kiosk", ja: "多言語端末", ko: "쉬운 키오스크" },
+    match: (place) => hasNonKoreanKiosk(place), enabled: (places) => places.some(hasNonKoreanKiosk),
+  },
+  {
+    key: "parents", queryKey: "parents",
+    label: { zh: "适合带父母", en: "Good with parents", ja: "両親と訪問", ko: "부모님과 방문" },
+    compactLabel: { zh: "带父母", en: "Parents", ja: "両親と", ko: "부모님" },
+    match: (place) => place.decision_profile?.recommended_for.includes("parents") ?? false,
+    enabled: (places) => places.some((place) => place.decision_profile?.recommended_for.includes("parents")),
+  },
+  {
+    key: "lowStairs", queryKey: "lowStairs",
+    label: { zh: "少楼梯", en: "Few stairs", ja: "階段少なめ", ko: "계단 적음" },
+    compactLabel: { zh: "少楼梯", en: "Few stairs", ja: "階段少", ko: "계단적음" },
+    match: (place) => place.china_info?.elevator === "yes" || place.china_info?.wheelchair_access === "yes",
+    enabled: (places) => places.some((place) => place.china_info?.elevator === "yes" || place.china_info?.wheelchair_access === "yes"),
+  },
+  {
+    key: "photoTrip", queryKey: "photoTrip",
+    label: { zh: "适合拍照", en: "Good for photos", ja: "写真向き", ko: "사진 촬영" },
+    compactLabel: { zh: "拍照", en: "Photos", ja: "写真", ko: "사진" },
+    match: (place) => place.decision_profile?.recommended_for.includes("photo_trip") === true || place.china_info?.photo_recommended === "yes",
+    enabled: (places) => places.some((place) => place.decision_profile?.recommended_for.includes("photo_trip") === true || place.china_info?.photo_recommended === "yes"),
+  },
+  {
+    key: "mobilePay", queryKey: "mobilePay",
+    label: { zh: "支付宝或微信支付", en: "Alipay or WeChat Pay", ja: "Alipay・WeChat Pay", ko: "알리페이·위챗페이" },
+    compactLabel: { zh: "移动支付", en: "Mobile pay", ja: "モバイル決済", ko: "중국 간편결제" },
+    match: (place) => place.china_info?.alipay === "yes" || place.china_info?.wechat_pay === "yes",
+    enabled: (places) => places.some((place) => place.china_info?.alipay === "yes" || place.china_info?.wechat_pay === "yes"),
   },
   {
     key: "lowWait",
@@ -257,6 +320,8 @@ export const chinaQuickFilters: ChinaDiscoveryFilter[] = [
   "rainyDay",
   "subwayWalk10",
   "chineseMenu",
+  "restroom",
+  "luggageStorage",
 ];
 
 export const chinaPriceBuckets: Array<{
@@ -298,6 +363,13 @@ export function sortPlacesForChineseTraveler<T extends { place: PlaceWithRelatio
   sort: ChinaDiscoverySort,
 ) {
   return [...items].sort((a, b) => {
+    if (sort === "verified") {
+      const statusDiff = verificationRank(a.place) - verificationRank(b.place);
+      if (statusDiff !== 0) return statusDiff;
+      return verifiedTime(b.place) - verifiedTime(a.place);
+    }
+
+    if (sort === "recent") return verifiedTime(b.place) - verifiedTime(a.place);
     if (sort === "saved") {
       return (b.place.save_count ?? 0) - (a.place.save_count ?? 0);
     }
@@ -330,6 +402,13 @@ export function sortPlacesForChineseTraveler<T extends { place: PlaceWithRelatio
 
 export function getEnabledChinaFilters(places: PlaceWithRelations[]) {
   return chinaDiscoveryFilters.filter((filter) => filter.enabled(places));
+}
+
+export function hasVerifiedRecommendationScores(places: PlaceWithRelations[]) {
+  return places.some((place) => {
+    const profile = place.decision_profile;
+    return Boolean(profile && profile.evidence_count > 0 && typeof profile.tourist_fit_score === "number" && (profile.verification_status === "verified" || profile.verification_status === "partially_verified"));
+  });
 }
 
 export function getChinaFilterByQueryKey(queryKey: string) {
@@ -465,4 +544,26 @@ function placeTextIncludes(place: PlaceWithRelations, keywords: string[]) {
     .toLowerCase();
 
   return keywords.some((keyword) => haystack.includes(keyword.toLowerCase()));
+}
+
+function hasNonKoreanKiosk(place: PlaceWithRelations) {
+  const kiosk = place.china_info?.kiosk_language_support;
+  return kiosk?.status === "yes" && kiosk.languages.some((language) => language.toLowerCase() !== "ko");
+}
+
+function verificationRank(place: PlaceWithRelations) {
+  const legacyStatus = place.china_info?.has_information_conflict
+    ? "conflicting"
+    : place.china_info?.verification_status === "verified"
+      ? "verified"
+      : place.china_info?.verification_status === "needs_review"
+        ? "partially_verified"
+        : "unverified";
+  return { verified: 0, partially_verified: 1, stale: 2, conflicting: 3, unverified: 4, rejected: 5 }[place.decision_profile?.verification_status ?? legacyStatus];
+}
+
+function verifiedTime(place: PlaceWithRelations) {
+  const value = place.decision_profile?.last_verified_at ?? place.china_info?.verified_at ?? place.last_verified_at;
+  const time = value ? Date.parse(value) : 0;
+  return Number.isFinite(time) ? time : 0;
 }
