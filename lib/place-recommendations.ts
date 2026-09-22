@@ -10,6 +10,7 @@ import {
 } from "@/lib/place-recommendation-score";
 import { getPublicPlacesByIds, getPublicPlacesInBounds } from "@/lib/place-store";
 import { isVerifiedPlace } from "@/lib/place-publication-quality";
+import { publishedPlaceStatus } from "@/lib/place-publishing";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { PlaceCategory, PlaceRankingCollection, PlaceWithRelations } from "@/types/database";
 import type { PublicPlaceConnection } from "@/lib/practical-route";
@@ -82,7 +83,7 @@ export async function getPracticalRouteContext(place: PlaceWithRelations) {
   }
   const client = getSupabaseClient();
   const bounds = buildCoordinateBounds({ latitude: place.latitude, longitude: place.longitude }, relatedPlaceRadiusMeters);
-  const nearby = (await getPublicPlacesInBounds(bounds, 60)).filter((candidate) => isVerifiedPlace(candidate));
+  const nearby = (await getPublicPlacesInBounds(bounds, 60)).filter(isPracticalRoutePlace);
   if (!client) return { candidates: nearby, connections: [] as PublicPlaceConnection[] };
 
   const directResult = await client
@@ -92,7 +93,7 @@ export async function getPracticalRouteContext(place: PlaceWithRelations) {
     .eq("active", true)
     .order("priority", { ascending: false });
   const direct = directResult.error ? [] : directResult.data as PublicPlaceConnection[];
-  const linked = (await getPublicPlacesByIds(direct.map((edge) => edge.to_place_id), client)).filter((candidate) => isVerifiedPlace(candidate));
+  const linked = (await getPublicPlacesByIds(direct.map((edge) => edge.to_place_id), client)).filter(isPracticalRoutePlace);
   const candidates = Array.from(new Map([...linked, ...nearby].map((candidate) => [candidate.id, candidate])).values());
   const fromIds = [place.id, ...candidates.map((candidate) => candidate.id)].slice(0, 100);
   const allResult = await client
@@ -157,4 +158,8 @@ function logRankingError(error: unknown) {
     // eslint-disable-next-line no-console
     console.error("[places:getPlaceRankings]", error);
   }
+}
+
+function isPracticalRoutePlace(place: PlaceWithRelations) {
+  return place.status === publishedPlaceStatus || isVerifiedPlace(place);
 }

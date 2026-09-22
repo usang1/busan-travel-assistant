@@ -91,7 +91,8 @@ assert.match(actions, /saveGuestTripLayout/);
 assert.doesNotMatch(actions, /clearSavedItems|clearGuestTrips/);
 
 const recommendationStore = readFileSync(new URL("../lib/place-recommendations.ts", import.meta.url), "utf8");
-assert.match(recommendationStore, /isVerifiedPlace\(candidate\)/);
+assert.match(recommendationStore, /isPracticalRoutePlace/);
+assert.match(recommendationStore, /place\.status === publishedPlaceStatus \|\| isVerifiedPlace\(place\)/);
 const guideStore = readFileSync(new URL("../lib/guide-store.ts", import.meta.url), "utf8");
 assert.match(guideStore, /verification_status/);
 assert.match(guideStore, /isMissingGuideDecisionSchema/);
