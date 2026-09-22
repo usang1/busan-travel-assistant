@@ -10,7 +10,7 @@ import {
 } from "@/lib/place-recommendation-score";
 import { getPublicPlacesByIds, getPublicPlacesInBounds } from "@/lib/place-store";
 import { isVerifiedPlace } from "@/lib/place-publication-quality";
-import { publishedPlaceStatus } from "@/lib/place-publishing";
+import { isPublicPlace, legacyActivePlaceStatus, publishedPlaceStatus } from "@/lib/place-publishing";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { PlaceCategory, PlaceRankingCollection, PlaceWithRelations } from "@/types/database";
 import type { PublicPlaceConnection } from "@/lib/practical-route";
@@ -161,5 +161,5 @@ function logRankingError(error: unknown) {
 }
 
 function isPracticalRoutePlace(place: PlaceWithRelations) {
-  return place.status === publishedPlaceStatus || isVerifiedPlace(place);
+  return isPublicPlace(place) && (place.status === publishedPlaceStatus || place.status === legacyActivePlaceStatus || isVerifiedPlace(place));
 }
