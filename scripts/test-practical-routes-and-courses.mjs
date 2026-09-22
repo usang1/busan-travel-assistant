@@ -94,6 +94,7 @@ const recommendationStore = readFileSync(new URL("../lib/place-recommendations.t
 assert.match(recommendationStore, /isVerifiedPlace\(candidate\)/);
 const guideStore = readFileSync(new URL("../lib/guide-store.ts", import.meta.url), "utf8");
 assert.match(guideStore, /verification_status/);
+assert.match(guideStore, /isMissingGuideDecisionSchema/);
 const admin = readFileSync(new URL("../components/AdminGuideManager.tsx", import.meta.url), "utf8");
 assert.match(admin, /draggable/);
 assert.match(admin, /비공개 장소: 공개 코스로 저장 불가/);

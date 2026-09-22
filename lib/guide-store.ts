@@ -14,19 +14,31 @@ export async function getPublishedGuides(): Promise<{ guides: Guide[]; unavailab
   try {
     const guides: Guide[] = [];
     for (let offset = 0; ; offset += 500) {
-      const { data, error } = await client.from("guides").select("*").eq("status", "PUBLISHED").in("verification_status", ["verified", "partially_verified"])
+      let { data, error } = await client.from("guides").select("*").eq("status", "PUBLISHED").in("verification_status", ["verified", "partially_verified"])
         .order("is_featured", { ascending: false }).order("sort_order").order("id").range(offset, offset + 499);
+      if (isMissingGuideDecisionSchema(error)) {
+        const legacy = await client.from("guides").select("*").eq("status", "PUBLISHED")
+          .order("is_featured", { ascending: false }).order("sort_order").order("id").range(offset, offset + 499);
+        data = legacy.data;
+        error = legacy.error;
+      }
       if (error) return { guides: [], unavailable: true };
-      guides.push(...(data as Guide[]));
-      if (data.length < 500) return { guides, unavailable: false };
+      const rows = (data ?? []) as Guide[];
+      guides.push(...rows);
+      if (rows.length < 500) return { guides, unavailable: false };
     }
   } catch { return { guides: [], unavailable: true }; }
 }
 export async function getPublishedGuide(slug: string): Promise<GuideDetail | null> {
   const client = createPublicGuideClient();
   if (!client) throw new Error("Guide service unavailable");
-  const { data, error } = await client.from("guides").select("*,guide_places(*)")
+  let { data, error } = await client.from("guides").select("*,guide_places(*)")
     .eq("slug", slug).eq("status", "PUBLISHED").in("verification_status", ["verified", "partially_verified"]).maybeSingle();
+  if (isMissingGuideDecisionSchema(error)) {
+    const legacy = await client.from("guides").select("*,guide_places(*)").eq("slug", slug).eq("status", "PUBLISHED").maybeSingle();
+    data = legacy.data;
+    error = legacy.error;
+  }
   if (error) throw new Error("Guide service unavailable");
   if (!data) return null;
   const guide = data as GuideDetail;
@@ -41,12 +53,18 @@ export async function getPublishedGuidesByIds(ids: string[]): Promise<Guide[]> {
   const client = createPublicGuideClient();
   if (!client) return [];
 
-  const { data, error } = await client
+  let { data, error } = await client
     .from("guides")
     .select("*")
     .eq("status", "PUBLISHED")
     .in("verification_status", ["verified", "partially_verified"])
     .in("id", uniqueIds);
+
+  if (isMissingGuideDecisionSchema(error)) {
+    const legacy = await client.from("guides").select("*").eq("status", "PUBLISHED").in("id", uniqueIds);
+    data = legacy.data;
+    error = legacy.error;
+  }
 
   if (error || !data) return [];
 
@@ -135,7 +153,7 @@ export async function getVerifiedGuideWalkingDistance(stops: GuideStop[], client
 async function getPublishedGuideDetails(client = createPublicGuideClient()): Promise<{ guides: GuideDetail[]; unavailable: boolean }> {
   if (!client) return { guides: [], unavailable: true };
 
-  const { data, error } = await client
+  let { data, error } = await client
     .from("guides")
     .select("*,guide_places(*)")
     .eq("status", "PUBLISHED")
@@ -143,6 +161,13 @@ async function getPublishedGuideDetails(client = createPublicGuideClient()): Pro
     .order("is_featured", { ascending: false })
     .order("sort_order")
     .limit(200);
+
+  if (isMissingGuideDecisionSchema(error)) {
+    const legacy = await client.from("guides").select("*,guide_places(*)").eq("status", "PUBLISHED")
+      .order("is_featured", { ascending: false }).order("sort_order").limit(200);
+    data = legacy.data;
+    error = legacy.error;
+  }
 
   if (error || !data) return { guides: [], unavailable: true };
 
@@ -168,3 +193,8 @@ const guideCategoryTerms: Record<PlaceCategory, string[]> = {
   photo_spot: ["사진", "포토", "拍照", "photo"],
   luggage: ["짐", "보관", "行李", "luggage"],
 };
+
+function isMissingGuideDecisionSchema(error: { code?: string; message?: string } | null) {
+  const message = error?.message ?? "";
+  return error?.code === "42703" || error?.code === "PGRST204" || message.includes("verification_status");
+}
