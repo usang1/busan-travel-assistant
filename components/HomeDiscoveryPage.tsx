@@ -83,11 +83,11 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
           {[
             { href: "/places?recommendedNow=true&sort=verified", label: copy.nowWorth, icon: Compass },
             { href: "/busan", label: copy.bySituation, icon: MapPin },
-            { href: "#sns-place-search", label: copy.findFromSns, icon: Search },
+            { href: "/social-find", label: copy.findFromSns, icon: Search },
             { href: "/itinerary", label: copy.buildItinerary, icon: Bookmark },
           ].map((action) => {
             const Icon = action.icon;
-            const href = action.href.startsWith("#") ? action.href : withLocale(action.href, locale);
+            const href = withLocale(action.href, locale);
 
             return (
               <Link key={action.label} href={href} className="flex min-h-14 items-center gap-3 rounded-lg bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/15 focus:outline-none focus:ring-4 focus:ring-teal-200 active:scale-[0.99]">

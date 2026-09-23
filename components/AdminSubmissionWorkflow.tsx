@@ -1529,7 +1529,7 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
   }
 
   return (
-    <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <section id="place-submissions" className="scroll-mt-24 rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-black text-slate-950">사용자 제보 검수</h2>

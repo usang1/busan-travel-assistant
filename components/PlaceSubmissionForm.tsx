@@ -13,19 +13,24 @@ import { defaultLocale, getLocaleFromPath, type Locale, ui, withLocale } from "@
 
 type PlaceSubmissionFormProps = {
   locale?: Locale;
+  initialValues?: {
+    name?: string;
+    location?: string;
+    reason?: string;
+  };
 };
 
-export function PlaceSubmissionForm({ locale = defaultLocale }: PlaceSubmissionFormProps) {
+export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: PlaceSubmissionFormProps) {
   const pathname = usePathname();
   const currentLocale = getLocaleFromPath(pathname) ?? locale;
   const copy = ui[currentLocale];
   const { user, loading } = useAuth();
   const [mapUrl, setMapUrl] = useState("");
-  const [reason, setReason] = useState("");
-  const [name, setName] = useState("");
+  const [reason, setReason] = useState(() => initialValues?.reason?.slice(0, 1000) ?? "");
+  const [name, setName] = useState(() => initialValues?.name?.slice(0, 120) ?? "");
   const [category, setCategory] = useState<PlaceCategory | "">("");
   const [description, setDescription] = useState("");
-  const [locationText, setLocationText] = useState("");
+  const [locationText, setLocationText] = useState(() => initialValues?.location?.slice(0, 240) ?? "");
   const [imageUrl, setImageUrl] = useState("");
   const [extraNotes, setExtraNotes] = useState("");
   const [status, setStatus] = useState("");

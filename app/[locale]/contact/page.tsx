@@ -8,6 +8,11 @@ type LocalizedContactPageProps = {
   params: Promise<{
     locale: string;
   }>;
+  searchParams: Promise<{
+    name?: string | string[];
+    location?: string | string[];
+    reason?: string | string[];
+  }>;
 };
 
 async function getLocale(params: LocalizedContactPageProps["params"]): Promise<Locale> {
@@ -32,9 +37,15 @@ export async function generateMetadata({ params }: LocalizedContactPageProps): P
   });
 }
 
-export default async function LocalizedContactPage({ params }: LocalizedContactPageProps) {
+export default async function LocalizedContactPage({ params, searchParams }: LocalizedContactPageProps) {
   const locale = await getLocale(params);
   const copy = ui[locale];
+  const query = await searchParams;
+  const initialValues = {
+    name: safeQueryValue(query.name, 120),
+    location: safeQueryValue(query.location, 240),
+    reason: safeQueryValue(query.reason, 1000),
+  };
 
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
@@ -43,7 +54,7 @@ export default async function LocalizedContactPage({ params }: LocalizedContactP
         <p className="mt-2 text-sm text-slate-300">{copy.submissions.description}</p>
       </section>
       <div className="mt-6">
-        <PlaceSubmissionForm locale={locale} />
+        <PlaceSubmissionForm locale={locale} initialValues={initialValues} />
       </div>
       {siteConfig.contactEmail ? (
         <section className="mt-5 rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
@@ -53,4 +64,12 @@ export default async function LocalizedContactPage({ params }: LocalizedContactP
       ) : null}
     </main>
   );
+}
+
+function safeQueryValue(value: string | string[] | undefined, maxLength: number) {
+  const selected = Array.isArray(value) ? value[0] : value;
+  return selected?.normalize("NFKC").split("").map((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127 ? " " : character;
+  }).join("").trim().slice(0, maxLength) ?? "";
 }

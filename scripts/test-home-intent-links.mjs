@@ -234,7 +234,7 @@ for (const locale of ["ko", "zh", "en", "ja"]) {
 assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides: \[\], places, locale, district: selectedDistrict \}\)/);
 assert.match(homeDiscoverySource, /getDistrictCounts\(places\)/);
 assert.match(homeDiscoverySource, /filter\(\(district\) => district\.count > 0\)/);
-assert.match(homeDiscoverySource, /href: "#sns-place-search"/);
+assert.match(homeDiscoverySource, /href: "\/social-find"/);
 assert.match(homeDiscoverySource, /<HomeSearchForm locale=\{locale\} \/>/);
 assert.match(homeDiscoverySource, /aria-disabled="true"/);
 assert.match(homeDiscoverySource, /orderedDistricts\.map/);

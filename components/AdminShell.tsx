@@ -7,6 +7,7 @@ import { AdminCorrectionWorkflow } from "@/components/AdminCorrectionWorkflow";
 import { AdminDashboard } from "@/components/AdminDashboard";
 import { AdminGuideManager } from "@/components/AdminGuideManager";
 import { AdminPlaceManager } from "@/components/AdminPlaceManager";
+import { AdminSocialDiscoveryManager } from "@/components/AdminSocialDiscoveryManager";
 import { AdminSubmissionWorkflow } from "@/components/AdminSubmissionWorkflow";
 import { AdminTravelerDecisionManager } from "@/components/AdminTravelerDecisionManager";
 import { AdminTravelerReportWorkflow } from "@/components/AdminTravelerReportWorkflow";
@@ -132,10 +133,12 @@ export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
       <nav aria-label={copy.menu} className="flex flex-wrap gap-2">
         <a href="#traveler-decision" className="inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-bold text-white">여행자 데이터</a>
         <a href="#traveler-reports" className="inline-flex min-h-11 items-center rounded-lg bg-amber-600 px-4 text-sm font-bold text-white">현장 제보 검수</a>
+        <a href="#social-discovery" className="inline-flex min-h-11 items-center rounded-lg bg-cyan-700 px-4 text-sm font-bold text-white">SNS 장소 연결</a>
         <a href="#guides" className="inline-flex min-h-11 items-center rounded-lg bg-slate-900 px-4 text-sm font-bold text-white">{copy.guides}</a>
       </nav>
       <AdminDashboard places={places} photoSpots={[] as PhotoSpotRecord[]} />
       <AdminTravelerReportWorkflow accessToken={accessToken as string} />
+      <AdminSocialDiscoveryManager accessToken={accessToken as string} />
       <AdminTravelerDecisionManager accessToken={accessToken as string} places={places} />
       <AdminGuideManager accessToken={accessToken as string} places={places} />
       <AdminSubmissionWorkflow accessToken={accessToken as string} places={places} onPlaceCreated={loadPlaces} />

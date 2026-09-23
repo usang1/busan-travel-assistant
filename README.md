@@ -44,6 +44,8 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 TRAVELER_REPORT_HASH_SECRET=
+SOCIAL_DISCOVERY_HASH_SECRET=
+SOCIAL_DISCOVERY_IMAGE_ENABLED=false
 NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED=false
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
@@ -57,11 +59,14 @@ KAKAO_REST_API_KEY=
 OPENAI_API_KEY=
 OPENAI_PLACE_MODEL=
 OPENAI_TRANSLATION_MODEL=
+OPENAI_SOCIAL_DISCOVERY_MODEL=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
 - `SUPABASE_SERVICE_ROLE_KEY`: 익명 현장 확인을 서버에서 원자적으로 저장할 때만 사용하는 Supabase 서버 키입니다. Vercel 서버 환경변수에만 넣고 `NEXT_PUBLIC_` 접두사를 붙이지 마세요.
 - `TRAVELER_REPORT_HASH_SECRET`: 익명 기기 쿠키를 DB 저장 전에 HMAC 처리하는 32자 이상의 무작위 서버 secret입니다. 기존 값 변경 시 익명 rate limit 식별이 초기화됩니다.
+- `SOCIAL_DISCOVERY_HASH_SECRET`: SNS 장소 찾기의 익명 소유권과 rate limit 식별용 32자 이상 서버 secret입니다. 비우면 `TRAVELER_REPORT_HASH_SECRET`을 호환 사용합니다.
+- `SOCIAL_DISCOVERY_IMAGE_ENABLED`: 캡처 개인정보 검수와 OCR 운영 준비가 끝난 뒤에만 `true`로 설정합니다. 텍스트 검색은 이 값과 무관하게 동작합니다.
 - `NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED`: 여행자 사진·영수증 스토리지와 개인정보 검수 절차가 준비된 뒤에만 `true`로 전환할 feature flag입니다. 현재 UI는 업로드를 공개하지 않습니다.
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
@@ -73,6 +78,7 @@ OPENAI_TRANSLATION_MODEL=
 - `OPENAI_API_KEY`: provider 사실 기반 AI 장소 요약과 관리자 다국어 설명/여행팁 생성에 서버에서만 사용합니다. `NEXT_PUBLIC_`를 붙이지 마세요.
 - `OPENAI_PLACE_MODEL`: 관리자 장소 설명 생성 모델입니다. 비우면 코드 기본값 `gpt-5.6-luna`를 사용합니다.
 - `OPENAI_TRANSLATION_MODEL`: 사용자용 외국어 → 한국어 GPT 번역 모델입니다. 비우면 `OPENAI_PLACE_MODEL`, 그것도 비어 있으면 `gpt-5-mini`를 사용합니다.
+- `OPENAI_SOCIAL_DISCOVERY_MODEL`: SNS 캡처에서 보이는 장소 단서만 추출하는 모델입니다. 비우면 `OPENAI_PLACE_MODEL`, 이후 `gpt-5-mini`를 사용합니다. 캡처는 `store: false`로 처리하고 저장하지 않습니다.
 
 관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
 
@@ -84,6 +90,7 @@ OPENAI_TRANSLATION_MODEL=
 AI 생성 기반 설계와 관리자 적용 흐름은 `docs/ai-place-content-generation.md`에 정리되어 있습니다.
 지도 링크 provider 구조와 수동 설정은 `docs/map-place-providers.md`에 정리되어 있습니다.
 Provider 사실정보의 form/DB 매핑과 중복 탐지는 `docs/place-metadata-enrichment.md`에 정리되어 있습니다.
+SNS 장소 찾기의 개인정보 경계, 이미지 feature flag, 관리자 검수와 롤백 주의사항은 `docs/social-discovery.md`에 정리되어 있습니다.
 
 ## Supabase 설정
 
@@ -123,6 +130,7 @@ supabase/migrations/030_traveler_decision_data.sql
 supabase/migrations/031_menu_guidance_facts.sql
 supabase/migrations/032_practical_routes_and_course_snapshots.sql
 supabase/migrations/033_traveler_verification_and_trust_signals.sql
+supabase/migrations/034_social_discovery_matching.sql
 supabase/seed.sql
 ```
 
@@ -145,6 +153,8 @@ supabase/seed.sql
 - `place_checkins`, `place_fact_reports`: 10초 현장 확인과 항목별 원본 제보입니다. 원본은 공개 읽기를 허용하지 않고 관리자 검수 후 집계 함수로만 공개합니다.
 - `place_report_evidence`: 사진·영수증 등 추가 근거의 비공개 메타데이터입니다. 스토리지와 개인정보 검수 준비 전에는 업로드 feature flag를 끈 상태로 유지합니다.
 - `user_trust_profiles`: 로그인 기여자의 승인·거절 수와 지역 검수자 등급 기반입니다. 내부 가중치는 공개 점수처럼 표시하지 않습니다.
+- `sns_place_mappings`, `sns_place_candidates`: SNS에서 추출한 최소 단서, URL 해시, 공개 부산 장소 후보와 관리자 승인 별칭을 저장합니다. 원문 URL·본문·이미지는 저장하지 않습니다.
+- `social_discovery_requests`: 익명/로그인 사용자의 rate limit과 운영 상태만 저장합니다. IP 주소와 원본 입력은 수집하지 않습니다.
 
 기존 `places.name_zh/name_ko` 계열 컬럼은 호환을 위해 유지합니다. `003_multilingual_place_architecture.sql`은 기존 중국어/한국어 데이터를 `place_translations`로 backfill하며, 새 기능은 점진적으로 번역 테이블을 우선 사용하도록 확장할 수 있습니다.
 

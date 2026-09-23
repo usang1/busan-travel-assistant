@@ -366,7 +366,14 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
               ) : places.length === 0 ? (
                 <Link href={withLocale("/contact", locale)} className="inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-black text-white">{copy.common.submitPlace}</Link>
               ) : (
-                <button type="button" onClick={clearFilters} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{explorerCopy.clearFilters}</button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <button type="button" onClick={clearFilters} className="min-h-11 rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{explorerCopy.clearFilters}</button>
+                  {query ? (
+                    <Link href={`${withLocale("/social-find", locale)}?text=${encodeURIComponent(query)}`} className="inline-flex min-h-11 items-center rounded-lg bg-white px-4 text-sm font-black text-teal-800 ring-1 ring-teal-200">
+                      {socialNoResultLabel[locale]}
+                    </Link>
+                  ) : null}
+                </div>
               )
             }
           />
@@ -379,6 +386,13 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     </div>
   );
 }
+
+const socialNoResultLabel: Record<Locale, string> = {
+  ko: "SNS 단서로 다시 찾기",
+  zh: "用 SNS 线索再找",
+  en: "Try social clues",
+  ja: "SNSの手がかりで探す",
+};
 
 const placesExplorerCopy: Record<Locale, {
   region: string;

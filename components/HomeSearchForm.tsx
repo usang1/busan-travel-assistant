@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
-import { Search } from "lucide-react";
+import { ScanSearch, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type Locale, ui } from "@/lib/i18n";
+import { type Locale, ui, withLocale } from "@/lib/i18n";
 import type { BusanDistrictKey } from "@/lib/busan-districts";
 import { buildLocalizedPlacesSearchHref } from "@/lib/place-search-url";
 
@@ -55,34 +56,47 @@ export function HomeSearchForm({ locale, region }: HomeSearchFormProps) {
   }
 
   return (
-    <form onSubmit={submit} role="search" aria-label={copy.searchLabel} className="flex flex-col gap-2 sm:flex-row">
-      <label className="relative min-w-0 flex-1">
-        <span className="sr-only">{copy.searchLabel}</span>
-        <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-        <input
-          type="search"
-          name="search"
-          enterKeyHint="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onCompositionStart={() => {
-            isComposingRef.current = true;
-          }}
-          onCompositionEnd={() => {
-            isComposingRef.current = false;
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={copy.searchPlaceholder}
-          className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-[16px] text-slate-900 outline-none shadow-sm transition focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={isNavigating}
-        className="inline-flex h-14 min-h-11 w-full shrink-0 items-center justify-center rounded-2xl bg-teal-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-200 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
-      >
-        {copy.searchButton}
-      </button>
-    </form>
+    <div>
+      <form onSubmit={submit} role="search" aria-label={copy.searchLabel} className="flex flex-col gap-2 sm:flex-row">
+        <label className="relative min-w-0 flex-1">
+          <span className="sr-only">{copy.searchLabel}</span>
+          <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <input
+            type="search"
+            name="search"
+            enterKeyHint="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              isComposingRef.current = false;
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={copy.searchPlaceholder}
+            className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-[16px] text-slate-900 outline-none shadow-sm transition focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={isNavigating}
+          className="inline-flex h-14 min-h-11 w-full shrink-0 items-center justify-center rounded-2xl bg-teal-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-200 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+        >
+          {copy.searchButton}
+        </button>
+      </form>
+      <Link href={`${withLocale("/social-find", locale)}${query.trim() ? `?text=${encodeURIComponent(query.trim())}` : ""}`} className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-black text-teal-800 underline decoration-teal-200 decoration-2 underline-offset-4">
+        <ScanSearch size={17} aria-hidden="true" />
+        {socialSearchLabel[locale]}
+      </Link>
+    </div>
   );
 }
+
+const socialSearchLabel: Record<Locale, string> = {
+  ko: "SNS에서 본 장소라면 단서로 찾기",
+  zh: "从小红书或 SNS 线索查找",
+  en: "Find it from social post clues",
+  ja: "SNS投稿の手がかりから探す",
+};
