@@ -25,6 +25,7 @@ import {
   signSocialConfirmation,
   SocialActorError,
 } from "@/lib/social-discovery-server";
+import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ const maxTextLength = 6000;
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function POST(request: NextRequest) {
+  if (!isSocialDiscoveryEnabled()) return json({ message: "feature_disabled" }, 404);
   if (!isSameRequestOrigin(request)) return json({ message: "cross_site_blocked" }, 403);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data")) return json({ message: "multipart_required" }, 415);
   const contentLength = Number(request.headers.get("content-length") ?? 0);

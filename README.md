@@ -1,6 +1,8 @@
 # 韩国旅行助手 Korea Travel Assistant
 
-중국인 자유여행객이 부산 광안리에서 바로 쓸 수 있는 모바일 중심 여행 도구 MVP입니다.
+외국인 자유여행객이 장소를 발견한 뒤 지금 갈 가치, 주문, 실패 위험, 다음 동선을 판단하도록 돕는 여행 의사결정·실패 방지 레이어입니다. 범용 지도나 자체 길찾기를 만들지 않으며 외부 지도앱과 함께 사용합니다.
+
+부산이 현재 가장 깊게 운영·검수되는 Beta 범위입니다. 서울·제주도 동일한 도시 범위 검증을 거친 공개 장소가 있을 때 탐색할 수 있으며, 주변 추천과 AI 후보는 선택한 도시를 넘지 않습니다.
 
 사용자 화면은 중국어 간체를 기본으로 하며 `/zh`, `/en`, `/ja`, `/ko` locale URL 기반 확장을 준비했습니다. 관리자 화면은 한국어로 제공합니다. 실제 업체 정보는 Supabase 관리자 데이터만 노출하며, 환경 변수가 없는 로컬 환경에서는 명확한 Demo 데이터로 fallback됩니다.
 
@@ -15,7 +17,7 @@
 
 ## 주요 기능
 
-- 광안리 장소 검색, 카테고리/조건 필터
+- 서울·부산·제주 장소 검색, 도시 범위·카테고리·조건 필터
 - 장소 상세, 메뉴, 주문 추천, 직원에게 보여주기
 - 사진스팟 목록/상세, FREE/PRO 잠금
 - 한국인에게 보여주기 번역 카드
@@ -45,8 +47,17 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 TRAVELER_REPORT_HASH_SECRET=
 SOCIAL_DISCOVERY_HASH_SECRET=
+SOCIAL_DISCOVERY_ENABLED=false
+NEXT_PUBLIC_SOCIAL_DISCOVERY_ENABLED=false
 SOCIAL_DISCOVERY_IMAGE_ENABLED=false
+TRIP_PLANNER_HASH_SECRET=
+GROUNDED_TRIP_PLANNER_ENABLED=false
+NEXT_PUBLIC_GROUNDED_TRIP_PLANNER_ENABLED=false
+ITINERARY_RECOVERY_ENABLED=false
+NEXT_PUBLIC_ITINERARY_RECOVERY_ENABLED=false
+AI_TRIP_PLANNER_ENABLED=false
 NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED=false
+NEXT_PUBLIC_VISIT_PROXIMITY_VERIFICATION_ENABLED=false
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_CONTACT_EMAIL=
@@ -60,14 +71,20 @@ OPENAI_API_KEY=
 OPENAI_PLACE_MODEL=
 OPENAI_TRANSLATION_MODEL=
 OPENAI_SOCIAL_DISCOVERY_MODEL=
+OPENAI_TRIP_PLANNER_MODEL=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
 - `SUPABASE_SERVICE_ROLE_KEY`: 익명 현장 확인을 서버에서 원자적으로 저장할 때만 사용하는 Supabase 서버 키입니다. Vercel 서버 환경변수에만 넣고 `NEXT_PUBLIC_` 접두사를 붙이지 마세요.
 - `TRAVELER_REPORT_HASH_SECRET`: 익명 기기 쿠키를 DB 저장 전에 HMAC 처리하는 32자 이상의 무작위 서버 secret입니다. 기존 값 변경 시 익명 rate limit 식별이 초기화됩니다.
 - `SOCIAL_DISCOVERY_HASH_SECRET`: SNS 장소 찾기의 익명 소유권과 rate limit 식별용 32자 이상 서버 secret입니다. 비우면 `TRAVELER_REPORT_HASH_SECRET`을 호환 사용합니다.
+- `SOCIAL_DISCOVERY_ENABLED`, `NEXT_PUBLIC_SOCIAL_DISCOVERY_ENABLED`: SNS 장소 찾기 API와 UI를 함께 여는 Phase 2 플래그입니다. 둘 다 기본값은 `false`입니다.
 - `SOCIAL_DISCOVERY_IMAGE_ENABLED`: 캡처 개인정보 검수와 OCR 운영 준비가 끝난 뒤에만 `true`로 설정합니다. 텍스트 검색은 이 값과 무관하게 동작합니다.
+- `GROUNDED_TRIP_PLANNER_ENABLED`, `NEXT_PUBLIC_GROUNDED_TRIP_PLANNER_ENABLED`: DB 근거형 코스 API와 UI를 함께 여는 Phase 2 플래그입니다.
+- `ITINERARY_RECOVERY_ENABLED`, `NEXT_PUBLIC_ITINERARY_RECOVERY_ENABLED`: 기존 일정 대안 제안 API와 UI를 여는 플래그입니다. 일정은 사용자 확인 전 변경되지 않습니다.
+- `AI_TRIP_PLANNER_ENABLED`: 검증 후보의 순서화에만 AI를 사용하는 서버 플래그입니다. 꺼져 있어도 규칙 기반 계획과 일반 기능은 유지됩니다.
 - `NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED`: 여행자 사진·영수증 스토리지와 개인정보 검수 절차가 준비된 뒤에만 `true`로 전환할 feature flag입니다. 현재 UI는 업로드를 공개하지 않습니다.
+- `NEXT_PUBLIC_VISIT_PROXIMITY_VERIFICATION_ENABLED`: 근처 위치 확인을 여는 Phase 2 플래그입니다. 꺼져 있어도 위치 없는 10초 현장 확인은 동작합니다.
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
 - `NEXT_PUBLIC_CONTACT_EMAIL`: 공개 문의 이메일입니다. 비워두면 문의 페이지에 이메일을 표시하지 않고 문의/제보 폼만 제공합니다.
@@ -91,6 +108,8 @@ AI 생성 기반 설계와 관리자 적용 흐름은 `docs/ai-place-content-gen
 지도 링크 provider 구조와 수동 설정은 `docs/map-place-providers.md`에 정리되어 있습니다.
 Provider 사실정보의 form/DB 매핑과 중복 탐지는 `docs/place-metadata-enrichment.md`에 정리되어 있습니다.
 SNS 장소 찾기의 개인정보 경계, 이미지 feature flag, 관리자 검수와 롤백 주의사항은 `docs/social-discovery.md`에 정리되어 있습니다.
+최종 제품 원칙, 데이터 순환, 분석 이벤트, 단계별 공개와 운영 방법은 `docs/product-rollout.md`에 정리되어 있습니다.
+자동·수동 QA 범위는 `docs/final-qa-matrix.md`에 정리되어 있습니다.
 
 ## Supabase 설정
 
@@ -131,6 +150,8 @@ supabase/migrations/031_menu_guidance_facts.sql
 supabase/migrations/032_practical_routes_and_course_snapshots.sql
 supabase/migrations/033_traveler_verification_and_trust_signals.sql
 supabase/migrations/034_social_discovery_matching.sql
+supabase/migrations/035_grounded_trip_planning.sql
+supabase/migrations/036_product_rollout_analytics.sql
 supabase/seed.sql
 ```
 
@@ -153,8 +174,10 @@ supabase/seed.sql
 - `place_checkins`, `place_fact_reports`: 10초 현장 확인과 항목별 원본 제보입니다. 원본은 공개 읽기를 허용하지 않고 관리자 검수 후 집계 함수로만 공개합니다.
 - `place_report_evidence`: 사진·영수증 등 추가 근거의 비공개 메타데이터입니다. 스토리지와 개인정보 검수 준비 전에는 업로드 feature flag를 끈 상태로 유지합니다.
 - `user_trust_profiles`: 로그인 기여자의 승인·거절 수와 지역 검수자 등급 기반입니다. 내부 가중치는 공개 점수처럼 표시하지 않습니다.
-- `sns_place_mappings`, `sns_place_candidates`: SNS에서 추출한 최소 단서, URL 해시, 공개 부산 장소 후보와 관리자 승인 별칭을 저장합니다. 원문 URL·본문·이미지는 저장하지 않습니다.
+- `sns_place_mappings`, `sns_place_candidates`: SNS에서 추출한 최소 단서, URL 해시, 선택 도시의 공개 장소 후보와 관리자 승인 별칭을 저장합니다. 원문 URL·본문·이미지는 저장하지 않습니다.
 - `social_discovery_requests`: 익명/로그인 사용자의 rate limit과 운영 상태만 저장합니다. IP 주소와 원본 입력은 수집하지 않습니다.
+- `grounded_trip_plan_requests`: 원문 프롬프트와 정확한 좌표 없이 요청 상태, 비용, 실패율을 운영 목적으로 집계합니다.
+- `place_action_events`: 운영 데이터와 분리된 개인정보 최소화 퍼널 이벤트입니다. 검색 원문, 정확한 위치, 토큰, 이메일을 저장하지 않습니다.
 
 기존 `places.name_zh/name_ko` 계열 컬럼은 호환을 위해 유지합니다. `003_multilingual_place_architecture.sql`은 기존 중국어/한국어 데이터를 `place_translations`로 backfill하며, 새 기능은 점진적으로 번역 테이블을 우선 사용하도록 확장할 수 있습니다.
 

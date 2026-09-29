@@ -6,6 +6,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { ProductAnalytics } from "@/components/ProductAnalytics";
 import { hasCoordinates, type Coordinates } from "@/lib/location";
 import { formatPlaceDistance, getDistanceWarning } from "@/lib/place-display";
 import { defaultLocale, getPlaceContent, type Locale, withLocale } from "@/lib/i18n";
@@ -46,6 +47,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
 
   return (
     <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <ProductAnalytics eventType="place_impression" locale={locale} placeId={place.id} mode="visible" metadata={{ surface: compact ? "compact_card" : "place_card", category: place.category }} />
       <Link href={placeHref} className="block">
         <div className="relative aspect-[16/10] bg-slate-200">
           {photo.kind === "image" ? (

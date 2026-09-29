@@ -37,6 +37,8 @@ import { readPlacesSearchQuery } from "@/lib/place-search-url";
 import { getHomeIntentKeyFromSlug, getHomeIntentLabel, isHomeIntentKey, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { getPlaceCategoryLabel } from "@/lib/place-trust";
 import { categoryLabels, type PlaceCategory, type PlaceRankingCollection, type PlaceWithRelations } from "@/types/database";
+import { useAuth } from "@/components/AuthProvider";
+import { recordProductEvent } from "@/lib/place-events";
 
 type PlacesExplorerProps = {
   places: PlaceWithRelations[];
@@ -61,10 +63,12 @@ const categoryFilters: Array<{ value: PlaceCategory | "all" }> = [
 ];
 
 export function PlacesExplorer({ places, initialCategory, locale = defaultLocale, loadError, rankings, city }: PlacesExplorerProps) {
+  const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(() => readPlacesSearchQuery(searchParams));
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [category, setCategory] = useState<PlaceCategory | "all">(
     getInitialCategory(searchParams, initialCategory),
   );
@@ -95,6 +99,11 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const regions = cityRegions(city).map((item) => ({ key: item.key, label: item.labels[locale] }));
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
     if (!hasRecommendationScores && sortMode === "chinaRecommended") setSortMode("verified");
   }, [hasRecommendationScores, sortMode]);
 
@@ -102,7 +111,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     const nextParams = new URLSearchParams();
     nextParams.set("city", city);
 
-    if (query.trim()) nextParams.set("search", query.trim());
+    if (debouncedQuery.trim()) nextParams.set("search", debouncedQuery.trim());
     if (category !== "all") nextParams.set("category", category);
     if (region !== "all") nextParams.set("region", region);
     if (priceBucket !== "all") nextParams.set("price", priceBucket);
@@ -125,7 +134,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     if (nextQuery !== currentQuery) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     }
-  }, [activeChinaFilters, category, city, homeIntent, pathname, priceBucket, query, region, router, searchParams, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, category, city, debouncedQuery, homeIntent, pathname, priceBucket, region, router, searchParams, showChinaFilters, sortMode]);
 
   const enrichedPlaces = useMemo(() => {
     const origin = userLocation ?? placeCityCenters[city];
@@ -139,7 +148,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   }, [city, places, userLocation]);
 
   const filteredPlaces = useMemo(() => {
-    const lowered = query.trim().toLowerCase();
+    const lowered = debouncedQuery.trim().toLowerCase();
     const chinaFilteredPlaces = new Set(
       filterPlacesForChineseTraveler(
         enrichedPlaces.map((item) => item.place),
@@ -161,7 +170,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       });
 
     return sortPlacesForChineseTraveler(filtered, sortMode);
-  }, [activeChinaFilters, category, enrichedPlaces, homeIntent, locale, priceBucket, query, region, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, category, debouncedQuery, enrichedPlaces, homeIntent, locale, priceBucket, region, showChinaFilters, sortMode]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") {
@@ -190,6 +199,16 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     setActiveChinaFilters((current) =>
       current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter],
     );
+    trackFilter("traveler_filter", filter);
+  }
+
+  function trackFilter(filterKind: string, filterValue: string) {
+    void recordProductEvent({
+      eventType: "filter_applied",
+      locale,
+      userId: user?.id,
+      metadata: { surface: "places", city, filter_kind: filterKind, filter_value: filterValue },
+    });
   }
 
   function clearFilters() {
@@ -234,6 +253,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onBlur={() => { if (query.trim()) trackFilter("search", "present"); }}
             placeholder={copy.places.searchPlaceholder}
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] text-slate-900 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
           />
@@ -247,7 +267,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
               <button
                 key={filter.value}
                 type="button"
-                onClick={() => setCategory(filter.value)}
+                onClick={() => { setCategory(filter.value); trackFilter("category", filter.value); }}
                 className={filterClass(active)}
               >
                 {filter.value === "all" ? copy.places.all : getPlaceCategoryLabel(filter.value, locale)}
@@ -262,7 +282,12 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.region}</span>
-            <select value={region} onChange={(event) => setRegion(event.target.value)} className={selectClass}>
+            <select value={region} onChange={(event) => {
+              const next = event.target.value;
+              setRegion(next);
+              trackFilter("district", next);
+              if (next !== "all") void recordProductEvent({ eventType: "district_selected", locale, userId: user?.id, metadata: { city, district: next, surface: "places" } });
+            }} className={selectClass}>
               <option value="all">{explorerCopy.allRegions}</option>
               {regions.map((item) => (
                 <option key={item.key} value={item.key}>{item.label}</option>
@@ -271,7 +296,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.price}</span>
-            <select value={priceBucket} onChange={(event) => setPriceBucket(event.target.value as ChinaPriceBucket)} className={selectClass}>
+            <select value={priceBucket} onChange={(event) => { setPriceBucket(event.target.value as ChinaPriceBucket); trackFilter("price", event.target.value); }} className={selectClass}>
               {chinaPriceBuckets.map((bucket) => (
                 <option key={bucket.value} value={bucket.value}>{bucket.label[locale]}</option>
               ))}
@@ -279,7 +304,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.sort}</span>
-            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} className={selectClass}>
+            <select value={sortMode} onChange={(event) => { setSortMode(event.target.value as SortMode); trackFilter("sort", event.target.value); }} className={selectClass}>
               <option value="verified">{explorerCopy.verifiedSort}</option>
               <option value="recent">{explorerCopy.recentSort}</option>
               {hasRecommendationScores ? <option value="chinaRecommended">{explorerCopy.recommendedSort}</option> : null}
@@ -368,7 +393,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
               ) : (
                 <div className="flex flex-wrap justify-center gap-2">
                   <button type="button" onClick={clearFilters} className="min-h-11 rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{explorerCopy.clearFilters}</button>
-                  {query ? (
+                  {query && process.env.NEXT_PUBLIC_SOCIAL_DISCOVERY_ENABLED === "true" ? (
                     <Link href={`${withLocale("/social-find", locale)}?text=${encodeURIComponent(query)}`} className="inline-flex min-h-11 items-center rounded-lg bg-white px-4 text-sm font-black text-teal-800 ring-1 ring-teal-200">
                       {socialNoResultLabel[locale]}
                     </Link>

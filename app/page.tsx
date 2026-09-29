@@ -4,6 +4,7 @@ import { StructuredData } from "@/components/StructuredData";
 import { buildLocalizedMetadata, localeMeta, localizedCanonical, ui } from "@/lib/i18n";
 import { getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
+import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
 
 export const revalidate = 300;
 
@@ -33,7 +34,7 @@ export default async function Home() {
           description: copy.home.description,
         }}
       />
-      <HomeDiscoveryPage locale={locale} places={places} />
+      <HomeDiscoveryPage locale={locale} places={places} socialDiscoveryEnabled={isSocialDiscoveryEnabled()} />
     </>
   );
 }

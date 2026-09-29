@@ -13,6 +13,7 @@ import {
 } from "@/lib/traveler-decision-display";
 import type { PlaceFactTristate, PlaceWithRelations } from "@/types/database";
 import { getForeignerDifficultyDimensions, getLargestKnownObstacle } from "@/lib/traveler-practical-display";
+import { ProductAnalytics } from "@/components/ProductAnalytics";
 
 type TravelerDecisionCardProps = {
   place: PlaceWithRelations;
@@ -34,6 +35,8 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
   if (variant === "compact") {
     return (
       <section className={`space-y-2 ${className}`} aria-label={text.title}>
+        <ProductAnalytics eventType="decision_card_viewed" locale={locale} placeId={place.id} mode="visible" dedupeKey={`decision:${place.id}:compact`} metadata={{ surface: "compact" }} />
+        {warnings.length ? <ProductAnalytics eventType="warning_viewed" locale={locale} placeId={place.id} mode="visible" dedupeKey={`warning:${place.id}:compact`} metadata={{ surface: "compact", warning_count: warnings.length }} /> : null}
         <div className="flex flex-wrap items-center gap-2 text-xs font-black">
           <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-teal-50 px-2.5 text-teal-900 ring-1 ring-teal-100">
             <Gauge size={14} aria-hidden="true" />
@@ -62,6 +65,8 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
 
   return (
     <section className={`bg-white px-5 py-6 ring-1 ring-slate-200 ${className}`} aria-labelledby={`decision-${place.id}`}>
+      <ProductAnalytics eventType="decision_card_viewed" locale={locale} placeId={place.id} mode="visible" dedupeKey={`decision:${place.id}:detail`} metadata={{ surface: "detail" }} />
+      {warnings.length ? <ProductAnalytics eventType="warning_viewed" locale={locale} placeId={place.id} mode="visible" dedupeKey={`warning:${place.id}:detail`} metadata={{ surface: "detail", warning_count: warnings.length }} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase text-teal-700">{text.title}</p>

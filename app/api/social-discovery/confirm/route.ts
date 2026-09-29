@@ -7,6 +7,7 @@ import {
   SocialActorError,
   verifySocialConfirmation,
 } from "@/lib/social-discovery-server";
+import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ const hashPattern = /^[a-f0-9]{64}$/;
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function POST(request: NextRequest) {
+  if (!isSocialDiscoveryEnabled()) return json("feature_disabled", 404);
   if (!isSameRequestOrigin(request)) return json("cross_site_blocked", 403);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return json("json_required", 415);
 

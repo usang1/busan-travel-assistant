@@ -23,13 +23,14 @@ export function captureSessionAttribution() {
   if (current && !hasUtm) return;
 
   const attribution: SessionAttribution = {
-    source: params.get("utm_source") || current?.source || undefined,
-    medium: params.get("utm_medium") || current?.medium || undefined,
-    campaign: params.get("utm_campaign") || current?.campaign || undefined,
-    content: params.get("utm_content") || current?.content || undefined,
-    term: params.get("utm_term") || current?.term || undefined,
+    source: shortValue(params.get("utm_source")) || current?.source || undefined,
+    medium: shortValue(params.get("utm_medium")) || current?.medium || undefined,
+    campaign: shortValue(params.get("utm_campaign")) || current?.campaign || undefined,
+    content: shortValue(params.get("utm_content")) || current?.content || undefined,
+    term: shortValue(params.get("utm_term")) || current?.term || undefined,
     referrer: current?.referrer || sanitizeReferrer(document.referrer),
-    landing_path: current?.landing_path || `${window.location.pathname}${window.location.search}`,
+    // Query strings can contain free text, OAuth codes, or other identifiers.
+    landing_path: sanitizePath(current?.landing_path || window.location.pathname),
   };
 
   if (!hasMeaningfulAttribution(attribution)) return;
@@ -43,7 +44,8 @@ export function readSessionAttribution(): SessionAttribution | null {
     const raw = window.sessionStorage.getItem(attributionStorageKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return isAttribution(parsed) ? parsed : null;
+    if (!isAttribution(parsed)) return null;
+    return { ...parsed, landing_path: sanitizePath(parsed.landing_path) };
   } catch {
     return null;
   }
@@ -70,10 +72,19 @@ function sanitizeReferrer(value: string) {
 
   try {
     const url = new URL(value);
-    return `${url.origin}${url.pathname}`;
+    return `${url.origin}${url.pathname}`.slice(0, 240);
   } catch {
     return undefined;
   }
+}
+
+function sanitizePath(value: string | undefined) {
+  if (!value) return undefined;
+  return value.split(/[?#]/, 1)[0].slice(0, 240) || undefined;
+}
+
+function shortValue(value: string | null) {
+  return value?.trim().slice(0, 120) || undefined;
 }
 
 function hasMeaningfulAttribution(value: SessionAttribution) {
@@ -84,5 +95,5 @@ function isAttribution(value: unknown): value is SessionAttribution {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
 
-  return Object.values(item).every((field) => field === undefined || typeof field === "string");
+  return Object.values(item).every((field) => field === undefined || (typeof field === "string" && field.length <= 240));
 }

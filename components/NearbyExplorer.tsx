@@ -67,6 +67,7 @@ import {
 import { getSupabaseClient } from "@/lib/supabase";
 import { formatTimeAwarePrimary, getTimeAwarePlaceState } from "@/lib/time-aware-place";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
+import { recordProductEvent } from "@/lib/place-events";
 
 type NearbyExplorerProps = {
   places: PlaceWithRelations[];
@@ -143,6 +144,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
   const [desktopMapMounted, setDesktopMapMounted] = useState(false);
   const [clock, setClock] = useState<Date | null>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const filterTrackingReadyRef = useRef(false);
   const defaultCenter = placeCityCenters[city];
   const origin = originMode === "current" && userLocation ? userLocation : defaultCenter;
   const provider = getPreferredMapProvider();
@@ -197,6 +199,28 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     }
   }, [activeChinaFilters, category, city, distanceFilter, pathname, priceBucket, query, router, searchParams, showChinaFilters, sortMode]);
+
+  useEffect(() => {
+    if (!filterTrackingReadyRef.current) {
+      filterTrackingReadyRef.current = true;
+      return;
+    }
+    void recordProductEvent({
+      eventType: "filter_applied",
+      locale,
+      userId: user?.id,
+      metadata: {
+        surface: "nearby",
+        city,
+        category,
+        distance: distanceFilter,
+        price: priceBucket,
+        sort: sortMode,
+        has_search: Boolean(query.trim()),
+        traveler_filter_count: activeChinaFilters.length,
+      },
+    });
+  }, [activeChinaFilters, category, city, distanceFilter, locale, priceBucket, query, sortMode, user?.id]);
 
   useEffect(() => {
     let mounted = true;

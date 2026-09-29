@@ -140,7 +140,7 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
       const result = toggleSavedItem(item);
       setSaved(result.saved);
       void recordPlaceEvent({
-        eventType: result.saved ? "place_save" : "place_unsave",
+        eventType: result.saved ? "place_saved" : "place_unsave",
         placeId: item.id,
         locale: derivedLocale,
         metadata: { source: "save_button", item_type: item.type },
@@ -185,7 +185,7 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
 
     if (authoritativeState.saved !== wasSaved) {
       await recordPlaceEvent({
-        eventType: authoritativeState.saved ? "place_save" : "place_unsave",
+        eventType: authoritativeState.saved ? "place_saved" : "place_unsave",
         placeId: item.id,
         locale: derivedLocale,
         userId: user.id,

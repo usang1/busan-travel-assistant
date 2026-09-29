@@ -6,6 +6,7 @@ import { applyGroundedTripRateLimit, getGroundedTripActor, GroundedTripActorErro
 import { getCachedPublicPlaces } from "@/lib/public-cache";
 import { createServerServiceClient } from "@/lib/server-supabase";
 import type { GroundedTripPlan } from "@/types/grounded-trip";
+import { isGroundedTripPlannerEnabled, isItineraryRecoveryEnabled } from "@/lib/feature-flags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ const headers = { "Cache-Control": "private, no-store, max-age=0", "X-Content-Ty
 const responseCache = new Map<string, { expiresAt: number; plan: GroundedTripPlan }>();
 
 export async function POST(request: NextRequest) {
+  if (!isGroundedTripPlannerEnabled()) return json({ message: "feature_disabled" }, 404);
   const startedAt = Date.now();
   if (!isSameOrigin(request)) return json({ message: "cross_site_blocked" }, 403);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return json({ message: "json_required" }, 415);
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     if (Buffer.byteLength(JSON.stringify(body), "utf8") > maxRequestBytes) return json({ message: "request_too_large" }, 413);
     const normalized = normalizeGroundedTripRequest(body);
+    if (normalized.mode === "recover" && !isItineraryRecoveryEnabled()) return json({ message: "feature_disabled" }, 404);
     const fingerprint = createHash("sha256").update(JSON.stringify({ mode: normalized.mode, conditions: normalized.conditions, existing: normalized.existing_itinerary })).digest("hex");
 
     try {

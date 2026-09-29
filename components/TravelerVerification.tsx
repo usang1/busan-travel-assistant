@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BadgeCheck, Check, LocateFixed, MapPinCheck, Send, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { calculateDistanceMeters, type Coordinates } from "@/lib/location";
 import { rememberTravelerVisit, wasMapOpenedRecently, wasTravelerVisitSubmitted } from "@/lib/place-visit-memory";
 import type { Locale } from "@/lib/i18n";
 import type { TravelerFact, TravelerFactType } from "@/lib/traveler-verification";
+import { recordProductEvent } from "@/lib/place-events";
 
 type TravelerVerificationProps = {
   placeId: string;
@@ -66,6 +67,10 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
   const [submitting, setSubmitting] = useState(false);
   const [mapReturn, setMapReturn] = useState(false);
   const [visited, setVisited] = useState(false);
+  const proximityVerificationEnabled = process.env.NEXT_PUBLIC_VISIT_PROXIMITY_VERIFICATION_ENABLED === "true";
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setMapReturn(wasMapOpenedRecently(placeId));
@@ -76,13 +81,37 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", closeOnEscape);
+    window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDialog();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
+
+  function openDialog(trigger: HTMLElement) {
+    triggerRef.current = trigger;
+    setOpen(true);
+  }
+
+  function closeDialog() {
+    setOpen(false);
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  }
 
   const selectedKeys = useMemo(() => new Set(selected.map((fact) => `${fact.fact_type}:${String(fact.fact_value)}`)), [selected]);
 
@@ -144,6 +173,9 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
       setVisited(true);
       setSelected([]);
       setStatus(text.success);
+      const metadata = { fact_count: selected.length, verification_method: nearbyConfirmed ? "location" : session ? "authenticated" : "manual", fact_types: selected.map((fact) => fact.fact_type) };
+      void recordProductEvent({ eventType: "visit_confirmed", locale, placeId, userId: session?.user.id, metadata: { verification_method: metadata.verification_method } });
+      void recordProductEvent({ eventType: "fact_report_submitted", locale, placeId, userId: session?.user.id, metadata });
     } catch (error) {
       const code = error instanceof Error ? error.message : "verification_failed";
       setStatus(code === "rate_limited" ? text.rateLimited : code === "verification_not_configured" ? text.notConfigured : text.failed);
@@ -155,7 +187,7 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
   return (
     <>
       {compact ? (
-        <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-teal-50 px-3 text-sm font-black text-teal-800 ring-1 ring-teal-100">
+        <button type="button" onClick={(event) => openDialog(event.currentTarget)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-teal-50 px-3 text-sm font-black text-teal-800 ring-1 ring-teal-100">
           {visited ? <Check size={16} aria-hidden="true" /> : <MapPinCheck size={16} aria-hidden="true" />}
           {visited ? text.completed : text.trigger}
         </button>
@@ -167,7 +199,7 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
               <p className="text-xs font-black text-teal-700">{mapReturn ? text.mapReturn : text.eyebrow}</p>
               <h2 className="mt-1 text-lg font-black text-slate-950">{text.title}</h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">{text.description}</p>
-              <button type="button" onClick={() => setOpen(true)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-black text-white">
+              <button type="button" onClick={(event) => openDialog(event.currentTarget)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-black text-white">
                 {visited ? <Check size={17} aria-hidden="true" /> : <MapPinCheck size={17} aria-hidden="true" />}
                 {visited ? text.completed : text.trigger}
               </button>
@@ -177,15 +209,15 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
       )}
 
       {open ? (
-        <div className="fixed inset-0 z-[70] bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:grid sm:place-items-center" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby={`traveler-check-${placeId}`} className="mx-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[70] bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:grid sm:place-items-center" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDialog(); }}>
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={`traveler-check-${placeId}`} className="mx-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-teal-700">{placeName}</p>
                 <h2 id={`traveler-check-${placeId}`} className="mt-1 text-xl font-black text-slate-950">{text.modalTitle}</h2>
                 <p className="mt-1 text-sm leading-5 text-slate-600">{text.modalDescription}</p>
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="grid size-11 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700" aria-label={text.close}><X size={20} aria-hidden="true" /></button>
+              <button ref={closeButtonRef} type="button" onClick={closeDialog} className="grid size-11 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700" aria-label={text.close}><X size={20} aria-hidden="true" /></button>
             </header>
 
             <div className="overflow-y-auto p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
@@ -197,14 +229,14 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
               </div>
               <button type="button" onClick={() => setShowMore((current) => !current)} className="mt-3 min-h-11 text-sm font-black text-slate-700 underline underline-offset-4">{showMore ? text.less : text.more}</button>
 
-              <div className="mt-4 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+              {proximityVerificationEnabled ? <div className="mt-4 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
                 <p className="text-sm font-black text-slate-900">{text.locationTitle}</p>
                 <p className="mt-1 text-xs leading-5 text-slate-600">{text.locationReason}</p>
                 <button type="button" disabled={nearbyConfirmed} onClick={confirmNearby} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-3 text-sm font-black text-slate-800 ring-1 ring-slate-200 disabled:text-teal-700">
                   {nearbyConfirmed ? <BadgeCheck size={17} aria-hidden="true" /> : <LocateFixed size={17} aria-hidden="true" />}{nearbyConfirmed ? text.locationConfirmed : text.locationButton}
                 </button>
                 {locationStatus ? <p aria-live="polite" className="mt-2 text-xs font-bold text-slate-600">{locationStatus}</p> : null}
-              </div>
+              </div> : null}
 
               <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-500"><ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden="true" /><p>{session ? text.authPrivacy : text.guestPrivacy}</p></div>
               {status ? <p aria-live="polite" className={`mt-4 rounded-lg px-3 py-2 text-sm font-bold ${visited && status === text.success ? "bg-teal-50 text-teal-800" : "bg-amber-50 text-amber-900"}`}>{status}</p> : null}

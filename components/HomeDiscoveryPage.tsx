@@ -23,6 +23,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { GuideCard } from "@/components/GuideCard";
 import { HomeSearchForm } from "@/components/HomeSearchForm";
 import { PlaceCard } from "@/components/PlaceCard";
+import { ProductAnalytics } from "@/components/ProductAnalytics";
+import { AnalyticsLink } from "@/components/AnalyticsLink";
 import { SectionTitle } from "@/components/SectionTitle";
 import { busanDistrictOptions, getBusanDistrictKey, getBusanDistrictLabel, type BusanDistrictKey } from "@/lib/busan-districts";
 import { getHomeQuickFilters, type HomeQuickFilterKey } from "@/lib/home-discovery";
@@ -38,6 +40,7 @@ import type { Guide } from "@/types/guide";
 type HomeDiscoveryPageProps = {
   locale: Locale;
   places: PlaceWithRelations[];
+  socialDiscoveryEnabled?: boolean;
 };
 
 type BusanDiscoveryPageProps = {
@@ -59,7 +62,7 @@ const quickFilterIcons: Record<HomeQuickFilterKey, LucideIcon> = {
   chineseMenu: Languages,
 };
 
-export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
+export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = false }: HomeDiscoveryPageProps) {
   const copy = cityHomeCopy[locale];
   const districtCounts = getDistrictCounts(places);
   const activeDistricts = busanDistrictOptions
@@ -77,6 +80,7 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
 
   return (
     <main className="safe-bottom mx-auto max-w-5xl px-4 pb-6 pt-5">
+      <ProductAnalytics eventType="home_view" locale={locale} metadata={{ public_place_count: places.length }} />
       <section className="bg-slate-950 px-5 py-7 text-white shadow-xl shadow-teal-900/10 sm:px-7 sm:py-9">
         <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-bold text-teal-100 ring-1 ring-white/10">
           <MapPin size={16} aria-hidden="true" />
@@ -84,11 +88,11 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
         </div>
         <h1 className="mt-5 max-w-2xl text-3xl font-black leading-tight tracking-normal sm:text-4xl">{copy.heading}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">{copy.supporting}</p>
-        <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`mt-6 grid gap-2 sm:grid-cols-2 ${socialDiscoveryEnabled ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           {[
             { href: "/places?recommendedNow=true&sort=verified", label: copy.nowWorth, icon: Compass },
             { href: "/busan", label: copy.bySituation, icon: MapPin },
-            { href: "/social-find", label: copy.findFromSns, icon: Search },
+            ...(socialDiscoveryEnabled ? [{ href: "/social-find", label: copy.findFromSns, icon: Search }] : []),
             { href: "/itinerary", label: copy.buildItinerary, icon: Bookmark },
           ].map((action) => {
             const Icon = action.icon;
@@ -105,13 +109,13 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
       </section>
 
       <section className="border-b border-slate-200 py-7">
-        <SectionTitle title={copy.nowWorth} subtitle={copy.nowWorthSubtitle} action={<Link href={withLocale("/places?recommendedNow=true&sort=verified", locale)} className="inline-flex min-h-11 items-center gap-1 text-sm font-black text-teal-700">{ui[locale].common.viewAll}<ArrowRight size={16} aria-hidden="true" /></Link>} />
+        <SectionTitle title={copy.nowWorth} subtitle={copy.nowWorthSubtitle} action={<Link href={withLocale("/places?recommendedNow=true&sort=verified", locale)} className="inline-flex min-h-11 items-center gap-1 text-right text-sm font-black text-teal-700">{copy.nowWorth} {ui[locale].common.viewAll}<ArrowRight size={16} aria-hidden="true" /></Link>} />
         {nowWorthPlaces.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2">{nowWorthPlaces.map((place) => <PlaceCard key={place.id} place={place} locale={locale} />)}</div> : <p className="mt-4 rounded-lg bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.nowWorthEmpty}</p>}
       </section>
 
       <section id="sns-place-search" className="scroll-mt-40 border-b border-slate-200 py-7">
         <SectionTitle title={copy.searchTitle} subtitle={copy.searchSubtitle} />
-        <div className="mt-4"><HomeSearchForm locale={locale} /></div>
+        <div className="mt-4"><HomeSearchForm locale={locale} socialDiscoveryEnabled={socialDiscoveryEnabled} /></div>
       </section>
 
       <section className="py-7">
@@ -120,14 +124,14 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
           {placeCities.map((city) => {
             const count = cityCounts[city.key] ?? 0;
             const href = city.key === "busan" ? "/busan" : `/places?city=${city.key}`;
-            return count > 0 ? <Link key={city.key} href={withLocale(href, locale)} className="flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100">
+            return count > 0 ? <AnalyticsLink key={city.key} href={withLocale(href, locale)} eventType="city_selected" locale={locale} metadata={{ city: city.key, surface: "home" }} className="flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100">
               <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white/15"><Building2 size={21} aria-hidden="true" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-xl font-black">{placeCityLabels[city.key][locale]}</span>
                 <span className="mt-1 block text-xs font-bold text-teal-100">{copy.publishedPlaces} {count}</span>
               </span>
               <ArrowRight size={18} className="shrink-0" aria-hidden="true" />
-            </Link> : <div key={city.key} aria-disabled="true" className="flex min-h-24 items-center gap-3 rounded-lg bg-slate-100 p-4 text-slate-500 ring-1 ring-slate-200">
+            </AnalyticsLink> : <div key={city.key} aria-disabled="true" className="flex min-h-24 items-center gap-3 rounded-lg bg-slate-100 p-4 text-slate-500 ring-1 ring-slate-200">
               <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white text-slate-400"><Building2 size={21} aria-hidden="true" /></span>
               <span className="min-w-0 flex-1"><span className="block text-xl font-black">{placeCityLabels[city.key][locale]}</span><span className="mt-1 block text-xs font-bold">{copy.preparing}</span></span>
             </div>;
@@ -144,10 +148,10 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
         {activeDistricts.length ? (
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {activeDistricts.slice(0, 6).map((district) => (
-              <Link key={district.key} href={withLocale(`/busan?district=${district.key}`, locale)} className="flex min-h-16 items-center justify-between gap-2 rounded-lg bg-white px-3 py-3 text-sm font-black text-slate-800 ring-1 ring-slate-200 transition hover:bg-teal-50 focus:outline-none focus:ring-4 focus:ring-teal-100">
+              <AnalyticsLink key={district.key} href={withLocale(`/busan?district=${district.key}`, locale)} eventType="district_selected" locale={locale} metadata={{ city: "busan", district: district.key, surface: "home" }} className="flex min-h-16 items-center justify-between gap-2 rounded-lg bg-white px-3 py-3 text-sm font-black text-slate-800 ring-1 ring-slate-200 transition hover:bg-teal-50 focus:outline-none focus:ring-4 focus:ring-teal-100">
                 <span>{district.labels[locale]}</span>
                 <span className="text-xs text-slate-500">{district.count}</span>
-              </Link>
+              </AnalyticsLink>
             ))}
           </div>
         ) : (
@@ -222,16 +226,19 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
             const count = districtCounts.get(district.key) ?? 0;
             const active = selectedDistrict === district.key;
             return count > 0 ? (
-              <Link
+              <AnalyticsLink
                 key={district.key}
                 href={withLocale(`/busan?district=${district.key}`, locale)}
+                eventType="district_selected"
+                locale={locale}
+                metadata={{ city: "busan", district: district.key, surface: "busan_hub" }}
                 className={active
                   ? "flex min-h-16 items-center justify-between gap-2 rounded-lg bg-teal-700 px-3 py-3 text-sm font-black text-white ring-1 ring-teal-700"
                   : "flex min-h-16 items-center justify-between gap-2 rounded-lg bg-white px-3 py-3 text-sm font-black text-slate-800 ring-1 ring-slate-200 hover:bg-teal-50"}
               >
                 <span>{district.labels[locale]}</span>
                 <span className={active ? "text-xs text-teal-100" : "text-xs text-slate-400"}>{count}</span>
-              </Link>
+              </AnalyticsLink>
             ) : (
               <div key={district.key} aria-disabled="true" className="flex min-h-16 items-center justify-between gap-2 rounded-lg bg-slate-100 px-3 py-3 text-sm font-black text-slate-400 ring-1 ring-slate-200">
                 <span>{district.labels[locale]}</span>
@@ -250,9 +257,9 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 {activeDistricts.slice(0, 3).map((district) => (
-                  <Link key={district.key} href={withLocale(`/busan?district=${district.key}`, locale)} className="inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-black text-white">
+                  <AnalyticsLink key={district.key} href={withLocale(`/busan?district=${district.key}`, locale)} eventType="district_selected" locale={locale} metadata={{ city: "busan", district: district.key, surface: "empty_state" }} className="inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-black text-white">
                     {district.labels[locale]} · {districtCounts.get(district.key)}
-                  </Link>
+                  </AnalyticsLink>
                 ))}
                 <Link href={withLocale("/contact", locale)} className="inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-black text-white">{copy.common.submitPlace}</Link>
               </div>

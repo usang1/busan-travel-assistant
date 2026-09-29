@@ -10,6 +10,7 @@ import { readSavedItems, writeSavedItems, type SavedItem } from "@/lib/saved-ite
 import { getSupabaseClient } from "@/lib/supabase";
 import type { PlaceWithRelations } from "@/types/database";
 import type { Guide, GuideStop } from "@/types/guide";
+import { recordProductEvent } from "@/lib/place-events";
 
 type CourseStop = GuideStop & { place: PlaceWithRelations };
 type Props = { guide: Guide; stops: CourseStop[]; locale: Locale };
@@ -43,6 +44,7 @@ export function GuideCourseActions({ guide, stops, locale }: Props) {
       window.dispatchEvent(new Event("guide-save-change"));
       window.dispatchEvent(new Event("place-save-change"));
       setMessage(text.saved);
+      void recordProductEvent({ eventType: "route_saved", locale, userId: user?.id, metadata: { route_kind: "guide", action: "saved", place_count: selectedStops.length } });
     } catch { setMessage(text.failed); }
     finally { setBusy(false); }
   }
@@ -70,6 +72,8 @@ export function GuideCourseActions({ guide, stops, locale }: Props) {
         tripId = trip.id;
       }
       setMessage(text.added);
+      void recordProductEvent({ eventType: "route_saved", locale, userId: user?.id, metadata: { route_kind: "guide", action: "itinerary", place_count: selectedStops.length } });
+      void recordProductEvent({ eventType: "itinerary_created", locale, userId: user?.id, metadata: { actor_type: user ? "account" : "guest", source: "guide_route" } });
       window.setTimeout(() => { window.location.href = `${withLocale("/itinerary", locale)}?trip=${encodeURIComponent(tripId)}`; }, 350);
     } catch { setMessage(text.failedMigration); }
     finally { setBusy(false); }

@@ -10,6 +10,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { useAuth } from "@/components/AuthProvider";
 import { type Locale, withLocale } from "@/lib/i18n";
 import type { SocialDiscoveryCandidate, SocialInputKind } from "@/lib/social-discovery";
+import { recordProductEvent } from "@/lib/place-events";
 
 type SearchResponse = {
   mappingId: string;
@@ -39,6 +40,12 @@ export function SocialPlaceFinder({ locale, imageEnabled, initialText = "" }: { 
     setError("");
     setResult(null);
     setConfirmedPlaceId("");
+    void recordProductEvent({
+      eventType: "sns_search_started",
+      locale,
+      userId: session?.user.id,
+      metadata: { input_kind: mode, has_image: Boolean(image) },
+    });
     if (nextMode !== "image") setImage(null);
   }
 
@@ -116,6 +123,13 @@ export function SocialPlaceFinder({ locale, imageEnabled, initialText = "" }: { 
       const body = await response.json() as { message?: string };
       if (!response.ok) throw new Error(body.message ?? "confirmation_failed");
       setConfirmedPlaceId(candidate.id);
+      void recordProductEvent({
+        eventType: "sns_candidate_confirmed",
+        locale,
+        placeId: candidate.id,
+        userId: session?.user.id,
+        metadata: { confidence_band: candidate.confidence >= 80 ? "high" : candidate.confidence >= 55 ? "medium" : "low" },
+      });
     } catch (caught) {
       const code = caught instanceof Error ? caught.message : "confirmation_failed";
       setError(errorMessage(code, locale));

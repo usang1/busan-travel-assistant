@@ -7,12 +7,18 @@ const statuses = ["approved", "rejected", "needs_review"] as const;
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const { client } = await requireAdmin(request);
+    const { client, user } = await requireAdmin(request);
     const { id } = await context.params;
     const body = await request.json() as { status?: (typeof statuses)[number]; notes?: string };
     if (!uuidPattern.test(id)) return NextResponse.json({ message: "제보 ID가 올바르지 않습니다." }, { status: 400 });
     if (!body.status || !statuses.includes(body.status)) return NextResponse.json({ message: "지원하지 않는 상태입니다." }, { status: 400 });
     if (typeof body.notes === "string" && body.notes.length > 1000) return NextResponse.json({ message: "검수 메모는 1,000자 이하여야 합니다." }, { status: 400 });
+
+    const { data: original } = await client
+      .from("place_fact_reports")
+      .select("place_id, locale, fact_type")
+      .eq("id", id)
+      .maybeSingle();
 
     const { data, error } = await client.rpc("moderate_traveler_report", {
       target_report_id: id,
@@ -24,6 +30,15 @@ export async function PATCH(request: Request, context: RouteContext) {
         throw Object.assign(new Error("여행자 확인 DB migration 033을 먼저 적용해주세요."), { status: 503, expose: true });
       }
       throw error;
+    }
+    if (original && (body.status === "approved" || body.status === "needs_review")) {
+      await client.from("place_action_events").insert({
+        event_type: body.status === "approved" ? "report_accepted" : "report_conflicted",
+        locale: original.locale,
+        place_id: original.place_id,
+        user_id: user.id,
+        metadata: { fact_type: original.fact_type, moderation_status: body.status },
+      });
     }
     return NextResponse.json({ report: data }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

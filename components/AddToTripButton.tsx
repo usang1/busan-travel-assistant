@@ -9,6 +9,7 @@ import { addGuestPlaceToTrip, createGuestTrip, readGuestTripStore } from "@/lib/
 import { defaultLocale, getLocaleFromPath, type Locale, withLocale } from "@/lib/i18n";
 import { addPlaceToTrip, createTrip, getTripPlaces, getUserTrips, type TripInput } from "@/lib/trip-store";
 import type { TripRecord } from "@/types/database";
+import { recordProductEvent } from "@/lib/place-events";
 
 export function AddToTripButton({ placeId, locale }: { placeId: string; locale?: Locale }) {
   const pathname = usePathname();
@@ -131,6 +132,7 @@ export function AddToTripButton({ placeId, locale }: { placeId: string; locale?:
     setLastTripId(trip.id);
     setStatus(text.added);
     setStatusTone("success");
+    void recordProductEvent({ eventType: "itinerary_place_added", locale: currentLocale, placeId, userId: user?.id, metadata: { actor_type: "account", source: "place_action" } });
   }
 
   function addToGuestTrip(trip: TripRecord) {
@@ -139,6 +141,7 @@ export function AddToTripButton({ placeId, locale }: { placeId: string; locale?:
       setLastTripId(trip.id);
       setStatus(result.status === "duplicate" ? text.duplicate : text.added);
       setStatusTone(result.status === "duplicate" ? "neutral" : "success");
+      if (result.status !== "duplicate") void recordProductEvent({ eventType: "itinerary_place_added", locale: currentLocale, placeId, metadata: { actor_type: "guest", source: "place_action" } });
     } catch {
       setStatus(text.storageFailed);
       setStatusTone("error");
@@ -175,6 +178,8 @@ export function AddToTripButton({ placeId, locale }: { placeId: string; locale?:
       setLastTripId(result.trip.id);
       setStatus(text.createdAndAdded);
       setStatusTone("success");
+      void recordProductEvent({ eventType: "itinerary_created", locale: currentLocale, userId: user.id, metadata: { actor_type: "account", source: "place_action" } });
+      void recordProductEvent({ eventType: "itinerary_place_added", locale: currentLocale, placeId, userId: user.id, metadata: { actor_type: "account", source: "place_action" } });
       setCreateForm(defaultTripInput(currentLocale));
       return;
     }
@@ -189,6 +194,8 @@ export function AddToTripButton({ placeId, locale }: { placeId: string; locale?:
       setStatusTone(result.status === "duplicate" ? "neutral" : "success");
       setCreateForm(defaultTripInput(currentLocale));
       setLoading(false);
+      void recordProductEvent({ eventType: "itinerary_created", locale: currentLocale, metadata: { actor_type: "guest", source: "place_action" } });
+      if (result.status !== "duplicate") void recordProductEvent({ eventType: "itinerary_place_added", locale: currentLocale, placeId, metadata: { actor_type: "guest", source: "place_action" } });
     } catch {
       setLoading(false);
       setStatus(text.storageFailed);

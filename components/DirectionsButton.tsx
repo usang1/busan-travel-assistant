@@ -51,7 +51,7 @@ export function DirectionsButton({
   function recordProvider(provider: DirectionsProvider) {
     rememberMapOpen(placeId);
     void recordPlaceEvent({
-      eventType: "directions_click",
+      eventType: "map_opened",
       placeId,
       locale,
       userId: user?.id,
@@ -65,6 +65,8 @@ export function DirectionsButton({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={cn(
           "inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 text-sm font-black text-white transition active:scale-95",
           compact ? "h-10 px-3" : "h-12 px-4",
@@ -75,7 +77,7 @@ export function DirectionsButton({
       </button>
 
       {open ? (
-        <div className="absolute bottom-full right-0 z-50 mb-2 w-52 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
+        <div role="menu" className="absolute bottom-full right-0 z-50 mb-2 w-52 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
           {!coordinates ? <p className="px-3 py-2 text-xs font-semibold leading-4 text-slate-500">{text.searchOnly}</p> : null}
           {providers.map((provider) => (
             <a
@@ -83,6 +85,7 @@ export function DirectionsButton({
               href={buildDirectionsUrl({ provider: provider.id, name, address, coordinates, origin })}
               target="_blank"
               rel="noreferrer"
+              role="menuitem"
               onClick={() => recordProvider(provider.id)}
               className="flex h-11 w-full items-center justify-between px-3 text-sm font-black text-slate-800 transition hover:bg-slate-50"
             >

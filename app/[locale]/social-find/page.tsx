@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { SocialPlaceFinder } from "@/components/SocialPlaceFinder";
 import { buildLocalizedMetadata, isLocale, type Locale } from "@/lib/i18n";
 import { canAnalyzeSocialImage } from "@/lib/social-discovery-ocr";
+import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
 
 type SocialFindPageProps = {
   params: Promise<{ locale: string }>;
@@ -17,6 +18,7 @@ async function getLocale(params: SocialFindPageProps["params"]): Promise<Locale>
 
 export async function generateMetadata({ params }: SocialFindPageProps): Promise<Metadata> {
   const locale = await getLocale(params);
+  if (!isSocialDiscoveryEnabled()) notFound();
   return buildLocalizedMetadata({
     locale,
     title: metadataCopy[locale].title,
@@ -27,6 +29,7 @@ export async function generateMetadata({ params }: SocialFindPageProps): Promise
 
 export default async function SocialFindPage({ params, searchParams }: SocialFindPageProps) {
   const locale = await getLocale(params);
+  if (!isSocialDiscoveryEnabled()) notFound();
   const query = await searchParams;
   const text = Array.isArray(query.text) ? query.text[0] : query.text;
   const copy = pageCopy[locale];

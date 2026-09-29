@@ -27,7 +27,7 @@ export function PlaceViewTracker({ place, locale }: PlaceViewTrackerProps) {
   useEffect(() => {
     writeRecentPlace(place);
     void recordPlaceEvent({
-      eventType: "place_view",
+      eventType: "place_opened",
       locale,
       placeId: place.id,
       userId: user?.id,

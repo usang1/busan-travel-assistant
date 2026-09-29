@@ -5,12 +5,12 @@ import { createPublicGuideClient } from "@/lib/guide-store";
 import { getCachedPhotoSpots, getCachedPublishedGuides } from "@/lib/public-cache";
 import { getPlaces } from "@/lib/place-store";
 import { translatedGuideLocales, translatedPlaceLocales } from "@/lib/public-seo";
+import { getPlaceRegion } from "@/lib/city-regions";
 
 export const dynamic = "force-dynamic";
 
 const routes = [
   "/",
-  "/busan",
   "/places",
   "/nearby",
   "/translator",
@@ -27,6 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [{ guides }, { photoSpots }] = await Promise.all([getCachedPublishedGuides(), getCachedPhotoSpots()]);
   const placeEntries: MetadataRoute.Sitemap = [];
   let hasLuggageContent = false;
+  let hasBusanContent = false;
   const client = createPublicGuideClient();
   if (client) {
     try {
@@ -35,6 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         if (result.source !== "supabase" || result.error) break;
         for (const place of result.places) {
           if (place.category === "luggage") hasLuggageContent = true;
+          if (getPlaceRegion(place).city === "busan") hasBusanContent = true;
           const available = translatedPlaceLocales(place);
           for (const locale of available) placeEntries.push({
             url: absoluteUrl(withLocale(`/places/${place.slug}`, locale)),
@@ -57,6 +59,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
     })),
   );
+  const busanLandingEntries = hasBusanContent
+    ? locales.map((locale) => ({
+        url: absoluteUrl(withLocale("/busan", locale)),
+        changeFrequency: frequency("/busan"),
+        priority: priority("/busan"),
+        alternates: { languages: localeAlternates("/busan") },
+      }))
+    : [];
   const guideLandingLocales = locales.filter((locale) => guides.some((guide) => translatedGuideLocales(guide).includes(locale)));
   const guideLandingEntries = guideLandingLocales
     .map((locale) => ({
@@ -96,7 +106,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
       alternates: { languages: localeAlternates(`/photo-spots/${spot.slug}`, ["zh"]) },
     }));
-  return [...staticEntries, ...guideLandingEntries, ...photoSpotLandingEntries, ...luggageLandingEntries, ...placeEntries, ...photoSpotEntries, ...guides.flatMap((guide) => translatedGuideLocales(guide).map((locale) => ({
+  return [...staticEntries, ...busanLandingEntries, ...guideLandingEntries, ...photoSpotLandingEntries, ...luggageLandingEntries, ...placeEntries, ...photoSpotEntries, ...guides.flatMap((guide) => translatedGuideLocales(guide).map((locale) => ({
     url: absoluteUrl(withLocale(`/guides/${guide.slug}`, locale)),
     lastModified: new Date(guide.updated_at),
     changeFrequency: "weekly" as const,

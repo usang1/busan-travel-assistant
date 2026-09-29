@@ -12,6 +12,7 @@ import {
 } from "@/lib/i18n";
 import { getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
+import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
 
 type LocalePageProps = {
   params: Promise<{
@@ -68,7 +69,7 @@ export default async function LocalizedHome({ params }: LocalePageProps) {
           },
         }}
       />
-      <HomeDiscoveryPage locale={locale} places={places} />
+      <HomeDiscoveryPage locale={locale} places={places} socialDiscoveryEnabled={isSocialDiscoveryEnabled()} />
     </>
   );
 }

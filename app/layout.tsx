@@ -56,7 +56,7 @@ export default async function RootLayout({
       <body>
         <AuthProvider>
           <ProEntitlementProvider>
-            <Suspense fallback={null}>
+            <Suspense fallback={<div className="h-[129px] border-b border-slate-200/70 bg-slate-50" aria-hidden="true" />}>
               <AnalyticsAttribution />
               <Header />
             </Suspense>

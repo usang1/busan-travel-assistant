@@ -11,9 +11,10 @@ import { buildLocalizedPlacesSearchHref } from "@/lib/place-search-url";
 type HomeSearchFormProps = {
   locale: Locale;
   region?: BusanDistrictKey;
+  socialDiscoveryEnabled?: boolean;
 };
 
-export function HomeSearchForm({ locale, region }: HomeSearchFormProps) {
+export function HomeSearchForm({ locale, region, socialDiscoveryEnabled = false }: HomeSearchFormProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,15 +82,17 @@ export function HomeSearchForm({ locale, region }: HomeSearchFormProps) {
         <button
           type="submit"
           disabled={isNavigating}
-          className="inline-flex h-14 min-h-11 w-full shrink-0 items-center justify-center rounded-2xl bg-teal-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-200 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+          className="inline-flex h-14 min-h-11 w-full shrink-0 items-center justify-center rounded-2xl bg-teal-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-teal-800 focus:outline-none focus:ring-4 focus:ring-teal-200 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
         >
           {copy.searchButton}
         </button>
       </form>
-      <Link href={`${withLocale("/social-find", locale)}${query.trim() ? `?text=${encodeURIComponent(query.trim())}` : ""}`} className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-black text-teal-800 underline decoration-teal-200 decoration-2 underline-offset-4">
-        <ScanSearch size={17} aria-hidden="true" />
-        {socialSearchLabel[locale]}
-      </Link>
+      {socialDiscoveryEnabled ? (
+        <Link href={`${withLocale("/social-find", locale)}${query.trim() ? `?text=${encodeURIComponent(query.trim())}` : ""}`} className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-black text-teal-800 underline decoration-teal-200 decoration-2 underline-offset-4">
+          <ScanSearch size={17} aria-hidden="true" />
+          {socialSearchLabel[locale]}
+        </Link>
+      ) : null}
     </div>
   );
 }

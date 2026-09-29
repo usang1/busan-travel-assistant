@@ -12,6 +12,7 @@ import { cityRegions, placeCities, placeCityLabels, type PlaceCity } from "@/lib
 import { getPreferredMapProvider, type MapMarker } from "@/lib/map-provider";
 import type { TripPlaceWithPlace, TripRecord } from "@/types/database";
 import type { GroundedTripPlan } from "@/types/grounded-trip";
+import { recordProductEvent } from "@/lib/place-events";
 
 type ApplyTarget = "new" | "replace";
 type Props = {
@@ -47,6 +48,7 @@ export function GroundedTripPlanner({ locale, activeTrip, tripPlaces, savedPlace
   const [applying, setApplying] = useState(false);
   const districtOptions = cityRegions(city);
   const selectedDistrict = districtOptions.find((item) => item.key === district) ?? districtOptions[0];
+  const recoveryEnabled = process.env.NEXT_PUBLIC_ITINERARY_RECOVERY_ENABLED === "true";
 
   async function submit(mode: "plan" | "recover") {
     if (loading) return;
@@ -92,6 +94,19 @@ export function GroundedTripPlanner({ locale, activeTrip, tripPlaces, savedPlace
       setPlan(result.plan);
       setAiStatus(result.ai_status ?? "disabled");
       setSelectedId(result.plan.places[0]?.id ?? null);
+      void recordProductEvent({
+        eventType: "ai_route_created",
+        locale,
+        userId: session?.user.id,
+        metadata: {
+          planner_source: result.plan.source,
+          mode,
+          city,
+          duration_minutes: duration,
+          place_count: result.plan.places.length,
+          unresolved_count: result.plan.unresolved_conditions.length,
+        },
+      });
     } catch (caught) {
       setError(errorMessage(caught instanceof Error ? caught.message : "planning_failed", locale));
     } finally {
@@ -149,7 +164,7 @@ export function GroundedTripPlanner({ locale, activeTrip, tripPlaces, savedPlace
 
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={disabled || loading} onClick={() => void submit("plan")} className={primaryButton}><WandSparkles size={18} aria-hidden="true" />{loading ? text.planning : text.makePlan}</button>
-          {activeTrip && tripPlaces.length ? <button type="button" disabled={disabled || loading} onClick={() => void submit("recover")} className={secondaryButton}><RefreshCw size={17} aria-hidden="true" />{text.checkTrip}</button> : null}
+          {recoveryEnabled && activeTrip && tripPlaces.length ? <button type="button" disabled={disabled || loading} onClick={() => void submit("recover")} className={secondaryButton}><RefreshCw size={17} aria-hidden="true" />{text.checkTrip}</button> : null}
         </div>
         {error ? <p role="alert" className="rounded-lg bg-rose-50 px-3 py-3 text-sm font-bold text-rose-800 ring-1 ring-rose-100">{error}</p> : null}
       </div>

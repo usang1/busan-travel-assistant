@@ -235,7 +235,7 @@ assert.match(homeDiscoverySource, /resolveHomeIntentCards\(\{ guides: \[\], plac
 assert.match(homeDiscoverySource, /getDistrictCounts\(places\)/);
 assert.match(homeDiscoverySource, /filter\(\(district\) => district\.count > 0\)/);
 assert.match(homeDiscoverySource, /href: "\/social-find"/);
-assert.match(homeDiscoverySource, /<HomeSearchForm locale=\{locale\} \/>/);
+assert.match(homeDiscoverySource, /<HomeSearchForm locale=\{locale\} socialDiscoveryEnabled=\{socialDiscoveryEnabled\} \/>/);
 assert.match(homeDiscoverySource, /aria-disabled="true"/);
 assert.match(homeDiscoverySource, /orderedDistricts\.map/);
 assert.doesNotMatch(homeDiscoverySource, /어느 도시로 여행하시나요/);

@@ -56,6 +56,7 @@ import {
 } from "@/lib/trip-store";
 import type { PlaceWithRelations, TripPlaceWithPlace, TripRecord, TripVisibility } from "@/types/database";
 import type { GroundedTripPlan } from "@/types/grounded-trip";
+import { recordProductEvent } from "@/lib/place-events";
 
 type TripPlannerProps = { locale: Locale };
 
@@ -175,6 +176,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
       setActiveTripId(trip.id);
       setCreateForm(defaultTripInput(locale));
       setStatus(text.guestCreated);
+      void recordProductEvent({ eventType: "itinerary_created", locale, metadata: { actor_type: "guest", source: "itinerary" } });
       setBusy(false);
       return;
     }
@@ -189,6 +191,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
     setActiveTripId(result.trip.id);
     setCreateForm(defaultTripInput(locale));
     setStatus(text.created);
+    void recordProductEvent({ eventType: "itinerary_created", locale, userId: user.id, metadata: { actor_type: "account", source: "itinerary" } });
   }
 
   async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
@@ -286,6 +289,9 @@ export function TripPlanner({ locale }: TripPlannerProps) {
     await refreshTripPlaces();
     setBusy(false);
     setStatus(error ?? (guestResult?.status === "duplicate" ? text.alreadyAdded : text.placeAdded));
+    if (!error && guestResult?.status !== "duplicate") {
+      void recordProductEvent({ eventType: "itinerary_place_added", locale, placeId, userId: user?.id, metadata: { actor_type: user ? "account" : "guest", source: "saved_places" } });
+    }
   }
 
   async function handleAutoArrange() {
@@ -393,6 +399,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
         setActiveDay(1);
         await refreshTripPlaces(trip.id);
         setStatus(groundedStatusCopy[locale].saved);
+        recordGroundedSave(plan, "new", "guest");
         setBusy(false);
         return;
       }
@@ -408,6 +415,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
       setActiveDay(1);
       await refreshTripPlaces(result.trip.id);
       setStatus(layoutError ?? groundedStatusCopy[locale].saved);
+      if (!layoutError) recordGroundedSave(plan, "new", "account");
       setBusy(false);
       return;
     }
@@ -417,6 +425,7 @@ export function TripPlanner({ locale }: TripPlannerProps) {
       await refreshTripPlaces(activeTrip.id);
       setActiveDay(1);
       setStatus(groundedStatusCopy[locale].applied);
+      recordGroundedSave(plan, "replace", "guest");
       setBusy(false);
       return;
     }
@@ -427,7 +436,15 @@ export function TripPlanner({ locale }: TripPlannerProps) {
     await refreshTripPlaces(activeTrip.id);
     setActiveDay(1);
     setStatus(removalErrors.find(Boolean) ?? layoutError ?? groundedStatusCopy[locale].applied);
+    if (!removalErrors.find(Boolean) && !layoutError) recordGroundedSave(plan, "replace", "account");
     setBusy(false);
+  }
+
+  function recordGroundedSave(plan: GroundedTripPlan, target: "new" | "replace", actorType: "guest" | "account") {
+    const metadata = { route_kind: "grounded", target, actor_type: actorType, place_count: plan.places.length, planner_source: plan.source };
+    void recordProductEvent({ eventType: "route_saved", locale, userId: user?.id, metadata });
+    void recordProductEvent({ eventType: "ai_route_saved", locale, userId: user?.id, metadata });
+    if (target === "new") void recordProductEvent({ eventType: "itinerary_created", locale, userId: user?.id, metadata: { actor_type: actorType, source: "grounded_route" } });
   }
 
   return (
@@ -449,14 +466,16 @@ export function TripPlanner({ locale }: TripPlannerProps) {
         </section>
       ) : null}
 
-      <GroundedTripPlanner
-        locale={locale}
-        activeTrip={activeTrip}
-        tripPlaces={tripPlaces}
-        savedPlaceIds={savedPlaces.map((place) => place.id)}
-        disabled={busy}
-        onApplyPlan={handleGroundedPlan}
-      />
+      {process.env.NEXT_PUBLIC_GROUNDED_TRIP_PLANNER_ENABLED === "true" ? (
+        <GroundedTripPlanner
+          locale={locale}
+          activeTrip={activeTrip}
+          tripPlaces={tripPlaces}
+          savedPlaceIds={savedPlaces.map((place) => place.id)}
+          disabled={busy}
+          onApplyPlan={handleGroundedPlan}
+        />
+      ) : null}
 
       <section>
         <div className="flex gap-2 overflow-x-auto pb-2">
