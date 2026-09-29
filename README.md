@@ -152,6 +152,7 @@ supabase/migrations/033_traveler_verification_and_trust_signals.sql
 supabase/migrations/034_social_discovery_matching.sql
 supabase/migrations/035_grounded_trip_planning.sql
 supabase/migrations/036_product_rollout_analytics.sql
+supabase/migrations/037_lightweight_place_verification_signals.sql
 supabase/seed.sql
 ```
 

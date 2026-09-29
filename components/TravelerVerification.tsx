@@ -8,6 +8,7 @@ import { rememberTravelerVisit, wasMapOpenedRecently, wasTravelerVisitSubmitted 
 import type { Locale } from "@/lib/i18n";
 import type { TravelerFact, TravelerFactType } from "@/lib/traveler-verification";
 import { recordProductEvent } from "@/lib/place-events";
+import { invalidateTravelerTrustSummary } from "@/lib/traveler-trust-client";
 
 type TravelerVerificationProps = {
   placeId: string;
@@ -31,13 +32,17 @@ const options: FactOption[] = [
   option("wait-10", "waiting_minutes", 10, "wait", ["약 10분", "约10分钟", "About 10 min", "約10分"]),
   option("wait-20", "waiting_minutes", 20, "wait", ["약 20분", "约20分钟", "About 20 min", "約20分"]),
   option("wait-40", "waiting_minutes", 40, "wait", ["약 40분 이상", "约40分钟以上", "40+ min", "約40分以上"]),
-  option("foreign-card", "foreign_card", true, undefined, ["해외카드 가능", "可用海外信用卡", "Foreign card works", "海外カード可"]),
+  option("foreign-card", "foreign_card", true, "foreign-card", ["해외카드 가능", "可用海外信用卡", "Foreign card works", "海外カード可"]),
+  option("foreign-card-no", "foreign_card", false, "foreign-card", ["해외카드 불가", "不可用海外信用卡", "Foreign card unavailable", "海外カード不可"]),
   option("alipay", "alipay", true, undefined, ["알리페이 가능", "可用支付宝", "Alipay works", "Alipay可"]),
   option("wechat", "wechat_pay", true, undefined, ["위챗페이 가능", "可用微信支付", "WeChat Pay works", "WeChat Pay可"]),
-  option("zh-menu", "chinese_menu", true, undefined, ["중국어 메뉴 있음", "有中文菜单", "Chinese menu", "中国語メニューあり"]),
-  option("solo", "solo_friendly", true, undefined, ["혼자 방문 괜찮음", "适合一个人", "Solo friendly", "一人でも利用しやすい"]),
+  option("zh-menu", "chinese_menu", true, "chinese-menu", ["중국어 메뉴 있음", "有中文菜单", "Chinese menu available", "中国語メニューあり"]),
+  option("zh-menu-no", "chinese_menu", false, "chinese-menu", ["중국어 메뉴 없음", "没有中文菜单", "No Chinese menu", "中国語メニューなし"]),
+  option("solo", "solo_friendly", true, "solo", ["혼자 방문 괜찮음", "适合一个人", "Solo friendly", "一人でも利用しやすい"]),
+  option("solo-no", "solo_friendly", false, "solo", ["혼자 방문 불편", "一个人不方便", "Solo visit is difficult", "一人利用は不便"]),
   option("luggage", "luggage_friendly", false, undefined, ["캐리어 불편", "大行李箱不便", "Luggage is difficult", "大型荷物は不便"]),
-  option("restroom", "restroom", true, undefined, ["매장 화장실 있음", "店内有洗手间", "Restroom inside", "店内トイレあり"]),
+  option("restroom", "restroom", true, "restroom", ["매장 화장실 있음", "店内有洗手间", "Restroom inside", "店内トイレあり"]),
+  option("restroom-check", "restroom_needs_check", true, "restroom", ["화장실 확인 필요", "洗手间待确认", "Restroom needs checking", "トイレ確認が必要"]),
   option("sold-out", "sold_out", true, undefined, ["재료 소진", "食材售罄", "Sold out", "売り切れ"]),
   option("early-close", "early_closed", true, undefined, ["조기 마감", "提前打烊", "Closed early", "早仕舞い"]),
   option("photo", "photo_matches", true, undefined, ["사진과 실제가 비슷함", "与照片相似", "Matches photos", "写真と実物が近い"]),
@@ -122,7 +127,10 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
       if (current.some((fact) => `${fact.fact_type}:${String(fact.fact_value)}` === key)) {
         return current.filter((fact) => `${fact.fact_type}:${String(fact.fact_value)}` !== key);
       }
-      const withoutGroup = optionValue.group ? current.filter((fact) => fact.fact_type !== optionValue.fact_type) : current;
+      const groupedTypes = optionValue.group
+        ? new Set(options.filter((item) => item.group === optionValue.group).map((item) => item.fact_type))
+        : null;
+      const withoutGroup = groupedTypes ? current.filter((fact) => !groupedTypes.has(fact.fact_type)) : current;
       if (withoutGroup.length >= 8) {
         setStatus(text.maxFacts);
         return withoutGroup;
@@ -169,6 +177,7 @@ export function TravelerVerification({ placeId, placeName, locale, coordinates, 
       const body = await response.json() as { message?: string };
       if (!response.ok) throw new Error(body.message ?? "verification_failed");
       rememberTravelerVisit(placeId);
+      invalidateTravelerTrustSummary(placeId);
       window.dispatchEvent(new CustomEvent("place-visit-change", { detail: { placeId } }));
       setVisited(true);
       setSelected([]);

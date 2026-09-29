@@ -81,13 +81,13 @@ place_action_events -> optional place_id and authenticated user_id
 
 ## Migration order and rollback
 
-Apply every migration from `001` through `036` in filename order. In particular, `030_traveler_decision_data.sql` creates the base `sns_place_mappings` relation, `034_social_discovery_matching.sql` adds the operational matching flow, `035_grounded_trip_planning.sql` adds planner request controls, and `036_product_rollout_analytics.sql` adds the funnel enum values.
+Apply every migration from `001` through `037` in filename order. In particular, `030_traveler_decision_data.sql` creates the base traveler-report and SNS relations, `033_traveler_verification_and_trust_signals.sql` adds private moderation and public aggregates, `034_social_discovery_matching.sql` adds the operational matching flow, `035_grounded_trip_planning.sql` adds planner request controls, `036_product_rollout_analytics.sql` adds the funnel enum values, and `037_lightweight_place_verification_signals.sql` adds batched card summaries, explicit recheck facts, and non-destructive report merging.
 
 PostgreSQL enum values are not safely removed during normal rollback. To roll back application behavior, turn off Phase 2 flags and deploy the previous application. The added analytics values and indexes can remain dormant. Do not drop operational or analytics rows during a rollback.
 
 ## Deployment checklist
 
-- Apply migrations through `036` before deploying code that emits the new events.
+- Apply migrations through `037` before deploying the lightweight verification UI.
 - Set `NEXT_PUBLIC_SITE_URL` to the canonical HTTPS custom domain.
 - Set both server and public halves of any enabled Phase 2 feature in Production and rebuild.
 - Restrict map/API keys by production domain; keep service-role and OpenAI keys server-only.

@@ -6,6 +6,7 @@ import { SaveButton } from "@/components/SaveButton";
 import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
+import { TravelerTrustSummaryBadge } from "@/components/TravelerTrustSummaryBadge";
 import { ProductAnalytics } from "@/components/ProductAnalytics";
 import { hasCoordinates, type Coordinates } from "@/lib/location";
 import { formatPlaceDistance, getDistanceWarning } from "@/lib/place-display";
@@ -94,6 +95,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           />
         </div>
         <TimeAwareStatus place={place} locale={locale} travelMinutes={displayDistance === null ? 0 : Math.max(1, Math.round(displayDistance / 72))} />
+        <TravelerTrustSummaryBadge placeId={place.id} locale={locale} />
         <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
           {priorityFacts.map((fact) => (
             <span key={fact.key} className="inline-flex min-h-9 items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">

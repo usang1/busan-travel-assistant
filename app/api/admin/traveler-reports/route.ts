@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         has_conflict: hasConflict,
         evidence_count: reportEvidence.length,
         privacy_reported: reportEvidence.some((item) => item.privacy_status === "reported") || Boolean(row.flagged_at),
+        is_stale: isStaleReport(row.fact_type, row.observed_at),
       };
     });
 
@@ -52,6 +53,18 @@ export async function GET(request: Request) {
     const response = adminErrorResponse(error);
     return NextResponse.json({ message: response.message }, { status: response.status });
   }
+}
+
+function isStaleReport(factType: string, observedAt: string) {
+  const volatileDays = ["waiting_minutes", "sold_out", "early_closed", "closed", "not_recommended_now"].includes(factType)
+    ? 1
+    : ["information_changed", "restroom_needs_check"].includes(factType)
+      ? 30
+      : ["foreign_card", "alipay", "wechat_pay", "chinese_menu", "minimum_order", "cash_only", "no_foreign_menu", "restroom", "restroom_problem", "luggage_friendly"].includes(factType)
+        ? 90
+        : 180;
+  const observed = new Date(observedAt).getTime();
+  return Number.isFinite(observed) && observed < Date.now() - volatileDays * 86_400_000;
 }
 
 type RawReport = {

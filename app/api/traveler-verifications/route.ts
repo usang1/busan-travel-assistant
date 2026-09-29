@@ -15,6 +15,24 @@ const deviceCookie = "bta_traveler_device";
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(request: NextRequest) {
+  const placeIds = parsePlaceIds(request.nextUrl.searchParams.get("placeIds"));
+  if (placeIds.length) {
+    try {
+      const client = createServerAnonClient();
+      const { data, error } = await client.rpc("get_place_trust_summaries", { target_place_ids: placeIds });
+      if (error) {
+        if (isMissingBatchFunction(error)) {
+          const summaries = await loadIndividualSummaries(client, placeIds);
+          return NextResponse.json({ summaries }, { headers: noStoreHeaders });
+        }
+        throw error;
+      }
+      return NextResponse.json({ summaries: normalizeSummaries(data, placeIds) }, { headers: noStoreHeaders });
+    } catch {
+      return NextResponse.json({ summaries: Object.fromEntries(placeIds.map((id) => [id, emptyTravelerTrustSummary()])) }, { headers: noStoreHeaders });
+    }
+  }
+
   const placeId = request.nextUrl.searchParams.get("placeId") ?? "";
   if (!uuidPattern.test(placeId)) return NextResponse.json({ message: "Invalid place ID." }, { status: 400 });
 
@@ -29,6 +47,19 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.json({ summary: emptyTravelerTrustSummary() }, { headers: noStoreHeaders });
   }
+}
+
+function parsePlaceIds(value: string | null) {
+  if (!value) return [];
+  return [...new Set(value.split(",").map((item) => item.trim()).filter((item) => uuidPattern.test(item)))].slice(0, 50);
+}
+
+async function loadIndividualSummaries(client: ReturnType<typeof createServerAnonClient>, placeIds: string[]) {
+  const entries = await Promise.all(placeIds.map(async (placeId) => {
+    const { data, error } = await client.rpc("get_place_trust_summary", { target_place_id: placeId });
+    return [placeId, error ? emptyTravelerTrustSummary() : normalizeSummary(data)] as const;
+  }));
+  return Object.fromEntries(entries);
 }
 
 export async function POST(request: NextRequest) {
@@ -120,9 +151,19 @@ function isMissingTravelerSchema(error: { code?: string; message?: string }) {
     || error.message?.includes("submit_traveler_verification") === true;
 }
 
+function isMissingBatchFunction(error: { code?: string; message?: string }) {
+  return ["42883", "PGRST202"].includes(error.code ?? "")
+    || error.message?.includes("get_place_trust_summaries") === true;
+}
+
 function normalizeSummary(value: unknown): TravelerTrustSummary {
   if (!value || typeof value !== "object" || Array.isArray(value)) return emptyTravelerTrustSummary();
   return { ...emptyTravelerTrustSummary(), ...(value as Partial<TravelerTrustSummary>), facts: Array.isArray((value as Partial<TravelerTrustSummary>).facts) ? (value as TravelerTrustSummary).facts : [] };
+}
+
+function normalizeSummaries(value: unknown, placeIds: string[]) {
+  const raw = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return Object.fromEntries(placeIds.map((placeId) => [placeId, normalizeSummary(raw[placeId])]));
 }
 
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0" };
