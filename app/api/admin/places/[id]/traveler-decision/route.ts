@@ -71,13 +71,13 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
   if (section === "practical") {
     const row = value as TravelerDecisionBundle["practical"];
     const { data: existing, error: existingError } = await client.from("place_china_info").select("traveler_insights").eq("place_id", id).maybeSingle();
-    if (existingError) throw migrationError(existingError);
+    if (existingError && getMissingSchemaColumn(existingError) !== "traveler_insights") throw migrationError(existingError);
     const travelerInsights = {
       ...(isRecord(existing?.traveler_insights) ? existing.traveler_insights : {}),
       english_menu: row.english_menu,
       luggage_storage: row.luggage_storage,
     };
-    const { error } = await client.from("place_china_info").upsert({
+    const practicalRow: Record<string, unknown> = {
       place_id: id, spicy_level: row.spicy_level, greasy_level: row.oily_level, smell_level: row.aroma_level,
       sweetness_level: row.sweetness_level, portion_level: row.portion_level,
       taste_notes_ko: row.taste_notes.ko, taste_notes_zh: row.taste_notes.zh, taste_notes_en: row.taste_notes.en, taste_notes_ja: row.taste_notes.ja,
@@ -89,8 +89,9 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
       wheelchair_access: row.wheelchair_access, elevator: row.elevator, stroller_friendly: row.stroller_friendly,
       power_outlet: row.power_outlet, wifi: row.wifi, smoking_policy: row.smoking_policy,
       queue_available: row.queue_available, queue_method: row.queue_method || null,
-    }, { onConflict: "place_id" });
-    if (error) throw migrationError(error);
+    };
+    if (existingError) delete practicalRow.traveler_insights;
+    await upsertPlaceChinaInfo(client, practicalRow);
     return;
   }
   if (section === "operating") {
@@ -121,6 +122,21 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
   const rows = (value as TravelerDecisionBundle["connections"]).map((item) => ({ ...item, id: item.id ?? crypto.randomUUID(), from_place_id: id }));
   if (rows.some((row) => row.to_place_id === id)) throw publicError("같은 장소끼리는 연결할 수 없습니다.", 400);
   await replaceRows(client, "place_connections", "from_place_id", id, rows);
+}
+
+async function upsertPlaceChinaInfo(client: AdminClient, row: Record<string, unknown>) {
+  const optionalColumns = new Set(["traveler_insights", "kiosk_language_support", "sweetness_level", "taste_notes_ko", "taste_notes_zh", "taste_notes_en", "taste_notes_ja", "minimum_order_amount", "wheelchair_access", "elevator", "stroller_friendly", "power_outlet", "wifi", "smoking_policy", "queue_available", "queue_method", "restroom_location_note"]);
+  for (let attempt = 0; attempt <= optionalColumns.size; attempt += 1) {
+    const { error } = await client.from("place_china_info").upsert(row, { onConflict: "place_id" });
+    if (!error) return;
+    const missingColumn = getMissingSchemaColumn(error);
+    if (missingColumn && optionalColumns.has(missingColumn) && missingColumn in row) {
+      delete row[missingColumn];
+      continue;
+    }
+    throw migrationError(error);
+  }
+  throw publicError("여행자 실용정보 저장 컬럼 호환성을 확인하지 못했습니다.", 503);
 }
 
 async function replaceRows(client: AdminClient, table: string, ownerColumn: string, ownerId: string, rows: Array<Record<string, unknown>>) {
@@ -183,6 +199,13 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
 function migrationError(error: { code?: string; message?: string }) {
   if (["42P01", "42703", "PGRST200", "PGRST204", "PGRST205"].includes(error.code ?? "")) return publicError("여행자 의사결정 DB migration(030, 031)을 먼저 적용해주세요.", 503);
   return error;
+}
+function getMissingSchemaColumn(error: { code?: string; message?: string }) {
+  if (error.code !== "PGRST204" && error.code !== "42703") return null;
+  const message = error.message ?? "";
+  return message.match(/'([^']+)' column/i)?.[1]
+    ?? message.match(/column ["']([^"']+)["'].*does not exist/i)?.[1]
+    ?? null;
 }
 function publicError(message: string, status: number) { return Object.assign(new Error(message), { status, expose: true }); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
