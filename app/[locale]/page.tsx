@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: LocalePageProps): Promise<Met
 
 export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
-  const { places: publicPlaces } = await getCachedPublicPlaces(locale, "busan");
+  const { places: publicPlaces } = await getCachedPublicPlaces(locale);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
   const copy = ui[locale];
   return (

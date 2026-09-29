@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       .eq("place_id", placeId)
       .maybeSingle();
     if (candidateError || !candidate) return json("candidate_not_found", 404);
-    const { places } = await getCachedPublicPlaces("ko", "busan");
+    const { places } = await getCachedPublicPlaces("ko");
     if (!places.some((place) => place.id === placeId)) return json("place_not_public", 409);
 
     const clear = await service.from("sns_place_candidates").update({ confirmed_by_user: false }).eq("mapping_id", mappingId);

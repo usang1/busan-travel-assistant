@@ -7,11 +7,7 @@ import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
 import { hasCoordinates, type Coordinates } from "@/lib/location";
-import {
-  distanceFromGwangalli,
-  formatPlaceDistance,
-  getDistanceWarning,
-} from "@/lib/place-display";
+import { formatPlaceDistance, getDistanceWarning } from "@/lib/place-display";
 import { defaultLocale, getPlaceContent, type Locale, withLocale } from "@/lib/i18n";
 import {
   buildPlaceCardFacts,
@@ -40,7 +36,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const coordinates: Coordinates | null = hasCoordinates(place)
     ? { latitude: place.latitude, longitude: place.longitude }
     : null;
-  const displayDistance = distanceMeters ?? distanceFromGwangalli(place);
+  const displayDistance = distanceMeters ?? null;
   const distanceWarning = getDistanceWarning(displayDistance, locale);
   const photo = getPlacePhotoDisplay(place, locale);
   const cardFacts = buildPlaceCardFacts(place, locale);

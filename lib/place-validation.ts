@@ -1,7 +1,7 @@
 import { normalizeCoordinates } from "@/lib/place-providers/normalize";
 import { evaluatePlaceQuality } from "@/lib/place-quality";
 import { formatVerifiedBlockMessage } from "@/lib/place-publication-quality";
-import { getPlaceScopeIssueLabels } from "@/lib/place-scope";
+import { getPlaceScopeIssueLabels, isCityScopedPlace } from "@/lib/place-scope";
 import { placeCategories, type PlacePayload } from "@/types/database";
 
 export function validatePlacePayloadForSave(payload: PlacePayload) {
@@ -36,6 +36,10 @@ export function validatePlacePayloadForSave(payload: PlacePayload) {
     if (scopeIssues.length > 0) {
       throw validationError(`부산 공개 범위를 확인해 주세요: ${scopeIssues.join(", ")}`);
     }
+  }
+
+  if (isPublic && payload.city_code && payload.city_code !== "busan" && !isCityScopedPlace(payload, payload.city_code)) {
+    throw validationError("공개 장소의 선택 도시, 주소, 구역, 좌표가 서로 일치하는지 확인해 주세요.");
   }
 
   if (payload.china_info?.verification_basis === "official_source" && !payload.source?.source_url && !payload.website) {

@@ -26,10 +26,10 @@ import { PlaceCard } from "@/components/PlaceCard";
 import { SectionTitle } from "@/components/SectionTitle";
 import { busanDistrictOptions, getBusanDistrictKey, getBusanDistrictLabel, type BusanDistrictKey } from "@/lib/busan-districts";
 import { getHomeQuickFilters, type HomeQuickFilterKey } from "@/lib/home-discovery";
+import { getPlaceRegion, placeCities, placeCityLabels, type PlaceCity } from "@/lib/city-regions";
 import { getProblemGuides, resolveHomeIntentCards, type ResolvedHomeIntentCard } from "@/lib/home-intent-links";
 import { type Locale, ui, withLocale } from "@/lib/i18n";
 import { distanceFromGwangalli } from "@/lib/place-display";
-import { estimateWalkingMinutes } from "@/lib/location";
 import { getTimeAwarePlaceState } from "@/lib/time-aware-place";
 import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import type { PlaceWithRelations } from "@/types/database";
@@ -68,7 +68,12 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
     .sort((a, b) => b.count - a.count);
   const preparingDistrictCount = busanDistrictOptions.length - activeDistricts.length;
   const now = new Date();
-  const nowWorthPlaces = places.filter((place) => getTimeAwarePlaceState(place, { now, travelMinutes: estimateWalkingMinutes(distanceFromGwangalli(place)) }).recommendedAtArrival === true).slice(0, 4);
+  const nowWorthPlaces = places.filter((place) => getTimeAwarePlaceState(place, { now, travelMinutes: 0 }).recommendedAtArrival === true).slice(0, 4);
+  const cityCounts = places.reduce<Partial<Record<PlaceCity, number>>>((counts, place) => {
+    const city = getPlaceRegion(place).city;
+    if (city) counts[city] = (counts[city] ?? 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <main className="safe-bottom mx-auto max-w-5xl px-4 pb-6 pt-5">
@@ -101,7 +106,7 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
 
       <section className="border-b border-slate-200 py-7">
         <SectionTitle title={copy.nowWorth} subtitle={copy.nowWorthSubtitle} action={<Link href={withLocale("/places?recommendedNow=true&sort=verified", locale)} className="inline-flex min-h-11 items-center gap-1 text-sm font-black text-teal-700">{ui[locale].common.viewAll}<ArrowRight size={16} aria-hidden="true" /></Link>} />
-        {nowWorthPlaces.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2">{nowWorthPlaces.map((place) => <PlaceCard key={place.id} place={place} locale={locale} distanceMeters={distanceFromGwangalli(place)} />)}</div> : <p className="mt-4 rounded-lg bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.nowWorthEmpty}</p>}
+        {nowWorthPlaces.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2">{nowWorthPlaces.map((place) => <PlaceCard key={place.id} place={place} locale={locale} />)}</div> : <p className="mt-4 rounded-lg bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.nowWorthEmpty}</p>}
       </section>
 
       <section id="sns-place-search" className="scroll-mt-40 border-b border-slate-200 py-7">
@@ -112,23 +117,21 @@ export function HomeDiscoveryPage({ locale, places }: HomeDiscoveryPageProps) {
       <section className="py-7">
         <SectionTitle title={copy.cityTitle} subtitle={copy.citySubtitle} />
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <Link href={withLocale("/busan", locale)} className="flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100">
-            <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white/15"><Building2 size={21} aria-hidden="true" /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-xl font-black">{copy.busan}</span>
-              <span className="mt-1 block text-xs font-bold text-teal-100">{copy.publishedPlaces} {places.length}</span>
-            </span>
-            <ArrowRight size={18} className="shrink-0" aria-hidden="true" />
-          </Link>
-          {[copy.seoul, copy.jeju].map((city) => (
-            <div key={city} aria-disabled="true" className="flex min-h-24 items-center gap-3 rounded-lg bg-slate-100 p-4 text-slate-500 ring-1 ring-slate-200">
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white text-slate-400"><Building2 size={21} aria-hidden="true" /></span>
+          {placeCities.map((city) => {
+            const count = cityCounts[city.key] ?? 0;
+            const href = city.key === "busan" ? "/busan" : `/places?city=${city.key}`;
+            return count > 0 ? <Link key={city.key} href={withLocale(href, locale)} className="flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white/15"><Building2 size={21} aria-hidden="true" /></span>
               <span className="min-w-0 flex-1">
-                <span className="block text-xl font-black">{city}</span>
-                <span className="mt-1 block text-xs font-bold">{copy.preparing}</span>
+                <span className="block text-xl font-black">{placeCityLabels[city.key][locale]}</span>
+                <span className="mt-1 block text-xs font-bold text-teal-100">{copy.publishedPlaces} {count}</span>
               </span>
-            </div>
-          ))}
+              <ArrowRight size={18} className="shrink-0" aria-hidden="true" />
+            </Link> : <div key={city.key} aria-disabled="true" className="flex min-h-24 items-center gap-3 rounded-lg bg-slate-100 p-4 text-slate-500 ring-1 ring-slate-200">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white text-slate-400"><Building2 size={21} aria-hidden="true" /></span>
+              <span className="min-w-0 flex-1"><span className="block text-xl font-black">{placeCityLabels[city.key][locale]}</span><span className="mt-1 block text-xs font-bold">{copy.preparing}</span></span>
+            </div>;
+          })}
         </div>
       </section>
 
@@ -401,20 +404,20 @@ type CityHomeCopy = {
 
 const cityHomeCopy: Record<Locale, CityHomeCopy> = {
   ko: {
-    area: "현재 부산 Beta 운영 중",
-    heading: "부산에서 실패하지 않는 여행",
+    area: "서울·부산·제주 운영",
+    heading: "한국에서 실패하지 않는 여행",
     supporting: "지금 가도 되는지, 무엇을 주문할지, 외국인이 이용하기 쉬운지 먼저 확인하세요.",
     nowWorth: "지금 갈 만한 곳",
-    nowWorthSubtitle: "광안리에서 지금 출발할 때 도착 시각이 검수된 추천 시간대와 맞는 장소입니다.",
+    nowWorthSubtitle: "서울·부산·제주의 검수된 시간 데이터를 기준으로 지금 방문 판단을 돕습니다.",
     nowWorthEmpty: "검수된 시간대 데이터가 더 쌓이면 도착 시각 기준 추천을 표시합니다.",
     bySituation: "상황별로 찾기",
     findFromSns: "SNS에서 본 장소 찾기",
     buildItinerary: "저장한 장소로 일정 만들기",
-    searchTitle: "SNS에서 본 부산 장소가 있나요?",
+    searchTitle: "SNS에서 본 한국 장소가 있나요?",
     searchSubtitle: "한국어·중국어 상호명이나 지역을 검색해 방문 전 핵심 정보를 확인하세요.",
     cityTitle: "서비스 운영 범위",
-    citySubtitle: "브랜드는 한국 여행으로 확장하되, 현재 검수된 장소는 부산만 제공합니다.",
-    busan: "부산 Beta",
+    citySubtitle: "서울·부산·제주에서 실제 공개·검수된 장소 수만 표시합니다.",
+    busan: "부산",
     seoul: "서울",
     jeju: "제주",
     publishedPlaces: "공개 장소",
@@ -427,20 +430,20 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     noPublicPlacesDescription: "검수된 장소가 공개되기 전에는 추천 수나 지역을 부풀려 표시하지 않습니다.",
   },
   zh: {
-    area: "目前运营釜山 Beta",
-    heading: "在釜山旅行，少踩坑",
+    area: "覆盖首尔·釜山·济州",
+    heading: "在韩国旅行，少踩坑",
     supporting: "先确认现在值不值得去、该点什么，以及外国游客使用是否方便。",
     nowWorth: "现在值得去的地方",
-    nowWorthSubtitle: "从广安里现在出发，预计到达时间符合已审核推荐时段的地点。",
+    nowWorthSubtitle: "根据首尔、釜山和济州已审核的时段数据，帮助判断现在是否适合去。",
     nowWorthEmpty: "审核后的时段数据增加后，将显示按到达时间计算的推荐。",
     bySituation: "按旅行场景找",
     findFromSns: "查找社交平台看到的店",
     buildItinerary: "用收藏地点做行程",
-    searchTitle: "在小红书看到釜山地点了吗？",
+    searchTitle: "在小红书看到韩国地点了吗？",
     searchSubtitle: "用中文、韩文店名或地区搜索，出发前先确认关键信息。",
     cityTitle: "当前服务范围",
-    citySubtitle: "品牌可扩展到韩国旅行，但目前只提供经过审核的釜山地点。",
-    busan: "釜山 Beta",
+    citySubtitle: "只显示首尔、釜山和济州真实公开并通过审核的地点数量。",
+    busan: "釜山",
     seoul: "首尔",
     jeju: "济州",
     publishedPlaces: "公开地点",
@@ -453,20 +456,20 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     noPublicPlacesDescription: "地点通过审核前，不会夸大推荐数量或可用地区。",
   },
   en: {
-    area: "Busan Beta is live",
-    heading: "Make fewer mistakes in Busan",
+    area: "Seoul · Busan · Jeju",
+    heading: "Make fewer mistakes in Korea",
     supporting: "Check whether a place is worth going now, what to order, and how easy it is for international travelers.",
     nowWorth: "Worth going now",
-    nowWorthSubtitle: "Places whose reviewed recommendation window matches an estimated departure from Gwangalli now.",
+    nowWorthSubtitle: "Reviewed time data from Seoul, Busan, and Jeju helps you decide whether to go now.",
     nowWorthEmpty: "Arrival-time recommendations will appear as reviewed time data grows.",
     bySituation: "Find by situation",
     findFromSns: "Find a place from social media",
     buildItinerary: "Plan with saved places",
-    searchTitle: "Found a Busan place on social media?",
+    searchTitle: "Found a Korea place on social media?",
     searchSubtitle: "Search its Korean or translated name and check the essentials before you go.",
     cityTitle: "Current coverage",
-    citySubtitle: "The brand can grow across Korea, but reviewed place coverage is currently limited to Busan.",
-    busan: "Busan Beta",
+    citySubtitle: "Only real published and reviewed place counts are shown for Seoul, Busan, and Jeju.",
+    busan: "Busan",
     seoul: "Seoul",
     jeju: "Jeju",
     publishedPlaces: "Published places",
@@ -479,20 +482,20 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     noPublicPlacesDescription: "We do not inflate recommendations or coverage before places pass review.",
   },
   ja: {
-    area: "現在は釜山 Beta を運営中",
-    heading: "釜山で失敗しない旅",
+    area: "ソウル・釜山・済州に対応",
+    heading: "韓国で失敗しない旅",
     supporting: "今行く価値があるか、何を注文するか、外国人にも利用しやすいかを先に確認できます。",
     nowWorth: "今行く価値がある場所",
-    nowWorthSubtitle: "広安里から今出発した場合、到着予想時刻が確認済みの推奨時間帯に合う場所です。",
+    nowWorthSubtitle: "ソウル・釜山・済州の確認済み時間データで、今行くべきか判断できます。",
     nowWorthEmpty: "確認済み時間帯データが増えると、到着時刻基準のおすすめを表示します。",
     bySituation: "状況別に探す",
     findFromSns: "SNSで見た場所を探す",
     buildItinerary: "保存スポットで旅程作成",
-    searchTitle: "SNSで見た釜山スポットがありますか？",
+    searchTitle: "SNSで見た韓国スポットがありますか？",
     searchSubtitle: "韓国語・翻訳名・地域で検索し、訪問前に大切な情報を確認してください。",
     cityTitle: "現在のサービス範囲",
-    citySubtitle: "韓国旅行へ拡張できるブランドですが、現在の審査済みスポットは釜山のみです。",
-    busan: "釜山 Beta",
+    citySubtitle: "ソウル・釜山・済州の実際に公開・確認済みのスポット数だけを表示します。",
+    busan: "釜山",
     seoul: "ソウル",
     jeju: "済州",
     publishedPlaces: "公開スポット",

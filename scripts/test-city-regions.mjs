@@ -13,10 +13,15 @@ function load(file) {
   return module.exports;
 }
 
-const { cityRegions, getPlaceRegion, buildPlaceRegionTags, inferPlaceCity, inferCityRegion, isPlaceRegionTag, placeRegionLabel } = load("city-regions");
+const { cityRegions, getPlaceRegion, buildPlaceRegionTags, inferPlaceCity, inferCityRegion, isPlaceRegionTag, isPlaceCity, parsePlaceCity, placeCityCenters, placeRegionLabel } = load("city-regions");
 assert.equal(cityRegions("seoul").length, 25);
 assert.equal(cityRegions("busan").length, 16);
 assert.equal(cityRegions("jeju").length, 2);
+assert.equal(isPlaceCity("seoul"), true);
+assert.equal(isPlaceCity("daejeon"), false);
+assert.equal(parsePlaceCity("jeju"), "jeju");
+assert.equal(parsePlaceCity("invalid"), "busan");
+assert.deepEqual(placeCityCenters.seoul, { latitude: 37.5665, longitude: 126.978 });
 
 for (const [city, key, address] of [
   ["busan", "gangseo-gu", "부산광역시 강서구 명지동"],

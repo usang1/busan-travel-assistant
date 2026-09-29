@@ -61,7 +61,7 @@ assert.match(migration, /grant execute on function public\.register_social_disco
 assert.match(migration, /Raw social text, URLs, screenshots, IP addresses, and OCR images are not stored/);
 
 const searchRoute = read("../app/api/social-discovery/search/route.ts");
-assert.match(searchRoute, /getCachedPublicPlaces\(localeValue as Locale, "busan"\)/);
+assert.match(searchRoute, /getCachedPublicPlaces\(localeValue as Locale\)/);
 assert.match(searchRoute, /isSameRequestOrigin/);
 assert.match(searchRoute, /createHash\("sha256"\)/);
 assert.doesNotMatch(searchRoute, /fetch\(socialUrl|fetch\(inputText|x-forwarded-for|cf-connecting-ip|request\.ip/);

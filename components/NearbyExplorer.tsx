@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { MutableRefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Heart, List, Map as MapIcon, MapPinned, Navigation, Search } from "lucide-react";
+import { ArrowRight, Heart, List, Map as MapIcon, MapPinned, Navigation, Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { DirectionsButton } from "@/components/DirectionsButton";
@@ -16,6 +16,7 @@ import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
 import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { TravelMap } from "@/components/TravelMap";
+import { placeCityCenters, placeCityLabels, type PlaceCity } from "@/lib/city-regions";
 import {
   calculateDistanceMeters,
   estimateWalkingMinutes,
@@ -23,7 +24,6 @@ import {
   formatOpeningStatus,
   getOpeningStatus,
   getPlaceDistance,
-  gwangalliCenter,
   hasCoordinates,
   mapCategories,
   type Coordinates,
@@ -72,9 +72,10 @@ type NearbyExplorerProps = {
   places: PlaceWithRelations[];
   locale?: Locale;
   loadError?: string;
+  city?: PlaceCity;
 };
 
-type OriginMode = "current" | "gwangalli";
+type OriginMode = "current" | "default";
 type MapCategoryFilter = "all" | "restaurant" | "cafe" | "attraction" | "shopping" | "saved";
 type DistanceFilter = "all" | "500" | "1000" | "3000";
 
@@ -114,15 +115,16 @@ function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
   );
 }
 
-export function NearbyExplorer({ places, locale = defaultLocale, loadError }: NearbyExplorerProps) {
+export function NearbyExplorer({ places, locale = defaultLocale, loadError, city = "busan" }: NearbyExplorerProps) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const localizedCopy = nearbyCopy[locale];
-  const [originMode, setOriginMode] = useState<OriginMode>("gwangalli");
+  const cityScopeCopy = getNearbyCityScopeCopy(city, locale);
+  const [originMode, setOriginMode] = useState<OriginMode>("default");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
-  const [locationStatus, setLocationStatus] = useState(localizedCopy.gwangalliBase);
+  const [locationStatus, setLocationStatus] = useState(cityScopeCopy.base);
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [category, setCategory] = useState<MapCategoryFilter>(() => readCategory(searchParams));
   const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>(() => readDistanceFilter(searchParams));
@@ -141,8 +143,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   const [desktopMapMounted, setDesktopMapMounted] = useState(false);
   const [clock, setClock] = useState<Date | null>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
-  const initialSelectionAppliedRef = useRef(false);
-  const origin = originMode === "current" && userLocation ? userLocation : gwangalliCenter;
+  const defaultCenter = placeCityCenters[city];
+  const origin = originMode === "current" && userLocation ? userLocation : defaultCenter;
   const provider = getPreferredMapProvider();
   const copy = ui[locale];
   const showChinaFilters = true;
@@ -165,7 +167,12 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   }, []);
 
   useEffect(() => {
+    if (originMode !== "current") setLocationStatus(cityScopeCopy.base);
+  }, [cityScopeCopy.base, originMode]);
+
+  useEffect(() => {
     const nextParams = new URLSearchParams();
+    nextParams.set("city", city);
 
     if (query.trim()) nextParams.set("q", query.trim());
     if (category !== "all") nextParams.set("category", category);
@@ -189,7 +196,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
     if (nextQuery !== currentQuery) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
     }
-  }, [activeChinaFilters, category, distanceFilter, pathname, priceBucket, query, router, searchParams, showChinaFilters, sortMode]);
+  }, [activeChinaFilters, category, city, distanceFilter, pathname, priceBucket, query, router, searchParams, showChinaFilters, sortMode]);
 
   useEffect(() => {
     let mounted = true;
@@ -370,12 +377,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
   }, [activeChinaFilters, appliedBounds, baseItems.length, category, distanceFilter, filteredItems.length, loadError, locale, originMode, places.length, priceBucket, query, showChinaFilters, sortMode]);
 
   useEffect(() => {
-    if (!initialSelectionAppliedRef.current && filteredItems[0]) {
-      initialSelectionAppliedRef.current = true;
-      setSelectedId(filteredItems[0].place.id);
-      return;
-    }
-
     if (selectedId && !selectedItem) {
       setSelectedId(null);
     }
@@ -425,8 +426,8 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
 
   function requestLocation() {
     if (!("geolocation" in navigator)) {
-      setLocationStatus(localizedCopy.locationUnsupported);
-      setOriginMode("gwangalli");
+      setLocationStatus(cityScopeCopy.unsupported);
+      setOriginMode("default");
       return;
     }
 
@@ -438,18 +439,18 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         };
-        const distanceToGwangalli = calculateDistanceMeters(nextLocation, gwangalliCenter);
+        const distanceToDefault = calculateDistanceMeters(nextLocation, defaultCenter);
 
         setUserLocation(nextLocation);
         setOriginMode("current");
         setLocationFocusRequest((current) => current + 1);
         clearAreaSearch();
-        setLocationStatus(`${localizedCopy.currentBase} ${localizedCopy.distanceToGwangalli} ${formatDistance(distanceToGwangalli, locale)}.`);
+        setLocationStatus(`${localizedCopy.currentBase} ${cityScopeCopy.distanceToCenter} ${formatDistance(distanceToDefault, locale)}.`);
         setIsLocating(false);
       },
       () => {
-        setOriginMode("gwangalli");
-        setLocationStatus(localizedCopy.locationDenied);
+        setOriginMode("default");
+        setLocationStatus(cityScopeCopy.denied);
         setIsLocating(false);
       },
       {
@@ -481,6 +482,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
       onClearArea={clearAreaSearch}
       locationStatus={locationStatus}
       originMode={originMode}
+      defaultLocationLabel={cityScopeCopy.locationLabel}
       filterNotice={filterNotice}
       userLoggedIn={Boolean(user)}
       userLocation={userLocation}
@@ -606,7 +608,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError }: Ne
           />
           {selectedItem ? (
             <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10">
-              <SelectedPlaceSummary item={selectedItem} locale={locale} />
+              <SelectedPlaceSummary item={selectedItem} locale={locale} onClose={() => setSelectedId(null)} />
             </div>
           ) : null}
         </div>
@@ -628,6 +630,7 @@ function SearchAndFilters({
   appliedBounds,
   locationStatus,
   originMode,
+  defaultLocationLabel,
   filterNotice,
   userLoggedIn,
   userLocation,
@@ -656,6 +659,7 @@ function SearchAndFilters({
   appliedBounds: MapBounds | null;
   locationStatus: string;
   originMode: OriginMode;
+  defaultLocationLabel: string;
   filterNotice: string;
   userLoggedIn: boolean;
   userLocation: Coordinates | null;
@@ -686,7 +690,7 @@ function SearchAndFilters({
       <div className="rounded-[24px] bg-slate-950 p-4 text-white lg:bg-transparent lg:p-0 lg:text-slate-950 lg:shadow-none">
         <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-teal-100 ring-1 ring-white/10 lg:bg-teal-50 lg:text-teal-700 lg:ring-teal-100">
           <MapPinned size={16} aria-hidden="true" />
-          {originMode === "current" ? localizedCopy.currentLocation : localizedCopy.gwangalliLocation}
+          {originMode === "current" ? localizedCopy.currentLocation : defaultLocationLabel}
         </div>
         <p className="mt-2 text-sm leading-6 text-slate-300 lg:text-slate-500">{locationStatus}</p>
         {originMode !== "current" ? (
@@ -1087,32 +1091,57 @@ function PlaceListCard({
   );
 }
 
-function SelectedPlaceSummary({ item, locale }: { item: PlaceListItem; locale: Locale }) {
+function SelectedPlaceSummary({ item, locale, onClose }: { item: PlaceListItem; locale: Locale; onClose: () => void }) {
   const { place, distance, walkingMinutes } = item;
   const nameDisplay = getPlaceNameDisplay(place, locale);
   const href = withLocale(`/places/${place.slug}`, locale);
   const copy = ui[locale];
   const localizedCopy = nearbyCopy[locale];
   const walkingLabel = walkingMinutes === null ? copy.common.noInfo : `${walkingMinutes}${copy.common.minutes}`;
-  const menu = getRepresentativeMenu(place, locale);
-  const menuLabel = { zh: "招牌", en: "Order", ja: "注文", ko: "주문" }[locale];
+  const opening = formatOpeningStatus(place.opening_hours, locale);
+  const closeLabel = { zh: "关闭地点摘要", en: "Close place summary", ja: "場所の概要を閉じる", ko: "장소 요약 닫기" }[locale];
 
   return (
-    <article className="pointer-events-auto rounded-lg bg-white p-3 shadow-xl ring-1 ring-slate-200">
-      <Link href={href} aria-label={`${nameDisplay.name} ${localizedCopy.detail}`} className="flex min-h-14 items-center gap-3">
+    <article className="pointer-events-auto flex min-h-[76px] items-center gap-1 rounded-lg bg-white p-2 shadow-xl ring-1 ring-slate-200">
+      <Link href={href} aria-label={`${nameDisplay.name} ${localizedCopy.detail}`} className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 px-2">
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-black text-slate-950">{nameDisplay.name}</span>
           <span className="mt-1 block truncate text-xs font-bold text-teal-800">
             {getPlaceCategoryLabel(place.category, locale)} · {formatDistance(distance, locale)} · {walkingLabel}
           </span>
-          <span className="mt-1 block truncate text-xs text-slate-600">{menuLabel} · {menu?.name ?? copy.common.noInfo}</span>
+          <span className="mt-1 block truncate text-xs text-slate-600">{opening.text}</span>
         </span>
         <ArrowRight size={18} className="shrink-0 text-teal-700" aria-hidden="true" />
       </Link>
-      <TravelerDecisionCard place={place} locale={locale} className="mt-2 border-t border-slate-100 pt-2" />
-      <TimeAwareStatus place={place} locale={locale} travelMinutes={walkingMinutes} />
+      <button type="button" onClick={onClose} aria-label={closeLabel} title={closeLabel} className="grid size-11 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 active:scale-95">
+        <X size={18} aria-hidden="true" />
+      </button>
     </article>
   );
+}
+
+function getNearbyCityScopeCopy(city: PlaceCity, locale: Locale) {
+  const name = placeCityLabels[city][locale];
+  return {
+    base: {
+      ko: `${name} 중심 기준으로 표시 중입니다.`, zh: `目前以${name}市中心为基准显示。`,
+      en: `Showing results from central ${name}.`, ja: `${name}中心を基準に表示しています。`,
+    }[locale],
+    locationLabel: {
+      ko: `${name} 중심 기준`, zh: `以${name}市中心为基准`, en: `Based on central ${name}`, ja: `${name}中心基準`,
+    }[locale],
+    unsupported: {
+      ko: `현재 위치를 사용할 수 없어 ${name} 중심 기준으로 표시합니다.`, zh: `无法使用当前位置，将以${name}市中心为基准显示。`,
+      en: `Current location is unavailable. Continuing from central ${name}.`, ja: `現在地を使用できないため、${name}中心を基準に表示します。`,
+    }[locale],
+    denied: {
+      ko: `위치 권한이 거부되어 ${name} 중심 기준으로 표시합니다.`, zh: `位置权限被拒绝，将以${name}市中心为基准显示。`,
+      en: `Location permission was denied. Continuing from central ${name}.`, ja: `位置情報が許可されなかったため、${name}中心を基準に表示します。`,
+    }[locale],
+    distanceToCenter: {
+      ko: `${name} 중심까지`, zh: `到${name}市中心约`, en: `Distance to central ${name}:`, ja: `${name}中心まで`,
+    }[locale],
+  };
 }
 
 const nearbyCopy: Record<Locale, {
@@ -1125,7 +1154,6 @@ const nearbyCopy: Record<Locale, {
   mapView: string;
   listView: string;
   viewMode: string;
-  gwangalliLocation: string;
   heading: string;
   currentLocation: string;
   useMyLocation: string;
@@ -1169,7 +1197,6 @@ const nearbyCopy: Record<Locale, {
     mapView: "地图",
     listView: "列表",
     viewMode: "地图或列表视图",
-    gwangalliLocation: "以广安里为基准",
     heading: "现在附近去哪？",
     currentLocation: "当前位置",
     useMyLocation: "我的位置",
@@ -1213,7 +1240,6 @@ const nearbyCopy: Record<Locale, {
     mapView: "Map",
     listView: "List",
     viewMode: "Map or list view",
-    gwangalliLocation: "Based on Gwangalli",
     heading: "Where nearby now?",
     currentLocation: "Current location",
     useMyLocation: "Use my location",
@@ -1257,7 +1283,6 @@ const nearbyCopy: Record<Locale, {
     mapView: "地図",
     listView: "一覧",
     viewMode: "地図または一覧表示",
-    gwangalliLocation: "広安里基準",
     heading: "今近くでどこへ行く？",
     currentLocation: "現在地",
     useMyLocation: "現在地を使う",
@@ -1301,7 +1326,6 @@ const nearbyCopy: Record<Locale, {
     mapView: "지도",
     listView: "목록",
     viewMode: "지도 또는 목록 보기",
-    gwangalliLocation: "광안리 기준",
     heading: "지금 근처 어디 갈까?",
     currentLocation: "현재 위치",
     useMyLocation: "내 위치",

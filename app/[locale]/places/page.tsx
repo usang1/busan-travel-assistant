@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PlacesExplorer } from "@/components/PlacesExplorer";
+import { CitySwitcher } from "@/components/CitySwitcher";
 import { SectionTitle } from "@/components/SectionTitle";
-import { getBusanDistrictLabel, isBusanDistrictKey } from "@/lib/busan-districts";
+import { cityRegions, getPlaceRegion, parsePlaceCity } from "@/lib/city-regions";
 import { getCachedPlaceRankings, getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
 import { placeCategories, type PlaceCategory } from "@/types/database";
@@ -22,6 +23,7 @@ type LocalizedPlacesPageProps = {
     q?: string;
     category?: string;
     region?: string;
+    city?: string;
   }>;
 };
 
@@ -53,24 +55,26 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   const locale = await getLocale(params);
   const query = await searchParams;
   const copy = ui[locale];
+  const city = parsePlaceCity(query?.city);
   const rankingCategory = parseRankingCategory(query?.category);
-  const rankingRegion = isBusanDistrictKey(query?.region) ? getBusanDistrictLabel(query.region, "ko") : undefined;
+  const rankingRegion = cityRegions(city).find((region) => region.key === query?.region)?.labels.ko;
   const [{ places: publicPlaces, source, error }, rankings] = await Promise.all([
-    getCachedPublicPlaces(locale, "busan"),
+    getCachedPublicPlaces(locale, city),
     getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
   ]);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
   const localeRankings = {
-    popular: rankings.popular.filter((place) => translatedPlaceLocales(place).includes(locale)),
-    trending: rankings.trending.filter((place) => translatedPlaceLocales(place).includes(locale)),
+    popular: rankings.popular.filter((place) => getPlaceRegion(place).city === city && translatedPlaceLocales(place).includes(locale)),
+    trending: rankings.trending.filter((place) => getPlaceRegion(place).city === city && translatedPlaceLocales(place).includes(locale)),
     error: rankings.error,
   };
 
   return (
     <main className="safe-bottom mx-auto max-w-6xl px-4 pb-6 pt-5">
+      <CitySwitcher locale={locale} activeCity={city} path="/places" />
       <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : `${copy.common.registeredPlaces} ${places.length}`} />
       <div className="mt-4">
-        <PlacesExplorer places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={localeRankings} />
+        <PlacesExplorer key={city} city={city} places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={localeRankings} />
       </div>
     </main>
   );

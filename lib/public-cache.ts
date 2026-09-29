@@ -46,7 +46,7 @@ export const getCachedPublicPlaces = unstable_cache(
 export const getCachedPublicPlaceBySlug = unstable_cache(
   async (slug: string) => {
     const client = createPublicSupabaseClient();
-    return getPlaceBySlug(slug, { activeOnly: true, cityCode: "busan" }, client ?? undefined);
+    return getPlaceBySlug(slug, { activeOnly: true }, client ?? undefined);
   },
   ["public-place-by-slug"],
   {

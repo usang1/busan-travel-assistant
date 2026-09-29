@@ -9,15 +9,15 @@ const nearby = readFileSync(new URL("../components/NearbyExplorer.tsx", import.m
 const i18n = readFileSync(new URL("../lib/i18n.ts", import.meta.url), "utf8");
 
 for (const message of [
-  "부산에서 실패하지 않는 여행",
-  "在釜山旅行，少踩坑",
-  "Make fewer mistakes in Busan",
-  "釜山で失敗しない旅",
+  "한국에서 실패하지 않는 여행",
+  "在韩国旅行，少踩坑",
+  "Make fewer mistakes in Korea",
+  "韓国で失敗しない旅",
 ]) {
   assert.match(home, new RegExp(message));
 }
 
-assert.match(localizedHome, /getCachedPublicPlaces\(locale, "busan"\)/);
+assert.match(localizedHome, /getCachedPublicPlaces\(locale\)/);
 assert.match(localizedHome, /translatedPlaceLocales\(place\)\.includes\(locale\)/);
 assert.match(home, /const districtCounts = getDistrictCounts\(places\)/);
 assert.match(home, /\.filter\(\(district\) => district\.count > 0\)/);
@@ -50,4 +50,4 @@ for (const label of ["places: \"找地点\"", "places: \"Places\"", "places: \"�
   assert.match(i18n, new RegExp(label));
 }
 
-console.log("Decision UX tests passed (Busan scope, dynamic districts, five-item navigation, mobile map/list, and four locales).");
+console.log("Decision UX tests passed (multi-city scope, dynamic Busan districts, five-item navigation, mobile map/list, and four locales).");

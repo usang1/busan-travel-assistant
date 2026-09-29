@@ -42,8 +42,7 @@ import { TagChip } from "@/components/TagChip";
 import { getCachedPublicPlaceBySlug, getCachedRelatedGuidesForPlace } from "@/lib/public-cache";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
 import { getPracticalRouteContext, getRelatedPlaces } from "@/lib/place-recommendations";
-import { estimateWalkingMinutes, formatOpeningStatus, hasCoordinates } from "@/lib/location";
-import { distanceFromGwangalli } from "@/lib/place-display";
+import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   getLastVerifiedLabel,
@@ -303,7 +302,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             <InfoTile icon={Clock3} label={copy.common.walk} value={walkingText} />
             <InfoTile icon={Route} label={localizedHoursLabel} value={place.opening_hours ? opening.text : copy.common.notRegistered} />
           </div>
-          <TimeAwareStatus place={place} locale={locale} travelMinutes={estimateWalkingMinutes(distanceFromGwangalli(place))} variant="detail" />
+          <TimeAwareStatus place={place} locale={locale} travelMinutes={0} variant="detail" />
 
           <section className="mt-6">
             <SectionTitle title={copy.placeDetail.recommendation} />

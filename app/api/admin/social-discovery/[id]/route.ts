@@ -16,8 +16,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (body.action === "approve") {
       if (!body.placeId || !uuidPattern.test(body.placeId)) return NextResponse.json({ message: "승인할 장소를 선택해주세요." }, { status: 400 });
-      const { data: place, error: placeError } = await client.from("places").select("id").eq("id", body.placeId).eq("city_code", "busan").eq("is_active", true).in("status", ["PUBLISHED", "ACTIVE"]).maybeSingle();
-      if (placeError || !place) return NextResponse.json({ message: "공개·검수된 부산 장소만 매핑할 수 있습니다." }, { status: 409 });
+      const { data: place, error: placeError } = await client.from("places").select("id").eq("id", body.placeId).in("city_code", ["seoul", "busan", "jeju"]).eq("is_active", true).in("status", ["PUBLISHED", "ACTIVE"]).maybeSingle();
+      if (placeError || !place) return NextResponse.json({ message: "공개·검수된 서울·부산·제주 장소만 매핑할 수 있습니다." }, { status: 409 });
       const candidate = await client.from("sns_place_candidates").select("place_id").eq("mapping_id", id).eq("place_id", body.placeId).maybeSingle();
       if (candidate.error || !candidate.data) return NextResponse.json({ message: "검색 후보에 포함된 장소만 승인할 수 있습니다." }, { status: 409 });
       await client.from("sns_place_candidates").update({ confirmed_by_user: false }).eq("mapping_id", id);

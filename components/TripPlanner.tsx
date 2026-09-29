@@ -19,6 +19,7 @@ import { useSearchParams } from "next/navigation";
 import { ShareButton } from "@/components/ShareButton";
 import { TripDayMap } from "@/components/TripDayMap";
 import { DirectionsButton } from "@/components/DirectionsButton";
+import { GroundedTripPlanner } from "@/components/GroundedTripPlanner";
 import { useAuth } from "@/components/AuthProvider";
 import {
   addGuestPlaceToTrip,
@@ -54,6 +55,7 @@ import {
   type TripInput,
 } from "@/lib/trip-store";
 import type { PlaceWithRelations, TripPlaceWithPlace, TripRecord, TripVisibility } from "@/types/database";
+import type { GroundedTripPlan } from "@/types/grounded-trip";
 
 type TripPlannerProps = { locale: Locale };
 
@@ -374,6 +376,60 @@ export function TripPlanner({ locale }: TripPlannerProps) {
     setStatus(error ?? text.placeRemoved);
   }
 
+  async function handleGroundedPlan(plan: GroundedTripPlan, target: "new" | "replace") {
+    if (!plan.places.length || busy) return;
+    setBusy(true);
+    setStatus("");
+    const layout = groundedPlanLayout(plan);
+
+    if (target === "new" || !activeTrip) {
+      const date = seoulDate(plan.conditions.start_time);
+      const input: TripInput = { title: plan.route_title, startDate: date, endDate: date, visibility: "private" };
+      if (!user) {
+        const trip = createGuestTrip(input);
+        saveGuestTripLayout(trip.id, layout);
+        setTrips((current) => [trip, ...current.filter((item) => item.id !== trip.id)]);
+        setActiveTripId(trip.id);
+        setActiveDay(1);
+        await refreshTripPlaces(trip.id);
+        setStatus(groundedStatusCopy[locale].saved);
+        setBusy(false);
+        return;
+      }
+      const result = await createTrip(user.id, input);
+      if (!result.trip) {
+        setStatus(result.error ?? text.failed);
+        setBusy(false);
+        return;
+      }
+      const layoutError = await saveTripLayout(result.trip.id, layout);
+      setTrips((current) => [result.trip as TripRecord, ...current]);
+      setActiveTripId(result.trip.id);
+      setActiveDay(1);
+      await refreshTripPlaces(result.trip.id);
+      setStatus(layoutError ?? groundedStatusCopy[locale].saved);
+      setBusy(false);
+      return;
+    }
+
+    if (!user) {
+      saveGuestTripLayout(activeTrip.id, layout);
+      await refreshTripPlaces(activeTrip.id);
+      setActiveDay(1);
+      setStatus(groundedStatusCopy[locale].applied);
+      setBusy(false);
+      return;
+    }
+
+    const nextIds = new Set(layout.map((item) => item.placeId));
+    const removalErrors = await Promise.all(tripPlaces.filter((item) => !nextIds.has(item.place_id)).map((item) => removeTripPlace(item.id)));
+    const layoutError = await saveTripLayout(activeTrip.id, layout);
+    await refreshTripPlaces(activeTrip.id);
+    setActiveDay(1);
+    setStatus(removalErrors.find(Boolean) ?? layoutError ?? groundedStatusCopy[locale].applied);
+    setBusy(false);
+  }
+
   return (
     <div className="space-y-6">
       <section className="bg-slate-950 px-5 py-6 text-white sm:rounded-[28px]">
@@ -392,6 +448,15 @@ export function TripPlanner({ locale }: TripPlannerProps) {
           {text.guestNotice} <Link href={withLocale("/login", locale)} className="font-black underline underline-offset-4">{text.loginToSync}</Link>
         </section>
       ) : null}
+
+      <GroundedTripPlanner
+        locale={locale}
+        activeTrip={activeTrip}
+        tripPlaces={tripPlaces}
+        savedPlaceIds={savedPlaces.map((place) => place.id)}
+        disabled={busy}
+        onApplyPlan={handleGroundedPlan}
+      />
 
       <section>
         <div className="flex gap-2 overflow-x-auto pb-2">
@@ -670,6 +735,28 @@ function clockMinutes(value: string) {
   return hour * 60 + minute;
 }
 
+function groundedPlanLayout(plan: GroundedTripPlan) {
+  return plan.places.map((place, index) => ({
+    placeId: place.id,
+    dayNumber: 1,
+    sortOrder: index,
+    memo: place.recommendation_reason,
+    plannedTime: seoulTime(place.arrival_time),
+    stayMinutes: place.stay_minutes,
+    travelMinutes: plan.places[index + 1]?.travel_minutes ?? null,
+    travelMode: plan.places[index + 1]?.travel_mode ?? null,
+    sourceGuideSequence: null,
+  }));
+}
+
+function seoulTime(value: string) {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
+}
+
+function seoulDate(value: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+}
+
 function placeCoordinates(place: PlaceWithRelations) { return hasCoordinates(place) ? { latitude: place.latitude, longitude: place.longitude } : null; }
 
 async function getGuestSavedPlaces() {
@@ -748,8 +835,15 @@ const tripRouteCopy = {
   ja: { personalCopy: "公式コースから作成した個人コピー", stayMinutes: "滞在(分)", travelMinutes: "次の移動(分)", nextSegment: "次の場所へ", minuteUnit: "分", travelUnknown: "移動時間未確認" },
 };
 
+const groundedStatusCopy: Record<Locale, { saved: string; applied: string }> = {
+  ko: { saved: "검증된 코스를 새 일정으로 저장했습니다.", applied: "확인한 코스를 현재 일정에 적용했습니다." },
+  zh: { saved: "已将审核路线保存为新计划。", applied: "已将确认后的路线应用到当前计划。" },
+  en: { saved: "The reviewed route was saved as a new trip.", applied: "The confirmed route was applied to the current trip." },
+  ja: { saved: "確認済みコースを新しい日程として保存しました。", applied: "確認したコースを現在の日程に適用しました。" },
+};
+
 const copy = {
-  ko: { eyebrow: "저장 장소로 만드는 일정", title: "내 여행 일정", description: "저장한 장소를 날짜별로 배치하고 이동 순서를 직접 조정하세요.", loading: "여행 일정을 불러오는 중입니다.", loginTitle: "여행 일정을 만들려면 로그인하세요", loginDescription: "로그인하면 여러 일정을 만들고 비공개로 관리하거나 링크로 공유할 수 있습니다.", guestNotice: "로그인하지 않아도 이 기기에서 일정 1개 이상을 만들고 편집할 수 있습니다.", loginToSync: "로그인하면 계정에 병합됩니다.", guestCreated: "이 기기에 새 일정을 만들었습니다.", guestSaved: "이 기기에 일정을 저장했습니다.", shareSummary: "요약 공유", sharedSummary: "요약을 공유했습니다.", copiedSummary: "요약을 복사했습니다.", shareFailed: "공유에 실패했습니다.", newTrip: "새 일정", create: "일정 만들기", created: "새 일정을 만들었습니다.", failed: "일정 처리에 실패했습니다.", emptyTitle: "아직 여행 일정이 없습니다", emptyDescription: "새 일정을 만들고 저장한 장소를 추가해 보세요.", tripTitle: "일정 제목", startDate: "시작일", endDate: "종료일", visibility: "공개 범위", private: "비공개", unlisted: "링크가 있는 사람만", saveTrip: "일정 정보 저장", saved: "일정을 저장했습니다.", delete: "일정 삭제", deleteConfirm: "이 일정을 삭제할까요?", deleted: "일정을 삭제했습니다.", shareText: "여행 일정을 확인해 보세요.", moveUp: "위로 이동", moveDown: "아래로 이동", remove: "일정에서 제거", day: "날짜", visitTime: "방문 예정 시각", visitTimeNeeded: "방문 예정 시각을 입력하면 휴무·라스트오더·추천 시간대 충돌을 확인합니다.", timeDataUnavailable: "이 장소는 구조화된 영업시간이 없어 시간 충돌을 판단하지 않습니다.", noAutoChange: "일정은 자동으로 바꾸지 않습니다.", findAlternative: "주변 대안 보기", noTimeConflict: "등록된 시간 데이터와 충돌이 없습니다.", memo: "메모", memoPlaceholder: "예약 시간, 주문할 메뉴 등", noPlacesDay: "이 날짜에는 아직 장소가 없습니다.", savedPlaces: "저장한 장소", autoDescription: "여러 장소를 선택하면 거리, 카테고리와 확인된 영업시간을 기준으로 날짜별 초안을 만듭니다.", autoArrange: "자동 배치", arranged: "선택한 장소를 자동 배치했습니다.", placeAdded: "일정에 장소를 추가했습니다.", placeRemoved: "일정에서 장소를 제거했습니다.", alreadyAdded: "추가됨", noSavedPlaces: "저장한 장소가 없습니다.", defaultTitle: "한국 여행" },
+  ko: { eyebrow: "저장 장소로 만드는 일정", title: "내 여행 일정", description: "저장한 장소를 날짜별로 배치하고 이동 순서를 직접 조정하세요.", loading: "여행 일정을 불러오는 중입니다.", loginTitle: "여행 일정을 만들려면 로그인하세요", loginDescription: "로그인하면 여러 일정을 만들고 비공개로 관리하거나 링크로 공유할 수 있습니다.", guestNotice: "로그인하지 않아도 이 기기에서 일정 1개 이상을 만들고 편집할 수 있습니다.", loginToSync: "로그인하면 계정에 병합됩니다.", guestCreated: "이 기기에 새 일정을 만들었습니다.", guestSaved: "이 기기에 일정을 저장했습니다.", groundedSaved: "검증된 코스를 새 일정으로 저장했습니다.", groundedApplied: "확인한 코스를 현재 일정에 적용했습니다.", shareSummary: "요약 공유", sharedSummary: "요약을 공유했습니다.", copiedSummary: "요약을 복사했습니다.", shareFailed: "공유에 실패했습니다.", newTrip: "새 일정", create: "일정 만들기", created: "새 일정을 만들었습니다.", failed: "일정 처리에 실패했습니다.", emptyTitle: "아직 여행 일정이 없습니다", emptyDescription: "새 일정을 만들고 저장한 장소를 추가해 보세요.", tripTitle: "일정 제목", startDate: "시작일", endDate: "종료일", visibility: "공개 범위", private: "비공개", unlisted: "링크가 있는 사람만", saveTrip: "일정 정보 저장", saved: "일정을 저장했습니다.", delete: "일정 삭제", deleteConfirm: "이 일정을 삭제할까요?", deleted: "일정을 삭제했습니다.", shareText: "여행 일정을 확인해 보세요.", moveUp: "위로 이동", moveDown: "아래로 이동", remove: "일정에서 제거", day: "날짜", visitTime: "방문 예정 시각", visitTimeNeeded: "방문 예정 시각을 입력하면 휴무·라스트오더·추천 시간대 충돌을 확인합니다.", timeDataUnavailable: "이 장소는 구조화된 영업시간이 없어 시간 충돌을 판단하지 않습니다.", noAutoChange: "일정은 자동으로 바꾸지 않습니다.", findAlternative: "주변 대안 보기", noTimeConflict: "등록된 시간 데이터와 충돌이 없습니다.", memo: "메모", memoPlaceholder: "예약 시간, 주문할 메뉴 등", noPlacesDay: "이 날짜에는 아직 장소가 없습니다.", savedPlaces: "저장한 장소", autoDescription: "여러 장소를 선택하면 거리, 카테고리와 확인된 영업시간을 기준으로 날짜별 초안을 만듭니다.", autoArrange: "자동 배치", arranged: "선택한 장소를 자동 배치했습니다.", placeAdded: "일정에 장소를 추가했습니다.", placeRemoved: "일정에서 장소를 제거했습니다.", alreadyAdded: "추가됨", noSavedPlaces: "저장한 장소가 없습니다.", defaultTitle: "한국 여행" },
   zh: { eyebrow: "用收藏地点安排行程", title: "我的旅行计划", description: "把收藏的地点分配到每天，并可自行调整游览顺序。", loading: "正在加载旅行计划。", loginTitle: "登录后创建旅行计划", loginDescription: "登录后可创建多个计划，设为私密或通过链接分享。", guestNotice: "未登录也可以在此设备创建并编辑至少 1 个旅行计划。", loginToSync: "登录后会合并到账号。", guestCreated: "已在此设备创建新计划。", guestSaved: "已在此设备保存计划。", shareSummary: "分享摘要", sharedSummary: "已分享摘要", copiedSummary: "摘要已复制", shareFailed: "分享失败。", newTrip: "新计划", create: "创建计划", created: "已创建新计划。", failed: "行程处理失败。", emptyTitle: "还没有旅行计划", emptyDescription: "新建计划并添加收藏地点。", tripTitle: "计划名称", startDate: "开始日期", endDate: "结束日期", visibility: "可见范围", private: "仅自己可见", unlisted: "仅链接访问", saveTrip: "保存计划信息", saved: "计划已保存。", delete: "删除计划", deleteConfirm: "确定删除这个计划吗？", deleted: "计划已删除。", shareText: "查看这个旅行计划。", moveUp: "上移", moveDown: "下移", remove: "从计划移除", day: "日期", visitTime: "预计到访时间", visitTimeNeeded: "填写预计到访时间后，可检查休息日、最后点餐和推荐时段冲突。", timeDataUnavailable: "此地点没有结构化营业时间，因此不判断时间冲突。", noAutoChange: "不会自动更改行程。", findAlternative: "查看附近替代地点", noTimeConflict: "与已登记的时间数据没有冲突。", memo: "备注", memoPlaceholder: "预约时间、想点的菜单等", noPlacesDay: "这一天还没有地点。", savedPlaces: "收藏的地点", autoDescription: "选择多个地点后，按距离、类别和已确认的营业时间生成每日草案。", autoArrange: "自动安排", arranged: "已自动安排所选地点。", placeAdded: "地点已加入计划。", placeRemoved: "地点已移出计划。", alreadyAdded: "已添加", noSavedPlaces: "还没有收藏地点。", defaultTitle: "韩国旅行" },
   en: { eyebrow: "Plan with saved places", title: "My trips", description: "Assign saved places to each day and adjust the visit order.", loading: "Loading trips.", loginTitle: "Sign in to plan a trip", loginDescription: "Create multiple private trips or share one with an unlisted link.", guestNotice: "You can create and edit at least one trip on this device without signing in.", loginToSync: "Sign in to merge it into your account.", guestCreated: "Trip created on this device.", guestSaved: "Trip saved on this device.", shareSummary: "Share summary", sharedSummary: "Summary shared.", copiedSummary: "Summary copied.", shareFailed: "Sharing failed.", newTrip: "New trip", create: "Create trip", created: "Trip created.", failed: "The trip could not be updated.", emptyTitle: "No trips yet", emptyDescription: "Create a trip and add your saved places.", tripTitle: "Trip title", startDate: "Start date", endDate: "End date", visibility: "Visibility", private: "Private", unlisted: "Anyone with the link", saveTrip: "Save trip details", saved: "Trip saved.", delete: "Delete trip", deleteConfirm: "Delete this trip?", deleted: "Trip deleted.", shareText: "View this travel plan.", moveUp: "Move up", moveDown: "Move down", remove: "Remove from trip", day: "Day", visitTime: "Planned visit time", visitTimeNeeded: "Add a planned time to check closure, last order, and recommended-time conflicts.", timeDataUnavailable: "This place has no structured hours, so no time conflict is inferred.", noAutoChange: "The itinerary is not changed automatically.", findAlternative: "View nearby alternatives", noTimeConflict: "No conflict with registered time data.", memo: "Memo", memoPlaceholder: "Reservation time, menu to order, etc.", noPlacesDay: "No places have been added to this day.", savedPlaces: "Saved places", autoDescription: "Select places to create a draft using distance, category, and known opening hours.", autoArrange: "Auto arrange", arranged: "Selected places were arranged.", placeAdded: "Place added to the trip.", placeRemoved: "Place removed from the trip.", alreadyAdded: "Added", noSavedPlaces: "No saved places yet.", defaultTitle: "Korea trip" },
   ja: { eyebrow: "保存した場所で日程作成", title: "旅行プラン", description: "保存した場所を日ごとに配置し、訪問順を調整できます。", loading: "旅行プランを読み込んでいます。", loginTitle: "ログインして旅行プランを作成", loginDescription: "複数のプランを作成し、非公開またはリンク限定で共有できます。", guestNotice: "ログインしなくても、この端末で1件以上の旅行プランを作成・編集できます。", loginToSync: "ログイン後、アカウントに統合されます。", guestCreated: "この端末に新しいプランを作成しました。", guestSaved: "この端末にプランを保存しました。", shareSummary: "概要共有", sharedSummary: "概要を共有しました。", copiedSummary: "概要をコピーしました。", shareFailed: "共有に失敗しました。", newTrip: "新規プラン", create: "プラン作成", created: "新しいプランを作成しました。", failed: "プランを更新できませんでした。", emptyTitle: "旅行プランはまだありません", emptyDescription: "新しいプランを作り、保存した場所を追加してください。", tripTitle: "プラン名", startDate: "開始日", endDate: "終了日", visibility: "公開範囲", private: "非公開", unlisted: "リンク限定", saveTrip: "プラン情報を保存", saved: "プランを保存しました。", delete: "プラン削除", deleteConfirm: "このプランを削除しますか？", deleted: "プランを削除しました。", shareText: "旅行プランを確認してください。", moveUp: "上へ", moveDown: "下へ", remove: "プランから削除", day: "日付", visitTime: "訪問予定時刻", visitTimeNeeded: "訪問予定時刻を入力すると、休業・ラストオーダー・おすすめ時間との競合を確認します。", timeDataUnavailable: "この場所には構造化営業時間がないため、時間競合を推測しません。", noAutoChange: "旅程は自動変更されません。", findAlternative: "近くの代替候補を見る", noTimeConflict: "登録済み時間データとの競合はありません。", memo: "メモ", memoPlaceholder: "予約時間、注文するメニューなど", noPlacesDay: "この日にはまだ場所がありません。", savedPlaces: "保存した場所", autoDescription: "複数の場所を選択し、距離、カテゴリ、確認済みの営業時間で日程案を作成します。", autoArrange: "自動配置", arranged: "選択した場所を自動配置しました。", placeAdded: "場所をプランに追加しました。", placeRemoved: "場所をプランから削除しました。", alreadyAdded: "追加済み", noSavedPlaces: "保存した場所がありません。", defaultTitle: "韓国旅行" },

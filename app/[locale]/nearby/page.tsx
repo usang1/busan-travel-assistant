@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { NearbyExplorer } from "@/components/NearbyExplorer";
+import { CitySwitcher } from "@/components/CitySwitcher";
+import { parsePlaceCity } from "@/lib/city-regions";
 import { getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
 import {
@@ -14,6 +16,7 @@ type LocalizedNearbyPageProps = {
   params: Promise<{
     locale: string;
   }>;
+  searchParams?: Promise<{ city?: string }>;
 };
 
 export const revalidate = 300;
@@ -40,14 +43,17 @@ export async function generateMetadata({ params }: LocalizedNearbyPageProps): Pr
   });
 }
 
-export default async function LocalizedNearbyPage({ params }: LocalizedNearbyPageProps) {
+export default async function LocalizedNearbyPage({ params, searchParams }: LocalizedNearbyPageProps) {
   const locale = await getLocale(params);
-  const { places: publicPlaces, error } = await getCachedPublicPlaces(locale, "busan");
+  const query = await searchParams;
+  const city = parsePlaceCity(query?.city);
+  const { places: publicPlaces, error } = await getCachedPublicPlaces(locale, city);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
 
   return (
     <main className="safe-bottom mx-auto max-w-7xl px-4 pb-6 pt-5 lg:px-6">
-      <NearbyExplorer places={places} locale={locale} loadError={error} />
+      <CitySwitcher locale={locale} activeCity={city} path="/nearby" />
+      <NearbyExplorer key={city} city={city} places={places} locale={locale} loadError={error} />
     </main>
   );
 }

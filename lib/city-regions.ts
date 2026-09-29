@@ -8,6 +8,26 @@ export const placeCities: Array<{ key: PlaceCity; label: string }> = [
   { key: "jeju", label: "제주" },
 ];
 
+export const placeCityCenters: Record<PlaceCity, { latitude: number; longitude: number }> = {
+  busan: { latitude: 35.1532, longitude: 129.1186 },
+  seoul: { latitude: 37.5665, longitude: 126.978 },
+  jeju: { latitude: 33.4996, longitude: 126.5312 },
+};
+
+export const placeCityLabels: Record<PlaceCity, { ko: string; zh: string; en: string; ja: string }> = {
+  busan: { ko: "부산", zh: "釜山", en: "Busan", ja: "釜山" },
+  seoul: { ko: "서울", zh: "首尔", en: "Seoul", ja: "ソウル" },
+  jeju: { ko: "제주", zh: "济州", en: "Jeju", ja: "済州" },
+};
+
+export function isPlaceCity(value: string | null | undefined): value is PlaceCity {
+  return value === "busan" || value === "seoul" || value === "jeju";
+}
+
+export function parsePlaceCity(value: string | null | undefined, fallback: PlaceCity = "busan"): PlaceCity {
+  return isPlaceCity(value) ? value : fallback;
+}
+
 function region(key: string, ko: string, zh: string, en: string, ja: string) {
   return { key, labels: { ko, zh, en, ja } };
 }

@@ -43,6 +43,8 @@ const seoulBakery = {
   tags: [],
 };
 assert.equal(scope.isBusanScopedPlace(seoulBakery), false);
+assert.equal(scope.isCityScopedPlace(seoulBakery, "seoul"), true);
+assert.equal(scope.isSupportedCityScopedPlace(seoulBakery), true);
 assert.ok(scope.getPlaceScopeIssues(seoulBakery).includes("not_busan"));
 assert.ok(scope.getPlaceScopeIssues(seoulBakery).includes("coordinates_outside_busan"));
 
@@ -50,6 +52,19 @@ const conflictingCity = { ...validBusan, address_ko: "서울특별시 강남구 
 assert.ok(scope.getPlaceScopeIssues(conflictingCity).includes("city_conflict"));
 assert.equal(scope.isBusanScopedPlace({ ...validBusan, district_code: null, address_ko: "부산광역시" }), false);
 assert.deepEqual(scope.filterBusanScopedPlaces([validBusan, seoulBakery]), [validBusan]);
+assert.deepEqual(scope.filterCityScopedPlaces([validBusan, seoulBakery], "seoul"), [seoulBakery]);
+
+const validJeju = {
+  city_code: "jeju",
+  district_code: "jeju-si",
+  address_ko: "제주특별자치도 제주시 연동",
+  latitude: 33.4996,
+  longitude: 126.5312,
+  tags: [],
+};
+assert.equal(scope.isCityScopedPlace(validJeju, "jeju"), true);
+assert.equal(scope.isCityScopedPlace({ ...seoulBakery, latitude: 35.1532, longitude: 129.1186 }, "seoul"), false);
+assert.equal(scope.isCityScopedPlace({ ...seoulBakery, address_ko: "부산광역시 수영구" }, "seoul"), false);
 
 assert.equal(transit.formatLocalizedStation("광안역", "zh"), "广安站（광안역）");
 assert.equal(transit.formatLocalizedExit("1번", "zh"), "1号出口");
@@ -66,10 +81,12 @@ const nearbyPage = readFileSync("app/[locale]/nearby/page.tsx", "utf8");
 const placesPage = readFileSync("app/[locale]/places/page.tsx", "utf8");
 const migration = readFileSync("supabase/migrations/029_location_scope_and_trust_integrity.sql", "utf8");
 const rankingService = readFileSync("lib/place-recommendations.ts", "utf8");
-assert.match(nearbyPage, /getCachedPublicPlaces\(locale, "busan"\)/);
-assert.match(placesPage, /getCachedPublicPlaces\(locale, "busan"\)/);
+assert.match(nearbyPage, /parsePlaceCity\(query\?\.city\)/);
+assert.match(nearbyPage, /getCachedPublicPlaces\(locale, city\)/);
+assert.match(placesPage, /parsePlaceCity\(query\?\.city\)/);
+assert.match(placesPage, /getCachedPublicPlaces\(locale, city\)/);
 assert.match(migration, /add column if not exists city_code/);
 assert.match(migration, /ranked\.save_count >= 3/);
 assert.match(rankingService, /minimumRankingSaveCount = 3/);
 
-console.log("Location scope integrity tests passed (Busan boundary, localized transit, Korean taxi phrase, and ranking threshold). ");
+console.log("Location scope integrity tests passed (supported-city boundaries, localized transit, Korean taxi phrase, and ranking threshold). ");

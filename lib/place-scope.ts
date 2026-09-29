@@ -1,5 +1,5 @@
 import { getBusanDistrictKey, isBusanDistrictKey } from "@/lib/busan-districts";
-import { getPlaceRegion, inferPlaceCity, type PlaceCity } from "@/lib/city-regions";
+import { cityRegions, getPlaceRegion, inferPlaceCity, type PlaceCity } from "@/lib/city-regions";
 
 export const busanCoordinateBounds = {
   minLatitude: 34.95,
@@ -7,6 +7,12 @@ export const busanCoordinateBounds = {
   minLongitude: 128.65,
   maxLongitude: 129.4,
 } as const;
+
+export const cityCoordinateBounds: Record<PlaceCity, { minLatitude: number; maxLatitude: number; minLongitude: number; maxLongitude: number }> = {
+  busan: busanCoordinateBounds,
+  seoul: { minLatitude: 37.40, maxLatitude: 37.72, minLongitude: 126.75, maxLongitude: 127.20 },
+  jeju: { minLatitude: 33.10, maxLatitude: 33.62, minLongitude: 126.10, maxLongitude: 126.98 },
+};
 
 export type PlaceScopeIssueCode =
   | "city_missing"
@@ -63,6 +69,29 @@ export function getPlaceScopeIssues(place: PlaceScopeInput): PlaceScopeIssueCode
 
 export function isBusanScopedPlace(place: PlaceScopeInput) {
   return getPlaceScopeIssues(place).length === 0;
+}
+
+export function isCityScopedPlace(place: PlaceScopeInput, expectedCity: PlaceCity) {
+  const address = place.address_ko || place.address || "";
+  const region = getPlaceRegion(place);
+  const city = place.city_code ?? region.city;
+  if (city !== expectedCity || inferPlaceCity(address) !== expectedCity) return false;
+  if (!region.region_key || !cityRegions(expectedCity).some((item) => item.key === region.region_key)) return false;
+  if (!hasFiniteCoordinates(place)) return false;
+  const bounds = cityCoordinateBounds[expectedCity];
+  return (place.latitude as number) >= bounds.minLatitude
+    && (place.latitude as number) <= bounds.maxLatitude
+    && (place.longitude as number) >= bounds.minLongitude
+    && (place.longitude as number) <= bounds.maxLongitude;
+}
+
+export function isSupportedCityScopedPlace(place: PlaceScopeInput) {
+  const city = place.city_code ?? getPlaceRegion(place).city;
+  return Boolean(city && isCityScopedPlace(place, city));
+}
+
+export function filterCityScopedPlaces<T extends PlaceScopeInput>(places: T[], city?: PlaceCity) {
+  return places.filter((place) => city ? isCityScopedPlace(place, city) : isSupportedCityScopedPlace(place));
 }
 
 export function filterBusanScopedPlaces<T extends PlaceScopeInput>(places: T[]) {

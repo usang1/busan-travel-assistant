@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     const fingerprint = socialUrl?.normalizedUrl || socialClueSummary(clues).join("|") || inputText.slice(0, 500) || `empty:${requestId}`;
     const sourceHash = createHash("sha256").update(fingerprint).digest("hex");
-    const { places } = await getCachedPublicPlaces(localeValue as Locale, "busan");
+    const { places } = await getCachedPublicPlaces(localeValue as Locale);
     const publicPlaceIds = new Set(places.map((place) => place.id));
     const { data: aliasRows, error: aliasError } = await service
       .from("sns_place_mappings")

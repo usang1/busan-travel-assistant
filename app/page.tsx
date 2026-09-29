@@ -18,7 +18,7 @@ export const metadata: Metadata = buildLocalizedMetadata({
 });
 
 export default async function Home() {
-  const { places: publicPlaces } = await getCachedPublicPlaces(locale, "busan");
+  const { places: publicPlaces } = await getCachedPublicPlaces(locale);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
 
   return (

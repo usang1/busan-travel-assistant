@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
-import { filterBusanScopedPlaces, isBusanScopedPlace } from "@/lib/place-scope";
+import { filterCityScopedPlaces, isCityScopedPlace, isSupportedCityScopedPlace } from "@/lib/place-scope";
 import { filterPublishablePlaces, isPublishablePlace } from "@/lib/place-publication-quality";
 import { archivedPlaceStatus, normalizePlacePublicationForWrite, publicReadablePlaceStatuses } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
@@ -214,7 +214,7 @@ async function addSaveCounts(places: PlaceWithRelations[]) {
 async function finalizePlaceRows(rows: unknown, activeOnly: boolean, cityCode?: PlaceCity): Promise<{ places: PlaceWithRelations[]; candidateCount: number }> {
   const mapped = mapPlaceRows(rows);
   const publishable = activeOnly ? filterPublishablePlaces(mapped) : mapped;
-  const scoped = cityCode === "busan" ? filterBusanScopedPlaces(publishable) : publishable;
+  const scoped = filterCityScopedPlaces(publishable, cityCode);
   const places = await addSaveCounts(scoped);
 
   return {
@@ -228,7 +228,7 @@ async function finalizePlace(place: PlaceWithRelations, activeOnly: boolean, cit
     return null;
   }
 
-  if (cityCode === "busan" && !isBusanScopedPlace(place)) return null;
+  if (cityCode ? !isCityScopedPlace(place, cityCode) : !isSupportedCityScopedPlace(place)) return null;
 
   const counts = await getPlaceSaveCounts([place.id]);
   return { ...place, save_count: counts.get(place.id) ?? 0 };
@@ -441,7 +441,7 @@ async function fetchBoundedPublicPlaces(
 
     const { data, error } = await query.limit(options.limit);
     if (!error && data) {
-      const { places } = await finalizePlaceRows(data, true, "busan");
+      const { places } = await finalizePlaceRows(data, true);
       return places;
     }
   }
