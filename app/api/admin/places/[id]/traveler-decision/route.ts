@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
+import { publicPlacesCacheTag } from "@/lib/cache-tags";
 import { createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } from "@/lib/traveler-decision-validation";
 import type { TravelerDecisionBundle, TravelerDecisionSection } from "@/types/traveler-decision";
 
@@ -46,6 +48,7 @@ export async function PUT(request: Request, context: RouteContext) {
     }
     const value = validateTravelerDecisionSection(body.section, input);
     await saveSection(client, id, body.section as TravelerDecisionSection, value);
+    revalidateTag(publicPlacesCacheTag, { expire: 0 });
     return NextResponse.json({ ok: true });
   } catch (error) {
     const response = adminErrorResponse(error);

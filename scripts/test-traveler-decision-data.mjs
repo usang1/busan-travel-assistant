@@ -59,10 +59,12 @@ for (const status of [401, 403]) {
   let checks = 0;
   const route = load("@/app/api/admin/places/[id]/traveler-decision/route", {
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
+    "next/cache": { revalidateTag: () => {} },
     "@/lib/admin-auth": {
       requireAdmin: async () => { checks += 1; throw Object.assign(new Error("Denied"), { status }); },
       adminErrorResponse: (error) => ({ message: error.message, status: error.status }),
     },
+    "@/lib/cache-tags": { publicPlacesCacheTag: "public-places" },
     "@/lib/traveler-decision-validation": { createEmptyTravelerDecisionBundle, validateTravelerDecisionSection },
   });
   for (const handler of [route.GET, route.PUT]) {
@@ -75,5 +77,6 @@ for (const status of [401, 403]) {
 const routeSource = fs.readFileSync("app/api/admin/places/[id]/traveler-decision/route.ts", "utf8");
 assert.match(routeSource, /count: "exact", head: true/);
 assert.match(routeSource, /\.in\("verification_status", \["verified", "partially_verified"\]\)/);
+assert.match(routeSource, /revalidateTag\(publicPlacesCacheTag, \{ expire: 0 \}\)/);
 
 process.stdout.write("Traveler decision validation, unknown-state defaults, provenance, RLS and privacy tests passed.\n");
