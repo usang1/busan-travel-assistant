@@ -1,5 +1,6 @@
 import { normalizeCoordinates } from "@/lib/place-providers/normalize";
 import { sanitizeLocalizedAddress } from "@/lib/place-ai/locale-validation";
+import { inferCityRegion, inferPlaceCity, type PlaceCity } from "@/lib/city-regions";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import type { PlaceCategory, PlacePayload, PlaceSourceProvider } from "@/types/database";
 
@@ -10,6 +11,8 @@ export type EnrichablePlaceForm = {
   name_ko: string;
   name_zh: string;
   category: PlaceCategory | "";
+  city: PlaceCity | "";
+  region_key: string;
   address_ko: string;
   address_zh: string;
   address_en: string;
@@ -42,6 +45,9 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
   const sourceProvider = toSourceProvider(place.provider);
   const sameSource = isSameProviderSource(form, sourceProvider, place.providerPlaceId);
   const addressKo = place.roadAddressKo ?? place.addressKo ?? "";
+  const incomingAddressKo = addressKo || place.formattedAddress || "";
+  const nextAddressKo = fillText(form.address_ko, incomingAddressKo);
+  const location = normalizePlaceFormLocation({ ...form, address_ko: nextAddressKo });
   const providerAddressEn = sanitizeLocalizedAddress(place.formattedAddress, addressKo, "en");
   const persistentImage = place.photos?.find((photo) => photo.persistence === "persistent" && photo.url)?.url;
   const previewPhoto = place.photos?.find((photo) => photo.url);
@@ -54,7 +60,9 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
     source_external_id: place.providerPlaceId ?? (sameSource ? form.source_external_id : ""),
     name_ko: fillText(form.name_ko, place.name),
     category: form.category || providerCategory || "",
-    address_ko: fillText(form.address_ko, addressKo || place.formattedAddress),
+    city: location.city,
+    region_key: location.region_key,
+    address_ko: nextAddressKo,
     address_en: fillText(form.address_en, providerAddressEn),
     latitude: coordinates && !hasValidFormCoordinates(form) ? coordinates.latitude.toFixed(7) : form.latitude,
     longitude: coordinates && !hasValidFormCoordinates(form) ? coordinates.longitude.toFixed(7) : form.longitude,
@@ -75,6 +83,19 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
     source_metadata: buildSourceMetadata(place, sameSource ? form.source_metadata : null),
     source_fetched_at: place.fetchedAt ?? new Date().toISOString(),
   };
+}
+
+export function normalizePlaceFormLocation<T extends Pick<EnrichablePlaceForm, "address_ko" | "city" | "region_key">>(form: T): T {
+  const inferredCity = inferPlaceCity(form.address_ko);
+  const city = form.city || inferredCity;
+  const inferredRegion = city ? inferCityRegion(city, form.address_ko) : "";
+  const regionKey = form.region_key || inferredRegion;
+
+  if (city === form.city && regionKey === form.region_key) {
+    return form;
+  }
+
+  return { ...form, city, region_key: regionKey };
 }
 
 export function mapProviderCategory(value?: string): PlaceCategory | undefined {

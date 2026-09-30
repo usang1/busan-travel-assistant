@@ -6,7 +6,7 @@ import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
-import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates } from "@/lib/admin-place-enrichment";
+import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates, normalizePlaceFormLocation } from "@/lib/admin-place-enrichment";
 import { buildPlaceRegionTags, cityRegions, getPlaceRegion, inferCityRegion, inferPlaceCity, isPlaceRegionTag, placeCities, placeRegionLabel, type PlaceCity } from "@/lib/city-regions";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
@@ -720,16 +720,20 @@ function applyTranslationsToPublishForm(form: PublishForm, translations: Partial
     address_ja: fill(form.address_ja, translations.address_ja),
   };
 
-  return { nextForm, filledCount };
+  return { nextForm: normalizePlaceFormLocation(nextForm), filledCount };
 }
 
 function needsAutoTranslation(form: PublishForm) {
   return Boolean(
-    (form.description_ko.trim() && (!form.description_zh.trim() || !form.description_en.trim() || !form.description_ja.trim())) ||
-      (form.tips_ko.trim() && (!form.tips_zh.trim() || !form.tips_en.trim() || !form.tips_ja.trim())) ||
-      (form.address_ko.trim() && (!form.address_zh.trim() || !form.address_en.trim() || !form.address_ja.trim())) ||
+    (form.description_ko.trim() && hasEmptyTarget(form.description_zh, form.description_en, form.description_ja)) ||
+      (form.tips_ko.trim() && hasEmptyTarget(form.tips_zh, form.tips_en, form.tips_ja)) ||
+      (form.address_ko.trim() && hasEmptyTarget(form.address_zh, form.address_en, form.address_ja)) ||
       (form.recommended_order_ko.trim() && !form.recommended_order_zh.trim()),
   );
+}
+
+function hasEmptyTarget(...values: string[]) {
+  return values.some((value) => !value.trim());
 }
 
 function applyGeneratedContentToPublishForm(form: PublishForm, content: PlaceAiGeneratedContent, fields: AdminAiDraftApplyField[]): PublishForm {
@@ -967,6 +971,7 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
   function updateField<Key extends keyof PublishForm>(key: Key, value: PublishForm[Key]) {
     setForm((current) => {
       if (key === "city") return { ...current, city: value as PlaceCity | "", region_key: "" };
+      if (key === "address_ko") return normalizePlaceFormLocation({ ...current, address_ko: String(value) });
       if (key === "name_ko" || key === "name_zh" || key === "name_en" || key === "name_ja") {
         return withUnifiedPlaceName(current, String(value));
       }
@@ -1015,12 +1020,12 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
         const [result] = await geocodeKoreanAddress(address);
 
         if (result) {
-          return {
+          return normalizePlaceFormLocation({
             ...formWithMapCoordinates,
             latitude: result.latitude.toFixed(7),
             longitude: result.longitude.toFixed(7),
             address_ko: formWithMapCoordinates.address_ko || result.roadAddress || result.jibunAddress || result.address,
-          };
+          });
         }
       } catch {
         // Try the next available address/name candidate before reporting no result.
@@ -1130,23 +1135,25 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
       let translations: Partial<AdminTranslationFields> = {};
       let translationNotice = "";
 
-      try {
-        setTranslating(true);
-        const translationResponse = await adminFetch("/api/admin/translate-place", {
-          method: "POST",
-          body: JSON.stringify({ fields: buildTranslationFieldsFromPublishForm(generatedForm) }),
-        });
-        const translationBody = (await translationResponse.json()) as { translations?: Partial<AdminTranslationFields>; failed_fields?: string[]; message?: string };
-        if (!translationResponse.ok) throw new Error(translationBody.message ?? "AI 이름/주소 번역에 실패했습니다.");
-        translations = translationBody.translations ?? {};
-        const translated = applyTranslationsToPublishForm(generatedForm, translations);
-        const failed = translationBody.failed_fields?.length ? ` 검증 실패: ${translationBody.failed_fields.join(", ")}` : "";
-        translationNotice = ` 이름/주소 번역 ${translated.filledCount}개를 함께 반영했습니다.${failed}`;
-      } catch (translationError) {
-        const message = translationError instanceof Error ? translationError.message : "AI 이름/주소 번역에 실패했습니다.";
-        translationNotice = ` 설명/여행팁은 반영했지만 이름/주소 번역은 실패했습니다: ${message}`;
-      } finally {
-        setTranslating(false);
+      if (needsAutoTranslation(generatedForm)) {
+        try {
+          setTranslating(true);
+          const translationResponse = await adminFetch("/api/admin/translate-place", {
+            method: "POST",
+            body: JSON.stringify({ fields: buildTranslationFieldsFromPublishForm(generatedForm) }),
+          });
+          const translationBody = (await translationResponse.json()) as { translations?: Partial<AdminTranslationFields>; failed_fields?: string[]; message?: string };
+          if (!translationResponse.ok) throw new Error(translationBody.message ?? "AI 이름/주소 번역에 실패했습니다.");
+          translations = translationBody.translations ?? {};
+          const translated = applyTranslationsToPublishForm(generatedForm, translations);
+          const failed = translationBody.failed_fields?.length ? ` 검증 실패: ${translationBody.failed_fields.join(", ")}` : "";
+          translationNotice = ` 이름/주소 번역 ${translated.filledCount}개를 함께 반영했습니다.${failed}`;
+        } catch (translationError) {
+          const message = translationError instanceof Error ? translationError.message : "AI 이름/주소 번역에 실패했습니다.";
+          translationNotice = ` 설명/여행팁은 반영했지만 이름/주소 번역은 실패했습니다: ${message}`;
+        } finally {
+          setTranslating(false);
+        }
       }
 
       setAiDraft(generatedResponse);
@@ -1336,13 +1343,12 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
   }
 
   async function translateTextFields() {
-    const fields = buildTranslationFieldsFromPublishForm(form);
-
-    if (!Object.values(fields).some((value) => value.trim())) {
-      setStatus("번역할 한국어/중국어/영어 텍스트를 먼저 입력해 주세요.");
+    if (!needsAutoTranslation(form)) {
+      setStatus("번역으로 채울 빈칸이 없습니다.");
       return;
     }
 
+    const fields = buildTranslationFieldsFromPublishForm(form);
     setTranslating(true);
     setStatus("OpenAI API로 비어 있는 번역 칸을 채우는 중입니다.");
 

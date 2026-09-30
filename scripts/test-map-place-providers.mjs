@@ -176,9 +176,14 @@ const resolver = loadTsModule("lib/map-url-resolver.ts", {
 const databaseRuntime = {
   placeCategories: ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"],
 };
+const busanDistricts = loadTsModule("lib/busan-districts.ts");
+const cityRegions = loadTsModule("lib/city-regions.ts", {
+  "@/lib/busan-districts": busanDistricts,
+});
 const enrichment = loadTsModule("lib/admin-place-enrichment.ts", {
   "@/lib/place-providers/normalize": normalize,
   "@/lib/place-ai/locale-validation": loadTsModule("lib/place-ai/locale-validation.ts"),
+  "@/lib/city-regions": cityRegions,
 });
 const location = loadTsModule("lib/location.ts");
 const duplicates = loadTsModule("lib/place-duplicates.ts", {
@@ -719,6 +724,8 @@ const emptyForm = {
   name_ko: "",
   name_zh: "",
   category: "",
+  city: "",
+  region_key: "",
   address_ko: "",
   address_zh: "",
   address_en: "",
@@ -753,6 +760,8 @@ assert.equal(enrichedGoogleForm.provider, "GOOGLE");
 assert.equal(enrichedGoogleForm.name_ko, "광안리해수욕장");
 assert.equal(enrichedGoogleForm.category, "cafe");
 assert.equal(enrichedGoogleForm.address_ko, "대한민국 부산광역시 수영구 광안해변로 219");
+assert.equal(enrichedGoogleForm.city, "busan");
+assert.equal(enrichedGoogleForm.region_key, "suyeong-gu");
 assert.equal(enrichedGoogleForm.phone, "051-000-0000");
 assert.equal(enrichedGoogleForm.website, "https://example.com");
 assert.equal(enrichedGoogleForm.price_level, "0");
@@ -766,6 +775,29 @@ assert.equal(enrichedGoogleForm.provider_review_count, "321");
 assert.equal(enrichedGoogleForm.provider_amenities, "주차: 가능 · 예약 지원: 가능 · 포장: 불가 · 화장실: 가능");
 assert.equal(enrichedGoogleForm.nearest_station, "광안역 부산2호선");
 assert.equal(enrichedGoogleForm.walking_minutes, "6");
+
+const addressOnlyLocationForm = enrichment.normalizePlaceFormLocation({
+  ...emptyForm,
+  address_ko: "부산광역시 수영구 감포로 97 1층",
+});
+assert.equal(addressOnlyLocationForm.city, "busan");
+assert.equal(addressOnlyLocationForm.region_key, "suyeong-gu");
+
+const compactAddressLocationForm = enrichment.normalizePlaceFormLocation({
+  ...emptyForm,
+  address_ko: "부산 수영구 감포로 97 1층",
+});
+assert.equal(compactAddressLocationForm.city, "busan");
+assert.equal(compactAddressLocationForm.region_key, "suyeong-gu");
+
+const manuallySelectedLocationForm = enrichment.normalizePlaceFormLocation({
+  ...emptyForm,
+  city: "seoul",
+  region_key: "mapo-gu",
+  address_ko: "부산광역시 수영구 감포로 97 1층",
+});
+assert.equal(manuallySelectedLocationForm.city, "seoul");
+assert.equal(manuallySelectedLocationForm.region_key, "mapo-gu");
 
 const preservedForm = enrichment.enrichPlaceForm({
   ...emptyForm,
@@ -789,6 +821,44 @@ assert.equal(preservedForm.opening_hours, "관리자 영업시간");
 assert.equal(preservedForm.price_level, "3");
 assert.equal(preservedForm.thumbnail_url, "https://admin.example/image.jpg");
 assert.equal(preservedForm.provider_image_preview_url, "https://lh3.googleusercontent.com/place-preview");
+
+const enrichedHaeundaeForm = enrichment.enrichPlaceForm(emptyForm, {
+  provider: "naver",
+  sourceUrl: "https://map.naver.com/p/entry/place/1",
+  roadAddressKo: "부산광역시 해운대구 해운대로 264",
+});
+assert.equal(enrichedHaeundaeForm.city, "busan");
+assert.equal(enrichedHaeundaeForm.region_key, "haeundae-gu");
+
+const enrichedSeoulForm = enrichment.enrichPlaceForm(emptyForm, {
+  provider: "kakao",
+  sourceUrl: "https://place.map.kakao.com/2",
+  addressKo: "서울특별시 강남구 테헤란로 1",
+});
+assert.equal(enrichedSeoulForm.city, "seoul");
+assert.equal(enrichedSeoulForm.region_key, "gangnam-gu");
+
+const enrichedJejuForm = enrichment.enrichPlaceForm(emptyForm, {
+  provider: "google",
+  sourceUrl: "https://maps.google.com/?cid=3",
+  formattedAddress: "대한민국 제주특별자치도 제주시 연동 1",
+});
+assert.equal(enrichedJejuForm.city, "jeju");
+assert.equal(enrichedJejuForm.region_key, "jeju-si");
+
+const preservedLocationForm = enrichment.enrichPlaceForm({
+  ...emptyForm,
+  city: "seoul",
+  region_key: "mapo-gu",
+  address_ko: "서울특별시 마포구 양화로 1",
+}, {
+  provider: "naver",
+  sourceUrl: "https://map.naver.com/p/entry/place/4",
+  roadAddressKo: "부산광역시 해운대구 해운대로 264",
+});
+assert.equal(preservedLocationForm.city, "seoul");
+assert.equal(preservedLocationForm.region_key, "mapo-gu");
+assert.equal(preservedLocationForm.address_ko, "서울특별시 마포구 양화로 1");
 
 const preservedMetadataForm = enrichment.enrichPlaceForm({
   ...emptyForm,
@@ -923,12 +993,11 @@ assert.doesNotMatch(submissionWorkflowSource, /admin_summary:\s*reason/);
 assert.match(submissionWorkflowSource, /recommendation_reason \|\| selected\.notes|selected\.recommendation_reason \|\| selected\.notes/);
 
 const mapLinkRouteSource = readFileSync(new URL("../app/api/admin/map-link/route.ts", import.meta.url), "utf8");
-assert.match(mapLinkRouteSource, /summaryResult\.reason[\s\S]*adminSummaryError/);
 assert.match(mapLinkRouteSource, /\.\.\.resolution,[\s\S]*adminSummary,[\s\S]*adminSummaryError/);
-assert.match(mapLinkRouteSource, /generatePlaceAiContent/);
-assert.match(mapLinkRouteSource, /locale_targets: \["ko"\]/);
-assert.match(mapLinkRouteSource, /koreanContentError/);
-assert.match(mapLinkRouteSource, /Promise\.allSettled\(\[summaryPromise, koreanContentPromise\]\)/);
+assert.match(mapLinkRouteSource, /generateAdminPlaceSummaryCached\(normalizedPlace\)/);
+assert.doesNotMatch(mapLinkRouteSource, /generatePlaceAiContent/);
+assert.doesNotMatch(mapLinkRouteSource, /locale_targets: \["ko"\]/);
+assert.doesNotMatch(mapLinkRouteSource, /koreanContentPromise/);
 assert.match(mapLinkRouteSource, /forcedWebSearchFields:[\s\S]*\["menu", "recommendedOrder", "priceRange"\]/);
 assert.match(mapLinkRouteSource, /searchMissingPlaceData\(providerDraft, webSearchFields, searchHints\)/);
 assert.equal(webSearchRequest.text.format.schema.properties.menu.properties.value.items.properties.role.enum.includes("popular"), true);
@@ -946,7 +1015,8 @@ for (const editorFile of ["AdminPlaceManager.tsx", "AdminSubmissionWorkflow.tsx"
   const translationCalls = editorSource.match(/\/api\/admin\/translate-place/g) ?? [];
   assert.ok(translationCalls.length >= 2, `${editorFile} must translate names and addresses during full AI generation and on manual retry`);
   assert.doesNotMatch(editorSource, /name_zh:\s*enriched\.name_zh \|\| title/);
-  assert.match(editorSource, /koreanContent\?\.description/);
+  assert.match(editorSource, /needsAutoTranslation\(generatedForm\)/, `${editorFile} must skip translation calls when AI generation filled all locale targets`);
+  assert.match(editorSource, /번역으로 채울 빈칸이 없습니다/, `${editorFile} must avoid manual translation calls when no target field is empty`);
 }
 
 const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
