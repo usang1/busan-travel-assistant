@@ -3,7 +3,7 @@ import { isLocale, ui, type Locale } from "@/lib/i18n";
 import { parseMapUrl } from "@/lib/map-url";
 import { createServerAnonClient, ServerConfigurationError } from "@/lib/server-supabase";
 import { sendPlaceSubmissionNotification } from "@/lib/telegram";
-import { placeCategories, type PlaceCategory, type PlaceSubmissionRecord } from "@/types/database";
+import { placeCategories, type PlaceCategory } from "@/types/database";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       payload.extraNotes ? `${copy.submissions.notes}: ${payload.extraNotes}` : "",
     ].filter(Boolean).join("\n\n");
 
-    const { data, error } = await client
+    const { error } = await client
       .from("place_submissions")
       .insert({
         user_id: actor.userId,
@@ -62,20 +62,20 @@ export async function POST(request: NextRequest) {
         recommendation_reason: payload.reason,
         notes: notes || payload.reason || payload.name || parsedMap.normalizedUrl,
         status: "pending",
-      })
-      .select("*")
-      .single();
+      });
 
-    if (error || !data) {
+    if (error) {
       throw new SubmissionRouteError("submission_insert_failed", 500);
     }
 
-    const submission = data as PlaceSubmissionRecord;
     await sendPlaceSubmissionNotification({
       submitterLabel: actor.email || actor.userId || "익명",
     });
 
-    return NextResponse.json({ submission }, { status: 201, headers: noStoreHeaders });
+    return NextResponse.json(
+      { submission: { provider: parsedMap.sourceProvider } },
+      { status: 201, headers: noStoreHeaders },
+    );
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof SubmissionRouteError) {
       return json(

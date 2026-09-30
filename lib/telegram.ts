@@ -16,6 +16,13 @@ export async function sendTelegramMessage({ text }: SendTelegramMessageInput) {
   const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
 
   if (!token || !chatId) {
+    logTelegramError({
+      reason: "missing_configuration",
+      missing: [
+        ...(!token ? ["TELEGRAM_BOT_TOKEN"] : []),
+        ...(!chatId ? ["TELEGRAM_CHAT_ID"] : []),
+      ],
+    });
     return { ok: false, skipped: true as const };
   }
 
