@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { parseMapUrl } from "@/lib/map-url";
 import { recordPlaceEvent } from "@/lib/place-events";
-import { getSupabaseClient } from "@/lib/supabase";
 import { categoryLabels, placeCategories, type PlaceCategory } from "@/types/database";
 import { defaultLocale, getLocaleFromPath, type Locale, ui, withLocale } from "@/lib/i18n";
 
@@ -24,7 +23,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
   const pathname = usePathname();
   const currentLocale = getLocaleFromPath(pathname) ?? locale;
   const copy = ui[currentLocale];
-  const { user, loading } = useAuth();
+  const { session, user, loading } = useAuth();
   const [mapUrl, setMapUrl] = useState("");
   const [reason, setReason] = useState(() => initialValues?.reason?.slice(0, 1000) ?? "");
   const [name, setName] = useState(() => initialValues?.name?.slice(0, 120) ?? "");
@@ -39,59 +38,58 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const client = getSupabaseClient();
-
-    if (!client) {
-      return;
-    }
 
     setSubmitting(true);
     setStatus("");
 
-    const notes = [
-      reason.trim(),
-      description.trim() ? `${copy.submissions.descriptionLabel}: ${description.trim()}` : "",
-      imageUrl.trim() ? `${copy.submissions.imageUrl}: ${imageUrl.trim()}` : "",
-      extraNotes.trim() ? `${copy.submissions.notes}: ${extraNotes.trim()}` : "",
-    ].filter(Boolean).join("\n\n");
+    try {
+      const response = await fetch("/api/submissions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          locale: currentLocale,
+          mapUrl,
+          reason,
+          name,
+          category,
+          description,
+          locationText,
+          imageUrl,
+          extraNotes,
+        }),
+      });
 
-    const { error } = await client.from("place_submissions").insert({
-      user_id: user?.id ?? null,
-      locale: currentLocale,
-      name: name.trim() || null,
-      category: category || null,
-      provider: parsed.sourceProvider,
-      source_url: parsed.normalizedUrl || null,
-      address_text: locationText.trim() || null,
-      location_text: locationText.trim() || null,
-      recommendation_reason: reason.trim(),
-      notes: notes || reason.trim() || name.trim() || parsed.normalizedUrl,
-      status: "pending",
-    });
+      if (!response.ok) {
+        setStatus(copy.submissions.submitFailed);
+        return;
+      }
 
-    setSubmitting(false);
+      const body = await response.json() as { submission?: { provider?: string } };
 
-    if (error) {
+      await recordPlaceEvent({
+        eventType: "submission_created",
+        locale: currentLocale,
+        userId: user?.id ?? null,
+        metadata: { provider: body.submission?.provider ?? parsed.sourceProvider },
+      });
+
+      setMapUrl("");
+      setReason("");
+      setName("");
+      setCategory("");
+      setDescription("");
+      setLocationText("");
+      setImageUrl("");
+      setExtraNotes("");
+      setStatus(copy.submissions.submitted);
+    } catch {
       setStatus(copy.submissions.submitFailed);
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    await recordPlaceEvent({
-      eventType: "submission_created",
-      locale: currentLocale,
-      userId: user?.id ?? null,
-      metadata: { provider: parsed.sourceProvider },
-    });
-
-    setMapUrl("");
-    setReason("");
-    setName("");
-    setCategory("");
-    setDescription("");
-    setLocationText("");
-    setImageUrl("");
-    setExtraNotes("");
-    setStatus(copy.submissions.submitted);
   }
 
   return (
