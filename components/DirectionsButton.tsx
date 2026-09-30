@@ -21,17 +21,20 @@ type DirectionsButtonProps = {
   className?: string;
 };
 
-const providers: Array<{ id: DirectionsProvider; label: string }> = [
-  { id: "naver", label: "Naver Map" },
-  { id: "kakao", label: "KakaoMap" },
-  { id: "google", label: "Google Maps" },
-];
+const providerLabels: Record<Locale, Record<DirectionsProvider, string>> = {
+  zh: { naver: "Naver App", naver_web: "Naver 网页地图", kakao: "KakaoMap", google: "Google Maps" },
+  en: { naver: "Naver app", naver_web: "Naver web map", kakao: "KakaoMap", google: "Google Maps" },
+  ja: { naver: "Naverアプリ", naver_web: "Naverウェブ地図", kakao: "KakaoMap", google: "Google Maps" },
+  ko: { naver: "네이버 앱", naver_web: "네이버 웹지도", kakao: "카카오맵", google: "Google Maps" },
+};
+
+const providers: DirectionsProvider[] = ["naver", "naver_web", "kakao", "google"];
 
 const copy: Record<Locale, { directions: string; searchOnly: string }> = {
-  zh: { directions: "打开地图", searchOnly: "坐标未确认，将用名称搜索。" },
-  en: { directions: "Open map", searchOnly: "Coordinates need checking, so this will search by name." },
-  ja: { directions: "地図を開く", searchOnly: "座標未確認のため名称で検索します。" },
-  ko: { directions: "지도 열기", searchOnly: "좌표 확인이 필요해 장소명으로 검색합니다." },
+  zh: { directions: "选择地图", searchOnly: "坐标未确认，将用名称搜索。" },
+  en: { directions: "Choose map", searchOnly: "Coordinates need checking, so this will search by name." },
+  ja: { directions: "地図を選択", searchOnly: "座標未確認のため名称で検索します。" },
+  ko: { directions: "지도 선택", searchOnly: "좌표 확인이 필요해 장소명으로 검색합니다." },
 };
 
 export function DirectionsButton({
@@ -81,15 +84,15 @@ export function DirectionsButton({
           {!coordinates ? <p className="px-3 py-2 text-xs font-semibold leading-4 text-slate-500">{text.searchOnly}</p> : null}
           {providers.map((provider) => (
             <a
-              key={provider.id}
-              href={buildDirectionsUrl({ provider: provider.id, name, address, coordinates, origin })}
+              key={provider}
+              href={buildDirectionsUrl({ provider, name, address, coordinates, origin })}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               role="menuitem"
-              onClick={() => recordProvider(provider.id)}
+              onClick={() => recordProvider(provider)}
               className="flex h-11 w-full items-center justify-between px-3 text-sm font-black text-slate-800 transition hover:bg-slate-50"
             >
-              {provider.label}
+              {providerLabels[locale][provider]}
               <ExternalLink size={14} aria-hidden="true" />
             </a>
           ))}

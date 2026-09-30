@@ -11,6 +11,7 @@ import {
   CreditCard,
   FileSearch,
   Globe2,
+  Luggage,
   MapPin,
   MessageSquareText,
   Phone,
@@ -46,6 +47,7 @@ import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   getLastVerifiedLabel,
+  getLastVerifiedAt,
   getConfirmedTransitLabel,
   getPlaceCategoryLabel,
   getPlaceNameDisplay,
@@ -70,6 +72,7 @@ import {
   ui,
   withLocale,
 } from "@/lib/i18n";
+import type { PlaceWithRelations } from "@/types/database";
 
 type LocalizedPlaceDetailPageProps = {
   params: Promise<{
@@ -196,6 +199,11 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   const directionsText = placeHasCoordinates && place.walking_minutes > 0
     ? getConfirmedTransitLabel(place, locale)
     : copy.common.noInfo;
+  const visitCheck = buildVisitCheckItems(place, locale, {
+    opening: place.opening_hours ? opening.text : "",
+    priceText,
+    transit: placeHasCoordinates ? getConfirmedTransitLabel(place, locale) : "",
+  });
   const factLabels = {
     zh: { address: "地址", phone: "电话", website: "网站", verification: "验证状态", evidence: "确认依据", source: "信息来源", lastChecked: "最后确认" },
     en: { address: "Address", phone: "Phone", website: "Website", verification: "Verification", evidence: "Evidence", source: "Source", lastChecked: "Last checked" },
@@ -304,6 +312,30 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
           <TimeAwareStatus place={place} locale={locale} travelMinutes={0} variant="detail" />
 
+          <section className="mt-5 rounded-[24px] bg-slate-950 p-4 text-white">
+            <div className="flex items-center gap-2">
+              <BadgeCheck size={19} className="text-teal-200" aria-hidden="true" />
+              <h2 className="text-lg font-black">{visitCheck.copy.title}</h2>
+            </div>
+            {visitCheck.items.length ? (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {visitCheck.items.map((item) => (
+                  <div key={item.label} className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+                    <item.icon size={16} className="text-teal-200" aria-hidden="true" />
+                    <p className="mt-2 text-xs font-bold text-slate-300">{item.label}</p>
+                    <p className="mt-1 text-sm font-black leading-5 text-white">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {visitCheck.unknown.length ? (
+              <details className="mt-3 rounded-2xl bg-white/10 p-3 text-sm text-slate-200 ring-1 ring-white/10">
+                <summary className="cursor-pointer font-black text-white">{visitCheck.copy.unknownTitle}</summary>
+                <p className="mt-2 leading-6">{visitCheck.unknown.join(" · ")}</p>
+              </details>
+            ) : null}
+          </section>
+
           <section className="mt-6">
             <SectionTitle title={copy.placeDetail.recommendation} />
             <p className="mt-3 text-base leading-7 text-slate-700">{recommendationDescription}</p>
@@ -340,40 +372,34 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       <TravelerTrustSignals placeId={place.id} locale={locale} />
       <TasteProfileCard place={place} locale={locale} variant="detail" />
 
-      <section className="mt-6 space-y-3">
+      {place.menu_items.length > 0 ? <section className="mt-6 space-y-3">
         <SectionTitle title={copy.placeDetail.menu} />
-        {place.menu_items.length > 0 ? (
-          <div className="space-y-3">
-            {[...recommendedMenus, ...otherMenus].map((item) => {
-              const menu = getLocalizedMenuItem(item, locale);
+        <div className="space-y-3">
+          {[...recommendedMenus, ...otherMenus].map((item) => {
+            const menu = getLocalizedMenuItem(item, locale);
 
-              return (
-                <div key={item.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-bold text-slate-950">{menu.name}</h2>
-                        {item.is_recommended ? <TagChip tone="green">{copy.placeDetail.recommended}</TagChip> : null}
-                      </div>
-                      {menu.secondaryName ? <p className="mt-1 text-sm text-slate-500">{menu.secondaryName}</p> : null}
+            return (
+              <div key={item.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-slate-950">{menu.name}</h2>
+                      {item.is_recommended ? <TagChip tone="green">{copy.placeDetail.recommended}</TagChip> : null}
                     </div>
-                    <span className="shrink-0 font-black text-slate-950">{formatWon(item.price, locale)}</span>
+                    {menu.secondaryName ? <p className="mt-1 text-sm text-slate-500">{menu.secondaryName}</p> : null}
                   </div>
-                  {menu.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{menu.description}</p> : null}
+                  <span className="shrink-0 font-black text-slate-950">{formatWon(item.price, locale)}</span>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-[22px] bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
-            {copy.placeDetail.noMenu}
-          </div>
-        )}
-      </section>
+                {menu.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{menu.description}</p> : null}
+              </div>
+            );
+          })}
+        </div>
+      </section> : null}
 
       {place.category === "restaurant" ? (
         <OrderGuide place={place} locale={locale} />
-      ) : (
+      ) : (content.recommendedOrder || place.recommended_order_ko ? (
         <section className="mt-6 space-y-3">
           <SectionTitle title={copy.placeDetail.howToSay} />
           <div className="rounded-[24px] bg-teal-700 p-5 text-white shadow-sm">
@@ -385,29 +411,26 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             </p>
           </div>
         </section>
-      )}
+      ) : null)}
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2">
-        <InfoPanel icon={Users} title={copy.placeDetail.waiting} body={content.waitingInfo || copy.common.noInfo} />
+      {(content.waitingInfo || directionsText !== copy.common.noInfo) ? <section className="mt-6 grid gap-3 sm:grid-cols-2">
+        {content.waitingInfo ? <InfoPanel icon={Users} title={copy.placeDetail.waiting} body={content.waitingInfo} /> : null}
+        {directionsText !== copy.common.noInfo ? (
         <InfoPanel
           icon={MapPin}
           title={copy.placeDetail.directions}
           body={directionsText}
         />
-      </section>
+        ) : null}
+      </section> : null}
 
-      <section className="mt-6 space-y-3">
+      {publicTravelTip ? <section className="mt-6 space-y-3">
         <SectionTitle title={copy.placeDetail.travelTip} />
         <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <Soup size={22} className="text-teal-700" aria-hidden="true" />
-          <p className="mt-3 text-base leading-7 text-slate-700">{publicTravelTip || copy.common.noInfo}</p>
+          <p className="mt-3 text-base leading-7 text-slate-700">{publicTravelTip}</p>
         </div>
-      </section>
-
-      <section className="mt-6 grid grid-cols-2 gap-3">
-        <InfoTile icon={CreditCard} label={copy.placeDetail.payment} value={place.card_payment ? facilityTags[3]?.[locale] ?? "OK" : copy.common.noInfo} />
-        <InfoTile icon={MapPin} label={copy.placeDetail.coordinates} value={placeHasCoordinates ? `${place.latitude}, ${place.longitude}` : copy.common.notRegistered} />
-      </section>
+      </section> : null}
 
       <section className="mt-6 rounded-[24px] bg-amber-50 p-4 text-sm leading-6 text-amber-900">
         {copy.placeDetail.confirmationNote}
@@ -435,6 +458,157 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       <PlaceLocationPanel place={place} locale={locale} />
     </main>
   );
+}
+
+type VisitCheckItem = {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+};
+
+function buildVisitCheckItems(
+  place: PlaceWithRelations,
+  locale: Locale,
+  values: { opening: string; priceText: string; transit: string },
+) {
+  const text = {
+    zh: {
+      title: "到访前 30 秒确认",
+      opening: "营业",
+      menu: "招牌/价格",
+      price: "人均预计",
+      waiting: "等位",
+      transit: "车站/步行",
+      payment: "刷卡",
+      solo: "一个人",
+      restroom: "洗手间",
+      luggage: "大行李箱",
+      checked: "最后确认",
+      unknownTitle: "尚未确认的信息",
+      yes: "可以",
+      no: "不适合",
+      card: "可刷卡",
+      foreignCard: "海外信用卡可用",
+      cardNo: "需确认现金或本地卡",
+    },
+    en: {
+      title: "30-second visit check",
+      opening: "Hours",
+      menu: "Menu / price",
+      price: "Est. per person",
+      waiting: "Wait",
+      transit: "Station / walk",
+      payment: "Cards",
+      solo: "Solo",
+      restroom: "Restroom",
+      luggage: "Large luggage",
+      checked: "Last checked",
+      unknownTitle: "Not confirmed yet",
+      yes: "Available",
+      no: "Difficult",
+      card: "Cards accepted",
+      foreignCard: "Foreign cards accepted",
+      cardNo: "Cash or local card needs checking",
+    },
+    ja: {
+      title: "訪問前30秒チェック",
+      opening: "営業時間",
+      menu: "代表メニュー/価格",
+      price: "1人目安",
+      waiting: "待ち時間",
+      transit: "駅/徒歩",
+      payment: "カード",
+      solo: "一人利用",
+      restroom: "トイレ",
+      luggage: "大型荷物",
+      checked: "最終確認",
+      unknownTitle: "まだ確認されていない情報",
+      yes: "利用しやすい",
+      no: "難しい",
+      card: "カード可",
+      foreignCard: "海外カード可",
+      cardNo: "現金または韓国カード要確認",
+    },
+    ko: {
+      title: "방문 전 30초 체크",
+      opening: "영업",
+      menu: "대표 메뉴/가격",
+      price: "1인 예상",
+      waiting: "웨이팅",
+      transit: "역/도보",
+      payment: "카드",
+      solo: "혼밥",
+      restroom: "화장실",
+      luggage: "캐리어",
+      checked: "마지막 확인일",
+      unknownTitle: "아직 확인되지 않은 정보",
+      yes: "가능",
+      no: "어려움",
+      card: "카드 가능",
+      foreignCard: "해외카드 가능",
+      cardNo: "현금 또는 국내카드 확인 필요",
+    },
+  }[locale];
+  const items: VisitCheckItem[] = [];
+  const unknown: string[] = [];
+  const primaryMenu = [...place.menu_items].sort((a, b) => Number(b.is_recommended) - Number(a.is_recommended) || a.sort_order - b.sort_order)[0];
+  const localizedMenu = primaryMenu ? getLocalizedMenuItem(primaryMenu, locale) : null;
+  const menuText = localizedMenu?.name ? [localizedMenu.name, primaryMenu?.price === null ? "" : formatWon(primaryMenu?.price ?? null, locale)].filter(Boolean).join(" · ") : "";
+  const waitingText = getVisitWaitingLabel(place, locale);
+  const paymentText = getVisitPaymentLabel(place, locale, text);
+  const soloText = getVisitTriStateLabel(place.china_info?.solo_friendly, place.solo_friendly, text);
+  const restroomText = getVisitTriStateLabel(place.china_info?.toilet_available, false, text);
+  const luggageText = getVisitTriStateLabel(place.china_info?.luggage_friendly, place.luggage_friendly, text);
+  const lastVerified = getLastVerifiedAt(place) ? getLastVerifiedLabel(place, locale) : "";
+
+  addVisitItem(items, unknown, Clock3, text.opening, values.opening);
+  addVisitItem(items, unknown, Soup, text.menu, menuText);
+  addVisitItem(items, unknown, WalletCards, text.price, values.priceText && values.priceText !== ui[locale].common.priceUnknown ? values.priceText : "");
+  addVisitItem(items, unknown, Users, text.waiting, waitingText);
+  addVisitItem(items, unknown, Route, text.transit, values.transit);
+  addVisitItem(items, unknown, CreditCard, text.payment, paymentText);
+  addVisitItem(items, unknown, Users, text.solo, soloText);
+  addVisitItem(items, unknown, MapPin, text.restroom, restroomText);
+  addVisitItem(items, unknown, Luggage, text.luggage, luggageText);
+  addVisitItem(items, unknown, CalendarCheck2, text.checked, lastVerified);
+
+  return { copy: text, items, unknown };
+}
+
+function addVisitItem(items: VisitCheckItem[], unknown: string[], icon: LucideIcon, label: string, value: string) {
+  if (value.trim()) {
+    items.push({ icon, label, value });
+    return;
+  }
+
+  unknown.push(label);
+}
+
+function getVisitTriStateLabel(value: "yes" | "no" | "unknown" | undefined, legacy: boolean, text: { yes: string; no: string }) {
+  const status = value ?? (legacy ? "yes" : "unknown");
+  if (status === "yes") return text.yes;
+  if (status === "no") return text.no;
+  return "";
+}
+
+function getVisitPaymentLabel(place: PlaceWithRelations, locale: Locale, text: { card: string; foreignCard: string; cardNo: string }) {
+  if (place.china_info?.foreign_card === "yes") return text.foreignCard;
+  if (place.china_info?.foreign_card === "no") return text.cardNo;
+  if (place.card_payment) return text.card;
+  return "";
+}
+
+function getVisitWaitingLabel(place: PlaceWithRelations, locale: Locale) {
+  const level = place.china_info?.waiting_level;
+  if (level === "none") return { zh: "基本无需等位", en: "Little or no wait", ja: "待ち時間ほぼなし", ko: "웨이팅 거의 없음" }[locale];
+  if (level === "short") return { zh: "约5-10分钟", en: "About 5-10 min", ja: "約5-10分", ko: "약 5~10분" }[locale];
+  if (level === "moderate") return { zh: "约10-20分钟", en: "About 10-20 min", ja: "約10-20分", ko: "약 10~20분" }[locale];
+  if (level === "long") return { zh: "约20-40分钟", en: "About 20-40 min", ja: "約20-40分", ko: "약 20~40분" }[locale];
+  if (level === "extreme") return { zh: "40分钟以上", en: "Over 40 min", ja: "40分以上", ko: "40분 이상" }[locale];
+  if (level === "varies") return { zh: "按时段变化", en: "Varies by time", ja: "時間帯で変動", ko: "시간대별 변동" }[locale];
+  if (locale === "zh" && place.waiting_info_zh.trim()) return place.waiting_info_zh.trim();
+  if (locale === "ko" && place.waiting_info_ko.trim()) return place.waiting_info_ko.trim();
+  return "";
 }
 
 function TrustFact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {

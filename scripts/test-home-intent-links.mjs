@@ -237,7 +237,9 @@ assert.match(homeDiscoverySource, /filter\(\(district\) => district\.count > 0\)
 assert.match(homeDiscoverySource, /href: "\/social-find"/);
 assert.match(homeDiscoverySource, /<HomeSearchForm locale=\{locale\} socialDiscoveryEnabled=\{socialDiscoveryEnabled\} \/>/);
 assert.match(homeDiscoverySource, /aria-disabled="true"/);
-assert.match(homeDiscoverySource, /orderedDistricts\.map/);
+assert.match(homeDiscoverySource, /activeDistricts\.map/);
+assert.match(homeDiscoverySource, /availableIntentCards\.map/);
+assert.match(homeDiscoverySource, /nextPendingIntentCard/);
 assert.doesNotMatch(homeDiscoverySource, /어느 도시로 여행하시나요/);
 assert.match(homeDiscoverySource, /lg:grid-cols-3/);
 assert.match(homeDiscoverySource, /focus:outline-none focus:ring-4 focus:ring-teal-100/);

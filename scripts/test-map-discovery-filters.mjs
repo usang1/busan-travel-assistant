@@ -133,7 +133,7 @@ assert.match(homeSearchForm, /nativeEvent\.isComposing/);
 assert.match(homeSearchForm, /disabled=\{isNavigating\}/);
 assert.match(placesExplorer, /readPlacesSearchQuery\(searchParams\)/);
 assert.match(placesExplorer, /nextParams\.set\("search", debouncedQuery\.trim\(\)\)/);
-assert.match(placesExplorer, /setTimeout\(\(\) => setDebouncedQuery\(query\), 250\)/);
+assert.match(placesExplorer, /setTimeout\(\(\) => setDebouncedQuery\(query\), 400\)/);
 assert.match(placesExplorer, /getPlaceRegion\(place\)\.region_key === region/);
 assert.doesNotMatch(placeCard, /distanceFromGwangalli/, "Generic place cards must not invent a Gwangalli distance for Seoul or Jeju places");
 assert.match(placeCard, /const displayDistance = distanceMeters \?\? null/);

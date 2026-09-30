@@ -219,7 +219,7 @@ const sparsePlace = {
 const sparseFacts = trust.buildPlaceCardFacts(sparsePlace, "ko");
 assert.equal(sparseFacts.facts.length, 0);
 assert.equal(sparseFacts.missing.length, 5);
-assert.equal(sparseFacts.missingSummary, "세부 영업정보 준비 중");
+assert.equal(sparseFacts.missingSummary, "정보 보강 중");
 assert.equal(trust.getVerificationStatus(sparsePlace), "pending");
 assert.equal(trust.getSourceSummary(sparsePlace, "ko"), "출처 확인 중");
 assert.equal(trust.getLastVerifiedLabel(sparsePlace, "ko"), "확인일 준비 중");

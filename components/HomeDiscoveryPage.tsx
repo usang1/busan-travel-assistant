@@ -77,6 +77,8 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
     if (city) counts[city] = (counts[city] ?? 0) + 1;
     return counts;
   }, {});
+  const activeCities = placeCities.filter((city) => (cityCounts[city.key] ?? 0) > 0);
+  const preparingCityCount = placeCities.length - activeCities.length;
 
   return (
     <main className="safe-bottom mx-auto max-w-5xl px-4 pb-6 pt-5">
@@ -88,6 +90,9 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
         </div>
         <h1 className="mt-5 max-w-2xl text-3xl font-black leading-tight tracking-normal sm:text-4xl">{copy.heading}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">{copy.supporting}</p>
+        <div className="mt-5 max-w-2xl">
+          <HomeSearchForm locale={locale} socialDiscoveryEnabled={socialDiscoveryEnabled} />
+        </div>
         <div className={`mt-6 grid gap-2 sm:grid-cols-2 ${socialDiscoveryEnabled ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           {[
             { href: "/places?recommendedNow=true&sort=verified", label: copy.nowWorth, icon: Compass },
@@ -113,30 +118,23 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
         {nowWorthPlaces.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2">{nowWorthPlaces.map((place) => <PlaceCard key={place.id} place={place} locale={locale} />)}</div> : <p className="mt-4 rounded-lg bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.nowWorthEmpty}</p>}
       </section>
 
-      <section id="sns-place-search" className="scroll-mt-40 border-b border-slate-200 py-7">
-        <SectionTitle title={copy.searchTitle} subtitle={copy.searchSubtitle} />
-        <div className="mt-4"><HomeSearchForm locale={locale} socialDiscoveryEnabled={socialDiscoveryEnabled} /></div>
-      </section>
-
       <section className="py-7">
         <SectionTitle title={copy.cityTitle} subtitle={copy.citySubtitle} />
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {placeCities.map((city) => {
+          {activeCities.map((city) => {
             const count = cityCounts[city.key] ?? 0;
             const href = city.key === "busan" ? "/busan" : `/places?city=${city.key}`;
-            return count > 0 ? <AnalyticsLink key={city.key} href={withLocale(href, locale)} eventType="city_selected" locale={locale} metadata={{ city: city.key, surface: "home" }} className="flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100">
+            return <AnalyticsLink key={city.key} href={withLocale(href, locale)} eventType="city_selected" locale={locale} metadata={{ city: city.key, surface: "home" }} className="flex min-h-24 items-center gap-3 rounded-lg bg-teal-700 p-4 text-white shadow-sm ring-1 ring-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100">
               <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white/15"><Building2 size={21} aria-hidden="true" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-xl font-black">{placeCityLabels[city.key][locale]}</span>
                 <span className="mt-1 block text-xs font-bold text-teal-100">{copy.publishedPlaces} {count}</span>
               </span>
               <ArrowRight size={18} className="shrink-0" aria-hidden="true" />
-            </AnalyticsLink> : <div key={city.key} aria-disabled="true" className="flex min-h-24 items-center gap-3 rounded-lg bg-slate-100 p-4 text-slate-500 ring-1 ring-slate-200">
-              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white text-slate-400"><Building2 size={21} aria-hidden="true" /></span>
-              <span className="min-w-0 flex-1"><span className="block text-xl font-black">{placeCityLabels[city.key][locale]}</span><span className="mt-1 block text-xs font-bold">{copy.preparing}</span></span>
-            </div>;
+            </AnalyticsLink>;
           })}
         </div>
+        {preparingCityCount > 0 ? <p className="mt-3 rounded-lg bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">{copy.preparingCities(preparingCityCount)}</p> : null}
       </section>
 
       <section className="border-t border-slate-200 py-7">
@@ -176,6 +174,8 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
   const intentCards = selectedDistrict
     ? resolveHomeIntentCards({ guides: [], places, locale, district: selectedDistrict })
     : [];
+  const availableIntentCards = intentCards.filter((item) => item.href);
+  const nextPendingIntentCard = intentCards.find((item) => !item.href);
   const recommended = [...districtPlaces]
     .filter((place) => isVerifiedPlace(place))
     .sort((a, b) => Number(b.is_featured) - Number(a.is_featured) || (b.save_count ?? 0) - (a.save_count ?? 0))
@@ -222,10 +222,10 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
       <section className="mt-7">
         <SectionTitle title={districtCopy[locale].title} subtitle={districtCopy[locale].subtitle} />
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {orderedDistricts.map((district) => {
+          {activeDistricts.map((district) => {
             const count = districtCounts.get(district.key) ?? 0;
             const active = selectedDistrict === district.key;
-            return count > 0 ? (
+            return (
               <AnalyticsLink
                 key={district.key}
                 href={withLocale(`/busan?district=${district.key}`, locale)}
@@ -239,14 +239,10 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
                 <span>{district.labels[locale]}</span>
                 <span className={active ? "text-xs text-teal-100" : "text-xs text-slate-400"}>{count}</span>
               </AnalyticsLink>
-            ) : (
-              <div key={district.key} aria-disabled="true" className="flex min-h-16 items-center justify-between gap-2 rounded-lg bg-slate-100 px-3 py-3 text-sm font-black text-slate-400 ring-1 ring-slate-200">
-                <span>{district.labels[locale]}</span>
-                <span className="text-right text-[11px] font-bold">{homeCopy.preparing}<span className="block">0</span></span>
-              </div>
             );
           })}
         </div>
+        {orderedDistricts.length > activeDistricts.length ? <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500 ring-1 ring-slate-200">{homeCopy.nextPreparing}</p> : null}
       </section>
 
       {selectedDistrict && !hasDistrictPlaces ? (
@@ -280,23 +276,23 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
           }
         />
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {intentCards.map((item) => (
+          {availableIntentCards.map((item) => (
             <HomeIntentCard key={item.key} item={item} copy={homeCopy} />
           ))}
         </div>
+        {nextPendingIntentCard ? <p className="mt-3 rounded-lg bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">{homeCopy.nextIntent(nextPendingIntentCard.label)}</p> : null}
       </section> : null}
 
       {selectedDistrict && hasDistrictPlaces ? <section className="mt-7 rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <SectionTitle title={homeCopy.situationTitle} subtitle={copy.home.quickFiltersSubtitle} />
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {filters.map((filter) => (
+          {filters.filter((filter) => filter.enabled).map((filter) => (
             <QuickFilterButton
               key={filter.key}
               filterKey={filter.key}
               href={filter.href}
               enabled={filter.enabled}
               label={copy.home.quickFilters[filter.key]}
-              unavailableLabel={copy.home.quickFilterUnavailable}
               locale={locale}
             />
           ))}
@@ -401,6 +397,7 @@ type CityHomeCopy = {
   jeju: string;
   publishedPlaces: string;
   preparing: string;
+  preparingCities: (count: number) => string;
   activeDistricts: string;
   activeDistrictsSubtitle: string;
   preparingDistricts: string;
@@ -413,7 +410,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
   ko: {
     area: "서울·부산·제주 운영",
     heading: "한국에서 실패하지 않는 여행",
-    supporting: "지금 가도 되는지, 무엇을 주문할지, 외국인이 이용하기 쉬운지 먼저 확인하세요.",
+    supporting: "중국인 자유여행객이 현지에서 실패하기 쉬운 가격, 영업, 웨이팅, 카드, 한국어 정보를 먼저 확인하고 저장해 현지에서 다시 여세요.",
     nowWorth: "지금 갈 만한 곳",
     nowWorthSubtitle: "서울·부산·제주의 검수된 시간 데이터를 기준으로 지금 방문 판단을 돕습니다.",
     nowWorthEmpty: "검수된 시간대 데이터가 더 쌓이면 도착 시각 기준 추천을 표시합니다.",
@@ -429,6 +426,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     jeju: "제주",
     publishedPlaces: "공개 장소",
     preparing: "준비 중",
+    preparingCities: (count) => `공개 장소가 없는 도시는 메뉴에 반복 노출하지 않습니다. 다음 공개 예정 ${count}곳을 검수 중입니다.`,
     activeDistricts: "장소가 있는 부산 지역",
     activeDistrictsSubtitle: "실제 공개·활성·검수 통과 장소가 있는 지역부터 보여드립니다.",
     preparingDistricts: "준비 중 지역",
@@ -439,7 +437,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
   zh: {
     area: "覆盖首尔·釜山·济州",
     heading: "在韩国旅行，少踩坑",
-    supporting: "先确认现在值不值得去、该点什么，以及外国游客使用是否方便。",
+    supporting: "为中国自由行游客提前确认价格、营业、等位、刷卡和韩语信息；先收藏，到了当地再打开使用。",
     nowWorth: "现在值得去的地方",
     nowWorthSubtitle: "根据首尔、釜山和济州已审核的时段数据，帮助判断现在是否适合去。",
     nowWorthEmpty: "审核后的时段数据增加后，将显示按到达时间计算的推荐。",
@@ -455,6 +453,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     jeju: "济州",
     publishedPlaces: "公开地点",
     preparing: "准备中",
+    preparingCities: (count) => `没有公开地点的城市不会重复展示。接下来有 ${count} 个城市正在审核。`,
     activeDistricts: "已有地点的釜山地区",
     activeDistrictsSubtitle: "优先显示已有公开、启用并通过审核地点的地区。",
     preparingDistricts: "准备中地区",
@@ -465,7 +464,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
   en: {
     area: "Seoul · Busan · Jeju",
     heading: "Make fewer mistakes in Korea",
-    supporting: "Check whether a place is worth going now, what to order, and how easy it is for international travelers.",
+    supporting: "For Chinese independent travelers: check price, hours, waits, card use, and Korean-language basics before you go, then save places to reopen on the road.",
     nowWorth: "Worth going now",
     nowWorthSubtitle: "Reviewed time data from Seoul, Busan, and Jeju helps you decide whether to go now.",
     nowWorthEmpty: "Arrival-time recommendations will appear as reviewed time data grows.",
@@ -481,6 +480,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     jeju: "Jeju",
     publishedPlaces: "Published places",
     preparing: "Coming later",
+    preparingCities: (count) => `${count} coming coverage areas are under review and hidden until they have public places.`,
     activeDistricts: "Busan districts with places",
     activeDistrictsSubtitle: "Districts with published, active, reviewed places appear first.",
     preparingDistricts: "Districts preparing",
@@ -491,7 +491,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
   ja: {
     area: "ソウル・釜山・済州に対応",
     heading: "韓国で失敗しない旅",
-    supporting: "今行く価値があるか、何を注文するか、外国人にも利用しやすいかを先に確認できます。",
+    supporting: "中国からの個人旅行者向けに、価格・営業時間・待ち時間・カード・韓国語情報を先に確認し、保存して現地で開けます。",
     nowWorth: "今行く価値がある場所",
     nowWorthSubtitle: "ソウル・釜山・済州の確認済み時間データで、今行くべきか判断できます。",
     nowWorthEmpty: "確認済み時間帯データが増えると、到着時刻基準のおすすめを表示します。",
@@ -507,6 +507,7 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     jeju: "済州",
     publishedPlaces: "公開スポット",
     preparing: "準備中",
+    preparingCities: (count) => `公開スポットがない都市は繰り返し表示しません。次の ${count} 件を確認中です。`,
     activeDistricts: "スポットがある釜山エリア",
     activeDistrictsSubtitle: "公開・有効・審査済みスポットがある地域から表示します。",
     preparingDistricts: "準備中の地域",
@@ -544,6 +545,8 @@ const homeGrowthCopy: Record<Locale, {
   guideReady: string;
   placesReady: string;
   preparing: string;
+  nextPreparing: string;
+  nextIntent: (label: string) => string;
 }> = {
   zh: {
     heading: "现在去釜山，先解决眼前这件事。",
@@ -559,6 +562,8 @@ const homeGrowthCopy: Record<Locale, {
     guideReady: "指南",
     placesReady: "地点",
     preparing: "准备中",
+    nextPreparing: "没有公开地点的地区会在通过审核后自动显示。",
+    nextIntent: (label) => `下一项准备中：${label}`,
   },
   en: {
     heading: "Start with the Busan problem you need to solve now.",
@@ -574,6 +579,8 @@ const homeGrowthCopy: Record<Locale, {
     guideReady: "Guide",
     placesReady: "Places",
     preparing: "Preparing",
+    nextPreparing: "Districts without public places appear after review.",
+    nextIntent: (label) => `Coming next: ${label}`,
   },
   ja: {
     heading: "今の釜山旅行で必要な情報から探す。",
@@ -589,6 +596,8 @@ const homeGrowthCopy: Record<Locale, {
     guideReady: "ガイド",
     placesReady: "スポット",
     preparing: "準備中",
+    nextPreparing: "公開スポットがない地域は確認後に表示します。",
+    nextIntent: (label) => `次に準備中：${label}`,
   },
   ko: {
     heading: "지금 필요한 부산 여행 정보부터 찾으세요.",
@@ -604,6 +613,8 @@ const homeGrowthCopy: Record<Locale, {
     guideReady: "가이드",
     placesReady: "장소",
     preparing: "준비 중",
+    nextPreparing: "공개 장소가 없는 지역은 검수 후 자동으로 표시합니다.",
+    nextIntent: (label) => `다음 공개 예정: ${label}`,
   },
 };
 
@@ -656,34 +667,19 @@ function QuickFilterButton({
   href,
   enabled,
   label,
-  unavailableLabel,
   locale,
 }: {
   filterKey: HomeQuickFilterKey;
   href: string;
   enabled: boolean;
   label: string;
-  unavailableLabel: string;
   locale: Locale;
 }) {
   const Icon = quickFilterIcons[filterKey];
   const className =
     "inline-flex min-h-12 items-center gap-2 rounded-2xl px-3 text-left text-sm font-black ring-1 transition focus:outline-none focus:ring-4 focus:ring-teal-100 active:scale-95";
 
-  if (!enabled) {
-    return (
-      <button
-        type="button"
-        disabled
-        title={unavailableLabel}
-        aria-label={`${label} - ${unavailableLabel}`}
-        className={`${className} cursor-not-allowed bg-slate-50 text-slate-400 ring-slate-200`}
-      >
-        <Icon size={17} aria-hidden="true" />
-        <span className="min-w-0">{label}</span>
-      </button>
-    );
-  }
+  if (!enabled) return null;
 
   return (
     <Link href={withLocale(href, locale)} className={`${className} bg-white text-slate-800 ring-slate-200 hover:bg-teal-50 hover:text-teal-800 hover:ring-teal-100`}>

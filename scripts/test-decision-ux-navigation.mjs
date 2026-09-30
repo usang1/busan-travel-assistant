@@ -21,7 +21,8 @@ assert.match(localizedHome, /getCachedPublicPlaces\(locale\)/);
 assert.match(localizedHome, /translatedPlaceLocales\(place\)\.includes\(locale\)/);
 assert.match(home, /const districtCounts = getDistrictCounts\(places\)/);
 assert.match(home, /\.filter\(\(district\) => district\.count > 0\)/);
-assert.match(home, /count > 0 \? \(/);
+assert.match(home, /activeCities\.map/);
+assert.match(home, /preparingCities\(preparingCityCount\)/);
 assert.match(home, /aria-disabled="true"/);
 assert.match(home, /districtEmptyCopy/);
 assert.match(home, /withLocale\("\/contact", locale\)/);
@@ -46,7 +47,7 @@ assert.match(nearby, /locationDenied: "Location permission was denied/);
 assert.match(nearby, /locationDenied: "位置情報の権限が拒否されました/);
 assert.match(nearby, /locationDenied: "위치 권한이 거부되었습니다/);
 
-for (const label of ["places: \"找地点\"", "places: \"Places\"", "places: \"スポット\"", "places: \"장소\""]) {
+for (const label of ["places: \"找地点\"", "places: \"Find places\"", "places: \"スポット検索\"", "places: \"장소 찾기\"", "nearby: \"附近地图\"", "nearby: \"Nearby map\"", "nearby: \"近くの地図\"", "nearby: \"내 주변 지도\""]) {
   assert.match(i18n, new RegExp(label));
 }
 

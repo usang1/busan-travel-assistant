@@ -1,6 +1,6 @@
 import type { Coordinates } from "@/lib/location";
 
-export type DirectionsProvider = "naver" | "kakao" | "google";
+export type DirectionsProvider = "naver" | "naver_web" | "kakao" | "google";
 
 type BuildDirectionsUrlInput = {
   provider: DirectionsProvider;
@@ -30,6 +30,12 @@ export function buildDirectionsUrl({ provider, name, address, coordinates, origi
     }
 
     return `https://map.kakao.com/?q=${encodeURIComponent(destinationLabel)}`;
+  }
+
+  if (provider === "naver_web") {
+    const query = encodeURIComponent(destinationLabel);
+    const center = coordinates ? `?c=${coordinates.longitude},${coordinates.latitude},15,0,0,0,dh` : "";
+    return `https://map.naver.com/p/search/${query}${center}`;
   }
 
   if (coordinates) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { LocateFixed, Search, SlidersHorizontal } from "lucide-react";
+import { LocateFixed, Search, SlidersHorizontal, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { PlaceCard } from "@/components/PlaceCard";
@@ -97,9 +97,14 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   );
   const activeFilterCount = countActiveChinaFilters(showChinaFilters ? activeChinaFilters : [], priceBucket);
   const regions = cityRegions(city).map((item) => ({ key: item.key, label: item.labels[locale] }));
+  const availableCategoryFilters = useMemo(
+    () => categoryFilters.filter((filter) => filter.value === "all" || places.some((place) => place.category === filter.value)),
+    [places],
+  );
+  const searching = query !== debouncedQuery;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 400);
     return () => window.clearTimeout(timer);
   }, [query]);
 
@@ -171,6 +176,16 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
 
     return sortPlacesForChineseTraveler(filtered, sortMode);
   }, [activeChinaFilters, category, debouncedQuery, enrichedPlaces, homeIntent, locale, priceBucket, region, showChinaFilters, sortMode]);
+
+  const suggestedCategories = useMemo(() => {
+    const counts = new Map<PlaceCategory, number>();
+    places.forEach((place) => counts.set(place.category, (counts.get(place.category) ?? 0) + 1));
+    return [...counts.entries()]
+      .filter(([value]) => value !== category)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([value]) => value);
+  }, [category, places]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") {
@@ -255,12 +270,26 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
             onChange={(event) => setQuery(event.target.value)}
             onBlur={() => { if (query.trim()) trackFilter("search", "present"); }}
             placeholder={copy.places.searchPlaceholder}
-            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] text-slate-900 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-[16px] text-slate-900 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
           />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+              aria-label={explorerCopy.clearSearch}
+            >
+              <X size={17} aria-hidden="true" />
+            </button>
+          ) : null}
         </label>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500" aria-live="polite">
+          <span>{explorerCopy.resultSummary(filteredPlaces.length, places.length)}</span>
+          {searching ? <span className="text-teal-700">{explorerCopy.searching}</span> : null}
+        </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {categoryFilters.map((filter) => {
+          {availableCategoryFilters.map((filter) => {
             const active = category === filter.value;
 
             return (
@@ -393,6 +422,14 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
               ) : (
                 <div className="flex flex-wrap justify-center gap-2">
                   <button type="button" onClick={clearFilters} className="min-h-11 rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">{explorerCopy.clearFilters}</button>
+                  <Link href={withLocale(`/places?city=${city}`, locale)} className="inline-flex min-h-11 items-center rounded-lg bg-white px-4 text-sm font-black text-slate-800 ring-1 ring-slate-200">
+                    {explorerCopy.viewAllCity}
+                  </Link>
+                  {suggestedCategories.map((value) => (
+                    <button key={value} type="button" onClick={() => { setCategory(value); setActiveChinaFilters([]); setHomeIntent(null); }} className="min-h-11 rounded-lg bg-teal-50 px-4 py-2 text-sm font-black text-teal-800 ring-1 ring-teal-100">
+                      {getPlaceCategoryLabel(value, locale)}
+                    </button>
+                  ))}
                   {query && process.env.NEXT_PUBLIC_SOCIAL_DISCOVERY_ENABLED === "true" ? (
                     <Link href={`${withLocale("/social-find", locale)}?text=${encodeURIComponent(query)}`} className="inline-flex min-h-11 items-center rounded-lg bg-white px-4 text-sm font-black text-teal-800 ring-1 ring-teal-200">
                       {socialNoResultLabel[locale]}
@@ -406,7 +443,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       )}
 
       <p className="mt-4 text-center text-xs text-slate-500">
-        {copy.places.countLabel} {filteredPlaces.length} / {places.length}
+        {explorerCopy.resultSummary(filteredPlaces.length, places.length)}
       </p>
     </div>
   );
@@ -433,7 +470,10 @@ const placesExplorerCopy: Record<Locale, {
   quickFilters: string;
   moreFilters: string;
   activeFilters: string;
+  clearSearch: string;
+  searching: string;
   clearFilters: string;
+  viewAllCity: string;
   reduceFilters: string;
   emptyDatabaseDescription: string;
   loadErrorTitle: string;
@@ -445,6 +485,7 @@ const placesExplorerCopy: Record<Locale, {
   locationChecking: string;
   locationReady: string;
   locationDenied: string;
+  resultSummary: (filtered: number, total: number) => string;
 }> = {
   zh: {
     region: "区域",
@@ -460,7 +501,10 @@ const placesExplorerCopy: Record<Locale, {
     quickFilters: "快速场景",
     moreFilters: "更多中国游客筛选",
     activeFilters: "已选",
+    clearSearch: "清除搜索词",
+    searching: "搜索中...",
     clearFilters: "全部清除",
+    viewAllCity: "查看当前城市全部地点",
     reduceFilters: "条件稍微减少一点，可以找到更多适合的地点。",
     emptyDatabaseDescription: "目前没有已公开的地点。",
     loadErrorTitle: "无法载入地点信息",
@@ -472,6 +516,7 @@ const placesExplorerCopy: Record<Locale, {
     locationChecking: "正在确认当前位置...",
     locationReady: "可以按当前位置距离排序。",
     locationDenied: "位置权限被拒绝。仍可继续使用其他搜索功能。",
+    resultSummary: (filtered, total) => `显示 ${filtered} / 公开 ${total}`,
   },
   en: {
     region: "Region",
@@ -487,7 +532,10 @@ const placesExplorerCopy: Record<Locale, {
     quickFilters: "Quick filters",
     moreFilters: "More traveler filters",
     activeFilters: "Active",
+    clearSearch: "Clear search",
+    searching: "Searching...",
     clearFilters: "Reset filters",
+    viewAllCity: "View all places in this city",
     reduceFilters: "Try removing a few filters to see more places.",
     emptyDatabaseDescription: "There are no published places yet.",
     loadErrorTitle: "Could not load places",
@@ -499,6 +547,7 @@ const placesExplorerCopy: Record<Locale, {
     locationChecking: "Checking your current location...",
     locationReady: "Distance sorting is available from your current location.",
     locationDenied: "Location permission was denied. Other search features remain available.",
+    resultSummary: (filtered, total) => `Showing ${filtered} of ${total} public places`,
   },
   ja: {
     region: "エリア",
@@ -514,7 +563,10 @@ const placesExplorerCopy: Record<Locale, {
     quickFilters: "クイック条件",
     moreFilters: "旅行者向け条件",
     activeFilters: "選択中",
+    clearSearch: "検索語を消去",
+    searching: "検索中...",
     clearFilters: "リセット",
+    viewAllCity: "この都市の全スポットを見る",
     reduceFilters: "条件を少し減らすと、より多くのスポットが見つかります。",
     emptyDatabaseDescription: "公開済みスポットがまだありません。",
     loadErrorTitle: "スポット情報を読み込めません",
@@ -526,6 +578,7 @@ const placesExplorerCopy: Record<Locale, {
     locationChecking: "現在地を確認しています...",
     locationReady: "現在地から距離順で並び替えできます。",
     locationDenied: "位置情報の権限が拒否されました。他の検索機能は利用できます。",
+    resultSummary: (filtered, total) => `公開 ${total} 件中 ${filtered} 件を表示`,
   },
   ko: {
     region: "지역",
@@ -541,7 +594,10 @@ const placesExplorerCopy: Record<Locale, {
     quickFilters: "빠른 상황 필터",
     moreFilters: "여행자 상세 필터",
     activeFilters: "적용",
+    clearSearch: "검색어 지우기",
+    searching: "검색 중...",
     clearFilters: "전체 초기화",
+    viewAllCity: "이 도시 전체 보기",
     reduceFilters: "조건을 조금 줄이면 더 많은 장소를 찾을 수 있어요.",
     emptyDatabaseDescription: "아직 공개된 장소가 없습니다.",
     loadErrorTitle: "장소 정보를 불러오지 못했습니다",
@@ -553,6 +609,7 @@ const placesExplorerCopy: Record<Locale, {
     locationChecking: "현재 위치를 확인하는 중입니다...",
     locationReady: "현재 위치 기준 거리순 정렬을 사용할 수 있습니다.",
     locationDenied: "위치 권한이 거부되었습니다. 다른 검색 기능은 계속 사용할 수 있습니다.",
+    resultSummary: (filtered, total) => `공개 ${total}곳 중 ${filtered}곳 표시`,
   },
 };
 

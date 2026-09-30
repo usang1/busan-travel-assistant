@@ -16,6 +16,7 @@ import {
   getPlaceCategoryLabel,
   getPlaceNameDisplay,
   getPlacePhotoDisplay,
+  getPublicPlaceDescription,
   getTrustedPlaceImageUrl,
 } from "@/lib/place-trust";
 import type { PlaceWithRelations } from "@/types/database";
@@ -45,6 +46,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
   const naverPlaceUrl = getRegisteredNaverPlaceUrl(place);
   const priorityFacts = cardFacts.facts.filter((fact) => fact.key === "menu" || fact.key === "price" || fact.key === "hours").slice(0, 3);
+  const recommendation = getPublicPlaceDescription(place, locale);
 
   return (
     <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -122,6 +124,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           ) : null}
         </div>
         {distanceWarning ? <p className="mt-2 text-xs font-bold text-amber-800">{distanceWarning}</p> : null}
+        {recommendation ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{recommendation}</p> : null}
         <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-slate-100 pt-3" />
         <TasteProfileCard place={place} locale={locale} />
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">

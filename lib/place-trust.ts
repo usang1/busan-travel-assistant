@@ -31,7 +31,7 @@ const copy = {
     photoTitle: "照片准备中",
     photoDetail: "没有使用临时旅游照片",
     noPublicDescription: "公开推荐说明准备中。",
-    infoPreparing: "详细营业信息准备中",
+    infoPreparing: "信息补充中",
     verified: "已确认",
     pending: "确认中",
     needsReview: "需复核",
@@ -50,7 +50,7 @@ const copy = {
     photoTitle: "Photo pending",
     photoDetail: "No temporary travel photo is shown",
     noPublicDescription: "Public recommendation copy is being prepared.",
-    infoPreparing: "Business details are being prepared",
+    infoPreparing: "Info being improved",
     verified: "Verified",
     pending: "Checking",
     needsReview: "Needs review",
@@ -69,7 +69,7 @@ const copy = {
     photoTitle: "写真準備中",
     photoDetail: "仮の観光写真は表示していません",
     noPublicDescription: "公開用のおすすめ説明を準備中です。",
-    infoPreparing: "詳しい営業情報を準備中",
+    infoPreparing: "情報を補強中",
     verified: "確認済み",
     pending: "確認中",
     needsReview: "再確認が必要",
@@ -88,7 +88,7 @@ const copy = {
     photoTitle: "사진 준비 중",
     photoDetail: "임시 관광 사진을 사용하지 않습니다",
     noPublicDescription: "공개 추천 설명을 준비 중입니다.",
-    infoPreparing: "세부 영업정보 준비 중",
+    infoPreparing: "정보 보강 중",
     verified: "검증됨",
     pending: "확인 중",
     needsReview: "재확인 필요",
@@ -127,7 +127,7 @@ export function getPlaceNameDisplay(place: PlaceWithRelations, locale: Locale): 
   const koreanOriginal = place.name_ko.trim();
 
   return {
-    name: locale !== "ko" && content.name === koreanOriginal ? `${content.name} (${copy[locale].originalNameLabel})` : content.name,
+    name: content.name,
     secondaryName: content.secondaryName || (locale !== "ko" && content.name !== koreanOriginal ? koreanOriginal : ""),
     secondaryLabel: locale === "ko" ? "" : copy[locale].originalNameLabel,
   };
