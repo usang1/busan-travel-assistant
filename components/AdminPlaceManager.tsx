@@ -1878,7 +1878,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       const body = (await response.json()) as { place: PlaceWithRelations };
       const savedPlace = body.place;
       setPlaces((current) =>
-        formToSave.id ? current.map((place) => (place.id === savedPlace.id ? savedPlace : place)) : [savedPlace, ...current],
+        current.some((place) => place.id === savedPlace.id)
+          ? current.map((place) => (place.id === savedPlace.id ? savedPlace : place))
+          : [savedPlace, ...current],
       );
       setForm(toForm(savedPlace));
       setStatus(`저장했습니다.${translationNotice} 중국인 특화 구조화 정보도 함께 반영됩니다. ${buildAdminPlaceVisibilityNotice(savedPlace)}`);

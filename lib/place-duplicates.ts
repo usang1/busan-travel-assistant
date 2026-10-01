@@ -21,7 +21,7 @@ export function findPlaceDuplicateMatches(
   const address = payload.address_ko || payload.address_zh || payload.address || "";
 
   return places
-    .filter((place) => place.id !== excludePlaceId)
+    .filter((place) => place.id !== excludePlaceId && place.status !== "ARCHIVED")
     .map((place): PlaceDuplicateMatch | null => {
       if (
         source?.external_id &&

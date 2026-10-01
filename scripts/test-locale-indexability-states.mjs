@@ -107,6 +107,13 @@ assert.match(loginSource, /auth_signin_submit/);
 assert.match(loginSource, /auth_signup_submit/);
 assert.match(loginSource, /current-password/);
 assert.match(loginSource, /new-password/);
+assert.match(loginSource, /id:\s*"kakao"[\s\S]*?provider:\s*"kakao"/);
+assert.match(loginSource, /id:\s*"google"[\s\S]*?provider:\s*"google"/);
+assert.match(loginSource, /const naverOAuthProvider = "custom:naver" satisfies Provider/);
+assert.match(loginSource, /id:\s*"naver"[\s\S]*?provider:\s*naverOAuthProvider/);
+assert.match(loginSource, /new URL\("\/auth\/callback", window\.location\.origin\)/);
+assert.match(loginSource, /callbackUrl\.searchParams\.set\("next", nextPath\)/);
+assert.doesNotMatch(loginSource, /\/api\/auth\/naver|nid\.naver|nid\/me/);
 
 const mypageSource = fs.readFileSync("components/MyPageView.tsx", "utf8");
 assert.match(mypageSource, /mypage\.loginTitle/);

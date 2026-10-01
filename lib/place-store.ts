@@ -865,6 +865,55 @@ async function assertNoExactSourceDuplicate(payload: PlacePayload, client: Supab
   }
 }
 
+function isArchivedPlaceRow(place: Pick<PlaceRecord, "status" | "is_active">) {
+  return place.status === archivedPlaceStatus || (place.is_active === false && place.status === "INACTIVE");
+}
+
+async function findArchivedPlaceIdForCreate(payload: PlacePayload, client: SupabaseClient) {
+  const source = payload.source;
+  const candidateIds = new Set<string>();
+
+  if (source?.external_id && source.provider !== "MANUAL") {
+    const { data, error } = await client
+      .from("place_sources")
+      .select("place_id")
+      .eq("provider", source.provider)
+      .eq("external_id", source.external_id);
+
+    if (error) throw placeSaveError("기존 장소 확인 단계에서 오류가 발생했습니다.", error);
+    for (const row of data ?? []) {
+      if (typeof row.place_id === "string") candidateIds.add(row.place_id);
+    }
+  }
+
+  if (candidateIds.size > 0) {
+    const { data, error } = await client
+      .from("places")
+      .select("id, status, is_active")
+      .in("id", [...candidateIds]);
+
+    if (error) throw placeSaveError("기존 장소 확인 단계에서 오류가 발생했습니다.", error);
+    const archivedSourceMatch = (data as Array<Pick<PlaceRecord, "id" | "status" | "is_active">> | null)?.find(isArchivedPlaceRow);
+    if (archivedSourceMatch) return archivedSourceMatch.id;
+  }
+
+  if (payload.slug) {
+    const { data, error } = await client
+      .from("places")
+      .select("id, status, is_active")
+      .eq("slug", payload.slug)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw placeSaveError("기존 장소 확인 단계에서 오류가 발생했습니다.", error);
+    if (data && isArchivedPlaceRow(data as Pick<PlaceRecord, "status" | "is_active">)) {
+      return (data as Pick<PlaceRecord, "id">).id;
+    }
+  }
+
+  return null;
+}
+
 async function syncChinaInfo(placeId: string, payload: PlacePayload, client?: SupabaseClient) {
   const resolvedClient = resolveClient(client);
 
@@ -937,6 +986,11 @@ export async function createPlace(payload: PlacePayload, client?: SupabaseClient
   }
 
   validatePlacePayloadForSave(payload);
+  const archivedPlaceId = await findArchivedPlaceIdForCreate(payload, resolvedClient);
+  if (archivedPlaceId) {
+    return updatePlace(archivedPlaceId, payload, resolvedClient);
+  }
+
   await assertNoExactSourceDuplicate(payload, resolvedClient);
 
   const placeRow = toPlaceWriteRow(payload);

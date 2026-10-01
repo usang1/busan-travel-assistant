@@ -12,6 +12,7 @@ import { defaultLocale, getLocaleFromPath, isLocale, type Locale, ui, withLocale
 
 type AuthMode = "signin" | "signup";
 type SocialProviderId = "kakao" | "google" | "naver";
+const naverOAuthProvider = "custom:naver" satisfies Provider;
 
 const socialProviders: Array<{
   id: SocialProviderId;
@@ -36,7 +37,7 @@ const socialProviders: Array<{
   },
   {
     id: "naver",
-    provider: "custom:naver",
+    provider: naverOAuthProvider,
     brandMark: "N",
     className: "bg-[#03C75A] text-white ring-[#03C75A]",
   },
