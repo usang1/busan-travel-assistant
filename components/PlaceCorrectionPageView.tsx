@@ -9,7 +9,8 @@ import {
   type Locale,
   withLocale,
 } from "@/lib/i18n";
-import { formatPriceRange, formatWon } from "@/lib/place-store";
+import { formatPriceRange } from "@/lib/place-store";
+import { getMenuPriceLabel } from "@/lib/menu-price";
 import { hasCoordinates } from "@/lib/location";
 import { getPlaceCategoryLabel, getPlaceNameDisplay, getPlacePhotoDisplay } from "@/lib/place-trust";
 import type { PlaceWithRelations } from "@/types/database";
@@ -22,7 +23,7 @@ export function PlaceCorrectionPageView({ place, locale }: { place: PlaceWithRel
   const coordinates = hasCoordinates(place) ? { latitude: place.latitude, longitude: place.longitude } : null;
   const currentMenuText = place.menu_items.map((item) => {
     const menu = getLocalizedMenuItem(item, locale);
-    return [menu.name, item.price === null ? "" : formatWon(item.price, locale)].filter(Boolean).join(" · ");
+    return [menu.name, getMenuPriceLabel(item, locale)].join(" · ");
   }).join("\n");
 
   return (

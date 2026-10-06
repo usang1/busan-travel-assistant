@@ -43,6 +43,7 @@ type PayloadTranslation = NonNullable<PlacePayload["translations"]>[number];
 type PublishMenuDraft = {
   name_ko: string;
   price: number | null;
+  price_is_variable?: boolean;
   is_recommended: boolean;
 };
 
@@ -247,7 +248,7 @@ function mergePublishMenuDrafts(current: PublishMenuDraft[], incoming: PublishMe
       const existing = merged[existingIndex];
       merged[existingIndex] = {
         ...existing,
-        price: existing.price ?? item.price,
+        price: existing.price_is_variable ? null : existing.price ?? item.price,
         is_recommended: existing.is_recommended || item.is_recommended,
       };
     } else {
@@ -484,6 +485,7 @@ function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRe
     menu_items: place.menu_items.map((item) => ({
       name_ko: item.name_ko || item.name_zh,
       price: item.price,
+      price_is_variable: item.price_is_variable === true,
       is_recommended: item.is_recommended,
     })),
     chinese_taste_score: chinaInfo?.chinese_taste_score ?? null,
@@ -654,7 +656,8 @@ function buildPayload(form: PublishForm): PlacePayload {
       name_ko: item.name_ko,
       name_zh: item.name_ko,
       description_zh: "",
-      price: item.price,
+      price: item.price_is_variable ? null : item.price,
+      price_is_variable: item.price_is_variable === true,
       is_recommended: item.is_recommended,
       sort_order: index + 1,
     })),
@@ -2127,8 +2130,9 @@ function PublishFormView({
             {form.menu_items.map((item, index) => (
               <div key={`${item.name_ko}-${index}`} className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
                 <input value={item.name_ko} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, name_ko: event.target.value } : menu))} className={inputClass} aria-label={`메뉴 ${index + 1} 이름`} />
-                <input value={item.price ?? ""} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, price: nullableNumber(event.target.value) } : menu))} className={inputClass} inputMode="numeric" aria-label={`메뉴 ${index + 1} 가격`} placeholder="가격 미확인" />
+                <input value={item.price_is_variable ? "" : item.price ?? ""} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, price: nullableNumber(event.target.value) } : menu))} className={inputClass} inputMode="numeric" aria-label={`메뉴 ${index + 1} 가격`} placeholder={item.price_is_variable ? "가격 변동" : "가격 미확인"} disabled={item.price_is_variable === true} />
                 <CheckField label="대표" checked={item.is_recommended} onChange={(checked) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, is_recommended: checked } : menu))} />
+                <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-slate-700 sm:col-span-3"><input type="checkbox" checked={item.price_is_variable === true} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, price_is_variable: event.target.checked, price: event.target.checked ? null : menu.price } : menu))} />가격 변동 (정가 없음 · 주문 전 확인)</label>
               </div>
             ))}
           </div>

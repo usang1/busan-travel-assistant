@@ -36,6 +36,10 @@ function compileTs(path, requireHandler, globals = {}) {
 const dataIntegrity = compileTs("lib/place-data-integrity.ts", (specifier) => {
   throw new Error(`Unexpected data-integrity import: ${specifier}`);
 });
+const menuPrice = compileTs("lib/menu-price.ts", (specifier) => {
+  if (specifier === "@/lib/place-data-integrity") return dataIntegrity;
+  throw new Error(`Unexpected menu-price import: ${specifier}`);
+});
 
 const i18n = compileTs("lib/i18n.ts", (specifier) => {
   if (specifier === "@/config/site") {
@@ -105,6 +109,7 @@ const trust = compileTs("lib/place-trust.ts", (specifier) => {
   }
 
   if (specifier === "@/lib/place-data-integrity") return dataIntegrity;
+  if (specifier === "@/lib/menu-price") return menuPrice;
 
   if (specifier === "@/lib/transit-labels") {
     return { formatLocalizedStation: (value) => value ?? "", formatLocalizedExit: (value) => value ?? "" };
@@ -145,6 +150,8 @@ const display = compileTs("lib/place-display.ts", (specifier) => {
       formatWon: (value) => `₩${value}`,
     };
   }
+
+  if (specifier === "@/lib/menu-price") return menuPrice;
 
   if (specifier === "@/lib/i18n") {
     return i18n;

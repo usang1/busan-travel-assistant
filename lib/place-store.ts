@@ -124,7 +124,7 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
       .filter((tag): tag is TagRecord => Boolean(tag)) ?? [];
 
   const menuItems = [...(row.place_menu_items ?? [])]
-    .map((item) => ({ ...item, price: normalizeMenuPrice(item.price) }))
+    .map((item) => ({ ...item, price: item.price_is_variable ? null : normalizeMenuPrice(item.price) }))
     .sort((a, b) => a.sort_order - b.sort_order);
   const pricing = normalizePlacePricing(row);
   const chinaInfo = Array.isArray(row.place_china_info)
@@ -701,6 +701,11 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
     throw new Error("Place storage is not configured.");
   }
 
+  if (menuItems.some((item) => item.price_is_variable === true)) {
+    const { error: schemaError } = await resolvedClient.from("place_menu_items").select("price_is_variable").limit(1);
+    if (schemaError) throw new Error("가격 변동 메뉴를 저장하려면 039_menu_variable_price.sql 마이그레이션이 필요합니다.");
+  }
+
   await resolvedClient.from("place_menu_items").delete().eq("place_id", placeId);
 
   if (menuItems.length === 0) {
@@ -714,6 +719,7 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
     name_zh: item.name_zh,
     description_zh: item.description_zh,
     price: item.price,
+    price_is_variable: item.price_is_variable === true,
     is_recommended: item.is_recommended,
     sort_order: item.sort_order || index + 1,
     ...(item.localized_name ? { localized_name: item.localized_name } : {}),
@@ -737,6 +743,9 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
   let { error } = await resolvedClient.from("place_menu_items").insert(rows);
 
   if (error && (error.code === "PGRST204" || error.code === "42703")) {
+    if (rows.some((row) => row.price_is_variable)) {
+      throw new Error("가격 변동 메뉴를 저장하려면 039_menu_variable_price.sql 마이그레이션이 필요합니다.");
+    }
     const legacyRows = rows.map((row) => ({
       ...(row.id ? { id: row.id } : {}), place_id: row.place_id, name_ko: row.name_ko, name_zh: row.name_zh,
       description_zh: row.description_zh, price: row.price, is_recommended: row.is_recommended, sort_order: row.sort_order,

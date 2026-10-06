@@ -37,7 +37,8 @@ import { absoluteUrl, siteConfig } from "@/config/site";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import { getCachedPublicPlaceBySlug } from "@/lib/public-cache";
-import { formatPriceRange, formatWon } from "@/lib/place-store";
+import { formatPriceRange } from "@/lib/place-store";
+import { getMenuPriceLabel } from "@/lib/menu-price";
 import { getRelatedPlaces } from "@/lib/place-recommendations";
 import {
   getLastVerifiedLabel,
@@ -122,7 +123,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
     ? `${[place.nearest_station, place.nearest_exit].filter(Boolean).join(" ")} · ${walkingText}`
     : "未登记";
   const currentMenuText = place.menu_items.map((item) => (
-    [item.name_zh || item.name_ko, item.price === null ? "" : formatWon(item.price)].filter(Boolean).join(" · ")
+    [item.name_zh || item.name_ko, getMenuPriceLabel(item, "zh")].join(" · ")
   )).join("\n");
 
   return (
@@ -270,7 +271,7 @@ export default async function PlaceDetailPage({ params }: PlaceDetailPageProps) 
                     </div>
                     <p className="mt-1 text-sm text-slate-500">韩文原名 · {item.name_ko}</p>
                   </div>
-                  <span className="shrink-0 font-black text-slate-950">{formatWon(item.price)}</span>
+                  <span className="shrink-0 font-black text-slate-950">{getMenuPriceLabel(item, "zh")}</span>
                 </div>
                 {item.description_zh ? <p className="mt-3 text-sm leading-6 text-slate-600">{item.description_zh}</p> : null}
               </div>

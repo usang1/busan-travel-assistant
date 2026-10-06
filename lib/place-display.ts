@@ -1,6 +1,7 @@
 import { formatDistance, gwangalliCenter, calculateDistanceMeters, hasCoordinates } from "@/lib/location";
 import { buildChinaPlaceSummary, waitingLabel } from "@/lib/place-china/format";
-import { formatPriceRange, formatWon } from "@/lib/place-store";
+import { formatPriceRange } from "@/lib/place-store";
+import { getMenuPriceLabel } from "@/lib/menu-price";
 import { getLocalizedMenuItem, getPlaceContent, type Locale, ui } from "@/lib/i18n";
 import type { ChinaWaitingLevel, PlaceFactTristate, PlaceWithRelations } from "@/types/database";
 
@@ -34,7 +35,7 @@ export function getRepresentativeMenu(place: PlaceWithRelations, locale: Locale)
     return {
       name: menu.name,
       secondaryName: menu.secondaryName,
-      price: item.price === null ? ui[locale].common.priceUnknown : formatWon(item.price, locale),
+      price: getMenuPriceLabel(item, locale),
       orderKo: `${item.name_ko} 1인분 주세요.`,
     };
   }

@@ -2,18 +2,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 
-function compileCommonJs(path) {
+function compileCommonJs(path, imports = {}) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, verbatimModuleSyntax: false },
   }).outputText;
   const module = { exports: {} };
-  new Function("module", "exports", "require", output)(module, module.exports, () => ({}));
+  new Function("module", "exports", "require", output)(module, module.exports, (specifier) => imports[specifier] ?? {});
   return module.exports;
 }
 
 const time = compileCommonJs("../lib/time-aware-place.ts");
-const menu = compileCommonJs("../lib/menu-guidance.ts");
+const integrity = compileCommonJs("../lib/place-data-integrity.ts");
+const menuPrice = compileCommonJs("../lib/menu-price.ts", { "@/lib/place-data-integrity": integrity });
+const menu = compileCommonJs("../lib/menu-guidance.ts", { "@/lib/menu-price": menuPrice });
 
 function operatingProfile(overrides = {}) {
   return {
@@ -132,6 +134,10 @@ assert.equal(guidance.koreanOrderText, "한국어 원문 메뉴 하나 주세요
 assert.doesNotMatch(guidance.koreanOrderText, /翻译菜单名/);
 assert.match(guidance.warnings.join(" "), /海鲜信息尚未确认/);
 assert.match(guidance.warnings.join(" "), /香菜信息尚未确认/);
+
+const variableGuidance = menu.recommendMenuCombination([menuItem({ price: null, price_is_variable: true })], preferences, "zh");
+assert.equal(variableGuidance.total, null);
+assert.match(variableGuidance.warnings.join(" "), /价格浮动/);
 
 const explicitSeafood = menu.recommendMenuCombination([menuItem({ contains_seafood: "yes" })], preferences, "en");
 assert.equal(explicitSeafood.lines.length, 0, "An explicit seafood item must be excluded when seafood is avoided");

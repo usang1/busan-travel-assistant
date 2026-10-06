@@ -5,6 +5,7 @@ import { AlertTriangle, MessageSquareText, X } from "lucide-react";
 import { getLocalizedMenuItem, type Locale } from "@/lib/i18n";
 import { koreanMenuName, recommendMenuCombination, type MenuGuidancePreferences } from "@/lib/menu-guidance";
 import { formatWon } from "@/lib/place-store";
+import { getKnownMenuAmount, getMenuPriceLabel } from "@/lib/menu-price";
 import type { PlaceWithRelations } from "@/types/database";
 
 type PhraseKey = "order" | "signature" | "notSpicy" | "noCilantro" | "takeout" | "foreignCard" | "queue" | "solo" | "serves";
@@ -44,7 +45,8 @@ export function OrderGuide({ place, locale }: { place: PlaceWithRelations; local
           <p className="text-lg font-black text-slate-950">{preferences.people}{copy.peopleSuffix} {copy.recommendation}</p>
           {recommendation.lines.length ? <div className="mt-3 space-y-2">{recommendation.lines.map((line) => {
             const menu = getLocalizedMenuItem(line.item, locale);
-            return <div key={line.item.id} className="rounded-md bg-white px-3 py-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{menu.name} × {line.quantity}</p><p className="mt-1 text-xs text-slate-500">{copy.koreanOriginal} · {koreanMenuName(line.item)}</p></div><p className="shrink-0 text-sm font-black text-teal-700">{typeof line.item.price === "number" ? formatWon(line.item.price * line.quantity, locale) : copy.priceUnknown}</p></div>{line.reasons.length ? <p className="mt-2 text-xs font-bold text-teal-800">{line.reasons.join(" · ")}</p> : null}{line.item.ordering_note?.[locale] ? <p className="mt-2 text-xs leading-5 text-slate-600">{line.item.ordering_note[locale]}</p> : null}{line.item.menu_warning?.[locale] ? <p className="mt-1 text-xs font-bold text-amber-900">{line.item.menu_warning[locale]}</p> : null}</div>;
+            const knownPrice = getKnownMenuAmount(line.item);
+            return <div key={line.item.id} className="rounded-md bg-white px-3 py-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{menu.name} × {line.quantity}</p><p className="mt-1 text-xs text-slate-500">{copy.koreanOriginal} · {koreanMenuName(line.item)}</p></div><p className="shrink-0 text-sm font-black text-teal-700">{knownPrice !== null ? formatWon(knownPrice * line.quantity, locale) : getMenuPriceLabel(line.item, locale)}</p></div>{line.reasons.length ? <p className="mt-2 text-xs font-bold text-teal-800">{line.reasons.join(" · ")}</p> : null}{line.item.ordering_note?.[locale] ? <p className="mt-2 text-xs leading-5 text-slate-600">{line.item.ordering_note[locale]}</p> : null}{line.item.menu_warning?.[locale] ? <p className="mt-1 text-xs font-bold text-amber-900">{line.item.menu_warning[locale]}</p> : null}</div>;
           })}</div> : <p className="mt-3 text-sm text-slate-600">{copy.noMatch}</p>}
           <div className="mt-3 flex items-center justify-between rounded-md bg-slate-950 px-4 py-3 text-white"><span className="text-sm text-slate-300">{copy.expected}</span><span className="text-lg font-black">{recommendation.total === null ? copy.confirmWithStaff : formatWon(recommendation.total, locale)}</span></div>
           {recommendation.warnings.length ? <ul className="mt-3 space-y-1.5 text-xs font-bold leading-5 text-amber-950">{recommendation.warnings.map((warning) => <li key={warning} className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{warning}</li>)}</ul> : null}

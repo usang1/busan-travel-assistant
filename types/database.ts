@@ -136,6 +136,7 @@ export type PlaceMenuItem = {
   name_zh: string;
   description_zh: string;
   price: number | null;
+  price_is_variable?: boolean;
   is_recommended: boolean;
   sort_order: number;
   localized_name?: { ko: string; zh: string; en: string; ja: string };

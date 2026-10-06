@@ -99,6 +99,7 @@ export type TravelerMenuItem = {
   localized_name: LocaleText;
   korean_original_name: string;
   price: number | null;
+  price_is_variable?: boolean;
   recommendation_status: PlaceFactTristate;
   recommendation_basis: string;
   spicy_level: number | null;

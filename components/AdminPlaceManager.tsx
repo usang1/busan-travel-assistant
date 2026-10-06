@@ -70,6 +70,7 @@ type MenuDraft = {
   name_zh: string;
   description_zh: string;
   price: string;
+  price_is_variable?: boolean;
   is_recommended: boolean;
   sort_order: string;
   localized_name?: { ko: string; zh: string; en: string; ja: string };
@@ -461,6 +462,7 @@ function toForm(place: PlaceWithRelations): FormState {
       name_zh: item.name_zh,
       description_zh: item.description_zh,
       price: item.price?.toString() ?? "",
+      price_is_variable: item.price_is_variable === true,
       is_recommended: item.is_recommended,
       sort_order: item.sort_order.toString(),
       localized_name: item.localized_name,
@@ -548,7 +550,7 @@ function mergeMenuDrafts(current: MenuDraft[], incoming: MenuDraft[]) {
       const existing = merged[existingIndex];
       merged[existingIndex] = {
         ...existing,
-        price: existing.price.trim() || item.price,
+        price: existing.price_is_variable ? "" : existing.price.trim() || item.price,
         is_recommended: existing.is_recommended || item.is_recommended,
       };
     } else {
@@ -724,7 +726,8 @@ function toPayload(form: FormState): PlacePayload {
         name_ko: item.name_ko,
         name_zh: item.name_zh,
         description_zh: item.description_zh,
-        price: nullableNumber(item.price),
+        price: item.price_is_variable ? null : nullableNumber(item.price),
+        price_is_variable: item.price_is_variable === true,
         is_recommended: item.is_recommended,
         sort_order: Number(item.sort_order) || index + 1,
         ...(item.localized_name ? { localized_name: item.localized_name } : {}),
@@ -2682,9 +2685,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                       <div className="grid gap-3 sm:grid-cols-2">
                         <input placeholder="메뉴명 KO" value={item.name_ko} onChange={(event) => updateMenu(index, { name_ko: event.target.value })} className={inputClass} />
                         <input placeholder="메뉴명 ZH" value={item.name_zh} onChange={(event) => updateMenu(index, { name_zh: event.target.value })} className={inputClass} />
-                        <input placeholder="가격" value={item.price} onChange={(event) => updateMenu(index, { price: event.target.value })} className={inputClass} inputMode="numeric" />
+                        <input placeholder={item.price_is_variable ? "가격 변동" : "가격 미확인"} value={item.price_is_variable ? "" : item.price} onChange={(event) => updateMenu(index, { price: event.target.value })} className={inputClass} inputMode="numeric" aria-label={`${item.name_ko || `메뉴 ${index + 1}`} 가격`} disabled={item.price_is_variable === true} />
                         <input placeholder="정렬" value={item.sort_order} onChange={(event) => updateMenu(index, { sort_order: event.target.value })} className={inputClass} inputMode="numeric" />
                       </div>
+                      <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-bold text-slate-700">
+                        <input type="checkbox" checked={item.price_is_variable === true} onChange={(event) => updateMenu(index, { price_is_variable: event.target.checked, price: event.target.checked ? "" : item.price })} />
+                        가격 변동 (정가 없음 · 주문 전 확인)
+                      </label>
                       <textarea
                         placeholder="중국어 메뉴 설명"
                         value={item.description_zh}

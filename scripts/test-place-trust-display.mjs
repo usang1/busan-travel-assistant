@@ -60,6 +60,10 @@ function loadTrustModule() {
       };
     }
 
+    if (specifier === "@/lib/menu-price") {
+      return { getMenuPriceLabel: (item, locale) => item.price_is_variable ? (locale === "zh" ? "价格浮动" : "가격 변동") : item.price === null || item.price < 1000 && item.price !== 0 ? "가격 확인 중" : item.price === 0 ? "무료" : `₩${Number(item.price).toLocaleString("ko-KR")}` };
+    }
+
     if (specifier === "@/lib/transit-labels") {
       return {
         formatLocalizedStation: (value, locale) => locale === "zh" && value === "광안역" ? "广安站（광안역）" : value,

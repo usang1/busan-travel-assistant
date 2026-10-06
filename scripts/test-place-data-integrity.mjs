@@ -19,6 +19,16 @@ assert.equal(integrity.normalizeMenuPrice(1200.5), null);
 assert.equal(integrity.normalizePriceTier("₩₩₩₩"), 4);
 assert.equal(integrity.normalizePriceTier(5), null);
 
+const menuPrice = compile("../lib/menu-price.ts", { "@/lib/place-data-integrity": integrity });
+const variableWhiskey = { price: null, price_is_variable: true };
+assert.match(menuPrice.getMenuPriceLabel(variableWhiskey, "ko"), /가격 변동/);
+assert.match(menuPrice.getMenuPriceLabel(variableWhiskey, "zh"), /价格浮动/);
+assert.equal(menuPrice.getKnownMenuAmount(variableWhiskey), null);
+assert.equal(menuPrice.getKnownMenuAmount({ price: 1, price_is_variable: false }), null);
+assert.equal(menuPrice.getKnownMenuAmount({ price: 10_000, price_is_variable: false }), 10_000);
+assert.equal(menuPrice.getMenuPriceLabel({ price: 0 }, "ko"), "무료");
+assert.ok(integrity.diagnosePlaceData({ menu_items: [{ name_ko: "위스키", price: 1, price_is_variable: true }] }).some((issue) => issue.code === "variable_price_has_amount"));
+
 const legacyTier = integrity.normalizePlacePricing({ category: "restaurant", price_level: null, price_min: 1, price_max: 2 });
 assert.deepEqual({ tier: legacyTier.priceTier, min: legacyTier.priceMin, max: legacyTier.priceMax }, { tier: 2, min: null, max: null });
 const reversed = integrity.normalizePlacePricing({ category: "restaurant", price_level: 2, price_min: 20_000, price_max: 10_000 });
@@ -49,6 +59,8 @@ const complete = {
   china_info: { waiting_level: "short", foreign_card: "yes", solo_friendly: "yes", verification_status: "verified" },
 };
 assert.equal(quality.evaluatePlaceQuality(complete, new Date("2026-10-06T00:00:00Z")).canPublish, true);
+const variableQuality = quality.evaluatePlaceQuality({ ...complete, menu_items: [{ is_recommended: true, name_ko: "위스키", price: null, price_is_variable: true }] }, new Date("2026-10-06T00:00:00Z"));
+assert.equal(variableQuality.required.find((item) => item.key === "recommended_menu_price")?.ok, true);
 assert.equal(quality.evaluatePlaceQuality({ ...complete, last_verified_at: null }, new Date("2026-10-06T00:00:00Z")).canPublish, false);
 assert.equal(quality.evaluatePlaceQuality({ ...complete, sources: [], website: null }, new Date("2026-10-06T00:00:00Z")).canPublish, false);
 
@@ -82,5 +94,10 @@ assert.equal(submission.validateSubmissionLocation({ mapUrl: "", name: "장소",
 assert.equal(submission.validateSubmissionLocation({ mapUrl: "", name: "장소", locationText: "" }).valid, false);
 assert.match(readFileSync(new URL("../app/api/submissions/route.ts", import.meta.url), "utf8"), /validateSubmissionLocation\(\{ mapUrl, name, locationText \}\)/);
 assert.match(readFileSync(new URL("../components/PlaceSubmissionForm.tsx", import.meta.url), "utf8"), /validateSubmissionLocation\(\{ mapUrl, name, locationText \}\)/);
+
+const decisionValidation = compile("../lib/traveler-decision-validation.ts");
+const variableMenu = { localized_name: { ko: "위스키", zh: "威士忌", en: "Whiskey", ja: "ウイスキー" }, korean_original_name: "위스키", price: null, price_is_variable: true, recommendation_status: "unknown", recommendation_basis: "", spicy_level: null, oily_level: null, aroma_level: null, portion_size: null, recommended_party_size: null, contains_seafood: "unknown", contains_cilantro: "unknown", meal_type: null, ordering_note: { ko: "", zh: "", en: "", ja: "" }, menu_warning: { ko: "", zh: "", en: "", ja: "" }, availability_time: [], sold_out_risk: null, sort_order: 1 };
+assert.equal(decisionValidation.validateTravelerDecisionSection("menus", [variableMenu])[0].price_is_variable, true);
+assert.throws(() => decisionValidation.validateTravelerDecisionSection("menus", [{ ...variableMenu, price: 1 }]), /고정 가격/);
 
 console.log("Place price normalization, tristate facts, review eligibility, SEO, address, and submission validation tests passed.");

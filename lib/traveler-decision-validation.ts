@@ -128,9 +128,13 @@ function validateMenus(value: unknown): TravelerDecisionBundle["menus"] {
     const row = object(entry); const names = localeText(row.localized_name); const recommendation = oneOf(row.recommendation_status, tristates, "메뉴 추천 상태"); const basis = text(row.recommendation_basis, 1000);
     if (!names.ko.trim()) throw inputError("메뉴의 한국어 원문 이름은 필수입니다.");
     if (recommendation === "yes" && !basis) throw inputError("추천 메뉴에는 추천 근거가 필요합니다.");
+    const price = nullableInteger(row.price, 0, 100000000);
+    const priceIsVariable = row.price_is_variable === true;
+    if (priceIsVariable && price !== null) throw inputError("가격 변동 메뉴에는 고정 가격을 입력할 수 없습니다.");
+    if (price !== null && price > 0 && price < 1000) throw inputError("메뉴 가격은 0원 또는 1,000원 이상의 정수로 입력해 주세요.");
     return {
       ...(typeof row.id === "string" && uuid.test(row.id) ? { id: row.id } : {}), localized_name: names,
-      korean_original_name: text(row.korean_original_name, 300) || names.ko, price: nullableInteger(row.price, 0, 100000000),
+      korean_original_name: text(row.korean_original_name, 300) || names.ko, price, price_is_variable: priceIsVariable,
       recommendation_status: recommendation, recommendation_basis: basis,
       spicy_level: nullableInteger(row.spicy_level, 1, 5), oily_level: nullableInteger(row.oily_level, 1, 5),
       aroma_level: nullableInteger(row.aroma_level, 1, 5), portion_size: nullableInteger(row.portion_size, 1, 5),

@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/i18n";
+import { getKnownMenuAmount } from "@/lib/menu-price";
 import type { PlaceMenuItem } from "@/types/database";
 
 export type MenuGuidancePreferences = {
@@ -39,10 +40,10 @@ export function recommendMenuCombination(menuItems: PlaceMenuItem[], preferences
   if (preferences.oily === "avoid" && selected.some((line) => line.item.oily_level === null || line.item.oily_level === undefined)) warnings.push(copy[locale].oilyUnknown);
   if (selected.some((line) => !line.item.recommended_party_size)) warnings.push(copy[locale].portionUnknown);
   if (selected.some((line) => line.item.sold_out_risk !== null && line.item.sold_out_risk !== undefined && line.item.sold_out_risk >= 4)) warnings.push(copy[locale].selloutRisk);
-  const pricesKnown = selected.length > 0 && selected.every((line) => typeof line.item.price === "number");
-  const total = pricesKnown ? selected.reduce((sum, line) => sum + (line.item.price ?? 0) * line.quantity, 0) : null;
+  const pricesKnown = selected.length > 0 && selected.every((line) => getKnownMenuAmount(line.item) !== null);
+  const total = pricesKnown ? selected.reduce((sum, line) => sum + (getKnownMenuAmount(line.item) ?? 0) * line.quantity, 0) : null;
   if (preferences.budget !== null && total !== null && total > preferences.budget) warnings.push(copy[locale].overBudget);
-  if (preferences.budget !== null && selected.length > 0 && total === null) warnings.push(copy[locale].budgetUnknown);
+  if (preferences.budget !== null && selected.length > 0 && total === null) warnings.push(selected.some((line) => line.item.price_is_variable) ? variableBudgetWarning[locale] : copy[locale].budgetUnknown);
   const koreanParts = selected.map((line) => `${koreanMenuName(line.item)} ${line.quantity === 1 ? "하나" : `${line.quantity}개`}`);
 
   return {
@@ -61,7 +62,7 @@ function selectMenuLines<T extends { item: PlaceMenuItem; quantity: number; scor
       for (let right = left + 1; right < candidates.length; right += 1) combinations.push([candidates[left], candidates[right]]);
     }
   }
-  const affordable = combinations.filter((lines) => lines.every((line) => typeof line.item.price === "number") && lines.reduce((sum, line) => sum + (line.item.price ?? 0) * line.quantity, 0) <= budget);
+  const affordable = combinations.filter((lines) => lines.every((line) => getKnownMenuAmount(line.item) !== null) && lines.reduce((sum, line) => sum + (getKnownMenuAmount(line.item) ?? 0) * line.quantity, 0) <= budget);
   return affordable.sort((left, right) => right.length - left.length || right.reduce((sum, line) => sum + line.score, 0) - left.reduce((sum, line) => sum + line.score, 0))[0] ?? candidates.slice(0, count);
 }
 
@@ -97,7 +98,8 @@ function menuScore(item: PlaceMenuItem, preferences: MenuGuidancePreferences) {
   if (preferences.oily === "avoid" && typeof item.oily_level === "number" && item.oily_level <= 2) score += 8;
   if (typeof item.aroma_level === "number" && item.aroma_level <= 2) score += 4;
   if (item.meal_type === preferences.mealType || item.meal_type === "both") score += 8;
-  if (preferences.budget !== null && typeof item.price === "number" && item.price <= preferences.budget) score += 6;
+  const knownPrice = getKnownMenuAmount(item);
+  if (preferences.budget !== null && knownPrice !== null && knownPrice <= preferences.budget) score += 6;
   return score;
 }
 
@@ -117,3 +119,10 @@ const copy: Record<Locale, Record<string, string>> = {
   en: { representative: "Verified signature item", mild: "Lower spice", notOily: "Less oily", mildAroma: "Mild aroma", largePortion: "Large portion", seafoodUnknown: "Seafood content is unverified for some selected items.", cilantroUnknown: "Cilantro content is unverified for some selected items.", spicyUnknown: "Spice level is unverified for some selected items.", oilyUnknown: "Oiliness is unverified for some selected items.", portionUnknown: "Recommended party size is unknown; confirm quantities with staff.", selloutRisk: "This combination includes an item with high sellout risk.", overBudget: "Estimated total exceeds the entered budget.", budgetUnknown: "Some menu prices are unverified, so the total cannot be compared with your budget." },
   ja: { representative: "根拠確認済みの代表メニュー", mild: "辛さ控えめ", notOily: "脂控えめ", mildAroma: "香り穏やか", largePortion: "量が多め", seafoodUnknown: "一部メニューの海鮮有無は未確認です。", cilantroUnknown: "一部メニューのパクチー有無は未確認です。", spicyUnknown: "一部メニューの辛さは未確認です。", oilyUnknown: "一部メニューの脂っこさは未確認です。", portionUnknown: "推奨人数が未確認のため、数量はスタッフに確認してください。", selloutRisk: "売切れリスクが高いメニューを含みます。", overBudget: "予想合計が入力した予算を超えています。", budgetUnknown: "価格未確認のメニューがあるため、予算と比較できません。" },
 };
+
+const variableBudgetWarning = {
+  ko: "가격 변동 메뉴가 있어 주문 전 가격을 확인해야 합니다.",
+  zh: "所选菜单价格浮动，请在下单前确认价格。",
+  en: "A selected item has a variable price; confirm it before ordering.",
+  ja: "選択したメニューは価格が変動するため、注文前に確認してください。",
+} as const;

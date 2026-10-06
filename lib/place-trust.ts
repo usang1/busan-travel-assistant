@@ -2,6 +2,7 @@ import { getLocalizedMenuItem, getPlaceContent, type Locale } from "@/lib/i18n";
 import { isPlaceInformationStale, verificationDateLabel } from "@/lib/traveler-insights";
 import { formatLocalizedExit, formatLocalizedStation } from "@/lib/transit-labels";
 import { normalizeMenuPrice, normalizePlacePricing, resolvePlaceFact } from "@/lib/place-data-integrity";
+import { getMenuPriceLabel } from "@/lib/menu-price";
 import { categoryLabels, type PlaceCategory, type PlaceSourceProvider, type PlaceVerificationStatus, type PlaceWithRelations } from "@/types/database";
 
 export type PlacePhotoDisplay =
@@ -317,8 +318,7 @@ function getConfirmedRepresentativeMenu(place: PlaceWithRelations, locale: Local
   const name = menu.name.trim();
   if (!name) return "";
 
-  const price = normalizeMenuPrice(item.price);
-  return price !== null ? `${name} · ${formatTrustWon(price, locale)}` : name;
+  return `${name} · ${getMenuPriceLabel(item, locale)}`;
 }
 
 function getConfirmedPriceLabel(place: PlaceWithRelations, locale: Locale) {

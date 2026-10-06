@@ -100,9 +100,14 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
     return;
   }
   if (section === "menus") {
+    if ((value as TravelerDecisionBundle["menus"]).some((item) => item.price_is_variable)) {
+      const { error: schemaError } = await client.from("place_menu_items").select("price_is_variable").limit(1);
+      if (schemaError) throw publicError("가격 변동 메뉴를 저장하려면 039_menu_variable_price.sql 마이그레이션이 필요합니다.", 409);
+    }
     const rows = (value as TravelerDecisionBundle["menus"]).map((item) => ({
       id: item.id ?? crypto.randomUUID(), place_id: id, name_ko: item.korean_original_name,
       name_zh: item.localized_name.zh, description_zh: item.ordering_note.zh, price: item.price,
+      ...(item.price_is_variable ? { price_is_variable: true } : {}),
       is_recommended: item.recommendation_status === "yes", localized_name: item.localized_name,
       korean_original_name: item.korean_original_name, recommendation_status: item.recommendation_status,
       recommendation_basis: item.recommendation_basis || null, spicy_level: item.spicy_level, oily_level: item.oily_level,
@@ -175,7 +180,7 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
     operating: { ...empty.operating, ...operatingRow, last_order_time: operatingRow?.last_order_time ? stringValue(operatingRow.last_order_time).slice(0, 5) : null, holiday_notes: localeValue(operatingRow?.holiday_notes) },
     menus: menuRows.map((row, index) => ({
       id: String(row.id), localized_name: localeValue(row.localized_name, { ko: stringValue(row.name_ko), zh: stringValue(row.name_zh), en: "", ja: "" }),
-      korean_original_name: stringValue(row.korean_original_name) || stringValue(row.name_ko), price: numberOrNull(row.price),
+      korean_original_name: stringValue(row.korean_original_name) || stringValue(row.name_ko), price: numberOrNull(row.price), price_is_variable: row.price_is_variable === true,
       recommendation_status: tristate(row.recommendation_status, row.is_recommended === true ? "yes" : "unknown"), recommendation_basis: stringValue(row.recommendation_basis),
       spicy_level: numberOrNull(row.spicy_level), oily_level: numberOrNull(row.oily_level), aroma_level: numberOrNull(row.aroma_level),
       portion_size: numberOrNull(row.portion_size), recommended_party_size: numberOrNull(row.recommended_party_size),

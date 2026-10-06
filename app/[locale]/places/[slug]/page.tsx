@@ -46,7 +46,8 @@ import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import { resolvePlaceFact } from "@/lib/place-data-integrity";
 import { TagChip } from "@/components/TagChip";
 import { getCachedPublicPlaceBySlug, getCachedRelatedGuidesForPlace } from "@/lib/public-cache";
-import { formatPriceRange, formatWon } from "@/lib/place-store";
+import { formatPriceRange } from "@/lib/place-store";
+import { getMenuPriceLabel } from "@/lib/menu-price";
 import { getPracticalRouteContext, getRelatedPlaces } from "@/lib/place-recommendations";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
 import {
@@ -174,7 +175,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   const localizedHoursLabel = { zh: "营业", en: "Hours", ja: "営業時間", ko: "영업" }[locale];
   const currentMenuText = place.menu_items.map((item) => {
     const menu = getLocalizedMenuItem(item, locale);
-    return [menu.name, item.price === null ? "" : formatWon(item.price, locale)].filter(Boolean).join(" · ");
+    return [menu.name, getMenuPriceLabel(item, locale)].join(" · ");
   }).join("\n");
   const localizedOrderFallback = {
     zh: "请问可以推荐这里最受欢迎的菜单吗？",
@@ -400,7 +401,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
                     {menu.secondaryName ? <p className="mt-1 text-sm text-slate-500">{menu.secondaryName}</p> : null}
                     {menu.translationMissing ? <p className="mt-1 text-xs font-bold text-amber-700">{menu.translationNotice}</p> : null}
                   </div>
-                  <span className="shrink-0 font-black text-slate-950">{formatWon(item.price, locale)}</span>
+                  <span className="shrink-0 font-black text-slate-950">{getMenuPriceLabel(item, locale)}</span>
                 </div>
                 {menu.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{menu.description}</p> : null}
               </li>
@@ -583,7 +584,7 @@ function buildVisitCheckItems(
   const unknown: string[] = [];
   const primaryMenu = [...place.menu_items].sort((a, b) => Number(b.is_recommended) - Number(a.is_recommended) || a.sort_order - b.sort_order)[0];
   const localizedMenu = primaryMenu ? getLocalizedMenuItem(primaryMenu, locale) : null;
-  const menuText = localizedMenu?.name ? [localizedMenu.name, primaryMenu?.price === null ? "" : formatWon(primaryMenu?.price ?? null, locale)].filter(Boolean).join(" · ") : "";
+  const menuText = localizedMenu?.name && primaryMenu ? [localizedMenu.name, getMenuPriceLabel(primaryMenu, locale)].join(" · ") : "";
   const waitingText = getVisitWaitingLabel(place, locale);
   const paymentText = getVisitPaymentLabel(place, locale, text);
   const soloText = getVisitTriStateLabel(place.china_info?.solo_friendly, place.solo_friendly, text);

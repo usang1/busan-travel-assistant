@@ -33,6 +33,10 @@ export function validatePlacePayloadForSave(payload: PlacePayload) {
     }
   }
 
+  const variableMenuWithAmount = (payload.menu_items ?? []).find((item) => item.price_is_variable === true && item.price !== null);
+  if (variableMenuWithAmount) {
+    throw validationError(`가격 변동 메뉴에는 고정 가격을 입력할 수 없습니다: ${variableMenuWithAmount.name_ko || variableMenuWithAmount.name_zh || "메뉴"}`);
+  }
   const invalidMenu = (payload.menu_items ?? []).find((item) => item.price !== null && normalizeMenuPrice(item.price) === null);
   if (invalidMenu) {
     throw validationError(`메뉴 가격은 미확인(null), 무료(0), 또는 1,000원 이상의 정수만 허용됩니다: ${invalidMenu.name_ko || invalidMenu.name_zh || "메뉴"}`);

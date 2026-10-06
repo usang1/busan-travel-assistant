@@ -28,6 +28,7 @@ export type PlaceDataIssue = {
     | "invalid_price_max"
     | "reversed_price_range"
     | "invalid_menu_price"
+    | "variable_price_has_amount"
     | "legacy_boolean_without_tristate"
     | "missing_chinese_name"
     | "mixed_korean_in_chinese_copy"
@@ -154,6 +155,9 @@ export function diagnosePlaceData(place: Partial<PlaceWithRelations>): PlaceData
   }));
 
   (place.menu_items ?? []).forEach((item: Partial<PlaceMenuItem>, index) => {
+    if (item.price_is_variable === true && item.price !== null && item.price !== undefined) {
+      issues.push({ code: "variable_price_has_amount", field: `menu_items[${index}].price`, detail: `${item.name_ko ?? item.name_zh ?? "menu"}: ${String(item.price)}` });
+    }
     if (item.price !== null && item.price !== undefined && normalizeMenuPrice(item.price) === null) {
       issues.push({ code: "invalid_menu_price", field: `menu_items[${index}].price`, detail: `${item.name_ko ?? item.name_zh ?? "menu"}: ${String(item.price)}` });
     }

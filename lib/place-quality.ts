@@ -104,7 +104,7 @@ function hasRecommendedMenu(place: QualityPlace) {
 }
 
 function hasRecommendedMenuPrice(place: QualityPlace) {
-  return Boolean(place.menu_items?.some((item) => item.is_recommended && item.price !== undefined && normalizeMenuPrice(item.price) !== null));
+  return Boolean(place.menu_items?.some((item) => item.is_recommended && (item.price_is_variable === true || (item.price !== undefined && normalizeMenuPrice(item.price) !== null))));
 }
 
 function hasPriceRange(place: QualityPlace) {
