@@ -2,7 +2,15 @@
 -- Review the RETURNING rows, replace ROLLBACK with COMMIT, and run in a controlled maintenance window.
 begin;
 
-with legacy_tiers as (
+-- Inspect every row that will be normalized. The cleanup covers all 1-999 values,
+-- while only 1-4 can be preserved as a legacy price tier.
+select id, slug, name_ko, category, price_level, price_min, price_max
+from public.places
+where category in ('restaurant', 'cafe', 'bar')
+  and (price_min between 1 and 999 or price_max between 1 and 999)
+order by updated_at desc;
+
+with price_cleanup_candidates as (
   select id,
     greatest(
       case when price_min between 1 and 4 then price_min else 0 end,
@@ -10,13 +18,13 @@ with legacy_tiers as (
     ) as inferred_tier
   from public.places
   where category in ('restaurant', 'cafe', 'bar')
-    and (price_min between 1 and 4 or price_max between 1 and 4)
+    and (price_min between 1 and 999 or price_max between 1 and 999)
 )
 update public.places p
 set price_level = case when p.price_level is null then nullif(t.inferred_tier, 0) else p.price_level end,
     price_min = case when p.price_min between 1 and 999 then null else p.price_min end,
     price_max = case when p.price_max between 1 and 999 then null else p.price_max end
-from legacy_tiers t
+from price_cleanup_candidates t
 where p.id = t.id
 returning p.id, p.slug, p.name_ko, p.price_level, p.price_min, p.price_max;
 

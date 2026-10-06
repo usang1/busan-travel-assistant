@@ -1,4 +1,5 @@
 -- Run only after reviewing and committing prepare_place_data_cleanup.sql.
+-- check_place_data_constraints.sql must return zero rows in every result set first.
 -- PostgreSQL validates every existing row and aborts this transaction if dirty data remains.
 begin;
 
