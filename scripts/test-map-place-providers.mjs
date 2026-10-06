@@ -193,8 +193,10 @@ const duplicates = loadTsModule("lib/place-duplicates.ts", {
 const publishing = loadTsModule("lib/place-publishing.ts", {
   "@/types/database": databaseRuntime,
 });
+const dataIntegrity = loadTsModule("lib/place-data-integrity.ts");
 const quality = loadTsModule("lib/place-quality.ts", {
   "@/lib/location": location,
+  "@/lib/place-data-integrity": dataIntegrity,
   "@/types/database": databaseRuntime,
 });
 const publicationQuality = loadTsModule("lib/place-publication-quality.ts", {
@@ -202,6 +204,7 @@ const publicationQuality = loadTsModule("lib/place-publication-quality.ts", {
   "@/lib/place-publishing": publishing,
 });
 const validation = loadTsModule("lib/place-validation.ts", {
+  "@/lib/place-data-integrity": dataIntegrity,
   "@/lib/place-providers/normalize": normalize,
   "@/lib/place-quality": quality,
   "@/lib/place-publication-quality": publicationQuality,

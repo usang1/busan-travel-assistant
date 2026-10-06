@@ -71,6 +71,14 @@ assert.match(submissionWorkflowSource, /buildHomeIntentTags\(form\.home_intent_k
 assert.match(submissionWorkflowSource, /mergePublishMenuDrafts\(form\.menu_items, incomingMenu\)/, "submission web enrichment must merge all discovered menus");
 assert.match(placeManagerSource, /mergeMenuDrafts\(nextForm\.menu_items, incomingMenu\)/, "place manager web enrichment must merge all discovered menus");
 assert.match(submissionWorkflowSource, /china_info: chinaInfo/, "submission publishing must persist waiting info through china_info");
+assert.match(submissionWorkflowSource, /3\. 중국인 입맛 평가/, "submission publishing must expose Chinese taste ratings in the primary form");
+for (const field of ["chinese_taste_score", "spicy_level", "greasy_level", "smell_level", "portion_level", "ordering_difficulty"]) {
+  assert.match(submissionWorkflowSource, new RegExp(`${field}: form\\.${field}`), `submission publishing must persist ${field}`);
+  assert.match(submissionWorkflowSource, new RegExp(`${field}: chinaInfo\\?\\.${field} \\?\\? null`), `submission review must restore ${field}`);
+}
+for (const label of ["중국인 추천도", "매운맛", "느끼함", "향/잡내", "양", "주문 난이도"]) {
+  assert.match(submissionWorkflowSource, new RegExp(`label: "${label}"`), `submission publishing must expose ${label}`);
+}
 assert.match(submissionWorkflowSource, /function needsAutoTranslation\(form: PublishForm\)/, "submission publishing must detect Korean fields that need automatic GPT translation");
 assert.match(submissionWorkflowSource, /const translated = await autoTranslateBeforePublish\(formToPublish\);[\s\S]*const payload = buildPayload\(formToPublish\);/, "submission publishing must translate Korean inputs before building the publish payload");
 assert.match(submissionWorkflowSource, /const existingPlaceId = selected && exactDuplicate \? exactDuplicate\.placeId : null;/, "submission publishing must reuse the existing place when a selected submission has the same provider place ID");

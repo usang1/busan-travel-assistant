@@ -33,12 +33,18 @@ function compileTs(path, requireHandler, globals = {}) {
   return module.exports;
 }
 
+const dataIntegrity = compileTs("lib/place-data-integrity.ts", (specifier) => {
+  throw new Error(`Unexpected data-integrity import: ${specifier}`);
+});
+
 const i18n = compileTs("lib/i18n.ts", (specifier) => {
   if (specifier === "@/config/site") {
     return {
       absoluteUrl: (path) => `https://example.com${path}`,
     };
   }
+
+  if (specifier === "@/lib/place-data-integrity") return dataIntegrity;
 
   throw new Error(`Unexpected i18n import: ${specifier}`);
 });
@@ -69,6 +75,7 @@ assert.equal(i18n.getPlaceContent(place, "en").description, "");
 assert.equal(i18n.getPlaceContent(place, "ja").travelTip, "");
 assert.equal(i18n.getPlaceContent(place, "en").waitingInfo, "");
 assert.equal(i18n.getPlaceContent(place, "ko").waitingInfo, "한국어 대기 정보");
+assert.equal(i18n.getPlaceContent({ ...place, short_description_zh: "中文 안내 混合句子。" }, "zh").description, "", "Chinese prose containing accidental Korean text must be withheld");
 assert.equal(i18n.getLocalizedTag({ label_zh: "海景", label_ko: "바다 전망" }, "en"), "");
 assert.equal(i18n.getLocalizedTag({ label_zh: "海景", label_ko: "바다 전망" }, "ja"), "");
 
@@ -96,6 +103,8 @@ const trust = compileTs("lib/place-trust.ts", (specifier) => {
   if (specifier === "@/lib/traveler-insights") {
     return { isPlaceInformationStale: () => false, verificationDateLabel: (value, locale) => value ? `${locale}:${value}` : "" };
   }
+
+  if (specifier === "@/lib/place-data-integrity") return dataIntegrity;
 
   if (specifier === "@/lib/transit-labels") {
     return { formatLocalizedStation: (value) => value ?? "", formatLocalizedExit: (value) => value ?? "" };

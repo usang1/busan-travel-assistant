@@ -19,6 +19,7 @@ export function PlaceRankingSection({ rankings, locale, title }: { rankings: Pla
   const [mode, setMode] = useState<RankingMode>("popular");
   const text = copy[locale];
   const places = rankings[mode];
+  if (!rankings.popular.length && !rankings.trending.length) return null;
 
   return (
     <section className="mt-8">
@@ -46,9 +47,7 @@ export function PlaceRankingSection({ rankings, locale, title }: { rankings: Pla
             </div>
           ))}
         </div>
-      ) : (
-        <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">{text.empty}</p>
-      )}
+      ) : null}
     </section>
   );
 }

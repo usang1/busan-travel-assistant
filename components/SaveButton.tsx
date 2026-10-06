@@ -211,7 +211,7 @@ function PlaceSaveButton({ item, initialSaveCount, className, label, locale }: S
       onClick={() => void toggleSaved()}
       disabled={pending}
       className={cn(
-        "inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-slate-50 px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-rose-50 hover:text-rose-700 active:scale-95 disabled:opacity-60",
+        "inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-slate-50 px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-rose-50 hover:text-rose-700 active:scale-95 disabled:opacity-60",
         saved && "bg-rose-50 text-rose-700 ring-rose-100",
         className,
       )}
@@ -313,7 +313,7 @@ function LegacySaveButton({ item, className, label, locale }: SaveButtonProps) {
       type="button"
       onClick={toggleSaved}
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-full bg-slate-50 px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-teal-50 hover:text-teal-700 active:scale-95",
+        "inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-50 px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-teal-50 hover:text-teal-700 active:scale-95",
         className,
         saved && "bg-teal-50 text-teal-700 ring-teal-100",
       )}

@@ -1,4 +1,5 @@
 import { normalizeCoordinates } from "@/lib/place-providers/normalize";
+import { normalizeMenuPrice, normalizePlacePriceAmount } from "@/lib/place-data-integrity";
 import { evaluatePlaceQuality } from "@/lib/place-quality";
 import { formatVerifiedBlockMessage } from "@/lib/place-publication-quality";
 import { getPlaceScopeIssueLabels, isCityScopedPlace } from "@/lib/place-scope";
@@ -24,6 +25,17 @@ export function validatePlacePayloadForSave(payload: PlacePayload) {
 
   if (payload.price_min !== null && payload.price_max !== null && payload.price_min > payload.price_max) {
     throw validationError("최대 가격은 최소 가격보다 작을 수 없습니다.");
+  }
+
+  for (const [label, value] of [["최소 가격", payload.price_min], ["최대 가격", payload.price_max]] as const) {
+    if (value !== null && normalizePlacePriceAmount(value, payload.category) === null) {
+      throw validationError(`${label}은 무료 0원 또는 정상 원화 정수로 입력해 주세요. 음식·음료의 1~999원 값은 저장할 수 없습니다.`);
+    }
+  }
+
+  const invalidMenu = (payload.menu_items ?? []).find((item) => item.price !== null && normalizeMenuPrice(item.price) === null);
+  if (invalidMenu) {
+    throw validationError(`메뉴 가격은 미확인(null), 무료(0), 또는 1,000원 이상의 정수만 허용됩니다: ${invalidMenu.name_ko || invalidMenu.name_zh || "메뉴"}`);
   }
 
   const isPublic = payload.is_active && (payload.status === "PUBLISHED" || payload.status === "ACTIVE");

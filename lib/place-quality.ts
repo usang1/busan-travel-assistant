@@ -1,4 +1,5 @@
 import { isValidCoordinates } from "@/lib/location";
+import { normalizeMenuPrice, normalizePlacePricing } from "@/lib/place-data-integrity";
 import type {
   PlaceCategory,
   PlaceChinaInfoRecord,
@@ -87,14 +88,8 @@ function hasAnySource(place: QualityPlace) {
   );
 }
 
-function sourceLastSynced(place: QualityPlace) {
-  return place.sources?.map((source) => source.last_synced_at).find((value): value is string => Boolean(value)) ??
-    place.source?.last_synced_at ??
-    null;
-}
-
 function lastVerifiedAt(place: QualityPlace) {
-  return text(place.last_verified_at) || text(place.china_info?.verified_at) || sourceLastSynced(place);
+  return text(place.last_verified_at);
 }
 
 function isDateStale(value: string | null, now = new Date()) {
@@ -109,15 +104,17 @@ function hasRecommendedMenu(place: QualityPlace) {
 }
 
 function hasRecommendedMenuPrice(place: QualityPlace) {
-  return Boolean(place.menu_items?.some((item) => item.is_recommended && typeof item.price === "number" && item.price >= 0));
+  return Boolean(place.menu_items?.some((item) => item.is_recommended && item.price !== undefined && normalizeMenuPrice(item.price) !== null));
 }
 
 function hasPriceRange(place: QualityPlace) {
-  return (
-    typeof place.price_level === "number" ||
-    typeof place.price_min === "number" ||
-    typeof place.price_max === "number"
-  );
+  const pricing = normalizePlacePricing({
+    category: place.category || null,
+    price_level: place.price_level ?? null,
+    price_min: place.price_min ?? null,
+    price_max: place.price_max ?? null,
+  });
+  return pricing.priceTier !== null || pricing.priceMin !== null || pricing.priceMax !== null;
 }
 
 function hasTravelerAdvantage(place: QualityPlace) {
@@ -171,16 +168,16 @@ export function evaluatePlaceQuality(place: QualityPlace, now = new Date()): Pla
           qualityItem("recommended_menu_price", "대표 메뉴 가격", true, hasRecommendedMenuPrice(place), "대표 메뉴 가격이 필요합니다."),
           qualityItem("price_range", "가격대", true, hasPriceRange(place), "가격대 또는 최소·최대 가격이 필요합니다."),
           qualityItem("waiting", "웨이팅", true, place.china_info?.waiting_level !== undefined && place.china_info.waiting_level !== "unknown", "웨이팅 정보를 확인해야 합니다."),
-          qualityItem("card_payment", "카드 결제", true, tristateKnown(place.china_info?.foreign_card) || typeof place.card_payment === "boolean", "카드 결제 가능 여부를 확인해야 합니다."),
-          qualityItem("solo_friendly", "혼밥", true, tristateKnown(place.china_info?.solo_friendly) || typeof place.solo_friendly === "boolean", "혼밥 가능 여부를 확인해야 합니다."),
+          qualityItem("card_payment", "카드 결제", true, tristateKnown(place.china_info?.foreign_card), "카드 결제 가능 여부를 yes/no로 확인해야 합니다."),
+          qualityItem("solo_friendly", "혼밥", true, tristateKnown(place.china_info?.solo_friendly), "혼밥 가능 여부를 yes/no로 확인해야 합니다."),
         ]
       : []),
   ];
   const optional = [
     qualityItem("closed_days", "휴무일", false, Boolean(text(place.closed_days)), "휴무일을 확인하면 신뢰도가 높아집니다."),
     qualityItem("toilet", "화장실", false, tristateKnown(place.china_info?.toilet_available), "화장실 이용 가능 여부가 필요합니다."),
-    qualityItem("luggage", "큰 캐리어 가능 여부", false, tristateKnown(place.china_info?.luggage_friendly) || typeof place.luggage_friendly === "boolean", "큰 캐리어 동반 가능 여부가 필요합니다."),
-    qualityItem("chinese_support", "중국어 메뉴 또는 응대", false, tristateKnown(place.china_info?.chinese_menu) || tristateKnown(place.china_info?.chinese_service) || typeof place.chinese_menu === "boolean", "중국어 메뉴 또는 응대 가능 여부가 필요합니다."),
+    qualityItem("luggage", "큰 캐리어 가능 여부", false, tristateKnown(place.china_info?.luggage_friendly), "큰 캐리어 동반 가능 여부가 필요합니다."),
+    qualityItem("chinese_support", "중국어 메뉴 또는 응대", false, tristateKnown(place.china_info?.chinese_menu) || tristateKnown(place.china_info?.chinese_service), "중국어 메뉴 또는 응대 가능 여부가 필요합니다."),
     qualityItem("traveler_advantage", "중국인 여행객 장점", false, hasTravelerAdvantage(place), "중국인 여행객 기준 장점을 정리해야 합니다."),
     qualityItem("traveler_caution", "중국인 여행객 주의점", false, hasTravelerCaution(place), "방문 전 주의점을 정리해야 합니다."),
   ];

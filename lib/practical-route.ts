@@ -1,5 +1,5 @@
 import { calculateDistanceMeters, estimateWalkingMinutes, hasCoordinates } from "@/lib/location";
-import { getTimeAwarePlaceState, type TimeAwarePlaceState } from "@/lib/time-aware-place";
+import { getTimeAwarePlaceState, hasReviewedTimeData, type TimeAwarePlaceState } from "@/lib/time-aware-place";
 import type { Locale } from "@/lib/i18n";
 import type { PlaceCategory, PlaceWithRelations } from "@/types/database";
 import type { PlaceConnection, TravelerTheme } from "@/types/traveler-decision";
@@ -27,7 +27,7 @@ export type PracticalRouteStop = {
   stayMinutes: number;
   timeState: TimeAwarePlaceState;
 };
-export type PracticalRoute = { stops: PracticalRouteStop[]; totalMinutes: number };
+export type PracticalRoute = { stops: PracticalRouteStop[]; totalMinutes: number; needsVerification: PlaceWithRelations[] };
 
 const blockedTimeCodes = new Set(["closes_before_arrival", "after_last_order", "closed_today", "temporary_closed"]);
 const categoryStay: Record<PlaceCategory, number> = {
@@ -68,7 +68,11 @@ export function buildPracticalRoute(input: {
     current = selected.place;
   }
 
-  return { stops, totalMinutes: Math.min(limit, elapsed) };
+  return {
+    stops,
+    totalMinutes: Math.min(limit, elapsed),
+    needsVerification: [...candidates.values()].filter((place) => !used.has(place.id) && !hasReviewedTimeData(place)).slice(0, 4),
+  };
 }
 
 function scoreCandidate(
@@ -96,7 +100,7 @@ function scoreCandidate(
   const arrivalAt = new Date(now.getTime() + arrivalMinute * 60_000);
   if (edge && !edgeMatches(edge, preferences, arrivalAt)) return null;
   const timeState = getTimeAwarePlaceState(place, { now, scheduledAt: arrivalAt, travelMinutes: arrivalMinute });
-  if (timeState.hasStructuredData && blockedTimeCodes.has(timeState.code)) return null;
+  if (!timeState.hasStructuredData || timeState.openAtArrival !== true || blockedTimeCodes.has(timeState.code)) return null;
   if (timeState.seasonAvailable === false) return null;
 
   const transition = transitionScore(from.category, place.category, preferences.purpose);

@@ -441,6 +441,7 @@ export type PlaceSubmissionRecord = {
   address_text?: string | null;
   location_text?: string | null;
   recommendation_reason?: string | null;
+  duplicate_key?: string | null;
   notes: string;
   status: SubmissionStatus;
   reviewed_by?: string | null;

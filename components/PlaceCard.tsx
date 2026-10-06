@@ -6,7 +6,6 @@ import { SaveButton } from "@/components/SaveButton";
 import { TasteProfileCard } from "@/components/TasteProfileCard";
 import { TimeAwareStatus } from "@/components/TimeAwareStatus";
 import { TravelerDecisionCard } from "@/components/TravelerDecisionCard";
-import { TravelerTrustSummaryBadge } from "@/components/TravelerTrustSummaryBadge";
 import { ProductAnalytics } from "@/components/ProductAnalytics";
 import { hasCoordinates, type Coordinates } from "@/lib/location";
 import { formatPlaceDistance, getDistanceWarning } from "@/lib/place-display";
@@ -81,6 +80,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           <Link href={placeHref} className="min-w-0">
             <h3 className={compact ? "truncate text-base font-bold text-slate-950" : "truncate text-lg font-bold text-slate-950"}>{nameDisplay.name}</h3>
             {nameDisplay.secondaryName ? <p className="mt-0.5 text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
+            {nameDisplay.translationMissing ? <p className="mt-1 text-xs font-bold text-amber-700">{nameDisplay.translationNotice}</p> : null}
           </Link>
           <SaveButton
             initialSaveCount={place.save_count ?? 0}
@@ -97,7 +97,6 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           />
         </div>
         <TimeAwareStatus place={place} locale={locale} travelMinutes={displayDistance === null ? 0 : Math.max(1, Math.round(displayDistance / 72))} />
-        <TravelerTrustSummaryBadge placeId={place.id} locale={locale} />
         <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
           {priorityFacts.map((fact) => (
             <span key={fact.key} className="inline-flex min-h-9 items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
@@ -129,7 +128,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         <TasteProfileCard place={place} locale={locale} />
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
-            <Link href={correctionHref} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
+            <Link href={correctionHref} className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
               <MessageSquarePlus size={15} aria-hidden="true" />
               {correctionLabel}
             </Link>
@@ -138,7 +137,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
                 href={naverPlaceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-green-50 px-3 text-xs font-black text-green-800 ring-1 ring-green-100 transition hover:bg-green-100"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-green-50 px-3 text-xs font-black text-green-800 ring-1 ring-green-100 transition hover:bg-green-100"
               >
                 <ExternalLink size={15} aria-hidden="true" />
                 {naverPlaceLabel}

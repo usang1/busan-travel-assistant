@@ -4,6 +4,8 @@ import { parseMapUrl } from "@/lib/map-url";
 import { createServerAnonClient, ServerConfigurationError } from "@/lib/server-supabase";
 import { sendPlaceSubmissionNotification } from "@/lib/telegram";
 import { placeCategories, type PlaceCategory } from "@/types/database";
+import { createHash } from "node:crypto";
+import { buildSubmissionDuplicateSource, validateSubmissionLocation } from "@/lib/place-submission-validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +42,7 @@ export async function POST(request: NextRequest) {
     const client = createServerAnonClient(actor.accessToken ?? undefined);
     const copy = ui[payload.locale];
     const parsedMap = parseMapUrl(payload.mapUrl);
+    const duplicateKey = createHash("sha256").update(buildSubmissionDuplicateSource(payload)).digest("hex");
     const notes = [
       payload.reason,
       payload.description ? `${copy.submissions.descriptionLabel}: ${payload.description}` : "",
@@ -60,10 +63,14 @@ export async function POST(request: NextRequest) {
         address_text: payload.locationText || null,
         location_text: payload.locationText || null,
         recommendation_reason: payload.reason,
+        duplicate_key: duplicateKey,
         notes: notes || payload.reason || payload.name || parsedMap.normalizedUrl,
         status: "pending",
       });
 
+    if (error?.code === "23505") {
+      throw new SubmissionRouteError("duplicate_submission", 409);
+    }
     if (error) {
       throw new SubmissionRouteError("submission_insert_failed", 500);
     }
@@ -99,6 +106,10 @@ function parseSubmissionPayload(body: SubmissionRequestBody) {
   const locationText = readText(body.locationText, 240);
 
   if (!reason) throw new SubmissionRouteError("invalid_submission", 400);
+  const locationValidation = validateSubmissionLocation({ mapUrl, name, locationText });
+  if (!locationValidation.valid) {
+    throw new SubmissionRouteError(locationValidation.error ?? "invalid_submission", 400);
+  }
 
   return {
     locale,

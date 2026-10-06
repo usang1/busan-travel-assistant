@@ -9,12 +9,13 @@ const titles: Record<Locale, string> = {
   ja: "ここまで来たら一緒に立ち寄りたい場所",
 };
 
-export function RelatedPlacesSection({ places, locale }: { places: PlaceWithRelations[]; locale: Locale }) {
+export function RelatedPlacesSection({ places, locale, headingLevel = "h2" }: { places: PlaceWithRelations[]; locale: Locale; headingLevel?: "h2" | "h3" }) {
   if (!places.length) return null;
+  const Heading = headingLevel;
 
   return (
     <section className="mt-8">
-      <h2 className="text-xl font-black text-slate-950">{titles[locale]}</h2>
+      <Heading className="text-xl font-black text-slate-950">{titles[locale]}</Heading>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {places.map((place) => (
           <PlaceCard

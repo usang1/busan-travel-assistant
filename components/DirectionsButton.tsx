@@ -72,7 +72,7 @@ export function DirectionsButton({
         aria-expanded={open}
         className={cn(
           "inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 text-sm font-black text-white transition active:scale-95",
-          compact ? "h-10 px-3" : "h-12 px-4",
+          compact ? "h-11 px-3" : "h-12 px-4",
         )}
       >
         <Navigation size={compact ? 15 : 18} aria-hidden="true" />

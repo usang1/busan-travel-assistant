@@ -5,9 +5,13 @@ import type { PlaceWithRelations } from "@/types/database";
 
 export function TasteProfileCard({ place, locale, variant = "compact" }: { place: PlaceWithRelations; locale: Locale; variant?: "compact" | "detail" }) {
   if (place.category !== "restaurant" && place.category !== "bar" && !hasTasteData(place)) return null;
+  const hasData = hasTasteData(place);
   const items = getTasteProfile(place, locale);
 
   if (variant === "compact") {
+    if (!hasData) {
+      return <p className="mt-3 border-t border-slate-100 pt-3 text-xs font-bold text-slate-500">{pendingCopy[locale]}</p>;
+    }
     return (
       <section className="mt-3 border-t border-slate-100 pt-3" aria-label={copy[locale].title}>
         <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 text-xs">
@@ -30,4 +34,8 @@ export function TasteProfileCard({ place, locale, variant = "compact" }: { place
 const copy: Record<Locale, { title: string }> = {
   ko: { title: "입맛·주문 판단" }, zh: { title: "中国人口味与点餐" },
   en: { title: "Taste and ordering check" }, ja: { title: "味・注文の判断" },
+};
+
+const pendingCopy: Record<Locale, string> = {
+  ko: "상세 정보 확인 중", zh: "详细信息确认中", en: "Detailed information pending", ja: "詳細情報を確認中",
 };

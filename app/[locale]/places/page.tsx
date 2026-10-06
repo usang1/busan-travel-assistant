@@ -7,6 +7,7 @@ import { cityRegions, getPlaceRegion, parsePlaceCity } from "@/lib/city-regions"
 import { getCachedPlaceRankings, getCachedPublicPlaces } from "@/lib/public-cache";
 import { translatedPlaceLocales } from "@/lib/public-seo";
 import { placeCategories, type PlaceCategory } from "@/types/database";
+import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import {
   buildLocalizedMetadata,
   isLocale,
@@ -63,6 +64,13 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
     getCachedPlaceRankings({ limit: 4, category: rankingCategory, region: rankingRegion }),
   ]);
   const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
+  const verifiedCount = places.filter((place) => isVerifiedPlace(place)).length;
+  const countCopy = {
+    zh: `公开地点 ${places.length} · 审核完成 ${verifiedCount}`,
+    en: `Public ${places.length} · fully reviewed ${verifiedCount}`,
+    ja: `公開 ${places.length} · 確認完了 ${verifiedCount}`,
+    ko: `공개 장소 ${places.length} · 검수 완료 ${verifiedCount}`,
+  }[locale];
   const localeRankings = {
     popular: rankings.popular.filter((place) => getPlaceRegion(place).city === city && translatedPlaceLocales(place).includes(locale)),
     trending: rankings.trending.filter((place) => getPlaceRegion(place).city === city && translatedPlaceLocales(place).includes(locale)),
@@ -72,7 +80,7 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   return (
     <main className="safe-bottom mx-auto max-w-6xl px-4 pb-6 pt-5">
       <CitySwitcher locale={locale} activeCity={city} path="/places" />
-      <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : `${copy.common.registeredPlaces} ${places.length}`} />
+      <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : countCopy} />
       <div className="mt-4">
         <PlacesExplorer key={city} city={city} places={places} initialCategory={query?.category} locale={locale} loadError={error} rankings={localeRankings} />
       </div>

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPlaceSaveCounts, withPlaceSaveCounts } from "@/lib/place-saves";
+import { normalizeMenuPrice, normalizePlacePricing } from "@/lib/place-data-integrity";
 import { filterCityScopedPlaces, isCityScopedPlace, isSupportedCityScopedPlace } from "@/lib/place-scope";
 import { filterPublishablePlaces, isPublishablePlace } from "@/lib/place-publication-quality";
 import { archivedPlaceStatus, normalizePlacePublicationForWrite, publicReadablePlaceStatuses } from "@/lib/place-publishing";
@@ -87,23 +88,31 @@ function normalizePlaceTranslations(row: SupabasePlaceRow): PlaceTranslationReco
 }
 
 export function formatWon(value: number | null, locale: Locale = "zh") {
-  if (value === null || value === 0) {
-    return value === 0 ? priceLabels[locale].free : priceLabels[locale].unknown;
+  const normalized = normalizeMenuPrice(value);
+  if (normalized === null || normalized === 0) {
+    return normalized === 0 ? priceLabels[locale].free : priceLabels[locale].unknown;
   }
 
-  return `₩${value.toLocaleString("ko-KR")}`;
+  return `₩${normalized.toLocaleString("ko-KR")}`;
 }
 
-export function formatPriceRange(place: Pick<PlaceRecord, "price_min" | "price_max">, locale: Locale = "zh") {
-  if (place.price_min === 0 && place.price_max === 0) {
+export function formatPriceRange(place: Pick<PlaceRecord, "price_min" | "price_max"> & Partial<Pick<PlaceRecord, "price_level" | "category">>, locale: Locale = "zh") {
+  const pricing = normalizePlacePricing({
+    category: place.category,
+    price_level: place.price_level ?? null,
+    price_min: place.price_min,
+    price_max: place.price_max,
+  });
+
+  if (pricing.priceMin === 0 && pricing.priceMax === 0) {
     return priceLabels[locale].free;
   }
 
-  if (place.price_min !== null && place.price_max !== null && place.price_min !== place.price_max) {
-    return `${formatWon(place.price_min, locale)}-${formatWon(place.price_max, locale)}`;
+  if (pricing.priceMin !== null && pricing.priceMax !== null && pricing.priceMin !== pricing.priceMax) {
+    return `${formatWon(pricing.priceMin, locale)}-${formatWon(pricing.priceMax, locale)}`;
   }
 
-  return formatWon(place.price_min ?? place.price_max, locale);
+  return formatWon(pricing.priceMin ?? pricing.priceMax, locale);
 }
 
 function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
@@ -114,7 +123,10 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
       ?.map((item) => item.tags)
       .filter((tag): tag is TagRecord => Boolean(tag)) ?? [];
 
-  const menuItems = [...(row.place_menu_items ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+  const menuItems = [...(row.place_menu_items ?? [])]
+    .map((item) => ({ ...item, price: normalizeMenuPrice(item.price) }))
+    .sort((a, b) => a.sort_order - b.sort_order);
+  const pricing = normalizePlacePricing(row);
   const chinaInfo = Array.isArray(row.place_china_info)
     ? (row.place_china_info[0] ?? null)
     : (row.place_china_info ?? null);
@@ -127,6 +139,9 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
 
   return {
     ...row,
+    price_level: pricing.priceTier,
+    price_min: pricing.priceMin,
+    price_max: pricing.priceMax,
     latitude,
     longitude,
     china_info: chinaInfo,

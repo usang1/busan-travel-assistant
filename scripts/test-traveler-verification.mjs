@@ -108,7 +108,8 @@ assert.match(localizedDetail, /<TravelerTrustSignals/);
 assert.match(reportPage, /<TravelerVerification/);
 assert.match(savedPage, /<TravelerVerification/);
 const placeCard = read("../components/PlaceCard.tsx");
-assert.match(placeCard, /<TravelerTrustSummaryBadge/);
+assert.match(placeCard, /<TravelerDecisionCard/);
+assert.doesNotMatch(placeCard, /<TravelerTrustSummaryBadge/, "cards must not repeat a broad verification badge beside field-level states");
 assert.doesNotMatch(placeCard, /댓글|장문 리뷰|별점 리뷰/);
 
 console.log("Traveler verification validation, privacy boundaries, trust decay, moderation, and UI integration tests passed.");

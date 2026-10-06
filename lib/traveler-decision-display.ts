@@ -1,4 +1,6 @@
 import type { Locale } from "@/lib/i18n";
+import { resolvePlaceFact } from "@/lib/place-data-integrity";
+import { isVerifiedPlace } from "@/lib/place-publication-quality";
 import type { PlaceFactTristate, PlaceWithRelations } from "@/types/database";
 
 export type DecisionStatus = "verified" | "partially_verified" | "unverified" | "stale" | "conflicting";
@@ -114,10 +116,11 @@ export function getWorthLabel(place: PlaceWithRelations, locale: Locale) {
 
 export function getDecisionStatus(place: PlaceWithRelations): DecisionStatus {
   const decision = place.decision_profile?.verification_status;
-  if (decision === "verified" || decision === "partially_verified" || decision === "stale" || decision === "conflicting") return decision;
+  if (decision === "verified") return isVerifiedPlace(place) ? "verified" : "partially_verified";
+  if (decision === "partially_verified" || decision === "stale" || decision === "conflicting") return decision;
   const legacy = place.china_info?.verification_status;
   if (place.china_info?.has_information_conflict) return "conflicting";
-  if (legacy === "verified") return "verified";
+  if (legacy === "verified") return isVerifiedPlace(place) ? "verified" : "partially_verified";
   if (legacy === "needs_review") return "partially_verified";
   return "unverified";
 }
@@ -171,14 +174,14 @@ export function getPracticalFacts(place: PlaceWithRelations, locale: Locale): Pr
   const minimumStatus: PlaceFactTristate = info?.minimum_order_policy === "none" ? "yes" : minimumPeople || info?.minimum_order_amount ? "no" : "unknown";
 
   return [
-    tri("foreign_card", withLegacyTrue(info?.foreign_card, place.card_payment)),
+    tri("foreign_card", resolvePlaceFact(place, "card_payment")),
     tri("alipay", info?.alipay ?? "unknown"),
     tri("wechat_pay", info?.wechat_pay ?? "unknown"),
-    tri("chinese_menu", withLegacyTrue(info?.chinese_menu, place.chinese_menu)),
+    tri("chinese_menu", resolvePlaceFact(place, "chinese_menu")),
     tri("english_menu", insights?.english_menu ?? "unknown"),
     tri("kiosk", kiosk?.status ?? "unknown", kiosk?.status === "yes" && kiosk.languages.length ? kiosk.languages.map((item) => item.toUpperCase()).join(" / ") : undefined),
-    tri("solo", withLegacyTrue(info?.solo_friendly, place.solo_friendly)),
-    tri("luggage", withLegacyTrue(info?.luggage_friendly, place.luggage_friendly)),
+    tri("solo", resolvePlaceFact(place, "solo_friendly")),
+    tri("luggage", resolvePlaceFact(place, "luggage_friendly")),
     tri("storage", insights?.luggage_storage ?? "unknown"),
     tri("restroom", info?.toilet_available ?? toiletToTriState(insights?.toilet)),
     reservationFact(info?.reservation_required, insights?.reservation, locale),
@@ -209,10 +212,6 @@ export function getDecisionEvidence(place: PlaceWithRelations, locale: Locale) {
 
 function triStateLabel(status: PlaceFactTristate, locale: Locale) {
   return status === "yes" ? copy[locale].yes : status === "no" ? copy[locale].no : copy[locale].unknown;
-}
-
-function withLegacyTrue(status: PlaceFactTristate | undefined, legacy: boolean): PlaceFactTristate {
-  return status ?? (legacy ? "yes" : "unknown");
 }
 
 function toiletToTriState(value: string | undefined): PlaceFactTristate {

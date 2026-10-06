@@ -18,13 +18,14 @@ const location = {
   estimateWalkingMinutes: (distance) => distance === null ? null : Math.max(1, Math.round(distance / 80)),
 };
 const timeAware = {
+  hasReviewedTimeData: (place) => place.hoursVerified !== false,
   getTimeAwarePlaceState: (place, options) => ({
-    hasStructuredData: true,
+    hasStructuredData: place.hoursVerified !== false,
     code: place.testCode ?? "open_at_arrival",
     arrivalAt: options.scheduledAt,
     travelMinutes: options.travelMinutes ?? 0,
     openNow: true,
-    openAtArrival: place.testCode ? false : true,
+    openAtArrival: place.hoursVerified === false || place.testCode ? false : true,
     canVisitWithinHour: true,
     recommendedAtArrival: place.recommended ?? null,
     avoidAtArrival: false,
@@ -73,6 +74,11 @@ assert.equal(manualRoute.stops[0].source, "manual");
 const closedManual = route.buildPracticalRoute({ origin, candidates: [automatic, { ...manual, testCode: "closed_today" }], connections: [edge], locale: "ko", preferences, now });
 assert.equal(closedManual.stops[0].place.id, "automatic", "A confirmed closed place must never be the next stop");
 assert.equal(closedManual.stops[0].source, "rule");
+
+const unknownHours = { ...manual, id: "unknown-hours", hoursVerified: false };
+const noUnknownRecommendation = route.buildPracticalRoute({ origin, candidates: [unknownHours], connections: [], locale: "ko", preferences, now });
+assert.equal(noUnknownRecommendation.stops.length, 0, "Unverified opening hours must never produce an automatic stop");
+assert.equal(noUnknownRecommendation.needsVerification[0].id, "unknown-hours", "Unknown hours may only appear in the separate verification group");
 
 const inaccessible = { ...manual, china_info: { wheelchair_access: "no", elevator: "no" } };
 const parentRoute = route.buildPracticalRoute({ origin, candidates: [inaccessible, automatic], connections: [], locale: "en", preferences: { ...preferences, party: "parents" }, now });

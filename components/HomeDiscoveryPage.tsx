@@ -71,7 +71,7 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
     .sort((a, b) => b.count - a.count);
   const preparingDistrictCount = busanDistrictOptions.length - activeDistricts.length;
   const now = new Date();
-  const nowWorthPlaces = places.filter((place) => getTimeAwarePlaceState(place, { now, travelMinutes: 0 }).recommendedAtArrival === true).slice(0, 4);
+  const nowWorthPlaces = places.filter((place) => isVerifiedPlace(place) && getTimeAwarePlaceState(place, { now, travelMinutes: 0 }).openAtArrival === true).slice(0, 4);
   const cityCounts = places.reduce<Partial<Record<PlaceCity, number>>>((counts, place) => {
     const city = getPlaceRegion(place).city;
     if (city) counts[city] = (counts[city] ?? 0) + 1;
@@ -79,6 +79,11 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
   }, {});
   const activeCities = placeCities.filter((city) => (cityCounts[city.key] ?? 0) > 0);
   const preparingCityCount = placeCities.length - activeCities.length;
+  const verifiedCityCounts = places.reduce<Partial<Record<PlaceCity, number>>>((counts, place) => {
+    const city = getPlaceRegion(place).city;
+    if (city && isVerifiedPlace(place)) counts[city] = (counts[city] ?? 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <main className="safe-bottom mx-auto max-w-5xl px-4 pb-6 pt-5">
@@ -95,7 +100,7 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
         </div>
         <div className={`mt-6 grid gap-2 sm:grid-cols-2 ${socialDiscoveryEnabled ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           {[
-            { href: "/places?recommendedNow=true&sort=verified", label: copy.nowWorth, icon: Compass },
+            ...(nowWorthPlaces.length ? [{ href: "/places?recommendedNow=true&sort=verified", label: copy.nowWorth, icon: Compass }] : []),
             { href: "/busan", label: copy.bySituation, icon: MapPin },
             ...(socialDiscoveryEnabled ? [{ href: "/social-find", label: copy.findFromSns, icon: Search }] : []),
             { href: "/itinerary", label: copy.buildItinerary, icon: Bookmark },
@@ -113,10 +118,10 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
         </div>
       </section>
 
-      <section className="border-b border-slate-200 py-7">
+      {nowWorthPlaces.length ? <section className="border-b border-slate-200 py-7">
         <SectionTitle title={copy.nowWorth} subtitle={copy.nowWorthSubtitle} action={<Link href={withLocale("/places?recommendedNow=true&sort=verified", locale)} className="inline-flex min-h-11 items-center gap-1 text-right text-sm font-black text-teal-700">{copy.nowWorth} {ui[locale].common.viewAll}<ArrowRight size={16} aria-hidden="true" /></Link>} />
-        {nowWorthPlaces.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2">{nowWorthPlaces.map((place) => <PlaceCard key={place.id} place={place} locale={locale} />)}</div> : <p className="mt-4 rounded-lg bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.nowWorthEmpty}</p>}
-      </section>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">{nowWorthPlaces.map((place) => <PlaceCard key={place.id} place={place} locale={locale} />)}</div>
+      </section> : null}
 
       <section className="py-7">
         <SectionTitle title={copy.cityTitle} subtitle={copy.citySubtitle} />
@@ -128,7 +133,7 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
               <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white/15"><Building2 size={21} aria-hidden="true" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-xl font-black">{placeCityLabels[city.key][locale]}</span>
-                <span className="mt-1 block text-xs font-bold text-teal-100">{copy.publishedPlaces} {count}</span>
+                <span className="mt-1 block text-xs font-bold text-teal-100">{copy.publishedPlaces} {count} · {copy.verifiedPlaces} {verifiedCityCounts[city.key] ?? 0}</span>
               </span>
               <ArrowRight size={18} className="shrink-0" aria-hidden="true" />
             </AnalyticsLink>;
@@ -310,8 +315,7 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
         </section>
       ) : null}
 
-      {selectedDistrict && hasDistrictPlaces ? <section className="mt-7">
-        {recommended.length ? (
+      {selectedDistrict && hasDistrictPlaces && recommended.length ? <section className="mt-7">
           <div className="space-y-4">
             <SectionTitle
               title={copy.home.recommended}
@@ -329,9 +333,6 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
               ))}
             </div>
           </div>
-        ) : (
-          <EmptyState title={copy.home.emptyRecommendationTitle} description={copy.home.emptyRecommendationDescription} />
-        )}
       </section> : null}
 
       {selectedDistrict && hasDistrictPlaces && courseGuides.length ? (
@@ -396,6 +397,7 @@ type CityHomeCopy = {
   seoul: string;
   jeju: string;
   publishedPlaces: string;
+  verifiedPlaces: string;
   preparing: string;
   preparingCities: (count: number) => string;
   activeDistricts: string;
@@ -425,10 +427,11 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     seoul: "서울",
     jeju: "제주",
     publishedPlaces: "공개 장소",
+    verifiedPlaces: "검수 완료",
     preparing: "준비 중",
     preparingCities: (count) => `공개 장소가 없는 도시는 메뉴에 반복 노출하지 않습니다. 다음 공개 예정 ${count}곳을 검수 중입니다.`,
     activeDistricts: "장소가 있는 부산 지역",
-    activeDistrictsSubtitle: "실제 공개·활성·검수 통과 장소가 있는 지역부터 보여드립니다.",
+    activeDistrictsSubtitle: "실제 공개 장소가 있는 지역부터 보여드리며, 검수 완료 여부는 별도로 표시합니다.",
     preparingDistricts: "준비 중 지역",
     allDistricts: "부산 전체 보기",
     noPublicPlaces: "공개할 부산 장소를 검수 중입니다",
@@ -452,10 +455,11 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     seoul: "首尔",
     jeju: "济州",
     publishedPlaces: "公开地点",
+    verifiedPlaces: "审核完成",
     preparing: "准备中",
     preparingCities: (count) => `没有公开地点的城市不会重复展示。接下来有 ${count} 个城市正在审核。`,
     activeDistricts: "已有地点的釜山地区",
-    activeDistrictsSubtitle: "优先显示已有公开、启用并通过审核地点的地区。",
+    activeDistrictsSubtitle: "优先显示已有公开地点的地区；是否审核完成会另行标示。",
     preparingDistricts: "准备中地区",
     allDistricts: "查看釜山全部地区",
     noPublicPlaces: "正在审核可公开的釜山地点",
@@ -479,10 +483,11 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     seoul: "Seoul",
     jeju: "Jeju",
     publishedPlaces: "Published places",
+    verifiedPlaces: "Fully reviewed",
     preparing: "Coming later",
     preparingCities: (count) => `${count} coming coverage areas are under review and hidden until they have public places.`,
     activeDistricts: "Busan districts with places",
-    activeDistrictsSubtitle: "Districts with published, active, reviewed places appear first.",
+    activeDistrictsSubtitle: "Districts with public places appear first; full review status is shown separately.",
     preparingDistricts: "Districts preparing",
     allDistricts: "View all Busan districts",
     noPublicPlaces: "Busan places are under review",
@@ -506,10 +511,11 @@ const cityHomeCopy: Record<Locale, CityHomeCopy> = {
     seoul: "ソウル",
     jeju: "済州",
     publishedPlaces: "公開スポット",
+    verifiedPlaces: "確認完了",
     preparing: "準備中",
     preparingCities: (count) => `公開スポットがない都市は繰り返し表示しません。次の ${count} 件を確認中です。`,
     activeDistricts: "スポットがある釜山エリア",
-    activeDistrictsSubtitle: "公開・有効・審査済みスポットがある地域から表示します。",
+    activeDistrictsSubtitle: "公開スポットがある地域から表示し、確認完了数は別に示します。",
     preparingDistricts: "準備中の地域",
     allDistricts: "釜山の全地域を見る",
     noPublicPlaces: "公開できる釜山スポットを審査中です",

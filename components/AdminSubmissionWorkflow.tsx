@@ -15,6 +15,7 @@ import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder"
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { buildChinaDiscoveryTags, chinaDiscoveryTagOptions, getChinaDiscoveryKeysFromTags, isChinaDiscoveryTagSlug, type ChinaDiscoveryTagKey } from "@/lib/place-china/discovery";
+import { ratingHelp, type ChinaRatingKey } from "@/lib/place-china/format";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { isPublicPlace, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
@@ -75,6 +76,12 @@ type PublishForm = {
   price_min: string;
   price_max: string;
   menu_items: PublishMenuDraft[];
+  chinese_taste_score: number | null;
+  spicy_level: number | null;
+  greasy_level: number | null;
+  smell_level: number | null;
+  portion_level: number | null;
+  ordering_difficulty: number | null;
   waiting_level: ChinaWaitingLevel;
   waiting_minutes_min: string;
   waiting_minutes_max: string;
@@ -137,6 +144,16 @@ const waitingOptions: Array<{ value: ChinaWaitingLevel; label: string; min: stri
   { value: "extreme", label: "40분 이상", min: "40", max: "" },
   { value: "varies", label: "시간대에 따라 다름", min: "", max: "" },
   { value: "unknown", label: "확인 필요", min: "", max: "" },
+];
+
+const scoreOptions = [1, 2, 3, 4, 5] as const;
+const chinaRatingControls: Array<{ key: ChinaRatingKey; label: string }> = [
+  { key: "chinese_taste_score", label: "중국인 추천도" },
+  { key: "spicy_level", label: "매운맛" },
+  { key: "greasy_level", label: "느끼함" },
+  { key: "smell_level", label: "향/잡내" },
+  { key: "portion_level", label: "양" },
+  { key: "ordering_difficulty", label: "주문 난이도" },
 ];
 
 const foodCategories: PlaceCategory[] = ["restaurant", "cafe", "bar"];
@@ -377,6 +394,12 @@ function emptyForm(submission?: PlaceSubmissionRecord | null): PublishForm {
     price_min: "",
     price_max: "",
     menu_items: [],
+    chinese_taste_score: null,
+    spicy_level: null,
+    greasy_level: null,
+    smell_level: null,
+    portion_level: null,
+    ordering_difficulty: null,
     waiting_level: "unknown",
     waiting_minutes_min: "",
     waiting_minutes_max: "",
@@ -463,6 +486,12 @@ function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRe
       price: item.price,
       is_recommended: item.is_recommended,
     })),
+    chinese_taste_score: chinaInfo?.chinese_taste_score ?? null,
+    spicy_level: chinaInfo?.spicy_level ?? null,
+    greasy_level: chinaInfo?.greasy_level ?? null,
+    smell_level: chinaInfo?.smell_level ?? null,
+    portion_level: chinaInfo?.portion_level ?? null,
+    ordering_difficulty: chinaInfo?.ordering_difficulty ?? null,
     waiting_level: chinaInfo?.waiting_level ?? "unknown",
     waiting_minutes_min: chinaInfo?.waiting_minutes_min?.toString() ?? "",
     waiting_minutes_max: chinaInfo?.waiting_minutes_max?.toString() ?? "",
@@ -527,12 +556,12 @@ function buildPayload(form: PublishForm): PlacePayload {
   const city = form.city || inferPlaceCity(form.address_ko);
   const district = city ? form.region_key || inferCityRegion(city, form.address_ko) : "";
   const chinaInfo: PlaceChinaInfoPayload = {
-    chinese_taste_score: null,
-    spicy_level: null,
-    greasy_level: null,
-    smell_level: null,
-    portion_level: null,
-    ordering_difficulty: null,
+    chinese_taste_score: form.chinese_taste_score,
+    spicy_level: form.spicy_level,
+    greasy_level: form.greasy_level,
+    smell_level: form.smell_level,
+    portion_level: form.portion_level,
+    ordering_difficulty: form.ordering_difficulty,
     waiting_level: form.waiting_level,
     waiting_minutes_min: nullableInteger(form.waiting_minutes_min),
     waiting_minutes_max: nullableInteger(form.waiting_minutes_max),
@@ -1952,6 +1981,22 @@ function PublishFormView({
         </div>
       </section>
 
+      <section className="border-b border-slate-200 py-5">
+        <h4 className="text-sm font-black text-slate-950">3. 중국인 입맛 평가</h4>
+        <p className="mt-1 text-xs font-semibold text-slate-500">1은 낮음, 5는 높음이며 확인되지 않은 값은 비워 둘 수 있습니다.</p>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          {chinaRatingControls.map((control) => (
+            <ChinaTasteRatingField
+              key={control.key}
+              label={control.label}
+              value={form[control.key]}
+              help={ratingHelp[control.key].values}
+              onChange={(value) => onFieldChange(control.key, value)}
+            />
+          ))}
+        </div>
+      </section>
+
       <SubmissionReviewSummary form={form} locale={previewLocale} providerLookupNotice={providerLookupNotice} onLocaleChange={setPreviewLocale} />
 
       <section className="border-b border-slate-200 py-5">
@@ -2267,5 +2312,50 @@ function CheckField({ label, checked, onChange }: { label: string; checked: bool
       {checked ? <CheckCircle2 size={16} className="text-teal-700" aria-hidden="true" /> : null}
       {label}
     </label>
+  );
+}
+
+function ChinaTasteRatingField({
+  label,
+  value,
+  help,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  help: Record<number, { zh: string; ko: string }>;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-black text-slate-950">{label}</p>
+          <p className="mt-1 text-xs text-slate-500">{value ? `${value} = ${help[value].ko}` : "확인 필요"}</p>
+        </div>
+        <button type="button" onClick={() => onChange(null)} className="rounded-full px-3 py-1.5 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+          초기화
+        </button>
+      </div>
+      <div className="mt-3 grid grid-cols-5 gap-1.5">
+        {scoreOptions.map((score) => (
+          <button
+            key={score}
+            type="button"
+            aria-label={`${label} ${score}점: ${help[score].ko}`}
+            aria-pressed={value === score}
+            onClick={() => onChange(score)}
+            className={[
+              "min-h-12 rounded-2xl px-2 text-center text-sm font-black ring-1 transition active:scale-95",
+              value === score ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100",
+            ].join(" ")}
+            title={`${score} = ${help[score].ko}`}
+          >
+            <span className="block">{score}</span>
+            <span className="block truncate text-[11px] font-semibold opacity-75">{help[score].zh}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

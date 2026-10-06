@@ -35,16 +35,20 @@ import { PlaceLocationPanel } from "@/components/PlaceLocationPanel";
 import { PlaceVisitTools } from "@/components/PlaceVisitTools";
 import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
+import { DirectionsButton } from "@/components/DirectionsButton";
+import { PlaceMobileActions } from "@/components/PlaceMobileActions";
 import { SectionTitle } from "@/components/SectionTitle";
 import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
 import { breadcrumbSchema, placeSchema, translatedPlaceLocales } from "@/lib/public-seo";
+import { buildTrustedPlaceMetaDescription } from "@/lib/place-seo";
+import { isVerifiedPlace } from "@/lib/place-publication-quality";
+import { resolvePlaceFact } from "@/lib/place-data-integrity";
 import { TagChip } from "@/components/TagChip";
 import { getCachedPublicPlaceBySlug, getCachedRelatedGuidesForPlace } from "@/lib/public-cache";
 import { formatPriceRange, formatWon } from "@/lib/place-store";
 import { getPracticalRouteContext, getRelatedPlaces } from "@/lib/place-recommendations";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
-import { buildChinaPlaceSummary } from "@/lib/place-china/format";
 import {
   getLastVerifiedLabel,
   getLastVerifiedAt,
@@ -56,7 +60,6 @@ import {
   getPublicPlaceDescription,
   getPublicTravelTip,
   getSourceSummary,
-  getTrustEvidenceLabel,
   getTrustedPlaceImageUrl,
   getVerificationStatus,
   getVerificationStatusLabel,
@@ -111,14 +114,8 @@ export async function generateMetadata({ params }: LocalizedPlaceDetailPageProps
 
   const content = getPlaceContent(place, locale);
   const nameDisplay = getPlaceNameDisplay(place, locale);
-  const publicDescription = getPublicPlaceDescription(place, locale);
   const title = nameDisplay.secondaryName ? `${nameDisplay.name} | ${nameDisplay.secondaryName}` : nameDisplay.name;
-  const chinaSummary = buildChinaPlaceSummary(place.china_info);
-  const zhFeatureText = chinaSummary.tags.slice(0, 3).join("、");
-  const description =
-    locale === "zh"
-      ? `${nameDisplay.name}: 釜山${getPlaceCategoryLabel(place.category, locale)}，${zhFeatureText ? `${zhFeatureText}。` : ""}${chinaSummary.summary}`
-      : `${nameDisplay.name}: ${publicDescription || copy.places.description}`;
+  const description = buildTrustedPlaceMetaDescription(place, locale, isVerifiedPlace(place));
   const trustedImageUrl = getTrustedPlaceImageUrl(place);
 
   return buildLocalizedMetadata({
@@ -165,14 +162,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   const recommendedMenus = place.menu_items.filter((item) => item.is_recommended);
   const otherMenus = place.menu_items.filter((item) => !item.is_recommended);
   const facilityTags = [
-    place.solo_friendly ? { zh: "一个人也可以", en: "Solo friendly", ja: "一人でもOK", ko: "혼자 가능" } : null,
-    place.luggage_friendly ? { zh: "行李OK", en: "Luggage OK", ja: "荷物OK", ko: "캐리어 가능" } : null,
-    place.chinese_menu ? { zh: "中文菜单", en: "Chinese menu", ja: "中国語メニュー", ko: "중국어 메뉴" } : null,
-    place.card_payment ? { zh: "可以刷卡", en: "Card accepted", ja: "カード可", ko: "카드 가능" } : null,
+    resolvePlaceFact(place, "solo_friendly") === "yes" ? { zh: "一个人也可以", en: "Solo friendly", ja: "一人でもOK", ko: "혼자 가능" } : null,
+    resolvePlaceFact(place, "luggage_friendly") === "yes" ? { zh: "行李OK", en: "Luggage OK", ja: "荷物OK", ko: "캐리어 가능" } : null,
+    resolvePlaceFact(place, "chinese_menu") === "yes" ? { zh: "中文菜单", en: "Chinese menu", ja: "中国語メニュー", ko: "중국어 메뉴" } : null,
+    resolvePlaceFact(place, "card_payment") === "yes" ? { zh: "可以刷卡", en: "Card accepted", ja: "カード可", ko: "카드 가능" } : null,
   ].filter((label): label is Record<Locale, string> => Boolean(label));
   const placeHref = withLocale(`/places/${place.slug}`, locale);
   const opening = formatOpeningStatus(place.opening_hours, locale);
   const priceText = formatPriceRange(place, locale);
+  const localizedPriceLabel = { zh: "代表价格", en: "Typical price", ja: "代表価格", ko: "대표가격" }[locale];
   const localizedHoursLabel = { zh: "营业", en: "Hours", ja: "営業時間", ko: "영업" }[locale];
   const currentMenuText = place.menu_items.map((item) => {
     const menu = getLocalizedMenuItem(item, locale);
@@ -205,22 +203,29 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     transit: placeHasCoordinates ? getConfirmedTransitLabel(place, locale) : "",
   });
   const factLabels = {
-    zh: { address: "地址", phone: "电话", website: "网站", verification: "验证状态", evidence: "确认依据", source: "信息来源", lastChecked: "最后确认" },
-    en: { address: "Address", phone: "Phone", website: "Website", verification: "Verification", evidence: "Evidence", source: "Source", lastChecked: "Last checked" },
-    ja: { address: "住所", phone: "電話", website: "ウェブサイト", verification: "確認状態", evidence: "確認根拠", source: "情報源", lastChecked: "最終確認" },
-    ko: { address: "주소", phone: "전화", website: "웹사이트", verification: "검증 상태", evidence: "확인 근거", source: "정보 출처", lastChecked: "마지막 확인일" },
+    zh: { address: "中文参考地址", phone: "电话", website: "网站", verification: "现场验证状态", evidence: "推荐依据", source: "来源状态", lastChecked: "基本信息确认日" },
+    en: { address: "Readable address", phone: "Phone", website: "Website", verification: "Field verification", evidence: "Recommendation basis", source: "Source status", lastChecked: "Basic info checked" },
+    ja: { address: "住所", phone: "電話", website: "ウェブサイト", verification: "現地検証状態", evidence: "おすすめ根拠", source: "出典状態", lastChecked: "基本情報確認日" },
+    ko: { address: "주소", phone: "전화", website: "웹사이트", verification: "현장 검증 상태", evidence: "추천 근거", source: "출처 상태", lastChecked: "기본정보 최근 확인일" },
   }[locale];
-  const detailStatus = getVerificationStatusLabel(verificationStatus, locale);
+  const fullyVerified = isVerifiedPlace(place);
+  const detailStatus = getVerificationStatusLabel(fullyVerified ? "verified" : verificationStatus === "needs_review" ? "needs_review" : "unverified", locale);
   const detailSource = getSourceSummary(place, locale);
   const detailLastChecked = getLastVerifiedLabel(place, locale);
-  const detailEvidence = getTrustEvidenceLabel(place, locale);
+  const detailEvidence = getRecommendationBasisLabel(place, locale);
   const recommendationDescription = publicDescription || trustCopy.noPublicDescription;
   const localizedTags = place.tags
     .map((tag) => ({ slug: tag.slug, label: getLocalizedTag(tag, locale) }))
     .filter((tag) => tag.label);
+  const detailGroups = {
+    zh: { traveler: "外国游客详细信息", menu: "菜单与点餐", route: "接下来90分钟", nearby: "周边地点与地图", report: "现场信息与修改提交", scope: "基本信息确认日、现场验证和来源状态分别管理；某一项未确认，不代表其他项未确认。" },
+    en: { traveler: "Detailed visitor information", menu: "Menu and ordering", route: "Your next 90 minutes", nearby: "Nearby places and map", report: "Field checks and corrections", scope: "Basic-info date, field verification, and source status are tracked separately. An unknown field does not invalidate a separately dated fact." },
+    ja: { traveler: "外国人向け詳細情報", menu: "メニューと注文", route: "次の90分", nearby: "周辺スポットと地図", report: "現地情報・修正投稿", scope: "基本情報の確認日、現地検証、出典状態は別々に管理しています。一項目の未確認は他項目の確認日を否定しません。" },
+    ko: { traveler: "외국인 상세정보", menu: "메뉴와 주문", route: "다음 90분", nearby: "주변 장소와 지도", report: "현장 확인·정보 제보", scope: "기본정보 확인일, 현장 검증, 출처 상태는 서로 다른 범위입니다. 한 항목의 미확인이 다른 항목의 확인일을 부정하지 않습니다." },
+  }[locale];
 
   return (
-    <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-4">
+    <main className="safe-bottom mx-auto max-w-5xl px-4 pb-6 pt-4">
       <StructuredData data={placeSchema(place, locale)} />
       <StructuredData data={breadcrumbSchema([
         { name: copy.nav.home, url: localizedCanonical("/", locale) },
@@ -240,7 +245,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           area: getPlaceAreaText(place),
         }}
       />
-      <Link href={withLocale("/places", locale)} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+      <Link href={withLocale("/places", locale)} className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-600">
         <ArrowLeft size={17} aria-hidden="true" />
         {copy.common.backToPlaces}
       </Link>
@@ -248,7 +253,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       {error ? <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
 
       <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="relative aspect-[4/3] bg-slate-200">
+        <div className="lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="relative h-[260px] bg-slate-200 sm:h-[300px] lg:h-[420px]">
           {photo.kind === "image" ? (
             <Image
               src={photo.url}
@@ -271,15 +277,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             {getPlaceCategoryLabel(place.category, locale)}
           </div>
         </div>
-        <TravelerDecisionCard place={place} locale={locale} className="border-b border-slate-100 px-5 py-4" />
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <TagChip tone={place.is_active ? "green" : "amber"}>{place.is_active ? copy.common.available : copy.common.unavailable}</TagChip>
               <h1 className="mt-3 text-3xl font-black tracking-normal text-slate-950">{nameDisplay.name}</h1>
               {nameDisplay.secondaryName ? <p className="mt-1 text-base text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
+              {nameDisplay.translationMissing ? <p className="mt-2 text-sm font-black text-amber-700">{nameDisplay.translationNotice}</p> : null}
             </div>
-            <SaveButton
+            <div className="flex shrink-0 flex-col gap-2"><SaveButton
               className="h-11 px-3"
               initialSaveCount={place.save_count ?? 0}
               label={placeSaveLabel[locale]}
@@ -293,7 +299,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
                 imageUrl: trustedImageUrl,
                 meta: [getPlaceCategoryLabel(place.category, locale), placeHasCoordinates ? `${copy.common.walk} ${walkingText}` : ""].filter(Boolean).join(" · "),
               }}
-            />
+            /><DirectionsButton placeId={place.id} name={content.name} address={place.address_ko} coordinates={coordinates} locale={locale} compact /></div>
           </div>
           <div className="mt-4">
             <ShareButton
@@ -306,7 +312,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
-            <InfoTile icon={WalletCards} label={copy.placeDetail.payment} value={priceText} />
+            <InfoTile icon={WalletCards} label={localizedPriceLabel} value={priceText} />
             <InfoTile icon={Clock3} label={copy.common.walk} value={walkingText} />
             <InfoTile icon={Route} label={localizedHoursLabel} value={place.opening_hours ? opening.text : copy.common.notRegistered} />
           </div>
@@ -350,9 +356,12 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
           <div className="mt-5 divide-y divide-slate-100 border-y border-slate-100">
             {content.address ? <DetailFact icon={MapPin} label={factLabels.address} value={content.address} /> : null}
+            {locale === "zh" && content.addressTranslationMissing ? <DetailFact icon={MapPin} label={factLabels.address} value="中文地址确认中" /> : null}
+            {locale === "zh" && content.addressOriginalKo ? <DetailFact icon={MapPin} label="韩国原地址" value={content.addressOriginalKo} /> : null}
             {place.phone ? <DetailFact icon={Phone} label={factLabels.phone} value={place.phone} href={`tel:${place.phone.replace(/[^\d+]/g, "")}`} /> : null}
             {websiteHref ? <DetailFact icon={Globe2} label={factLabels.website} value={place.website ?? ""} href={websiteHref} external /> : null}
           </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500">{detailGroups.scope}</p>
 
           <div className="mt-5 flex flex-wrap gap-2">
             {localizedTags.map((tag) => (
@@ -365,37 +374,39 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             ))}
           </div>
         </div>
+        </div>
       </section>
 
       <PlaceVisitTools place={place} locale={locale} coordinates={coordinates} />
-      <TravelerDecisionCard place={place} locale={locale} variant="detail" className="mt-6 rounded-lg" />
-      <TravelerTrustSignals placeId={place.id} locale={locale} />
-      <TasteProfileCard place={place} locale={locale} variant="detail" />
+      <DetailDisclosure title={detailGroups.traveler}>
+        <TravelerDecisionCard place={place} locale={locale} variant="detail" className="rounded-lg" />
+        <TravelerTrustSignals placeId={place.id} locale={locale} />
+        <TasteProfileCard place={place} locale={locale} variant="detail" />
+      </DetailDisclosure>
 
-      {place.menu_items.length > 0 ? <section className="mt-6 space-y-3">
-        <SectionTitle title={copy.placeDetail.menu} />
-        <div className="space-y-3">
+      {(place.menu_items.length > 0 || content.recommendedOrder || place.recommended_order_ko) ? <DetailDisclosure title={detailGroups.menu}>
+        {place.menu_items.length > 0 ? <ul className="space-y-3">
           {[...recommendedMenus, ...otherMenus].map((item) => {
             const menu = getLocalizedMenuItem(item, locale);
 
             return (
-              <div key={item.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <li key={item.id} className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-slate-950">{menu.name}</h2>
+                      <h3 className="text-lg font-bold text-slate-950">{menu.name}</h3>
                       {item.is_recommended ? <TagChip tone="green">{copy.placeDetail.recommended}</TagChip> : null}
                     </div>
                     {menu.secondaryName ? <p className="mt-1 text-sm text-slate-500">{menu.secondaryName}</p> : null}
+                    {menu.translationMissing ? <p className="mt-1 text-xs font-bold text-amber-700">{menu.translationNotice}</p> : null}
                   </div>
                   <span className="shrink-0 font-black text-slate-950">{formatWon(item.price, locale)}</span>
                 </div>
                 {menu.description ? <p className="mt-3 text-sm leading-6 text-slate-600">{menu.description}</p> : null}
-              </div>
+              </li>
             );
           })}
-        </div>
-      </section> : null}
+        </ul> : null}
 
       {place.category === "restaurant" ? (
         <OrderGuide place={place} locale={locale} />
@@ -412,6 +423,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
         </section>
       ) : null)}
+      </DetailDisclosure> : null}
 
       {(content.waitingInfo || directionsText !== copy.common.noInfo) ? <section className="mt-6 grid gap-3 sm:grid-cols-2">
         {content.waitingInfo ? <InfoPanel icon={Users} title={copy.placeDetail.waiting} body={content.waitingInfo} /> : null}
@@ -436,27 +448,45 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         {copy.placeDetail.confirmationNote}
       </section>
 
-      <Next90MinuteRoute origin={place} candidates={practicalRoute.candidates} connections={practicalRoute.connections} locale={locale} />
-      <RelatedPlacesSection places={relatedPlaces} locale={locale} />
-      <RelatedGuidesSection guides={relatedGuides} locale={locale} />
+      {practicalRoute.candidates.length ? <DetailDisclosure title={detailGroups.route}>
+        <Next90MinuteRoute origin={place} candidates={practicalRoute.candidates} connections={practicalRoute.connections} locale={locale} />
+      </DetailDisclosure> : null}
+      {(relatedPlaces.length || relatedGuides.length || placeHasCoordinates) ? <DetailDisclosure title={detailGroups.nearby}>
+        <RelatedPlacesSection places={relatedPlaces} locale={locale} headingLevel="h3" />
+        <RelatedGuidesSection guides={relatedGuides} locale={locale} headingLevel="h3" />
+        <PlaceLocationPanel place={place} locale={locale} />
+      </DetailDisclosure> : null}
 
-      <TravelerVerification placeId={place.id} placeName={nameDisplay.name} locale={locale} coordinates={coordinates} />
-
-      <PlaceCorrectionForm
-        placeId={place.id}
-        locale={locale}
-        currentValues={{
-          opening_hours: place.opening_hours,
-          menu: currentMenuText,
-          menu_price: currentMenuText,
-          price_range: priceText,
-          phone: place.phone ?? "",
-          website: place.website ?? "",
-          location: content.address,
-        }}
-      />
-      <PlaceLocationPanel place={place} locale={locale} />
+      <DetailDisclosure title={detailGroups.report}>
+        <TravelerVerification placeId={place.id} placeName={nameDisplay.name} locale={locale} coordinates={coordinates} />
+        <PlaceCorrectionForm
+          placeId={place.id}
+          locale={locale}
+          currentValues={{
+            opening_hours: place.opening_hours,
+            menu: currentMenuText,
+            menu_price: currentMenuText,
+            price_range: priceText,
+            phone: place.phone ?? "",
+            website: place.website ?? "",
+            location: content.address || place.address_ko,
+          }}
+        />
+      </DetailDisclosure>
+      <PlaceMobileActions place={place} locale={locale} coordinates={coordinates} imageUrl={trustedImageUrl} />
     </main>
+  );
+}
+
+function DetailDisclosure({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <details className="mt-6 overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200">
+      <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between px-5 py-3 marker:hidden">
+        <h2 className="text-lg font-black text-slate-950">{title}</h2>
+        <span className="text-xl font-black text-teal-700" aria-hidden="true">＋</span>
+      </summary>
+      <div className="border-t border-slate-100 p-4">{children}</div>
+    </details>
   );
 }
 
@@ -592,9 +622,9 @@ function getVisitTriStateLabel(value: "yes" | "no" | "unknown" | undefined, lega
 }
 
 function getVisitPaymentLabel(place: PlaceWithRelations, locale: Locale, text: { card: string; foreignCard: string; cardNo: string }) {
-  if (place.china_info?.foreign_card === "yes") return text.foreignCard;
-  if (place.china_info?.foreign_card === "no") return text.cardNo;
-  if (place.card_payment) return text.card;
+  const status = resolvePlaceFact(place, "card_payment");
+  if (status === "yes") return place.china_info?.foreign_card === "yes" ? text.foreignCard : text.card;
+  if (status === "no") return text.cardNo;
   return "";
 }
 
@@ -606,9 +636,18 @@ function getVisitWaitingLabel(place: PlaceWithRelations, locale: Locale) {
   if (level === "long") return { zh: "约20-40分钟", en: "About 20-40 min", ja: "約20-40分", ko: "약 20~40분" }[locale];
   if (level === "extreme") return { zh: "40分钟以上", en: "Over 40 min", ja: "40分以上", ko: "40분 이상" }[locale];
   if (level === "varies") return { zh: "按时段变化", en: "Varies by time", ja: "時間帯で変動", ko: "시간대별 변동" }[locale];
-  if (locale === "zh" && place.waiting_info_zh.trim()) return place.waiting_info_zh.trim();
+  if (locale === "zh" && place.waiting_info_zh.trim() && !/[가-힣]/u.test(place.waiting_info_zh)) return place.waiting_info_zh.trim();
   if (locale === "ko" && place.waiting_info_ko.trim()) return place.waiting_info_ko.trim();
   return "";
+}
+
+function getRecommendationBasisLabel(place: PlaceWithRelations, locale: Locale) {
+  const count = place.decision_profile?.evidence_count ?? 0;
+  if (count > 0) return {
+    zh: `${count} 条已登记依据`, en: `${count} registered evidence item${count === 1 ? "" : "s"}`,
+    ja: `登録根拠 ${count}件`, ko: `등록 근거 ${count}건`,
+  }[locale];
+  return { zh: "推荐依据未确认", en: "Recommendation basis unverified", ja: "おすすめ根拠は未確認", ko: "추천 근거 미확인" }[locale];
 }
 
 function TrustFact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {

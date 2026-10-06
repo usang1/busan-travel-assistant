@@ -1,6 +1,7 @@
 import { getLocalizedMenuItem, getPlaceContent, type Locale } from "@/lib/i18n";
 import { isPlaceInformationStale, verificationDateLabel } from "@/lib/traveler-insights";
 import { formatLocalizedExit, formatLocalizedStation } from "@/lib/transit-labels";
+import { normalizeMenuPrice, normalizePlacePricing, resolvePlaceFact } from "@/lib/place-data-integrity";
 import { categoryLabels, type PlaceCategory, type PlaceSourceProvider, type PlaceVerificationStatus, type PlaceWithRelations } from "@/types/database";
 
 export type PlacePhotoDisplay =
@@ -19,6 +20,8 @@ export type LocalizedPlaceNameDisplay = {
   name: string;
   secondaryName: string;
   secondaryLabel: string;
+  translationMissing: boolean;
+  translationNotice: string;
 };
 
 export type LocalizedRecommendationDisplay = {
@@ -130,6 +133,8 @@ export function getPlaceNameDisplay(place: PlaceWithRelations, locale: Locale): 
     name: content.name,
     secondaryName: content.secondaryName || (locale !== "ko" && content.name !== koreanOriginal ? koreanOriginal : ""),
     secondaryLabel: locale === "ko" ? "" : copy[locale].originalNameLabel,
+    translationMissing: content.translationMissing,
+    translationNotice: content.translationNotice,
   };
 }
 
@@ -164,11 +169,13 @@ export function getTrustedPlaceImageUrl(place: Pick<PlaceWithRelations, "thumbna
 
 export function getPublicPlaceDescription(place: PlaceWithRelations, locale: Locale) {
   const exact = exactLocalizedText(place, "description", locale);
-  return isUsablePublicDescription(exact) ? exact : "";
+  if (locale === "zh" && /[가-힣]/u.test(exact)) return "";
+  return isUsablePublicDescription(exact) && !descriptionConflictsWithFacts(exact, place) ? exact : "";
 }
 
 export function getPublicTravelTip(place: PlaceWithRelations, locale: Locale) {
   const exact = exactLocalizedText(place, "travel_tip", locale);
+  if (locale === "zh" && /[가-힣]/u.test(exact)) return "";
   return isUsablePublicDescription(exact) ? exact : "";
 }
 
@@ -229,7 +236,7 @@ export function getVerificationStatus(place: PlaceWithRelations): PlaceVerificat
     return status;
   }
 
-  return getLastVerifiedAt(place) ? "verified" : "unverified";
+  return "unverified";
 }
 
 export function getVerificationStatusLabel(status: PlaceVerificationStatus, locale: Locale) {
@@ -240,12 +247,7 @@ export function getVerificationStatusLabel(status: PlaceVerificationStatus, loca
 }
 
 export function getLastVerifiedAt(place: PlaceWithRelations) {
-  return (
-    normalizeDateString(place.last_verified_at) ||
-    normalizeDateString(place.china_info?.verified_at) ||
-    place.sources?.map((source) => normalizeDateString(source.last_synced_at)).find(Boolean) ||
-    ""
-  );
+  return normalizeDateString(place.last_verified_at);
 }
 
 export function getLastVerifiedLabel(place: PlaceWithRelations, locale: Locale) {
@@ -315,19 +317,23 @@ function getConfirmedRepresentativeMenu(place: PlaceWithRelations, locale: Local
   const name = menu.name.trim();
   if (!name) return "";
 
-  return typeof item.price === "number" && item.price >= 0 ? `${name} · ${formatTrustWon(item.price, locale)}` : name;
+  const price = normalizeMenuPrice(item.price);
+  return price !== null ? `${name} · ${formatTrustWon(price, locale)}` : name;
 }
 
 function getConfirmedPriceLabel(place: PlaceWithRelations, locale: Locale) {
-  if (typeof place.price_min === "number" && typeof place.price_max === "number") {
-    if (place.price_min === 0 && place.price_max === 0) return formatTrustWon(0, locale);
-    if (place.price_min !== place.price_max) return `${formatTrustWon(place.price_min, locale)}-${formatTrustWon(place.price_max, locale)}`;
-    return formatTrustWon(place.price_min, locale);
+  const pricing = normalizePlacePricing(place);
+  if (pricing.priceMin !== null && pricing.priceMax !== null) {
+    if (pricing.priceMin === 0 && pricing.priceMax === 0) return formatTrustWon(0, locale);
+    if (pricing.priceMin !== pricing.priceMax) return `${formatTrustWon(pricing.priceMin, locale)}-${formatTrustWon(pricing.priceMax, locale)}`;
+    return formatTrustWon(pricing.priceMin, locale);
   }
 
-  if (typeof place.price_min === "number") return formatTrustWon(place.price_min, locale);
-  if (typeof place.price_max === "number") return formatTrustWon(place.price_max, locale);
-  if (typeof place.price_level === "number" && place.price_level >= 0) return place.price_level === 0 ? formatTrustWon(0, locale) : "₩".repeat(Math.min(place.price_level, 4));
+  if (pricing.priceMin !== null) return formatTrustWon(pricing.priceMin, locale);
+  if (pricing.priceMax !== null) return formatTrustWon(pricing.priceMax, locale);
+  if (pricing.priceTier !== null && pricing.priceTier > 0) {
+    return { zh: `价格档位 ${pricing.priceTier}/4`, en: `Price tier ${pricing.priceTier}/4`, ja: `価格帯 ${pricing.priceTier}/4`, ko: `가격대 ${pricing.priceTier}/4` }[locale];
+  }
   return "";
 }
 
@@ -340,11 +346,10 @@ function formatTrustWon(value: number, locale: Locale) {
 }
 
 function getConfirmedSoloLabel(place: PlaceWithRelations, locale: Locale) {
-  const value = place.china_info?.solo_friendly;
+  const value = resolvePlaceFact(place, "solo_friendly");
 
   if (value === "yes") return { zh: "一个人OK", en: "Solo OK", ja: "一人OK", ko: "혼밥 가능" }[locale];
   if (value === "no") return { zh: "不适合单人", en: "Not solo friendly", ja: "一人利用は難しい", ko: "혼밥 어려움" }[locale];
-  if (!place.china_info && place.solo_friendly) return { zh: "一个人OK", en: "Solo OK", ja: "一人OK", ko: "혼밥 가능" }[locale];
   return "";
 }
 
@@ -383,6 +388,17 @@ function isUsablePublicDescription(value: string) {
   if (text.length < 14) return false;
   if (/^(존맛탱|맛집|똠양꿍\s*맛집|핫플|추천|괜찮음)[\s!.。]*$/i.test(text)) return false;
   return true;
+}
+
+function descriptionConflictsWithFacts(value: string, place: PlaceWithRelations) {
+  const text = value.normalize("NFKC");
+  const positiveClaims: Array<[RegExp, ReturnType<typeof resolvePlaceFact>]> = [
+    [/(?:카드\s*(?:결제\s*)?(?:가능|돼|됨)|可以刷卡|支持(?:海外)?信用卡|card(?:s)?\s+(?:accepted|available))/i, resolvePlaceFact(place, "card_payment")],
+    [/(?:혼밥\s*(?:가능|OK)|一个人(?:也)?(?:可以|OK)|solo[-\s]?friendly)/i, resolvePlaceFact(place, "solo_friendly")],
+    [/(?:중국어\s*메뉴\s*(?:있|제공)|有中文菜单|提供中文菜单|中文菜单可用|chinese menu (?:available|provided))/i, resolvePlaceFact(place, "chinese_menu")],
+    [/(?:캐리어\s*(?:가능|OK)|行李箱(?:也)?(?:方便|OK)|luggage[-\s]?friendly)/i, resolvePlaceFact(place, "luggage_friendly")],
+  ];
+  return positiveClaims.some(([pattern, status]) => pattern.test(text) && status !== "yes");
 }
 
 function isGenericPlaceholderImageUrl(value: string) {

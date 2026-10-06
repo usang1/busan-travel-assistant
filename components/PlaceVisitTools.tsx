@@ -20,6 +20,8 @@ const copy: Record<Locale, {
   title: string;
   koreanName: string;
   copyAddress: string;
+  readableAddress: string;
+  koreanAddress: string;
   copied: string;
   copyFailed: string;
   taxi: string;
@@ -28,10 +30,10 @@ const copy: Record<Locale, {
   lastChecked: string;
   correction: string;
 }> = {
-  zh: { title: "到店前使用", koreanName: "韩文店名", copyAddress: "复制地址", copied: "已复制", copyFailed: "无法复制", taxi: "给司机看的韩语", order: "点单句子", map: "地图", lastChecked: "最后确认", correction: "提交修改" },
-  en: { title: "Before you go", koreanName: "Korean name", copyAddress: "Copy address", copied: "Copied", copyFailed: "Could not copy", taxi: "Korean phrase for driver", order: "Order phrase", map: "Map", lastChecked: "Last checked", correction: "Report update" },
-  ja: { title: "訪問前に使う", koreanName: "韓国語名", copyAddress: "住所コピー", copied: "コピーしました", copyFailed: "コピーできません", taxi: "運転手に見せる韓国語", order: "注文文", map: "地図", lastChecked: "最終確認", correction: "修正投稿" },
-  ko: { title: "방문 전 확인", koreanName: "한국어 장소명", copyAddress: "주소 복사", copied: "복사했습니다", copyFailed: "복사할 수 없습니다", taxi: "기사님께 보여줄 문장", order: "대표 메뉴 주문 문장", map: "지도", lastChecked: "마지막 확인일", correction: "정보 수정 제보" },
+  zh: { title: "到店前使用", koreanName: "韩文店名", copyAddress: "复制韩文地址", readableAddress: "中文参考地址", koreanAddress: "韩国原地址", copied: "已复制", copyFailed: "无法复制", taxi: "给司机看的韩语", order: "点单句子", map: "地图", lastChecked: "最后确认", correction: "提交修改" },
+  en: { title: "Before you go", koreanName: "Korean name", copyAddress: "Copy Korean address", readableAddress: "Readable address", koreanAddress: "Korean address", copied: "Copied", copyFailed: "Could not copy", taxi: "Korean phrase for driver", order: "Order phrase", map: "Map", lastChecked: "Last checked", correction: "Report update" },
+  ja: { title: "訪問前に使う", koreanName: "韓国語名", copyAddress: "韓国語住所をコピー", readableAddress: "住所", koreanAddress: "韓国語の原住所", copied: "コピーしました", copyFailed: "コピーできません", taxi: "運転手に見せる韓国語", order: "注文文", map: "地図", lastChecked: "最終確認", correction: "修正投稿" },
+  ko: { title: "방문 전 확인", koreanName: "한국어 장소명", copyAddress: "주소 복사", readableAddress: "주소", koreanAddress: "한국어 원주소", copied: "복사했습니다", copyFailed: "복사할 수 없습니다", taxi: "기사님께 보여줄 문장", order: "대표 메뉴 주문 문장", map: "지도", lastChecked: "마지막 확인일", correction: "정보 수정 제보" },
 };
 
 export function PlaceVisitTools({ place, locale, coordinates }: PlaceVisitToolsProps) {
@@ -40,19 +42,20 @@ export function PlaceVisitTools({ place, locale, coordinates }: PlaceVisitToolsP
   const content = getPlaceContent(place, locale);
   const representativeMenu = getRepresentativeMenu(place, locale);
   const [status, setStatus] = useState("");
-  const address = content.address || place.address_ko || place.address_zh || "";
+  const readableAddress = content.address;
+  const koreanAddress = place.address_ko.trim();
   const taxiSentence = buildKoreanTaxiSentence(place.address_ko, place.name_ko) || common.noInfo;
   const orderSentence = representativeMenu?.orderKo || place.recommended_order_ko.trim() || common.noInfo;
   const verified = verificationDateLabel(place.china_info?.verified_at ?? place.last_verified_at, locale) || common.noInfo;
 
   async function copyAddress() {
-    if (!address || !navigator.clipboard) {
+    if (!koreanAddress || !navigator.clipboard) {
       setStatus(text.copyFailed);
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(address);
+      await navigator.clipboard.writeText(koreanAddress);
       setStatus(text.copied);
     } catch {
       setStatus(text.copyFailed);
@@ -66,7 +69,7 @@ export function PlaceVisitTools({ place, locale, coordinates }: PlaceVisitToolsP
           <h2 className="text-xl font-black text-slate-950">{text.title}</h2>
           <p className="mt-1 text-sm text-slate-500">{text.koreanName}</p>
         </div>
-        <a href="#place-correction" className="inline-flex min-h-10 items-center rounded-full bg-slate-50 px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200">
+        <a href="#place-correction" className="inline-flex min-h-11 items-center rounded-full bg-slate-50 px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200">
           {text.correction}
         </a>
       </div>
@@ -76,7 +79,8 @@ export function PlaceVisitTools({ place, locale, coordinates }: PlaceVisitToolsP
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <VisitFact icon={MapPin} label={ui[locale].placeDetail.location} value={address || common.noInfo} />
+        {readableAddress ? <VisitFact icon={MapPin} label={text.readableAddress} value={readableAddress} /> : null}
+        <VisitFact icon={MapPin} label={text.koreanAddress} value={koreanAddress || common.noInfo} />
         <VisitFact icon={Navigation} label={text.taxi} value={taxiSentence} />
         <VisitFact icon={Soup} label={text.order} value={orderSentence} />
         <VisitFact icon={CalendarCheck2} label={text.lastChecked} value={verified} />
@@ -86,7 +90,7 @@ export function PlaceVisitTools({ place, locale, coordinates }: PlaceVisitToolsP
         <button
           type="button"
           onClick={() => void copyAddress()}
-          disabled={!address}
+          disabled={!koreanAddress}
           className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Copy size={17} aria-hidden="true" />
@@ -95,7 +99,7 @@ export function PlaceVisitTools({ place, locale, coordinates }: PlaceVisitToolsP
         <DirectionsButton
           placeId={place.id}
           name={content.name || place.name_ko}
-          address={address}
+          address={koreanAddress}
           coordinates={coordinates}
           locale={locale}
           className="w-full"

@@ -6,6 +6,7 @@ import { Send } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { parseMapUrl } from "@/lib/map-url";
+import { validateSubmissionLocation } from "@/lib/place-submission-validation";
 import { recordPlaceEvent } from "@/lib/place-events";
 import { categoryLabels, placeCategories, type PlaceCategory } from "@/types/database";
 import { defaultLocale, getLocaleFromPath, type Locale, ui, withLocale } from "@/lib/i18n";
@@ -33,11 +34,19 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
   const [imageUrl, setImageUrl] = useState("");
   const [extraNotes, setExtraNotes] = useState("");
   const [status, setStatus] = useState("");
+  const [statusTone, setStatusTone] = useState<"success" | "error">("success");
   const [submitting, setSubmitting] = useState(false);
   const parsed = useMemo(() => parseMapUrl(mapUrl), [mapUrl]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const locationValidation = validateSubmissionLocation({ mapUrl, name, locationText });
+    if (!locationValidation.valid) {
+      setStatusTone("error");
+      setStatus(locationValidation.error === "invalid_map_url" ? copy.submissions.invalidMapUrl : copy.submissions.locationRequirement);
+      return;
+    }
 
     setSubmitting(true);
     setStatus("");
@@ -62,12 +71,13 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
         }),
       });
 
+      const body = await response.json().catch(() => ({})) as { message?: string; submission?: { provider?: string } };
+
       if (!response.ok) {
-        setStatus(copy.submissions.submitFailed);
+        setStatusTone("error");
+        setStatus(response.status === 409 || body.message === "duplicate_submission" ? copy.submissions.duplicate : body.message === "invalid_map_url" ? copy.submissions.invalidMapUrl : copy.submissions.submitFailed);
         return;
       }
-
-      const body = await response.json() as { submission?: { provider?: string } };
 
       await recordPlaceEvent({
         eventType: "submission_created",
@@ -84,9 +94,11 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
       setLocationText("");
       setImageUrl("");
       setExtraNotes("");
+      setStatusTone("success");
       setStatus(copy.submissions.submitted);
     } catch {
-      setStatus(copy.submissions.submitFailed);
+      setStatusTone("error");
+      setStatus(copy.submissions.networkError);
     } finally {
       setSubmitting(false);
     }
@@ -116,7 +128,22 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
             placeholder="Naver / Kakao / Google Maps URL"
             className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200"
           />
+          {mapUrl && parsed.provider === "unknown" ? <span className="mt-2 block text-sm font-bold text-rose-700">{copy.submissions.invalidMapUrl}</span> : null}
         </label>
+
+        <div className="flex items-center gap-3 text-xs font-black text-slate-400" aria-hidden="true"><span className="h-px flex-1 bg-slate-200" /><span>{copy.submissions.orDivider}</span><span className="h-px flex-1 bg-slate-200" /></div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700">{copy.submissions.name}</span>
+            <input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200" />
+          </label>
+          <label className="block">
+            <span className="text-sm font-bold text-slate-700">{copy.submissions.address}</span>
+            <input value={locationText} onChange={(event) => setLocationText(event.target.value)} placeholder={copy.submissions.address} className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200" />
+          </label>
+        </div>
+        <p className="text-xs font-semibold leading-5 text-slate-500">{copy.submissions.locationRequirement}</p>
 
         <label className="block">
           <span className="text-sm font-bold text-slate-700">{copy.submissions.reason}</span>
@@ -134,14 +161,6 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
           <summary className="cursor-pointer text-sm font-black text-slate-700">{copy.submissions.optional}</summary>
           <div className="mt-3 space-y-3">
             <label className="block">
-              <span className="text-sm font-bold text-slate-700">{copy.submissions.name}</span>
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="mt-2 h-11 w-full rounded-2xl bg-white px-3 text-base outline-none ring-1 ring-slate-200"
-              />
-            </label>
-            <label className="block">
               <span className="text-sm font-bold text-slate-700">{copy.submissions.category}</span>
               <select
                 value={category}
@@ -153,15 +172,6 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
                   <option key={item} value={item}>{categoryLabels[item][currentLocale]}</option>
                 ))}
               </select>
-            </label>
-            <label className="block">
-              <span className="text-sm font-bold text-slate-700">{copy.submissions.address}</span>
-              <input
-                value={locationText}
-                onChange={(event) => setLocationText(event.target.value)}
-                placeholder={copy.submissions.address}
-                className="mt-2 h-11 w-full rounded-2xl bg-white px-3 text-base outline-none ring-1 ring-slate-200"
-              />
             </label>
             <label className="block">
               <span className="text-sm font-bold text-slate-700">{copy.submissions.descriptionLabel}</span>
@@ -203,7 +213,7 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
         </button>
       </form>
 
-      {status ? <p className="mt-4 rounded-2xl bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800">{status}</p> : null}
+      {status ? <p role={statusTone === "error" ? "alert" : "status"} aria-live="polite" className={`mt-4 rounded-2xl px-4 py-3 text-sm font-semibold ${statusTone === "error" ? "bg-rose-50 text-rose-800" : "bg-teal-50 text-teal-800"}`}>{status}</p> : null}
     </section>
   );
 }

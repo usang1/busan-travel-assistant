@@ -10,12 +10,12 @@ import { placeCategories, type PlaceCategory } from "@/types/database";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "首尔・釜山・济州地点｜已审核旅行信息",
-  description: "搜索首尔、釜山、济州的餐厅、咖啡店、拍照点、购物和行李寄存，按旅行需求筛选。",
+  title: "首尔・釜山・济州公开地点｜审核状态清楚标注",
+  description: "搜索首尔、釜山、济州的公开地点，并分别查看审核状态。",
   alternates: { canonical: absoluteUrl("/places") },
   openGraph: {
     title: "首尔・釜山・济州地点",
-    description: "面向外国游客的已审核地点搜索与旅行决策信息。",
+    description: "面向外国游客的公开地点搜索；审核状态单独标注。",
     url: absoluteUrl("/places"),
   },
 };

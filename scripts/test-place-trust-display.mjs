@@ -42,6 +42,24 @@ function loadTrustModule() {
       };
     }
 
+    if (specifier === "@/lib/place-data-integrity") {
+      return {
+        normalizeMenuPrice: (value) => value === 0 || (Number.isInteger(value) && value >= 1000) ? value : null,
+        normalizePlacePricing: (place) => ({
+          priceTier: Number.isInteger(place.price_level) && place.price_level >= 0 && place.price_level <= 4 ? place.price_level : null,
+          priceMin: place.price_min === 0 || (Number.isInteger(place.price_min) && place.price_min >= 1000) ? place.price_min : null,
+          priceMax: place.price_max === 0 || (Number.isInteger(place.price_max) && place.price_max >= 1000) ? place.price_max : null,
+          issues: [],
+        }),
+        resolvePlaceFact: (place, key) => {
+          const structured = key === "card_payment" ? place.china_info?.foreign_card : place.china_info?.[key];
+          if (structured === "yes" || structured === "no") return structured;
+          const legacy = key === "card_payment" ? place.card_payment : place[key];
+          return legacy === true ? "yes" : "unknown";
+        },
+      };
+    }
+
     if (specifier === "@/lib/transit-labels") {
       return {
         formatLocalizedStation: (value, locale) => locale === "zh" && value === "광안역" ? "广安站（광안역）" : value,
@@ -217,8 +235,9 @@ const sparsePlace = {
   last_verified_at: "",
 };
 const sparseFacts = trust.buildPlaceCardFacts(sparsePlace, "ko");
-assert.equal(sparseFacts.facts.length, 0);
-assert.equal(sparseFacts.missing.length, 5);
+assert.equal(sparseFacts.facts.length, 1);
+assert.equal(sparseFacts.facts[0].key, "solo", "a legacy true remains usable affirmative evidence");
+assert.equal(sparseFacts.missing.length, 4);
 assert.equal(sparseFacts.missingSummary, "정보 보강 중");
 assert.equal(trust.getVerificationStatus(sparsePlace), "pending");
 assert.equal(trust.getSourceSummary(sparsePlace, "ko"), "출처 확인 중");

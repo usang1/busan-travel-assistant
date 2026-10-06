@@ -96,6 +96,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
     [availableChinaFilters],
   );
   const activeFilterCount = countActiveChinaFilters(showChinaFilters ? activeChinaFilters : [], priceBucket);
+  const advancedFilterCount = activeFilterCount + (sortMode !== "verified" ? 1 : 0);
   const regions = cityRegions(city).map((item) => ({ key: item.key, label: item.labels[locale] }));
   const availableCategoryFilters = useMemo(
     () => categoryFilters.filter((filter) => filter.value === "all" || places.some((place) => place.category === filter.value)),
@@ -276,7 +277,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+              className="absolute right-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
               aria-label={explorerCopy.clearSearch}
             >
               <X size={17} aria-hidden="true" />
@@ -303,12 +304,9 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
               </button>
             );
           })}
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-slate-50 text-slate-700 ring-1 ring-slate-200">
-            <SlidersHorizontal size={18} aria-hidden="true" />
-          </span>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:max-w-sm">
           <label className="block">
             <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.region}</span>
             <select value={region} onChange={(event) => {
@@ -323,74 +321,52 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
               ))}
             </select>
           </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.price}</span>
-            <select value={priceBucket} onChange={(event) => { setPriceBucket(event.target.value as ChinaPriceBucket); trackFilter("price", event.target.value); }} className={selectClass}>
-              {chinaPriceBuckets.map((bucket) => (
-                <option key={bucket.value} value={bucket.value}>{bucket.label[locale]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.sort}</span>
-            <select value={sortMode} onChange={(event) => { setSortMode(event.target.value as SortMode); trackFilter("sort", event.target.value); }} className={selectClass}>
-              <option value="verified">{explorerCopy.verifiedSort}</option>
-              <option value="recent">{explorerCopy.recentSort}</option>
-              {hasRecommendationScores ? <option value="chinaRecommended">{explorerCopy.recommendedSort}</option> : null}
-              <option value="saved">{explorerCopy.savedSort}</option>
-              <option value="distance" disabled={!userLocation}>{explorerCopy.distanceSort}</option>
-              <option value="lowWait">{explorerCopy.lowWaitSort}</option>
-            </select>
-          </label>
         </div>
 
-        {showChinaFilters && availableQuickFilters.length ? (
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-black text-slate-500">{explorerCopy.quickFilters}</p>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
-                {explorerCopy.activeFilters} {activeFilterCount}
-              </span>
+        <details className="rounded-2xl bg-slate-50 ring-1 ring-slate-200" open={advancedFilterCount > 0 ? true : undefined}>
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-black text-slate-800">
+            <span className="inline-flex items-center gap-2"><SlidersHorizontal size={18} aria-hidden="true" />{explorerCopy.moreFilters}</span>
+            {advancedFilterCount > 0 ? <span className="rounded-full bg-teal-700 px-2.5 py-1 text-xs text-white">{explorerCopy.activeFilters} {advancedFilterCount}</span> : null}
+          </summary>
+          <div className="space-y-4 border-t border-slate-200 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.price}</span>
+                <select value={priceBucket} onChange={(event) => { setPriceBucket(event.target.value as ChinaPriceBucket); trackFilter("price", event.target.value); }} className={selectClass}>
+                  {chinaPriceBuckets.map((bucket) => <option key={bucket.value} value={bucket.value}>{bucket.label[locale]}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.sort}</span>
+                <select value={sortMode} onChange={(event) => { setSortMode(event.target.value as SortMode); trackFilter("sort", event.target.value); }} className={selectClass}>
+                  <option value="verified">{explorerCopy.verifiedSort}</option>
+                  <option value="recent">{explorerCopy.recentSort}</option>
+                  {hasRecommendationScores ? <option value="chinaRecommended">{explorerCopy.recommendedSort}</option> : null}
+                  <option value="saved">{explorerCopy.savedSort}</option>
+                  <option value="distance" disabled={!userLocation}>{explorerCopy.distanceSort}</option>
+                  <option value="lowWait">{explorerCopy.lowWaitSort}</option>
+                </select>
+              </label>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {availableQuickFilters.map((filter) => {
+            {showChinaFilters && availableQuickFilters.length ? <div>
+              <p className="mb-2 text-xs font-black text-slate-500">{explorerCopy.quickFilters}</p>
+              <div className="flex flex-wrap gap-2">{availableQuickFilters.map((filter) => {
                 const active = activeChinaFilters.includes(filter.key);
-
-                return (
-                  <button key={filter.key} type="button" onClick={() => toggleChinaFilter(filter.key)} className="shrink-0 active:scale-95">
-                    <TagChip tone={active ? "green" : "default"}>{filter.compactLabel[locale]}</TagChip>
-                  </button>
-                );
-              })}
-            </div>
+                return <button key={filter.key} type="button" onClick={() => toggleChinaFilter(filter.key)} className="min-h-11 active:scale-95"><TagChip tone={active ? "green" : "default"}>{filter.compactLabel[locale]}</TagChip></button>;
+              })}</div>
+            </div> : null}
+            {showChinaFilters && detailedChinaFilters.length ? <div className="flex flex-wrap gap-2">{detailedChinaFilters.map((filter) => {
+              const active = activeChinaFilters.includes(filter.key);
+              return <button key={filter.key} type="button" onClick={() => toggleChinaFilter(filter.key)} className="min-h-11 active:scale-95"><TagChip tone={active ? "green" : "default"}>{filter.label[locale]}</TagChip></button>;
+            })}</div> : null}
+            <button type="button" onClick={requestLocation} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-blue-50 px-4 text-sm font-black text-blue-700 ring-1 ring-blue-100">
+              <LocateFixed size={16} aria-hidden="true" />{explorerCopy.distanceSort}
+            </button>
           </div>
-        ) : null}
-
-        {showChinaFilters && detailedChinaFilters.length ? (
-          <details className="rounded-2xl bg-slate-50 p-3">
-            <summary className="cursor-pointer text-sm font-black text-slate-800">
-              {explorerCopy.moreFilters}
-            </summary>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {detailedChinaFilters.map((filter) => {
-                const active = activeChinaFilters.includes(filter.key);
-
-                return (
-                  <button key={filter.key} type="button" onClick={() => toggleChinaFilter(filter.key)} className="active:scale-95">
-                    <TagChip tone={active ? "green" : "default"}>{filter.label[locale]}</TagChip>
-                  </button>
-                );
-              })}
-            </div>
-          </details>
-        ) : null}
+        </details>
 
         <div className="flex flex-wrap gap-2">
           {homeIntent ? <TagChip tone="green">{getHomeIntentLabel(homeIntent, locale)}</TagChip> : null}
-          <button type="button" onClick={requestLocation} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-black text-blue-700 ring-1 ring-blue-100">
-            <LocateFixed size={14} aria-hidden="true" />
-            {explorerCopy.distanceSort}
-          </button>
           {activeFilterCount > 0 || query || category !== "all" || region !== "all" || homeIntent ? (
             <button type="button" onClick={clearFilters} className="rounded-full bg-slate-950 px-3 py-1.5 text-sm font-black text-white">
               {explorerCopy.clearFilters}
@@ -400,8 +376,6 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
 
         {locationMessage ? <p className="text-xs font-semibold text-slate-500">{locationMessage}</p> : null}
       </div>
-
-      <PlaceRankingSection rankings={rankings} locale={locale} />
 
       {filteredPlaces.length > 0 ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -441,6 +415,8 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           />
         </div>
       )}
+
+      <PlaceRankingSection rankings={rankings} locale={locale} />
 
       <p className="mt-4 text-center text-xs text-slate-500">
         {explorerCopy.resultSummary(filteredPlaces.length, places.length)}
@@ -652,7 +628,7 @@ function buildSearchText(place: PlaceWithRelations, locale: Locale) {
 
 function filterClass(active: boolean) {
   return cn(
-    "shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
+    "min-h-11 shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
     active ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
   );
 }

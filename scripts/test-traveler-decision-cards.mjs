@@ -9,7 +9,24 @@ const compiled = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const module = { exports: {} };
-vm.runInNewContext(compiled, { module, exports: module.exports, require: () => ({}) }, { filename });
+vm.runInNewContext(compiled, {
+  module,
+  exports: module.exports,
+  require: (specifier) => {
+    if (specifier === "@/lib/place-data-integrity") {
+      return {
+        resolvePlaceFact: (place, key) => {
+          const structured = key === "card_payment" ? place.china_info?.foreign_card : place.china_info?.[key];
+          if (["yes", "no"].includes(structured)) return structured;
+          const legacy = key === "card_payment" ? place.card_payment : place[key];
+          return legacy === true ? "yes" : "unknown";
+        },
+      };
+    }
+    if (specifier === "@/lib/place-publication-quality") return { isVerifiedPlace: () => false };
+    return {};
+  },
+}, { filename });
 
 const { getDecisionWarnings, getPracticalFacts, getThemeLabels, getWorthLabel } = module.exports;
 const basePlace = {

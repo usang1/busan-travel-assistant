@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { absoluteUrl } from "@/config/site";
+import { hasChineseTranslation, isUsableChineseAddress } from "@/lib/place-data-integrity";
 import type { PlaceWithRelations } from "@/types/database";
 
 export const locales = ["zh", "en", "ja", "ko"] as const;
@@ -165,7 +166,7 @@ export const categoryLabels = {
 export const ui = {
   zh: {
     siteName: "韩国旅行助手",
-    siteDescription: "面向中国自由行游客的韩国旅行决策工具，覆盖首尔、釜山、济州已确认的地点、点餐、避坑信息与路线。",
+    siteDescription: "面向中国自由行游客的韩国旅行决策工具，整理首尔、釜山、济州公开地点及其审核状态、点餐、避坑信息与路线。",
     region: "首尔・釜山・济州",
     nav: {
       home: "首页",
@@ -264,7 +265,7 @@ export const ui = {
       description: "为首尔、釜山、济州自由行游客整理：先判断现在值不值得去、该点什么、外国人是否方便，以及要避开什么。",
       area: "当前开放 · 首尔・釜山・济州",
       areaAction: "更换区域",
-      areaNote: "仅显示首尔、釜山、济州中已通过审核并公开的地点。",
+      areaNote: "首尔、釜山、济州的公开地点会分别标注审核状态。",
       heading: "先找到要去的店，再保存进路线。",
       subheading: "为中国自由行游客整理的首尔・釜山・济州旅行工具。",
       supporting: "搜索、比较、查看详情、收藏，再把收藏地点加入行程。没有确认的数据不会用示例地点补齐。",
@@ -294,8 +295,8 @@ export const ui = {
       itineraryCta: "整理我的行程",
     },
     places: {
-      title: "首尔・釜山・济州地点｜已审核旅行信息",
-      description: "搜索首尔、釜山、济州的餐厅、咖啡店、拍照点、购物和行李寄存，按旅行条件快速筛选。",
+      title: "首尔・釜山・济州公开地点｜审核状态清楚标注",
+      description: "搜索首尔、釜山、济州的公开餐厅、咖啡店、拍照点、购物和行李寄存，并分别查看审核状态。",
       heading: "找地点",
       searchPlaceholder: "搜索中文名、韩文名、菜单、地区、类别",
       all: "全部",
@@ -340,6 +341,11 @@ export const ui = {
       submit: "提交",
       submitted: "已提交。管理员审核后会反映到服务中。",
       submitFailed: "提交失败。请稍后再试。",
+      locationRequirement: "请提供有效的 Naver、Kakao 或 Google Maps 链接，或者同时填写地点名称和地址/位置。",
+      orDivider: "或者",
+      invalidMapUrl: "请输入有效的 Naver、Kakao 或 Google Maps 链接。",
+      duplicate: "这个地点已经有人提交，或正在审核中。",
+      networkError: "网络连接失败。请确认网络后重试。",
       loadFailed: "无法加载提交记录。请稍后再试。",
       empty: "还没有提交地点。",
       status: {
@@ -369,7 +375,7 @@ export const ui = {
   },
   en: {
     siteName: "Korea Travel Assistant",
-    siteDescription: "A Korea travel decision tool covering reviewed places, ordering guidance, failure warnings, and routes across Seoul, Busan, and Jeju.",
+    siteDescription: "A Korea travel decision tool covering public places with review status, ordering guidance, warnings, and routes across Seoul, Busan, and Jeju.",
     region: "Seoul · Busan · Jeju",
     nav: {
       home: "Home",
@@ -468,7 +474,7 @@ export const ui = {
       description: "For independent travelers in Seoul, Busan, and Jeju: decide whether to go now, what to order, and what mistakes to avoid.",
       area: "Available now · Seoul, Busan, Jeju",
       areaAction: "Change area",
-      areaNote: "Only reviewed, public places in Seoul, Busan, and Jeju are shown.",
+      areaNote: "Public places in Seoul, Busan, and Jeju show their review status separately.",
       heading: "Find places first, then save them into a route.",
       subheading: "A Seoul, Busan, and Jeju travel tool for independent travelers.",
       supporting: "Search, compare, check details, save places, and add saved places to an itinerary. Missing data is not replaced with sample places.",
@@ -498,8 +504,8 @@ export const ui = {
       itineraryCta: "Plan my itinerary",
     },
     places: {
-      title: "Seoul, Busan & Jeju Places | Reviewed Travel Information",
-      description: "Search reviewed restaurants, cafes, photo spots, shopping, and luggage storage across Seoul, Busan, and Jeju.",
+      title: "Seoul, Busan & Jeju Public Places | Review Status Shown",
+      description: "Search public restaurants, cafes, photo spots, shopping, and luggage storage, with review status shown separately.",
       heading: "Find places",
       searchPlaceholder: "Search names, Korean names, menus, areas, categories",
       all: "All",
@@ -544,6 +550,11 @@ export const ui = {
       submit: "Submit",
       submitted: "Submitted. Admins will review it before publishing.",
       submitFailed: "Submission failed. Please try again later.",
+      locationRequirement: "Provide a valid Naver, Kakao, or Google Maps URL, or enter both a place name and an address/location.",
+      orDivider: "or",
+      invalidMapUrl: "Enter a valid Naver, Kakao, or Google Maps URL.",
+      duplicate: "This place has already been submitted or is currently under review.",
+      networkError: "The network request failed. Check your connection and try again.",
       loadFailed: "Could not load submissions. Please try again later.",
       empty: "No place submissions yet.",
       status: {
@@ -573,7 +584,7 @@ export const ui = {
   },
   ja: {
     siteName: "韓国旅行アシスタント",
-    siteDescription: "ソウル・釜山・済州の確認済みスポット、注文、失敗注意、旅程をまとめた韓国旅行判断ツール。",
+    siteDescription: "ソウル・釜山・済州の公開スポットと確認状態、注文、失敗注意、旅程をまとめた韓国旅行判断ツール。",
     region: "ソウル・釜山・済州",
     nav: {
       home: "ホーム",
@@ -672,7 +683,7 @@ export const ui = {
       description: "ソウル・釜山・済州を旅する人向けに、今行く価値、注文するもの、外国人の利用しやすさ、避けたい失敗を整理します。",
       area: "現在公開中 · ソウル・釜山・済州",
       areaAction: "エリア変更",
-      areaNote: "ソウル・釜山・済州のうち、確認済みで公開されたスポットだけを表示します。",
+      areaNote: "ソウル・釜山・済州の公開スポットは、確認状態を分けて表示します。",
       heading: "行きたい場所を見つけて、ルートに保存。",
       subheading: "個人旅行者向けのソウル・釜山・済州旅行ツール。",
       supporting: "検索、比較、詳細確認、保存、保存スポットから旅程作成までつなげます。未確認データをサンプルで補完しません。",
@@ -702,8 +713,8 @@ export const ui = {
       itineraryCta: "旅程を整理",
     },
     places: {
-      title: "ソウル・釜山・済州スポット｜確認済み旅行情報",
-      description: "ソウル・釜山・済州の飲食店、カフェ、写真スポット、買い物、荷物預かりを検索できます。",
+      title: "ソウル・釜山・済州の公開スポット｜確認状態を表示",
+      description: "公開中の飲食店、カフェ、写真スポット、買い物、荷物預かりを検索し、確認状態を分けて確認できます。",
       heading: "スポット検索",
       searchPlaceholder: "名称、韓国語名、メニュー、エリア、カテゴリを検索",
       all: "すべて",
@@ -748,6 +759,11 @@ export const ui = {
       submit: "送信",
       submitted: "送信しました。管理者が確認してから掲載します。",
       submitFailed: "送信できませんでした。時間をおいて再度お試しください。",
+      locationRequirement: "有効な Naver・Kakao・Google Maps URL、またはスポット名と住所・位置の両方を入力してください。",
+      orDivider: "または",
+      invalidMapUrl: "有効な Naver・Kakao・Google Maps URLを入力してください。",
+      duplicate: "このスポットはすでに投稿済み、または確認中です。",
+      networkError: "通信に失敗しました。接続を確認して再度お試しください。",
       loadFailed: "投稿を読み込めませんでした。時間をおいて再度お試しください。",
       empty: "投稿したスポットはまだありません。",
       status: {
@@ -777,7 +793,7 @@ export const ui = {
   },
   ko: {
     siteName: "한국 여행 어시스턴트",
-    siteDescription: "서울·부산·제주의 검수된 장소, 주문 정보, 실패 주의사항과 여행 동선을 연결하는 한국 여행 의사결정 도구입니다.",
+    siteDescription: "서울·부산·제주의 공개 장소와 검수 상태, 주문 정보, 실패 주의사항과 여행 동선을 연결하는 한국 여행 의사결정 도구입니다.",
     region: "서울 · 부산 · 제주",
     nav: {
       home: "홈",
@@ -876,7 +892,7 @@ export const ui = {
       description: "서울·부산·제주 자유여행객이 지금 갈 가치, 주문할 메뉴, 외국인 이용 편의, 피해야 할 실수를 먼저 판단하도록 돕습니다.",
       area: "현재 운영 · 서울·부산·제주",
       areaAction: "지역 변경",
-      areaNote: "서울·부산·제주에서 검수를 통과해 공개된 장소만 표시합니다.",
+      areaNote: "서울·부산·제주의 공개 장소와 검수 상태를 구분해 표시합니다.",
       heading: "갈 곳을 먼저 찾고, 일정에 저장하세요.",
       subheading: "외국인 자유여행객을 위한 서울·부산·제주 여행 도구.",
       supporting: "검색, 비교, 상세 확인, 저장, 저장한 장소 기반 일정 만들기까지 이어집니다. 확인되지 않은 데이터는 예시 장소로 채우지 않습니다.",
@@ -906,8 +922,8 @@ export const ui = {
       itineraryCta: "내 일정 정리하기",
     },
     places: {
-      title: "서울·부산·제주 장소 | 검수된 여행 정보",
-      description: "서울·부산·제주의 음식점, 카페, 사진스팟, 쇼핑, 짐보관을 여행 조건으로 찾습니다.",
+      title: "서울·부산·제주 공개 장소 | 검수 상태 별도 표시",
+      description: "서울·부산·제주의 공개 음식점, 카페, 사진스팟, 쇼핑, 짐보관을 찾고 검수 상태를 별도로 확인합니다.",
       heading: "장소 찾기",
       searchPlaceholder: "장소명, 한글 원명, 메뉴, 지역, 카테고리 검색",
       all: "전체",
@@ -952,6 +968,11 @@ export const ui = {
       submit: "접수",
       submitted: "제보가 접수되었습니다. 관리자가 검수 후 반영합니다.",
       submitFailed: "제보 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      locationRequirement: "유효한 네이버·카카오·Google Maps URL을 입력하거나, 장소명과 주소·위치를 모두 입력해 주세요.",
+      orDivider: "또는",
+      invalidMapUrl: "유효한 네이버·카카오·Google Maps 링크를 입력해 주세요.",
+      duplicate: "이미 제보되었거나 검토 중인 장소입니다.",
+      networkError: "네트워크 연결에 실패했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.",
       loadFailed: "제보 내역을 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.",
       empty: "아직 제보한 장소가 없습니다.",
       status: {
@@ -1041,40 +1062,63 @@ export function getLocalizedTag(tag: { label_zh: string; label_ko: string }, loc
 }
 
 export function getLocalizedMenuItem(
-  item: { name_ko: string; name_zh: string; description_zh?: string },
+  item: { name_ko: string; name_zh: string; description_zh?: string; localized_name?: Partial<Record<Locale, string>>; korean_original_name?: string },
   locale: Locale,
 ) {
-  const exactName = locale === "zh" ? item.name_zh.trim() : locale === "ko" ? item.name_ko.trim() : "";
-  const originalLabels = { zh: "韩文原名", en: "Korean original", ja: "韓国語原文", ko: "" } as const;
-  const name = exactName || (locale === "ko" ? item.name_ko : `${originalLabels[locale]}: ${item.name_ko}`);
-  const secondaryName = locale !== "ko" && Boolean(exactName) && exactName !== item.name_ko ? item.name_ko : "";
+  const koreanOriginal = item.korean_original_name?.trim() || item.localized_name?.ko?.trim() || item.name_ko.trim();
+  const candidate = item.localized_name?.[locale]?.trim() || (locale === "zh" ? item.name_zh.trim() : locale === "ko" ? koreanOriginal : "");
+  const translated = locale === "ko" ? Boolean(candidate) : locale === "zh" ? hasChineseTranslation(candidate, koreanOriginal) : Boolean(candidate && candidate !== koreanOriginal);
+  const name = translated || locale === "ko" ? candidate || koreanOriginal : koreanOriginal;
+  const secondaryName = locale !== "ko" && translated ? koreanOriginal : "";
 
   return {
     name,
     secondaryName,
-    description: locale === "zh" ? item.description_zh ?? "" : "",
+    translationMissing: locale !== "ko" && !translated,
+    translationNotice: locale === "zh" && !translated ? "暂无中文译名" : locale === "en" && !translated ? "No translated name yet" : locale === "ja" && !translated ? "翻訳名は未登録" : "",
+    description: locale === "zh" && !/[가-힣]/u.test(item.description_zh ?? "") ? item.description_zh ?? "" : "",
   };
 }
 
 export function getPlaceContent(place: PlaceWithRelations, locale: Locale) {
-  const name = getLocalizedField(place, "name", locale);
+  const localizedName = getLocalizedField(place, "name", locale);
   const fallbackKoName = getLocalizedValue({ ko: place.name_ko }, "ko");
+  const hasTranslatedName = locale === "ko"
+    ? Boolean(localizedName)
+    : locale === "zh"
+      ? hasChineseTranslation(localizedName, fallbackKoName)
+      : Boolean(localizedName && localizedName !== fallbackKoName);
+  const name = hasTranslatedName || locale === "ko" ? localizedName || fallbackKoName : fallbackKoName;
 
   const translatedAddresses = place.translations?.reduce<LocalizedValue>((acc, translation) => {
     if (translation.address?.trim()) acc[translation.locale] = translation.address;
     return acc;
   }, {}) ?? {};
   const localizedAddresses = { zh: place.address_zh, ko: place.address_ko, ...translatedAddresses };
+  const candidateAddress = localizedAddresses[locale]?.trim() || "";
+  const address = locale === "zh" ? (isUsableChineseAddress(candidateAddress) ? candidateAddress : "") : candidateAddress;
+  const safeDescription = omitAccidentalKoreanProse(getLocalizedField(place, "description", locale), locale);
+  const safeTravelTip = omitAccidentalKoreanProse(getLocalizedField(place, "travelTip", locale), locale);
+  const safeWaitingInfo = omitAccidentalKoreanProse(getExactLocalizedValue({ zh: place.waiting_info_zh, ko: place.waiting_info_ko }, locale), locale);
+  const safeRecommendedOrder = omitAccidentalKoreanProse(getExactLocalizedValue({ zh: place.recommended_order_zh, ko: place.recommended_order_ko }, locale), locale);
 
   return {
     name,
-    secondaryName: locale === "ko" || name === fallbackKoName ? "" : fallbackKoName,
-    description: getLocalizedField(place, "description", locale),
-    travelTip: getLocalizedField(place, "travelTip", locale),
-    address: localizedAddresses[locale]?.trim() || "",
-    waitingInfo: getExactLocalizedValue({ zh: place.waiting_info_zh, ko: place.waiting_info_ko }, locale),
-    recommendedOrder: getExactLocalizedValue({ zh: place.recommended_order_zh, ko: place.recommended_order_ko }, locale),
+    secondaryName: locale === "ko" || !hasTranslatedName ? "" : fallbackKoName,
+    translationMissing: locale !== "ko" && !hasTranslatedName,
+    translationNotice: locale === "zh" && !hasTranslatedName ? "暂无中文译名" : locale === "en" && !hasTranslatedName ? "No translated name yet" : locale === "ja" && !hasTranslatedName ? "翻訳名は未登録" : "",
+    description: safeDescription,
+    travelTip: safeTravelTip,
+    address,
+    addressOriginalKo: place.address_ko.trim(),
+    addressTranslationMissing: locale === "zh" && !address && Boolean(place.address_ko.trim()),
+    waitingInfo: safeWaitingInfo,
+    recommendedOrder: safeRecommendedOrder,
   };
+}
+
+function omitAccidentalKoreanProse(value: string, locale: Locale) {
+  return locale === "zh" && /[가-힣]/u.test(value) ? "" : value;
 }
 
 type DictionaryKeyDiff = {
