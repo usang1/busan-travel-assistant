@@ -56,6 +56,7 @@ await db.exec(fs.readFileSync("supabase/migrations/022_official_guides.sql", "ut
 await db.exec(fs.readFileSync("supabase/migrations/024_guide_editorial_content.sql", "utf8"));
 await db.exec("insert into places(id,is_active,status) values('99999999-9999-4999-8999-999999999999',true,'PUBLISHED'); insert into place_menu_items(place_id,name_ko,name_zh,is_recommended) values('99999999-9999-4999-8999-999999999999','기존 추천','旧推荐',true);");
 await db.exec(fs.readFileSync("supabase/migrations/030_traveler_decision_data.sql", "utf8"));
+await db.exec(fs.readFileSync("supabase/migrations/046_remove_decision_evidence_requirement.sql", "utf8"));
 assert.equal((await db.query("select recommendation_status from place_menu_items where name_ko='기존 추천'")).rows[0].recommendation_status, "unknown", "Legacy recommendations without evidence must not become verified recommendations");
 
 const admin = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -66,13 +67,14 @@ async function actor(role, id = "") { await db.exec("reset role"); await db.quer
 
 await actor("authenticated", admin);
 await db.query("insert into places(id,is_active,status) values($1,true,'PUBLISHED'),($2,true,'PUBLISHED')", [place, target]);
+await db.query("insert into place_decision_profiles(place_id,tourist_fit_score,confidence_score,last_verified_at,verification_status) values($1,80,90,'2026-09-22','verified')", [place]);
+assert.equal((await db.query("select tourist_fit_score from place_decision_profiles where place_id=$1", [place])).rows[0].tourist_fit_score, "80.00", "Decision scores must save without evidence");
 await db.query("insert into place_fact_evidence(place_id,field_key,fact_value,source_type,source_label,observed_at,verified_at,verification_status) values($1,'foreign_card','\"yes\"','official_source','Official','2026-09-20','2026-09-22','verified')", [place]);
-await db.query("insert into place_decision_profiles(place_id,tourist_fit_score,confidence_score,evidence_count,last_verified_at,verification_status) values($1,80,90,1,'2026-09-22','verified')", [place]);
 await assert.rejects(db.query("insert into place_menu_items(place_id,name_ko,name_zh,recommendation_status) values($1,'메뉴','菜单','yes')", [place]), /recommendation_basis/);
 await db.query("insert into place_connections(from_place_id,to_place_id,travel_minutes,travel_mode) values($1,$2,10,'walk')", [place,target]);
 
 await actor("anon");
-assert.equal((await db.query("select tourist_fit_score from place_decision_profiles")).rows[0].tourist_fit_score, "80.00");
+assert.equal((await db.query("select tourist_fit_score from place_decision_profiles where place_id=$1", [place])).rows[0].tourist_fit_score, "80.00");
 assert.equal((await db.query("select * from place_connections")).rows.length, 1);
 await assert.rejects(db.query("select * from place_fact_evidence"));
 await assert.rejects(db.query("insert into place_fact_reports(place_id,fact_type,fact_value,observed_at,device_hash,verification_method) values($1,'wifi','\"yes\"',now(),repeat('a',64),'manual')", [place]));
@@ -86,9 +88,9 @@ assert.equal((await db.query("select * from place_fact_reports")).rows.length, 1
 await actor("authenticated", admin);
 await db.query("delete from place_fact_evidence where place_id=$1", [place]);
 const cleared = (await db.query("select tourist_fit_score,evidence_count,verification_status from place_decision_profiles where place_id=$1", [place])).rows[0];
-assert.equal(cleared.tourist_fit_score, null);
+assert.equal(cleared.tourist_fit_score, "80.00");
 assert.equal(cleared.evidence_count, 0);
-assert.equal(cleared.verification_status, "unverified");
+assert.equal(cleared.verification_status, "verified");
 
 const guidePayload = {
   slug: "decision-course", status: "PUBLISHED", guide_type: "ITINERARY", cover_image: "", area: "Busan",
@@ -106,4 +108,4 @@ assert.equal(savedGuide.recommended_start_time, "10:00:00");
 assert.equal((await db.query("select travel_minutes,travel_mode from guide_places where guide_id=$1 order by sequence", [guideId])).rows[0].travel_mode, "walk");
 
 await db.close();
-process.stdout.write("Traveler decision PostgreSQL constraints, evidence invalidation, RLS and ownership tests passed.\n");
+process.stdout.write("Traveler decision PostgreSQL constraints, direct entry, RLS and ownership tests passed.\n");

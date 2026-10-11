@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
 import { publicPlacesCacheTag } from "@/lib/cache-tags";
-import { countVerifiedTravelerEvidence, createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } from "@/lib/traveler-decision-validation";
+import { createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } from "@/lib/traveler-decision-validation";
 import type { TravelerDecisionBundle, TravelerDecisionSection } from "@/types/traveler-decision";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -18,17 +18,16 @@ export async function GET(request: Request, context: RouteContext) {
   try {
     const { client } = await requireAdmin(request);
     const id = await placeId(context);
-    const [decision, practical, operating, menus, evidence, connections] = await Promise.all([
+    const [decision, practical, operating, menus, connections] = await Promise.all([
       client.from("place_decision_profiles").select("*").eq("place_id", id).maybeSingle(),
       client.from("place_china_info").select("*").eq("place_id", id).maybeSingle(),
       client.from("place_operating_profiles").select("*").eq("place_id", id).maybeSingle(),
       client.from("place_menu_items").select("*").eq("place_id", id).order("sort_order"),
-      client.from("place_fact_evidence").select("*").eq("place_id", id).order("created_at"),
       client.from("place_connections").select("*").eq("from_place_id", id).order("priority", { ascending: false }),
     ]);
-    const error = [decision, practical, operating, menus, evidence, connections].find((result) => result.error)?.error;
+    const error = [decision, practical, operating, menus, connections].find((result) => result.error)?.error;
     if (error) throw migrationError(error);
-    return NextResponse.json({ bundle: toBundle(decision.data, practical.data, operating.data, menus.data ?? [], evidence.data ?? [], connections.data ?? []) }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ bundle: toBundle(decision.data, practical.data, operating.data, menus.data ?? [], connections.data ?? []) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const response = adminErrorResponse(error);
     return NextResponse.json({ message: response.message }, { status: response.status });
@@ -40,13 +39,7 @@ export async function PUT(request: Request, context: RouteContext) {
     const { client } = await requireAdmin(request);
     const id = await placeId(context);
     const body = await request.json() as { section?: TravelerDecisionSection; value?: unknown };
-    let input = body.value;
-    if (body.section === "decision") {
-      const { count, error } = await client.from("place_fact_evidence").select("id", { count: "exact", head: true }).eq("place_id", id).in("verification_status", ["verified", "partially_verified"]);
-      if (error) throw migrationError(error);
-      input = { ...(isRecord(input) ? input : {}), evidence_count: count ?? 0 };
-    }
-    const value = validateTravelerDecisionSection(body.section, input);
+    const value = validateTravelerDecisionSection(body.section, body.value);
     await saveSection(client, id, body.section as TravelerDecisionSection, value);
     revalidateTag(publicPlacesCacheTag, { expire: 0 });
     return NextResponse.json({ ok: true });
@@ -116,11 +109,6 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
     if (error) throw error.code === "PGRST202" ? publicError("메뉴 원자 저장 migration(042)을 먼저 적용해주세요.", 503) : migrationError(error);
     return;
   }
-  if (section === "evidence") {
-    const rows = (value as TravelerDecisionBundle["evidence"]).map((item) => ({ ...item, id: item.id ?? crypto.randomUUID(), place_id: id, source_url: item.source_url || null }));
-    await replaceRows(client, "place_fact_evidence", "place_id", id, rows);
-    return;
-  }
   const rows = (value as TravelerDecisionBundle["connections"]).map((item) => ({ ...item, id: item.id ?? crypto.randomUUID(), from_place_id: id }));
   if (rows.some((row) => row.to_place_id === id)) throw publicError("같은 장소끼리는 연결할 수 없습니다.", 400);
   await replaceRows(client, "place_connections", "from_place_id", id, rows);
@@ -153,12 +141,14 @@ async function replaceRows(client: AdminClient, table: string, ownerColumn: stri
   if (error) throw migrationError(error);
 }
 
-function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Record<string, unknown> | null, operatingRow: Record<string, unknown> | null, menuRows: Record<string, unknown>[], evidenceRows: Record<string, unknown>[], connectionRows: Record<string, unknown>[]): TravelerDecisionBundle {
+function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Record<string, unknown> | null, operatingRow: Record<string, unknown> | null, menuRows: Record<string, unknown>[], connectionRows: Record<string, unknown>[]): TravelerDecisionBundle {
   const empty = createEmptyTravelerDecisionBundle();
   const practical = practicalRow ?? {};
+  const decision = { ...(decisionRow ?? {}) };
+  delete decision.evidence_count;
   const travelerInsights = isRecord(practical.traveler_insights) ? practical.traveler_insights : {};
   return {
-    decision: { ...empty.decision, ...decisionRow, evidence_count: countVerifiedTravelerEvidence(evidenceRows), order_difficulty: numberOrNull(practical.ordering_difficulty), primary_warning: localeValue(decisionRow?.primary_warning), visit_summary: localeValue(decisionRow?.visit_summary), worth_reason: localeValue(decisionRow?.worth_reason), information_status_note: localeValue(decisionRow?.information_status_note) },
+    decision: { ...empty.decision, ...decision, order_difficulty: numberOrNull(practical.ordering_difficulty), primary_warning: localeValue(decisionRow?.primary_warning), visit_summary: localeValue(decisionRow?.visit_summary), worth_reason: localeValue(decisionRow?.worth_reason), information_status_note: localeValue(decisionRow?.information_status_note) },
     practical: {
       ...empty.practical, spicy_level: numberOrNull(practical.spicy_level), oily_level: numberOrNull(practical.greasy_level),
       aroma_level: numberOrNull(practical.smell_level), sweetness_level: numberOrNull(practical.sweetness_level), portion_level: numberOrNull(practical.portion_level),
@@ -187,9 +177,6 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
       menu_warning: localeValue(row.menu_warning), availability_time: Array.isArray(row.availability_time) ? row.availability_time as TravelerDecisionBundle["menus"][number]["availability_time"] : [],
       sold_out_risk: numberOrNull(row.sold_out_risk), sort_order: typeof row.sort_order === "number" ? row.sort_order : index,
     })),
-    evidence: evidenceRows.map((row) => ({ id: String(row.id), field_key: stringValue(row.field_key), fact_value: row.fact_value,
-      source_type: row.source_type as TravelerDecisionBundle["evidence"][number]["source_type"], source_label: stringValue(row.source_label), source_url: stringValue(row.source_url),
-      observed_at: nullableString(row.observed_at), verified_at: nullableString(row.verified_at), verification_status: row.verification_status as TravelerDecisionBundle["evidence"][number]["verification_status"], notes: stringValue(row.notes) })),
     connections: connectionRows.map((row) => ({ id: String(row.id), to_place_id: stringValue(row.to_place_id), travel_minutes: numberOrNull(row.travel_minutes),
       travel_distance: numberOrNull(row.travel_distance), travel_mode: (row.travel_mode ?? null) as TravelerDecisionBundle["connections"][number]["travel_mode"],
       sequence_reason: localeValue(row.sequence_reason), valid_time_ranges: Array.isArray(row.valid_time_ranges) ? row.valid_time_ranges as TravelerDecisionBundle["connections"][number]["valid_time_ranges"] : [],
@@ -199,6 +186,7 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
 }
 
 function migrationError(error: { code?: string; message?: string }) {
+  if ((error.message ?? "").includes("place_decision_recommendation_has_evidence")) return publicError("방문 결정 근거 조건 제거 migration(046)을 먼저 적용해주세요.", 503);
   if (["42P01", "42703", "PGRST200", "PGRST204", "PGRST205"].includes(error.code ?? "")) return publicError("여행자 의사결정 DB migration(030, 031)을 먼저 적용해주세요.", 503);
   return error;
 }
@@ -213,7 +201,6 @@ function publicError(message: string, status: number) { return Object.assign(new
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
 function localeValue(value: unknown, fallback = { ko: "", zh: "", en: "", ja: "" }) { return isRecord(value) ? { ko: stringValue(value.ko), zh: stringValue(value.zh), en: stringValue(value.en), ja: stringValue(value.ja) } : fallback; }
 function stringValue(value: unknown) { return typeof value === "string" ? value : ""; }
-function nullableString(value: unknown) { return typeof value === "string" && value ? value : null; }
 function numberOrNull(value: unknown) { const number = typeof value === "number" ? value : Number(value); return value !== null && value !== "" && Number.isFinite(number) ? number : null; }
 function stringArray(value: unknown) { return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []; }
 function tristate(value: unknown, fallback: "yes" | "no" | "unknown" = "unknown") { return value === "yes" || value === "no" || value === "unknown" ? value : fallback; }

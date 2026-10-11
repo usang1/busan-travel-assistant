@@ -8,7 +8,6 @@ export const travelerThemes = [
 
 export type TravelerTheme = (typeof travelerThemes)[number];
 export type TravelerVerificationStatus = "verified" | "partially_verified" | "unverified" | "stale" | "conflicting" | "rejected";
-export type PlaceFactSourceType = "official_source" | "owner_merchant" | "administrator" | "traveler_report" | "inferred" | "unverified";
 export type WorthDetourLevel = "nearby_only" | "worth_short_detour" | "worth_long_detour" | "destination" | "purpose_dependent" | "not_recommended";
 export type InformationStatus = "complete" | "partial" | "not_checked" | "not_applicable";
 export type PlaceTravelMode = "walk" | "transit" | "taxi" | "car" | "mixed";
@@ -29,7 +28,6 @@ export type PlaceDecisionProfile = {
   solo_difficulty: number | null;
   foreigner_difficulty: number | null;
   confidence_score: number | null;
-  evidence_count: number;
   last_verified_at: string | null;
   verification_status: TravelerVerificationStatus;
   updated_at?: string;
@@ -121,19 +119,6 @@ export type TravelerMenuItem = {
   sort_order: number;
 };
 
-export type PlaceFactEvidence = {
-  id?: string;
-  field_key: string;
-  fact_value: unknown;
-  source_type: PlaceFactSourceType;
-  source_label: string;
-  source_url: string;
-  observed_at: string | null;
-  verified_at: string | null;
-  verification_status: TravelerVerificationStatus;
-  notes: string;
-};
-
 export type PlaceConnection = {
   id?: string;
   from_place_id?: string;
@@ -154,7 +139,6 @@ export type TravelerDecisionBundle = {
   practical: PlacePracticalProfile;
   operating: PlaceOperatingProfile;
   menus: TravelerMenuItem[];
-  evidence: PlaceFactEvidence[];
   connections: PlaceConnection[];
 };
 

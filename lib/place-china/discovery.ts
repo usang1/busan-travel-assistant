@@ -445,10 +445,10 @@ export function getEnabledChinaFilters(places: PlaceWithRelations[]) {
   return chinaDiscoveryFilters.filter((filter) => filter.enabled(places));
 }
 
-export function hasVerifiedRecommendationScores(places: PlaceWithRelations[]) {
+export function hasRecommendationScores(places: PlaceWithRelations[]) {
   return places.some((place) => {
     const profile = place.decision_profile;
-    return Boolean(profile && profile.evidence_count > 0 && typeof profile.tourist_fit_score === "number" && (profile.verification_status === "verified" || profile.verification_status === "partially_verified"));
+    return Boolean(profile && typeof profile.tourist_fit_score === "number");
   });
 }
 

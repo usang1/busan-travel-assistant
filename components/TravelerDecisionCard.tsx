@@ -122,7 +122,7 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
 
       <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-200 pt-4 text-xs font-bold text-slate-600">
         <span className="inline-flex items-center gap-1.5"><ShieldCheck size={15} aria-hidden="true" />{getDecisionStatusLabel(status, locale)}</span>
-        {evidence.length ? evidence.map((item) => <span key={item}>{item}</span>) : <span>{text.evidence}: {text.unknown}</span>}
+        {evidence.map((item) => <span key={item}>{item}</span>)}
       </div>
     </section>
   );

@@ -1,13 +1,11 @@
 import { travelerThemes, type LocaleText, type TravelerDecisionBundle, type TravelerDecisionSection } from "@/types/traveler-decision";
 
 const verificationStatuses = ["verified", "partially_verified", "unverified", "stale", "conflicting", "rejected"] as const;
-const sourceTypes = ["official_source", "owner_merchant", "administrator", "traveler_report", "inferred", "unverified"] as const;
 const tristates = ["yes", "no", "unknown"] as const;
 const travelModes = ["walk", "transit", "taxi", "car", "mixed"] as const;
 const detourLevels = ["nearby_only", "worth_short_detour", "worth_long_detour", "destination", "purpose_dependent", "not_recommended"] as const;
 const informationStatuses = ["complete", "partial", "not_checked", "not_applicable"] as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const fieldKey = /^[a-z][a-z0-9_.]{1,99}$/;
 const locales = ["ko", "zh", "en", "ja"] as const;
 
 export function emptyLocaleText(): LocaleText {
@@ -21,7 +19,7 @@ export function createEmptyTravelerDecisionBundle(): TravelerDecisionBundle {
       tourist_fit_score: null, recommended_for: [], not_recommended_for: [], primary_warning: emptyLocaleText(),
       visit_summary: emptyLocaleText(), worth_detour_level: null, worth_reason: emptyLocaleText(),
       information_status: "not_checked", information_status_note: emptyLocaleText(), order_difficulty: null, solo_difficulty: null,
-      foreigner_difficulty: null, confidence_score: null, evidence_count: 0, last_verified_at: null,
+      foreigner_difficulty: null, confidence_score: null, last_verified_at: null,
       verification_status: "unverified",
     },
     practical: {
@@ -38,21 +36,12 @@ export function createEmptyTravelerDecisionBundle(): TravelerDecisionBundle {
       recommended_time_ranges: [], avoid_time_ranges: [], wait_time_by_weekday_hour: {}, sellout_risk_by_hour: {},
       photo_time_ranges: [], seasonal_availability: [], holiday_notes: emptyLocaleText(), verification_status: "unverified", last_verified_at: null,
     },
-    menus: [], evidence: [], connections: [],
+    menus: [], connections: [],
   };
 }
 
-export function countVerifiedTravelerEvidence(value: unknown) {
-  if (!Array.isArray(value)) return 0;
-  return value.filter((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
-    const status = (item as { verification_status?: unknown }).verification_status;
-    return status === "verified" || status === "partially_verified";
-  }).length;
-}
-
 export function validateTravelerDecisionSection(section: unknown, value: unknown) {
-  if (!["decision", "practical", "operating", "menus", "evidence", "connections"].includes(String(section))) {
+  if (!["decision", "practical", "operating", "menus", "connections"].includes(String(section))) {
     throw inputError("저장할 편집 영역이 올바르지 않습니다.");
   }
   const name = section as TravelerDecisionSection;
@@ -60,7 +49,6 @@ export function validateTravelerDecisionSection(section: unknown, value: unknown
   if (name === "practical") return validatePractical(value);
   if (name === "operating") return validateOperating(value);
   if (name === "menus") return validateMenus(value);
-  if (name === "evidence") return validateEvidence(value);
   return validateConnections(value);
 }
 
@@ -78,12 +66,9 @@ function validateDecision(value: unknown): TravelerDecisionBundle["decision"] {
     solo_difficulty: nullableInteger(input.solo_difficulty, 1, 5),
     foreigner_difficulty: nullableInteger(input.foreigner_difficulty, 1, 5),
     confidence_score: nullableNumber(input.confidence_score, 0, 100),
-    evidence_count: integer(input.evidence_count ?? 0, 0, 100000),
     last_verified_at: nullableDateTime(input.last_verified_at),
     verification_status: oneOf(input.verification_status, verificationStatuses, "확인 상태"),
   };
-  const recommends = result.tourist_fit_score !== null || result.recommended_for.length > 0 || result.worth_detour_level !== null;
-  if (recommends && result.evidence_count === 0) throw inputError("추천도·추천 대상·우회 방문 가치는 ‘확인 상태와 필드별 출처’에서 일부 확인 또는 확인 완료 근거를 먼저 저장해야 합니다. 설명 문구와 메뉴 추천 근거는 이 숫자에 포함되지 않습니다.");
   if (result.tourist_fit_score !== null && result.confidence_score === null) throw inputError("방문 적합도 점수에는 신뢰도 점수가 필요합니다.");
   if (["verified", "partially_verified"].includes(result.verification_status) && !result.last_verified_at) throw inputError("확인 완료 상태에는 마지막 확인일이 필요합니다.");
   return result;
@@ -161,20 +146,6 @@ function validateMenus(value: unknown): TravelerDecisionBundle["menus"] {
   });
 }
 
-function validateEvidence(value: unknown): TravelerDecisionBundle["evidence"] {
-  return array(value, 200).map((entry) => {
-    const row = object(entry); const status = oneOf(row.verification_status, verificationStatuses, "근거 확인 상태");
-    const source = oneOf(row.source_type, sourceTypes, "근거 출처"); const observed = nullableDateTime(row.observed_at);
-    if (!fieldKey.test(String(row.field_key ?? ""))) throw inputError("근거 필드 키 형식을 확인해주세요.");
-    if (["verified", "partially_verified"].includes(status) && (source === "unverified" || !observed)) throw inputError("확인된 근거에는 출처 종류와 관찰일이 필요합니다.");
-    return {
-      ...(typeof row.id === "string" && uuid.test(row.id) ? { id: row.id } : {}), field_key: String(row.field_key), fact_value: row.fact_value ?? null,
-      source_type: source, source_label: text(row.source_label, 200), source_url: httpUrl(row.source_url), observed_at: observed,
-      verified_at: nullableDateTime(row.verified_at), verification_status: status, notes: text(row.notes, 4000),
-    };
-  });
-}
-
 function validateConnections(value: unknown): TravelerDecisionBundle["connections"] {
   const seen = new Set<string>();
   return array(value, 100).map((entry) => {
@@ -224,5 +195,4 @@ function nullableTime(value: unknown) { return value === null || value === undef
 function date(value: unknown) { const result = text(value, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(result) || new Date(`${result}T00:00:00Z`).toISOString().slice(0, 10) !== result) throw inputError("날짜 형식을 확인해주세요."); return result; }
 function nullableDateTime(value: unknown) { if (value === null || value === undefined || value === "") return null; const result = text(value, 40); if (!Number.isFinite(Date.parse(result))) throw inputError("확인일 형식을 확인해주세요."); return new Date(result).toISOString(); }
 function numericRecord(value: unknown, min: number, max: number) { const input = object(value); const output: Record<string, number | null> = {}; for (const [key, item] of Object.entries(input)) { if (!/^[0-6]-(?:[01]\d|2[0-3])$/.test(key)) throw inputError("요일-시간 키 형식을 확인해주세요."); output[key] = nullableNumber(item, min, max); } return output; }
-function httpUrl(value: unknown) { const result = text(value, 2048); if (!result) return ""; try { if (!["http:", "https:"].includes(new URL(result).protocol)) throw new Error(); } catch { throw inputError("출처 URL을 확인해주세요."); } return result; }
 function inputError(message: string) { return Object.assign(new Error(message), { status: 400, expose: true }); }

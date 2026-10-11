@@ -204,16 +204,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     transit: placeHasCoordinates ? getConfirmedTransitLabel(place, locale) : "",
   });
   const factLabels = {
-    zh: { address: "中文参考地址", phone: "电话", website: "网站", verification: "现场验证状态", evidence: "推荐依据", source: "来源状态", lastChecked: "基本信息确认日" },
-    en: { address: "Readable address", phone: "Phone", website: "Website", verification: "Field verification", evidence: "Recommendation basis", source: "Source status", lastChecked: "Basic info checked" },
-    ja: { address: "住所", phone: "電話", website: "ウェブサイト", verification: "現地検証状態", evidence: "おすすめ根拠", source: "出典状態", lastChecked: "基本情報確認日" },
-    ko: { address: "주소", phone: "전화", website: "웹사이트", verification: "현장 검증 상태", evidence: "추천 근거", source: "출처 상태", lastChecked: "기본정보 최근 확인일" },
+    zh: { address: "中文参考地址", phone: "电话", website: "网站", verification: "现场验证状态", source: "来源状态", lastChecked: "基本信息确认日" },
+    en: { address: "Readable address", phone: "Phone", website: "Website", verification: "Field verification", source: "Source status", lastChecked: "Basic info checked" },
+    ja: { address: "住所", phone: "電話", website: "ウェブサイト", verification: "現地検証状態", source: "出典状態", lastChecked: "基本情報確認日" },
+    ko: { address: "주소", phone: "전화", website: "웹사이트", verification: "현장 검증 상태", source: "출처 상태", lastChecked: "기본정보 최근 확인일" },
   }[locale];
   const fullyVerified = isVerifiedPlace(place);
   const detailStatus = getVerificationStatusLabel(fullyVerified ? "verified" : verificationStatus === "needs_review" ? "needs_review" : "unverified", locale);
   const detailSource = getSourceSummary(place, locale);
   const detailLastChecked = getLastVerifiedLabel(place, locale);
-  const detailEvidence = getRecommendationBasisLabel(place, locale);
   const recommendationDescription = publicDescription || trustCopy.noPublicDescription;
   const localizedTags = place.tags
     .map((tag) => ({ slug: tag.slug, label: getLocalizedTag(tag, locale) }))
@@ -348,9 +347,8 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             <p className="mt-3 text-base leading-7 text-slate-700">{recommendationDescription}</p>
           </section>
 
-          <section className="mt-5 grid gap-2 rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-100 sm:grid-cols-2">
+          <section className="mt-5 grid gap-2 rounded-[22px] bg-slate-50 p-4 ring-1 ring-slate-100 sm:grid-cols-3">
             <TrustFact icon={BadgeCheck} label={factLabels.verification} value={detailStatus} />
-            <TrustFact icon={BadgeCheck} label={factLabels.evidence} value={detailEvidence} />
             <TrustFact icon={FileSearch} label={factLabels.source} value={detailSource} />
             <TrustFact icon={CalendarCheck2} label={factLabels.lastChecked} value={detailLastChecked} />
           </section>
@@ -654,15 +652,6 @@ function getVisitWaitingLabel(place: PlaceWithRelations, locale: Locale) {
   if (locale === "zh" && place.waiting_info_zh.trim() && !/[가-힣]/u.test(place.waiting_info_zh)) return place.waiting_info_zh.trim();
   if (locale === "ko" && place.waiting_info_ko.trim()) return place.waiting_info_ko.trim();
   return "";
-}
-
-function getRecommendationBasisLabel(place: PlaceWithRelations, locale: Locale) {
-  const count = place.decision_profile?.evidence_count ?? 0;
-  if (count > 0) return {
-    zh: `${count} 条已登记依据`, en: `${count} registered evidence item${count === 1 ? "" : "s"}`,
-    ja: `登録根拠 ${count}件`, ko: `등록 근거 ${count}건`,
-  }[locale];
-  return { zh: "推荐依据未确认", en: "Recommendation basis unverified", ja: "おすすめ根拠は未確認", ko: "추천 근거 미확인" }[locale];
 }
 
 function TrustFact({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {

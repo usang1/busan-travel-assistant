@@ -13,23 +13,17 @@ function load(request, mocks = {}) {
   return module.exports;
 }
 
-const { countVerifiedTravelerEvidence, createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } = load("@/lib/traveler-decision-validation", {
+const { createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } = load("@/lib/traveler-decision-validation", {
   "@/types/traveler-decision": { travelerThemes: ["first_trip", "solo", "couple", "parents", "rainy_day", "food_trip", "photo_trip", "cafe_trip", "night_view", "low_walking", "luggage_day", "late_night"] },
 });
 const empty = createEmptyTravelerDecisionBundle();
 
-assert.equal(countVerifiedTravelerEvidence([
-  { verification_status: "verified" },
-  { verification_status: "partially_verified" },
-  { verification_status: "unverified" },
-]), 2, "Only verified and partially verified field evidence must be counted");
-
 assert.equal(empty.practical.foreign_card, "unknown", "Unverified facts must not default to false");
-assert.equal(empty.decision.tourist_fit_score, null, "Scores must remain null without evidence");
-assert.throws(() => validateTravelerDecisionSection("decision", { ...empty.decision, tourist_fit_score: 80, confidence_score: 90 }), /근거/);
-assert.throws(() => validateTravelerDecisionSection("decision", { ...empty.decision, evidence_count: 1, tourist_fit_score: 80 }), /신뢰도/);
+assert.equal(empty.decision.tourist_fit_score, null, "Scores must remain null until an admin enters one");
+assert.equal(validateTravelerDecisionSection("decision", { ...empty.decision, tourist_fit_score: 80, confidence_score: 90 }).tourist_fit_score, 80, "Decision scores must save without field-level evidence");
+assert.throws(() => validateTravelerDecisionSection("decision", { ...empty.decision, tourist_fit_score: 80 }), /신뢰도/);
 assert.throws(() => validateTravelerDecisionSection("decision", { ...empty.decision, verification_status: "verified" }), /확인일/);
-assert.equal(validateTravelerDecisionSection("decision", { ...empty.decision, evidence_count: 1, tourist_fit_score: 80, confidence_score: 90, verification_status: "verified", last_verified_at: "2026-09-22T03:00:00Z" }).tourist_fit_score, 80);
+assert.equal(validateTravelerDecisionSection("decision", { ...empty.decision, tourist_fit_score: 80, confidence_score: 90, verification_status: "verified", last_verified_at: "2026-09-22T03:00:00Z" }).tourist_fit_score, 80);
 
 assert.throws(() => validateTravelerDecisionSection("practical", { ...empty.practical, kiosk_language_support: { status: "no", languages: ["zh"] } }), /언어 목록/);
 assert.equal(validateTravelerDecisionSection("practical", empty.practical).wheelchair_access, "unknown");
@@ -44,8 +38,6 @@ const menu = { localized_name: { ko: "돼지국밥", zh: "猪肉汤饭", en: "Po
 assert.throws(() => validateTravelerDecisionSection("menus", [menu]), /추천 근거/);
 assert.equal(validateTravelerDecisionSection("menus", [{ ...menu, recommendation_basis: "운영자 시식 및 공식 메뉴 확인" }])[0].recommendation_status, "yes");
 
-const evidence = { field_key: "foreign_card", fact_value: "yes", source_type: "unverified", source_label: "", source_url: "", observed_at: null, verified_at: null, verification_status: "verified", notes: "" };
-assert.throws(() => validateTravelerDecisionSection("evidence", [evidence]), /출처 종류와 관찰일/);
 assert.throws(() => validateTravelerDecisionSection("connections", [{ to_place_id: "not-a-uuid", travel_minutes: null, travel_distance: null, travel_mode: null, sequence_reason: { ko: "", zh: "", en: "", ja: "" }, valid_time_ranges: [], weather_conditions: [], trip_theme: [], active: true, priority: 0 }]), /연결 장소/);
 
 const migration = fs.readFileSync("supabase/migrations/030_traveler_decision_data.sql", "utf8");
@@ -81,14 +73,15 @@ for (const status of [401, 403]) {
 }
 
 const routeSource = fs.readFileSync("app/api/admin/places/[id]/traveler-decision/route.ts", "utf8");
-assert.match(routeSource, /count: "exact", head: true/);
-assert.match(routeSource, /\.in\("verification_status", \["verified", "partially_verified"\]\)/);
-assert.match(routeSource, /evidence_count: countVerifiedTravelerEvidence\(evidenceRows\)/, "admin reads must derive the count from saved evidence even before a decision profile exists");
+assert.doesNotMatch(routeSource, /place_fact_evidence/, "the traveler decision API must not load or save field-level evidence");
 assert.match(routeSource, /revalidateTag\(publicPlacesCacheTag, \{ expire: 0 \}\)/);
 
 const managerSource = fs.readFileSync("components/AdminTravelerDecisionManager.tsx", "utf8");
-assert.match(managerSource, /dirtySections\.has\("evidence"\)[\s\S]*section: "evidence"[\s\S]*section, value: bundle\[section\]/, "saving a decision must first persist edited evidence");
-assert.match(managerSource, /<EvidenceEditor[\s\S]*<DecisionEditor/, "the evidence editor must appear before evidence-dependent decision fields");
-assert.match(managerSource, /확인 근거 수에는 미포함/, "explanatory copy must not be presented as counted source evidence");
+assert.doesNotMatch(managerSource, /EvidenceEditor|확인 상태와 필드별 출처/, "the admin editor must not expose field-level evidence");
+assert.match(managerSource, /방문 결정 · 실패 경고[\s\S]*defaultOpen/, "decision and warning inputs must be immediately visible");
 
-process.stdout.write("Traveler decision validation, unknown-state defaults, provenance, RLS and privacy tests passed.\n");
+const evidenceRemovalMigration = fs.readFileSync("supabase/migrations/046_remove_decision_evidence_requirement.sql", "utf8");
+assert.match(evidenceRemovalMigration, /drop constraint if exists place_decision_recommendation_has_evidence/);
+assert.doesNotMatch(evidenceRemovalMigration, /tourist_fit_score = case|recommended_for = case|worth_detour_level = case/, "evidence updates must not clear decision fields");
+
+process.stdout.write("Traveler decision direct entry, unknown-state defaults, RLS and privacy tests passed.\n");

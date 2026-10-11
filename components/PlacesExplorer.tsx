@@ -23,7 +23,7 @@ import {
   countActiveChinaFilters,
   filterPlacesForChineseTraveler,
   getEnabledChinaFilters,
-  hasVerifiedRecommendationScores,
+  hasRecommendationScores,
   matchesTimeAwareFilter,
   sortPlacesForChineseTraveler,
   timeAwareDiscoveryFilters,
@@ -85,7 +85,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   const copy = ui[locale];
   const explorerCopy = placesExplorerCopy[locale];
   const showChinaFilters = true;
-  const hasRecommendationScores = useMemo(() => hasVerifiedRecommendationScores(places), [places]);
+  const recommendationScoresAvailable = useMemo(() => hasRecommendationScores(places), [places]);
   const availableChinaFilters = useMemo(() => (showChinaFilters ? getEnabledChinaFilters(places) : []), [places, showChinaFilters]);
   const availableQuickFilters = useMemo(
     () => availableChinaFilters.filter((filter) => chinaQuickFilters.includes(filter.key)),
@@ -110,8 +110,8 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   }, [query]);
 
   useEffect(() => {
-    if (!hasRecommendationScores && sortMode === "chinaRecommended") setSortMode("verified");
-  }, [hasRecommendationScores, sortMode]);
+    if (!recommendationScoresAvailable && sortMode === "chinaRecommended") setSortMode("verified");
+  }, [recommendationScoresAvailable, sortMode]);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
@@ -341,7 +341,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
                 <select value={sortMode} onChange={(event) => { setSortMode(event.target.value as SortMode); trackFilter("sort", event.target.value); }} className={selectClass}>
                   <option value="verified">{explorerCopy.verifiedSort}</option>
                   <option value="recent">{explorerCopy.recentSort}</option>
-                  {hasRecommendationScores ? <option value="chinaRecommended">{explorerCopy.recommendedSort}</option> : null}
+                  {recommendationScoresAvailable ? <option value="chinaRecommended">{explorerCopy.recommendedSort}</option> : null}
                   <option value="saved">{explorerCopy.savedSort}</option>
                   <option value="distance" disabled={!userLocation}>{explorerCopy.distanceSort}</option>
                   <option value="lowWait">{explorerCopy.lowWaitSort}</option>
