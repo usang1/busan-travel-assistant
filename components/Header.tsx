@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Languages, LogIn, LogOut, MapPin, Send, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { Languages, LogIn, LogOut, MapPin, Send, ShieldCheck, Sparkles, Store, UserRound } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, getLocaleFromPath, localeMeta, locales, ui, withLocale, withoutLocale } from "@/lib/i18n";
@@ -15,7 +15,7 @@ export function Header() {
   const basePath = withoutLocale(pathname);
   const queryString = searchParams.toString();
   const querySuffix = queryString ? `?${queryString}` : "";
-  const { user, profile, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   async function signOut() {
     const client = getSupabaseClient();
@@ -52,6 +52,15 @@ export function Header() {
           >
             <Send size={17} aria-hidden="true" />
           </Link>
+          <Link
+            href={withLocale("/business-application", currentLocale)}
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-teal-50 px-3 text-sm font-black text-teal-800 shadow-sm ring-1 ring-teal-100 transition hover:bg-teal-100 active:scale-95"
+            aria-label={copy.nav.businessApplication}
+            title={copy.nav.businessApplication}
+          >
+            <Store size={17} aria-hidden="true" />
+            <span className="whitespace-nowrap">{copy.nav.businessApplication}</span>
+          </Link>
           {user ? (
             <>
               <Link
@@ -63,11 +72,6 @@ export function Header() {
                 <UserRound size={16} aria-hidden="true" />
                 <span className="hidden text-sm font-black sm:inline">{copy.auth.mypage}</span>
               </Link>
-              {profile?.role === "business_owner" ? (
-                <Link href={withLocale("/business-application", currentLocale)} className="hidden h-11 items-center rounded-full bg-teal-50 px-3 text-sm font-black text-teal-800 ring-1 ring-teal-100 sm:inline-flex">
-                  {{ ko: "가게 입점 신청", zh: "商家入驻", en: "List my business", ja: "店舗掲載申請" }[currentLocale]}
-                </Link>
-              ) : null}
               {isAdmin ? (
                 <Link
                   href={withLocale("/admin", currentLocale)}
