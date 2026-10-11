@@ -703,10 +703,14 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
 
   if (menuItems.some((item) => item.price_is_variable === true)) {
     const { error: schemaError } = await resolvedClient.from("place_menu_items").select("price_is_variable").limit(1);
-    if (schemaError) throw new Error("가격 변동 메뉴를 저장하려면 039_menu_variable_price.sql 마이그레이션이 필요합니다.");
+    if (schemaError) {
+      if (getMissingSchemaColumn(schemaError) === "price_is_variable") throw menuSchemaMigrationError();
+      throw new Error(schemaError.message);
+    }
   }
 
-  await resolvedClient.from("place_menu_items").delete().eq("place_id", placeId);
+  const { error: deleteError } = await resolvedClient.from("place_menu_items").delete().eq("place_id", placeId);
+  if (deleteError) throw new Error(deleteError.message);
 
   if (menuItems.length === 0) {
     return;
@@ -744,7 +748,7 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
 
   if (error && (error.code === "PGRST204" || error.code === "42703")) {
     if (rows.some((row) => row.price_is_variable)) {
-      throw new Error("가격 변동 메뉴를 저장하려면 039_menu_variable_price.sql 마이그레이션이 필요합니다.");
+      throw menuSchemaMigrationError();
     }
     const legacyRows = rows.map((row) => ({
       ...(row.id ? { id: row.id } : {}), place_id: row.place_id, name_ko: row.name_ko, name_zh: row.name_zh,
@@ -757,6 +761,13 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
   if (error) {
     throw new Error(error.message);
   }
+}
+
+function menuSchemaMigrationError() {
+  return Object.assign(
+    new Error("가격 변동 메뉴를 저장하려면 041_menu_variable_price_repair.sql 마이그레이션을 먼저 적용해 주세요."),
+    { status: 503, expose: true },
+  );
 }
 
 async function syncTranslations(placeId: string, payload: PlacePayload, client?: SupabaseClient) {

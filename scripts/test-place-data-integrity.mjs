@@ -100,4 +100,9 @@ const variableMenu = { localized_name: { ko: "위스키", zh: "威士忌", en: "
 assert.equal(decisionValidation.validateTravelerDecisionSection("menus", [variableMenu])[0].price_is_variable, true);
 assert.throws(() => decisionValidation.validateTravelerDecisionSection("menus", [{ ...variableMenu, price: 1 }]), /고정 가격/);
 
+const menuRepairMigration = readFileSync(new URL("../supabase/migrations/041_menu_variable_price_repair.sql", import.meta.url), "utf8");
+assert.match(menuRepairMigration, /add column if not exists price_is_variable boolean not null default false/);
+assert.match(menuRepairMigration, /check \(not price_is_variable or price is null\) not valid/);
+assert.match(menuRepairMigration, /notify pgrst, 'reload schema'/);
+
 console.log("Place price normalization, tristate facts, review eligibility, SEO, address, and submission validation tests passed.");

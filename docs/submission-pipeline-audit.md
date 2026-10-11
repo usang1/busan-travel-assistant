@@ -30,9 +30,11 @@
 
 승인과 장소 저장은 여러 테이블에 걸친 별도 요청이라 완전한 단일 DB 트랜잭션은 아니다. **기존 공개 장소 수정 중 최종 제보 상태 기록이 실패하면 일부 장소 변경이 먼저 반영될 수 있다.** 이 경우 `submission_finalize_failed`를 확인하고 재승인해 연결을 복구해야 한다. 운영에서 확인할 잔여 위험으로 남긴다.
 
-## 039 마이그레이션과 설정
+## 040·041 마이그레이션과 설정
 
-`039_submission_pipeline_operability.sql`은 기존 행을 삭제하지 않는다. 알림·승인 복구 열과 관리자 전용 이력 테이블/트리거를 추가하고 제보 INSERT/UPDATE RLS를 강화한다. 이력은 적용 시점 이후의 변경부터 기록한다. **staging에서 먼저 적용·확인한 뒤 이 코드와 함께 배포**해야 한다. 마이그레이션 전에는 새 승인·이력 API가 새 열을 찾지 못한다.
+`040_submission_pipeline_operability.sql`은 기존 행을 삭제하지 않는다. 알림·승인 복구 열과 관리자 전용 이력 테이블/트리거를 추가하고 제보 INSERT/UPDATE RLS를 강화한다. 이력은 적용 시점 이후의 변경부터 기록한다. **staging에서 먼저 적용·확인한 뒤 이 코드와 함께 배포**해야 한다. 마이그레이션 전에는 새 승인·이력 API가 새 열을 찾지 못한다.
+
+기존에 메뉴와 제보 마이그레이션이 같은 `039` 버전을 사용했던 배포를 복구하기 위해 `041_menu_variable_price_repair.sql`이 가격 변동 메뉴 스키마를 멱등적으로 다시 적용한다. 새 마이그레이션은 고유한 버전을 갖는지 자동 테스트한다.
 
 필요한 서버 환경변수: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`(알림 결과의 즉시 기록), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`. 토큰과 서비스 키는 서버 환경에만 설정한다.
 

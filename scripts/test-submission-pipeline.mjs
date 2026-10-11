@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import ts from "typescript";
 
 function compile(path, modules = {}) {
@@ -188,7 +188,11 @@ try {
   else process.env.TELEGRAM_CHAT_ID = originalChatId;
 }
 
-const migration = readFileSync(new URL("../supabase/migrations/039_submission_pipeline_operability.sql", import.meta.url), "utf8");
+const migrationFiles = readdirSync(new URL("../supabase/migrations/", import.meta.url));
+const migrationVersions = migrationFiles.map((file) => file.match(/^(\d+)_/)?.[1]).filter(Boolean);
+assert.equal(new Set(migrationVersions).size, migrationVersions.length, "Supabase migration versions must be unique");
+
+const migration = readFileSync(new URL("../supabase/migrations/040_submission_pipeline_operability.sql", import.meta.url), "utf8");
 assert.match(migration, /status = 'pending'[\s\S]*place_id is null[\s\S]*reviewed_by is null/);
 assert.match(migration, /drop policy if exists "Users can update own draft place submissions"/);
 assert.match(migration, /create table if not exists public\.place_submission_audit/);

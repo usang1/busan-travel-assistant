@@ -57,19 +57,19 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
   assert.match(source, /<AdminPlaceImageUpload/, "admin place forms must use the shared representative image uploader");
   assert.doesNotMatch(source, /label="대표 이미지 URL"|placeholder="관리자 이미지 URL"/, "admin place forms must not expose representative image URL inputs");
 }
-assert.match(placeManagerSource, /status: "PUBLISHED"/, "new admin places should default to public");
+assert.match(placeManagerSource, /status: "DRAFT"/, "new admin places should default to a safe draft");
 assert.match(placeManagerSource, /id="admin-place-taste-checklist"[\s\S]*ratingControls\.map[\s\S]*<PlaceQualityPanel[\s\S]*<details className="group/, "the manual editor must expose taste ratings before the initially closed advanced editor");
 assert.match(placeManagerSource, /selectedTasteCount[\s\S]*\{selectedTasteCount\}개 선택됨/, "the mobile taste checklist must show the number of selected ratings");
 assert.match(placeManagerSource, /aria-expanded=\{tasteChecklistExpanded\}[\s\S]*aria-controls="admin-place-taste-fields"/, "the mobile taste checklist must have an accessible toggle");
 assert.match(placeManagerSource, /function toForm\(place: PlaceWithRelations\): FormState \{[\s\S]*const chinaInfo = \{ \.\.\.createEmptyChinaInfo\(\), \.\.\.\(place\.china_info \?\? \{\}\) \};[\s\S]*china_info: \{[\s\S]*\.\.\.chinaInfo,/, "editing a place must restore saved taste ratings into the shared form");
 assert.match(placeManagerSource, /const chinaInfo = toChinaInfoPayload\(form\.china_info\);[\s\S]*china_info: chinaInfo/, "saving a place must write taste ratings through the shared payload");
-assert.match(placeManagerSource, /is_active: true/, "new admin places should default to active");
+assert.match(placeManagerSource, /is_active: false/, "new admin places should default to inactive");
 assert.match(placeManagerSource, /name_zh: unifiedName/, "place payload must reuse the Korean place name for the zh name field");
 assert.match(placeManagerSource, /buildHomeIntentTags\(form\.home_intent_keys\)/, "place manager must persist selected home category mappings");
 assert.match(placeManagerSource, /getChinaDiscoveryKeysFromTags\(place\.tags\)/, "place manager must restore selected discovery filter tags");
 assert.match(placeManagerSource, /name_en: name/, "admin translation state must keep the en place name unified");
 assert.match(placeManagerSource, /function needsAutoTranslation\(form: FormState\)/, "place manager must detect Korean fields that need automatic GPT translation");
-assert.match(placeManagerSource, /const translated = await autoTranslateBeforeSave\(formToSave\);[\s\S]*const payload = toPayload\(formToSave\);/, "place manager must translate Korean inputs before building the save payload");
+assert.match(placeManagerSource, /formToSave\.status === publishedPlaceStatus[\s\S]*await autoTranslateBeforeSave\(formToSave\)[\s\S]*const payload = toPayload\(formToSave\);/, "place manager must translate Korean inputs before building a published save payload");
 assert.match(submissionWorkflowSource, /name_zh: name/, "submission publishing must reuse the Korean place name for the zh name field");
 assert.match(submissionWorkflowSource, /status: "PUBLISHED"/, "submission publishing should default to public");
 assert.match(submissionWorkflowSource, /buildHomeIntentTags\(form\.home_intent_keys\)/, "submission publishing must persist selected home category mappings");
@@ -138,6 +138,8 @@ assert.match(placeStoreSource, /findExistingPlaceIdForApproval/, "submission app
 assert.match(placeStoreSource, /from\("places"\)\.delete\(\)\.eq\("id", id\)/, "failed place creation must clean up its partial place row");
 assert.match(placeStoreSource, /getMissingSchemaColumn/, "China info writes must tolerate optional columns missing from an older production schema");
 assert.match(placeStoreSource, /runPlaceSaveStage\("메뉴"/, "place relation failures must identify the failing save stage for admins");
+assert.match(placeStoreSource, /if \(deleteError\) throw new Error\(deleteError\.message\)/, "menu replacement must stop when deleting the previous rows fails");
+assert.match(placeStoreSource, /menuSchemaMigrationError/, "missing menu schema errors must tell admins which migration is required");
 assert.match(placeStoreSource, /findArchivedPlaceIdForCreate/, "new place saves must revive an archived matching place instead of colliding with retained source keys");
 assert.match(placeStoreSource, /return updatePlace\(archivedPlaceId, payload, resolvedClient\)/, "archived place revival must reuse the existing place row");
 assert.match(placeDuplicatesSource, /place\.status !== "ARCHIVED"/, "admin duplicate warnings must ignore archived places");
