@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
 import { publicPlacesCacheTag } from "@/lib/cache-tags";
 import { archivePlace, createPlace, findExistingPlaceIdForApproval, updatePlace } from "@/lib/place-store";
-import { validatePlacePayloadForSave } from "@/lib/place-validation";
+import { validatePlaceReadyForPublication } from "@/lib/place-validation";
 import { canApproveSubmission } from "@/lib/submission-workflow";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -50,7 +50,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (payload.status !== "PUBLISHED" || payload.is_active !== true) {
       return NextResponse.json({ message: "제보 승인은 공개 상태의 장소에만 연결할 수 있습니다." }, { status: 400 });
     }
-    validatePlacePayloadForSave(payload);
+    validatePlaceReadyForPublication(payload);
 
     const { data: existingSubmission, error: existingError } = await client
       .from("place_submissions")

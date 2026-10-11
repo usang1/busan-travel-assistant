@@ -79,6 +79,14 @@ export function validatePlacePayloadForSave(payload: PlacePayload) {
   }
 }
 
+export function validatePlaceReadyForPublication(payload: PlacePayload) {
+  validatePlacePayloadForSave(payload);
+  const quality = evaluatePlaceQuality(payload);
+  if (!quality.canPublish || quality.isStale) {
+    throw validationError(`공개 전 누락 정보와 확인일을 보완해 주세요.\n${formatVerifiedBlockMessage(payload)}`);
+  }
+}
+
 function validationError(message: string) {
   return Object.assign(new Error(message), { status: 400, expose: true });
 }

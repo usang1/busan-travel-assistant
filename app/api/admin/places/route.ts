@@ -3,6 +3,8 @@ import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
 import { publicPlacesCacheTag } from "@/lib/cache-tags";
 import { createPlace, getPlaces } from "@/lib/place-store";
+import { validatePlaceReadyForPublication } from "@/lib/place-validation";
+import { isPublicPlace } from "@/lib/place-publishing";
 import type { PlacePayload } from "@/types/database";
 
 export async function GET(request: Request) {
@@ -22,6 +24,7 @@ export async function POST(request: Request) {
   try {
     const { client } = await requireAdmin(request);
     const payload = (await request.json()) as PlacePayload;
+    if (isPublicPlace(payload)) validatePlaceReadyForPublication(payload);
     const place = await createPlace(payload, client);
     revalidateTag(publicPlacesCacheTag, { expire: 0 });
 

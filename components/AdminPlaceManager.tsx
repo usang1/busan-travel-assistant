@@ -349,11 +349,11 @@ function createEmptyForm(): FormState {
     provider_amenities: "",
     source_metadata: null,
     source_fetched_at: "",
-    status: "PUBLISHED",
+    status: "DRAFT",
     closed_days: "",
     last_verified_at: "",
     is_featured: false,
-    is_active: true,
+    is_active: false,
     tags_text: "",
     home_intent_keys: [],
     china_discovery_keys: [],
@@ -599,13 +599,12 @@ function hasCoordinateInput(form: Pick<FormState, "latitude" | "longitude">) {
   return hasValidFormCoordinates(form);
 }
 
-function geocodeQueriesFromForm(form: Pick<FormState, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
-  return Array.from(
-    new Set([form.address_ko, form.name_ko, form.address_zh, form.name_zh].map((value) => value.trim()).filter(Boolean)),
-  );
+function geocodeQueriesFromForm(form: Pick<FormState, "address_ko">) {
+  // The address geocoder cannot establish a place identity from a name alone.
+  return [form.address_ko.trim()].filter(Boolean);
 }
 
-function geocodeQueryFromForm(form: Pick<FormState, "address_ko" | "address_zh" | "name_ko" | "name_zh">) {
+function geocodeQueryFromForm(form: Pick<FormState, "address_ko">) {
   return geocodeQueriesFromForm(form)[0] ?? "";
 }
 
@@ -1836,11 +1835,21 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         }
       }
 
-      const translated = await autoTranslateBeforeSave(formToSave);
+      const translated = formToSave.status === publishedPlaceStatus
+        ? await autoTranslateBeforeSave(formToSave)
+        : { nextForm: formToSave, notice: "" };
       formToSave = translated.nextForm;
       translationNotice = translated.notice;
 
       const payload = toPayload(formToSave);
+      const existingPlace = formToSave.id ? places.find((place) => place.id === formToSave.id) : null;
+      if (formToSave.status === publishedPlaceStatus && !existingPlace?.is_active) {
+        const quality = evaluatePlaceQuality(payload);
+        if (!quality.canPublish || quality.isStale) {
+          setStatus(`공개 전 누락 정보와 확인일을 보완해 주세요. ${formatQualityBlockText(quality)}${quality.isStale ? " 마지막 확인일: 180일 이내 확인일이 필요합니다." : ""}`);
+          return;
+        }
+      }
       validatePlacePayloadForSave(payload);
       const duplicateMatches = findPlaceDuplicateMatches(payload, places, formToSave.id);
       const exactDuplicate = duplicateMatches.find((match) => match.level === "exact");
@@ -2754,7 +2763,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             <Save size={17} aria-hidden="true" />
-            {saving ? "저장 중" : geocoding ? "좌표 검색 중" : "저장"}
+            {saving ? "저장 중" : geocoding ? "좌표 검색 중" : form.status === "DRAFT" ? "임시저장" : "저장"}
           </button>
           {status ? <p className="text-sm font-semibold leading-6 text-slate-700 sm:hidden">{status}</p> : null}
         </div>
@@ -2797,7 +2806,7 @@ function PlaceQualityPanel({ result }: { result: PlaceQualityResult }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-black text-slate-950">3. 공개 품질 참고</h3>
-          <p className="mt-1 text-sm text-slate-500">부족한 항목은 참고용이며 저장과 공개를 막지 않습니다.</p>
+          <p className="mt-1 text-sm text-slate-500">임시저장은 누락 항목이 있어도 가능합니다. 새 장소를 공개할 때는 필수 항목과 최근 확인일이 필요합니다.</p>
         </div>
         <div className={["rounded-2xl px-4 py-3 text-center ring-1", result.canPublish ? "bg-teal-50 text-teal-800 ring-teal-100" : "bg-rose-50 text-rose-800 ring-rose-100"].join(" ")}>
           <p className="text-xs font-bold">완성도</p>

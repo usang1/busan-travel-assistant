@@ -81,7 +81,7 @@ const sharedMocks = {
   "@/lib/admin-auth": adminAuth,
   "@/lib/cache-tags": { publicPlacesCacheTag: "public-places" },
   "@/lib/place-store": store,
-  "@/lib/place-validation": { validatePlacePayloadForSave: () => {} },
+  "@/lib/place-validation": { validatePlaceReadyForPublication: () => {} },
   "@/lib/submission-workflow": workflow,
 };
 const reviewRoute = compile("../app/api/admin/submissions/[id]/route.ts", sharedMocks);
