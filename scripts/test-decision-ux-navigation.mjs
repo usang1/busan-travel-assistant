@@ -28,11 +28,11 @@ assert.match(home, /districtEmptyCopy/);
 assert.match(home, /withLocale\("\/contact", locale\)/);
 
 assert.doesNotMatch(header, /href: "\/guides"/);
-for (const href of ["/", "/places", "/nearby", "/itinerary", "/saved"]) {
+for (const href of ["/", "/places", "/nearby", "/itinerary", "/saved", "/business-application"]) {
   assert.match(header, new RegExp(`href: "${href.replaceAll("/", "\\/")}"`));
   assert.match(bottomNavigation, new RegExp(`href: "${href.replaceAll("/", "\\/")}"`));
 }
-assert.match(bottomNavigation, /grid-cols-5/);
+assert.match(bottomNavigation, /grid-cols-6/);
 assert.match(bottomNavigation, /min-w-0/);
 assert.match(bottomNavigation, /aria-current=\{active \? "page" : undefined\}/);
 
@@ -51,4 +51,4 @@ for (const label of ["places: \"找地点\"", "places: \"Find places\"", "places
   assert.match(i18n, new RegExp(label));
 }
 
-console.log("Decision UX tests passed (multi-city scope, dynamic Busan districts, five-item navigation, mobile map/list, and four locales).");
+console.log("Decision UX tests passed (multi-city scope, dynamic Busan districts, six-item navigation, mobile map/list, and four locales).");

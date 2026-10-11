@@ -177,6 +177,7 @@ export const ui = {
       mypage: "我的",
       submit: "提交地点",
       businessApplication: "商家入驻",
+      businessApplicationShort: "入驻申请",
       admin: "管理",
     },
     auth: {
@@ -387,6 +388,7 @@ export const ui = {
       mypage: "My Page",
       submit: "Submit",
       businessApplication: "List my business",
+      businessApplicationShort: "Business",
       admin: "Admin",
     },
     auth: {
@@ -597,6 +599,7 @@ export const ui = {
       mypage: "マイページ",
       submit: "投稿",
       businessApplication: "店舗掲載申請",
+      businessApplicationShort: "掲載申請",
       admin: "管理",
     },
     auth: {
@@ -807,6 +810,7 @@ export const ui = {
       mypage: "마이",
       submit: "제보",
       businessApplication: "가게 입점 신청",
+      businessApplicationShort: "입점신청",
       admin: "관리자",
     },
     auth: {

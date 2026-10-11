@@ -131,6 +131,7 @@ export function Header() {
           { href: "/nearby", label: copy.nav.nearby },
           { href: "/itinerary", label: copy.nav.itinerary },
           { href: "/saved", label: copy.nav.saved },
+          { href: "/business-application", label: copy.nav.businessApplication },
         ].map((item) => <Link key={item.href} href={withLocale(item.href, currentLocale)} aria-current={basePath === item.href ? "page" : undefined} className="inline-flex min-h-11 items-center px-3 text-sm font-bold text-slate-700 hover:bg-teal-50 aria-[current=page]:bg-teal-50 aria-[current=page]:text-teal-800">{item.label}</Link>)}
       </nav>
     </header>
