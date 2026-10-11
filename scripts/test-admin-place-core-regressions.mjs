@@ -12,6 +12,9 @@ const accountMigration = readFileSync("supabase/migrations/044_account_roles_and
 const businessRoute = readFileSync("app/api/business-applications/route.ts", "utf8");
 const header = readFileSync("components/Header.tsx", "utf8");
 const i18n = readFileSync("lib/i18n.ts", "utf8");
+const submissionTypeNavigation = readFileSync("components/SubmissionTypeNavigation.tsx", "utf8");
+const localizedContactPage = readFileSync("app/[locale]/contact/page.tsx", "utf8");
+const localizedBusinessPage = readFileSync("app/[locale]/business-application/page.tsx", "utf8");
 
 assert.doesNotMatch(manager, /key=\{`\$\{index\}-\$\{item\.name_ko\}`\}/);
 assert.doesNotMatch(workflow, /key=\{`\$\{item\.name_ko\}-\$\{index\}`\}/);
@@ -40,6 +43,12 @@ assert.doesNotMatch(header, /href=\{withLocale\("\/business-application", curren
 for (const label of ["商家入驻", "List my business", "店舗掲載申請", "가게 입점 신청"]) {
   assert.match(i18n, new RegExp(label));
 }
+assert.match(submissionTypeNavigation, /href: "\/contact"/);
+assert.match(submissionTypeNavigation, /href: "\/business-application"/);
+assert.match(submissionTypeNavigation, /grid grid-cols-2/);
+assert.doesNotMatch(submissionTypeNavigation, /className="[^"]*\bhidden\b/);
+assert.match(localizedContactPage, /SubmissionTypeNavigation active="place" locale=\{locale\}/);
+assert.match(localizedBusinessPage, /SubmissionTypeNavigation active="business" locale=\{locale\}/);
 
 const dateSource = readFileSync("lib/date-input.ts", "utf8");
 const dateOutput = ts.transpileModule(dateSource, {
@@ -52,4 +61,4 @@ assert.equal(dateModule.exports.toDateInputValue("2026-02-30"), "");
 assert.equal(dateModule.exports.fromDateInputValue(""), null);
 assert.equal(dateModule.exports.fromDateInputValue("2026-10-11"), "2026-10-11");
 
-console.log("Admin place core regression checks passed (stable menu keys, atomic menu RPC ordering, KRW labels, and responsive business application entry). ");
+console.log("Admin place core regression checks passed (stable menu keys, atomic menu RPC ordering, KRW labels, and responsive business application entry/switcher). ");

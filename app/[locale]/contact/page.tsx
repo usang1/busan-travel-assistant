@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PlaceSubmissionForm } from "@/components/PlaceSubmissionForm";
+import { SubmissionTypeNavigation } from "@/components/SubmissionTypeNavigation";
 import { siteConfig } from "@/config/site";
 import { buildLocalizedMetadata, isLocale, type Locale, ui } from "@/lib/i18n";
 
@@ -54,6 +55,9 @@ export default async function LocalizedContactPage({ params, searchParams }: Loc
         <p className="mt-2 text-sm text-slate-300">{copy.submissions.description}</p>
       </section>
       <div className="mt-6">
+        <SubmissionTypeNavigation active="place" locale={locale} />
+      </div>
+      <div className="mt-4">
         <PlaceSubmissionForm locale={locale} initialValues={initialValues} />
       </div>
       {siteConfig.contactEmail ? (

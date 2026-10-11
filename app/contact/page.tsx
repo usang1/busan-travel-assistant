@@ -1,5 +1,6 @@
 import { PlaceSubmissionForm } from "@/components/PlaceSubmissionForm";
 import { legalMetadata } from "@/components/LegalPage";
+import { SubmissionTypeNavigation } from "@/components/SubmissionTypeNavigation";
 import { siteConfig } from "@/config/site";
 
 export const metadata = legalMetadata(
@@ -11,8 +12,11 @@ export const metadata = legalMetadata(
 export default function ContactPage() {
   return (
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
+      <div className="mb-4">
+        <SubmissionTypeNavigation active="place" locale="zh" />
+      </div>
       <div className="mb-6">
-        <PlaceSubmissionForm />
+        <PlaceSubmissionForm locale="zh" />
       </div>
       <section className="rounded-[28px] bg-slate-950 p-5 text-white shadow-xl shadow-teal-900/10">
         <h1 className="text-3xl font-black tracking-normal">联系方式</h1>
