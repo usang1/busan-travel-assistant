@@ -145,7 +145,7 @@ assert.match(placeManagerSource, /current\.some\(\(place\) => place\.id === save
 
 const approvalRouteSource = readFileSync(new URL("../app/api/admin/submissions/[id]/approve/route.ts", import.meta.url), "utf8");
 assert.match(approvalRouteSource, /findExistingPlaceIdForApproval\(payload, client\)/, "reviewing submissions must reuse a matching provider or slug place");
-assert.match(approvalRouteSource, /existingSubmission\.place_id \?\? placeId \?\? reusablePlaceId/, "linked, detected, and recovered place ids must be applied in priority order");
+assert.match(approvalRouteSource, /claim\.place_id \?\? placeId \?\? reusablePlaceId/, "linked, detected, and recovered place ids must be applied in priority order after the approval claim");
 
 for (const detailFile of ["app/[locale]/places/[slug]/page.tsx", "app/places/[slug]/page.tsx"]) {
   const detailSource = readFileSync(new URL(`../${detailFile}`, import.meta.url), "utf8");

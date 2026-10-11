@@ -447,8 +447,31 @@ export type PlaceSubmissionRecord = {
   status: SubmissionStatus;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
+  notification_status?: "sent" | "failed" | "skipped" | null;
+  notification_attempts?: number;
+  notification_last_attempt_at?: string | null;
+  notification_last_error?: string | null;
+  notification_sent_at?: string | null;
+  approval_token?: string | null;
+  approval_started_at?: string | null;
+  approval_last_error?: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type PlaceSubmissionAuditRecord = {
+  id: number;
+  submission_id: string;
+  event_type: string;
+  actor_id: string | null;
+  previous_status: string | null;
+  next_status: string | null;
+  previous_place_id: string | null;
+  next_place_id: string | null;
+  previous_notification_status: string | null;
+  next_notification_status: string | null;
+  error_code: string | null;
+  created_at: string;
 };
 
 export type PlaceListResult = {

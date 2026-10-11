@@ -9,6 +9,7 @@ type SendTelegramMessageInput = {
 
 type PlaceSubmissionNotificationInput = {
   submitterLabel: string;
+  submissionId?: string;
 };
 
 export async function sendTelegramMessage({ text }: SendTelegramMessageInput) {
@@ -65,8 +66,9 @@ export async function sendTelegramMessage({ text }: SendTelegramMessageInput) {
 
 export async function sendPlaceSubmissionNotification({
   submitterLabel,
+  submissionId,
 }: PlaceSubmissionNotificationInput) {
-  const reviewUrl = absoluteUrl("/admin#place-submissions");
+  const reviewUrl = absoluteUrl(submissionId ? `/admin?submission=${encodeURIComponent(submissionId)}#place-submissions` : "/admin#place-submissions");
   const text = [
     "새 장소 제보",
     `사용자: ${submitterLabel.trim() || "익명"}`,

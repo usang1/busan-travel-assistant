@@ -61,6 +61,8 @@ NEXT_PUBLIC_VISIT_PROXIMITY_VERIFICATION_ENABLED=false
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_CONTACT_EMAIL=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
 GOOGLE_MAPS_API_KEY=
 NAVER_API_HUB_CLIENT_ID=
 NAVER_API_HUB_CLIENT_SECRET=
@@ -75,7 +77,8 @@ OPENAI_TRIP_PLANNER_MODEL=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase 연결 정보입니다.
-- `SUPABASE_SERVICE_ROLE_KEY`: 익명 현장 확인을 서버에서 원자적으로 저장할 때만 사용하는 Supabase 서버 키입니다. Vercel 서버 환경변수에만 넣고 `NEXT_PUBLIC_` 접두사를 붙이지 마세요.
+- `SUPABASE_SERVICE_ROLE_KEY`: 익명 현장 확인과 장소 제보의 Telegram 알림 결과를 서버에서 기록할 때 사용하는 Supabase 서버 키입니다. Vercel 서버 환경변수에만 넣고 `NEXT_PUBLIC_` 접두사를 붙이지 마세요.
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`: 장소 제보 관리자 알림용 서버 설정입니다. 비어 있어도 제보는 저장됩니다. 서비스 키가 있으면 알림 상태가 설정 없음으로 기록되어 관리자 화면에서 재전송할 수 있습니다.
 - `TRAVELER_REPORT_HASH_SECRET`: 익명 기기 쿠키를 DB 저장 전에 HMAC 처리하는 32자 이상의 무작위 서버 secret입니다. 기존 값 변경 시 익명 rate limit 식별이 초기화됩니다.
 - `SOCIAL_DISCOVERY_HASH_SECRET`: SNS 장소 찾기의 익명 소유권과 rate limit 식별용 32자 이상 서버 secret입니다. 비우면 `TRAVELER_REPORT_HASH_SECRET`을 호환 사용합니다.
 - `SOCIAL_DISCOVERY_ENABLED`, `NEXT_PUBLIC_SOCIAL_DISCOVERY_ENABLED`: SNS 장소 찾기 API와 UI를 함께 여는 Phase 2 플래그입니다. 둘 다 기본값은 `false`입니다.

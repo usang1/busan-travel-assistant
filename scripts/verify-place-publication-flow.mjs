@@ -101,7 +101,7 @@ assert.match(qualityMigration, /notify pgrst, 'reload schema'/i);
 
 const approvalRoute = fs.readFileSync("app/api/admin/submissions/[id]/approve/route.ts", "utf8");
 assert.match(approvalRoute, /createPlace\(payload, client\)/);
-assert.match(approvalRoute, /const targetPlaceId = existingSubmission\.place_id \?\? placeId/);
+assert.match(approvalRoute, /const targetPlaceId = claim\.place_id \?\? placeId/);
 assert.match(approvalRoute, /updatePlace\(targetPlaceId, payload, client\)/);
 assert.match(approvalRoute, /place_id: place\.id/);
 assert.doesNotMatch(approvalRoute, /\.neq\("status", "approved"\)/);

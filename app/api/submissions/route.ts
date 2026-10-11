@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isLocale, ui, type Locale } from "@/lib/i18n";
 import { parseMapUrl } from "@/lib/map-url";
-import { createServerAnonClient, ServerConfigurationError } from "@/lib/server-supabase";
-import { sendPlaceSubmissionNotification } from "@/lib/telegram";
+import { createServerAnonClient, createServerServiceClient, ServerConfigurationError } from "@/lib/server-supabase";
+import { notifyPlaceSubmission } from "@/lib/submission-notifications";
 import { placeCategories, type PlaceCategory } from "@/types/database";
 import { createHash } from "node:crypto";
 import { buildSubmissionDuplicateSource, validateSubmissionLocation } from "@/lib/place-submission-validation";
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const rawBody = await request.text();
-    if (rawBody.length > maxRequestBytes) return json({ message: "request_too_large" }, 413);
+    if (Buffer.byteLength(rawBody, "utf8") > maxRequestBytes) return json({ message: "request_too_large" }, 413);
     const body = JSON.parse(rawBody) as SubmissionRequestBody;
     const payload = parseSubmissionPayload(body);
     const actor = await getOptionalUser(request);
@@ -72,15 +72,39 @@ export async function POST(request: NextRequest) {
       throw new SubmissionRouteError("duplicate_submission", 409);
     }
     if (error) {
+      process.stderr.write(`[submissions:insert-failed] ${JSON.stringify({ code: error.code ?? "unknown" })}\n`);
       throw new SubmissionRouteError("submission_insert_failed", 500);
     }
 
-    await sendPlaceSubmissionNotification({
+    let notificationClient: ReturnType<typeof createServerServiceClient> | null = null;
+    let submissionId: string | null = null;
+    let previousAttempts = 0;
+    try {
+      notificationClient = createServerServiceClient();
+      const { data: saved, error: lookupError } = await notificationClient
+        .from("place_submissions")
+        .select("id, notification_attempts")
+        .eq("duplicate_key", duplicateKey)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      submissionId = saved?.id ?? null;
+      previousAttempts = saved?.notification_attempts ?? 0;
+    } catch (lookupError) {
+      process.stderr.write(`[submissions:notification-lookup-failed] ${lookupError instanceof ServerConfigurationError ? "service_not_configured" : "lookup_failed"}\n`);
+      notificationClient = null;
+    }
+
+    const notification = await notifyPlaceSubmission({
+      submissionId,
       submitterLabel: actor.email || actor.userId || "익명",
+      client: notificationClient,
+      previousAttempts,
     });
 
     return NextResponse.json(
-      { submission: { provider: parsedMap.sourceProvider } },
+      { submission: { provider: parsedMap.sourceProvider }, notification },
       { status: 201, headers: noStoreHeaders },
     );
   } catch (error) {

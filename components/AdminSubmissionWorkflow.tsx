@@ -19,10 +19,11 @@ import { ratingHelp, type ChinaRatingKey } from "@/lib/place-china/format";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { isPublicPlace, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
+import { canApproveSubmission, canChangeSubmissionStatus } from "@/lib/submission-workflow";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
-import { categoryLabels, placeCategories, placeWorkflowStatuses, type ChinaWaitingLevel, type PlaceCategory, type PlaceChinaInfoPayload, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionRecord, type PlaceWithRelations, type PlaceWorkflowStatus, type SubmissionStatus } from "@/types/database";
+import { categoryLabels, placeCategories, placeWorkflowStatuses, type ChinaWaitingLevel, type PlaceCategory, type PlaceChinaInfoPayload, type PlacePayload, type PlaceSourceProvider, type PlaceSubmissionAuditRecord, type PlaceSubmissionRecord, type PlaceWithRelations, type PlaceWorkflowStatus, type SubmissionStatus } from "@/types/database";
 import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
 
 type AdminSubmissionWorkflowProps = {
@@ -117,6 +118,13 @@ type PublishForm = {
 };
 
 const statuses: SubmissionStatus[] = ["pending", "reviewing", "approved", "rejected", "duplicate"];
+
+function notificationStatusLabel(status: PlaceSubmissionRecord["notification_status"]) {
+  if (status === "sent") return "전송 확인";
+  if (status === "failed") return "전송 실패";
+  if (status === "skipped") return "설정 없음";
+  return "미기록";
+}
 const workflowStatusLabels: Record<PlaceWorkflowStatus, string> = {
   DRAFT: "초안",
   REVIEW: "검수 대기",
@@ -885,6 +893,9 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
   const [submissions, setSubmissions] = useState<PlaceSubmissionRecord[]>([]);
   const [activeStatus, setActiveStatus] = useState<SubmissionStatus>("pending");
   const [selected, setSelected] = useState<PlaceSubmissionRecord | null>(null);
+  const [auditEvents, setAuditEvents] = useState<PlaceSubmissionAuditRecord[]>([]);
+  const [auditError, setAuditError] = useState("");
+  const [notificationSaving, setNotificationSaving] = useState(false);
   const [form, setForm] = useState<PublishForm>(() => emptyForm(null));
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
@@ -964,10 +975,29 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
 
     const body = (await response.json()) as { submissions: PlaceSubmissionRecord[] };
     setSubmissions(body.submissions);
+    setSelected((current) => current ? body.submissions.find((item) => item.id === current.id) ?? null : null);
+    return body.submissions;
+  }
+
+  async function loadAudit(id: string) {
+    const response = await adminFetch(`/api/admin/submissions/${id}/audit`);
+    if (!response.ok) {
+      const body = (await response.json()) as { message?: string };
+      throw new Error(body.message ?? "작업 이력을 불러오지 못했습니다.");
+    }
+    const body = (await response.json()) as { events: PlaceSubmissionAuditRecord[] };
+    setAuditEvents(body.events);
+    setAuditError("");
   }
 
   useEffect(() => {
-    void loadSubmissions().catch((error) => setStatus(error instanceof Error ? error.message : "제보 목록 오류"));
+    void loadSubmissions()
+      .then((rows) => {
+        const requestedId = new URLSearchParams(window.location.search).get("submission");
+        const requested = requestedId ? rows.find((row) => row.id === requestedId) : null;
+        if (requested) selectSubmission(requested);
+      })
+      .catch((error) => setStatus(error instanceof Error ? error.message : "제보 목록 오류"));
     // accessToken changes only when the admin session changes.
   }, [accessToken]);
 
@@ -980,6 +1010,9 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
     setAdminSummaryFailed(false);
     setAdminSummaryErrorMessage("");
     setProviderLookupNotice("");
+    setAuditEvents([]);
+    setAuditError("");
+    void loadAudit(submission.id).catch((error) => setAuditError(error instanceof Error ? error.message : "작업 이력 오류"));
     setStatus(
       linkedPlace
         ? "기존에 등록된 장소 정보를 불러왔습니다."
@@ -991,6 +1024,8 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
 
   function startDirectCreate() {
     setSelected(null);
+    setAuditEvents([]);
+    setAuditError("");
     setForm(emptyForm(null));
     setAiDraft(null);
     setLastNormalizedPlace(null);
@@ -1443,6 +1478,10 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
     if (!selected) {
       return;
     }
+    if (!canChangeSubmissionStatus(selected.status, nextStatus) || selected.place_id || selected.approval_token) {
+      setStatus("현재 제보 상태에서는 변경할 수 없습니다. 목록을 새로고침해 주세요.");
+      return;
+    }
 
     setSaving(true);
     setStatus("");
@@ -1458,8 +1497,9 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
         throw new Error(body.message ?? "상태 변경 실패");
       }
 
-      await loadSubmissions();
-      setSelected((current) => (current ? { ...current, status: nextStatus } : current));
+      const rows = await loadSubmissions();
+      setSelected(rows.find((row) => row.id === selected.id) ?? null);
+      await loadAudit(selected.id).catch((error) => setAuditError(error instanceof Error ? error.message : "작업 이력 오류"));
       setStatus(`${statusLabels[nextStatus]} 상태로 변경했습니다.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "상태 변경 중 오류가 발생했습니다.");
@@ -1468,9 +1508,37 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
     }
   }
 
+  async function retryNotification() {
+    if (!selected || selected.notification_status === "sent") return;
+    setNotificationSaving(true);
+    setStatus("");
+    try {
+      const response = await adminFetch(`/api/admin/submissions/${selected.id}/notification`, { method: "POST" });
+      const body = (await response.json()) as { message?: string; notification?: { status: "sent" | "failed" | "skipped" } };
+      if (!response.ok) throw new Error(body.message ?? "Telegram 알림을 재전송하지 못했습니다.");
+      const rows = await loadSubmissions();
+      setSelected(rows.find((row) => row.id === selected.id) ?? null);
+      await loadAudit(selected.id).catch((error) => setAuditError(error instanceof Error ? error.message : "작업 이력 오류"));
+      setStatus(body.notification?.status === "sent" ? "Telegram 알림 전송과 기록이 확인됐습니다." : "Telegram 알림 전송에 실패했습니다. 설정과 작업 이력을 확인해 주세요.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Telegram 알림 재전송 오류");
+    } finally {
+      setNotificationSaving(false);
+    }
+  }
+
   async function publishPlace() {
     let formToPublish = form;
     let translationNotice = "";
+
+    if (selected && (!canApproveSubmission(selected.status) || selected.approval_token)) {
+      setStatus("이 제보는 현재 승인할 수 없습니다. 검토중 상태와 작업 이력을 확인해 주세요.");
+      return;
+    }
+    if (selected && formToPublish.status !== "PUBLISHED") {
+      setStatus("제보를 승인하려면 장소 상태를 공개로 선택해 주세요. 보류는 제보의 검토중 상태를 사용합니다.");
+      return;
+    }
 
     if (
       !(formToPublish.slug || slugify(unifiedPlaceName(formToPublish))) ||
@@ -1553,11 +1621,20 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
       }
 
       const body = (await response.json()) as { place?: PlaceWithRelations };
-      await loadSubmissions();
-      await onPlaceCreated();
+      let refreshNotice = "";
+      try {
+        const rows = await loadSubmissions();
+        if (selected) {
+          setSelected(rows.find((row) => row.id === selected.id) ?? null);
+          await loadAudit(selected.id).catch((error) => setAuditError(error instanceof Error ? error.message : "작업 이력 오류"));
+        }
+        await onPlaceCreated();
+      } catch {
+        refreshNotice = " 목록 새로고침은 실패했지만 저장 응답은 성공했습니다. 다시 승인하지 말고 목록을 새로고침해 주세요.";
+      }
       const visibilityNotice = body.place ? ` ${buildAdminPlaceVisibilityNotice(body.place)}` : "";
       const duplicateNotice = existingPlaceId ? ` 기존 장소(${exactDuplicate?.placeName})를 수정하고 제보를 승인했습니다.` : "";
-      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${translationNotice}${duplicateNotice}${visibilityNotice}` : `장소를 직접 등록했습니다.${translationNotice}${visibilityNotice}`);
+      setStatus(selected ? `장소 등록과 제보 승인이 완료되었습니다.${translationNotice}${duplicateNotice}${visibilityNotice}${refreshNotice}` : `장소를 직접 등록했습니다.${translationNotice}${visibilityNotice}${refreshNotice}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "장소 등록 중 오류가 발생했습니다.");
     } finally {
@@ -1637,7 +1714,14 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700 ring-1 ring-slate-200">{statusLabels[selected.status]}</span>
               </div>
-              <p className="mt-4 text-sm leading-6 text-slate-700">{selected.recommendation_reason || selected.notes}</p>
+              <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{selected.recommendation_reason || selected.notes}</p>
+              {selected.notes && selected.notes !== selected.recommendation_reason ? (
+                <div className="mt-3 rounded-xl bg-white p-3 text-sm text-slate-700 ring-1 ring-slate-200">
+                  <p className="font-black">제보 상세 입력</p>
+                  <p className="mt-2 whitespace-pre-wrap break-words">{selected.notes}</p>
+                </div>
+              ) : null}
+              {selected.location_text || selected.address_text ? <p className="mt-3 text-sm font-semibold text-slate-700">제보 위치: {selected.location_text || selected.address_text}</p> : null}
               {selectedSourceLink ? (
                 <div className="mt-4">
                   <p className="text-xs font-black text-slate-500">제보된 지도 링크</p>
@@ -1653,18 +1737,38 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
                   </a>
                 </div>
               ) : null}
+              <div className="mt-4 rounded-xl bg-white p-3 text-sm text-slate-700 ring-1 ring-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-black">Telegram 알림: {notificationStatusLabel(selected.notification_status)}</p>
+                  {selected.notification_status !== "sent" ? (
+                    <button type="button" disabled={notificationSaving} onClick={() => void retryNotification()} className="min-h-11 rounded-lg bg-teal-50 px-3 font-black text-teal-800 ring-1 ring-teal-200 disabled:opacity-50">{notificationSaving ? "전송 중" : "알림 재전송"}</button>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">시도 {selected.notification_attempts ?? 0}회{selected.notification_last_attempt_at ? ` · 마지막 ${new Date(selected.notification_last_attempt_at).toLocaleString("ko-KR")}` : ""}</p>
+                {selected.notification_last_error ? <p className="mt-1 text-xs font-semibold text-rose-700">오류 코드: {selected.notification_last_error}</p> : null}
+                {selected.approval_last_error ? <p className="mt-1 text-xs font-semibold text-rose-700">승인 오류 코드: {selected.approval_last_error}</p> : null}
+                {selected.approval_token ? <p className="mt-1 text-xs font-semibold text-amber-700">승인 작업 진행 중 · {selected.approval_started_at ? new Date(selected.approval_started_at).toLocaleString("ko-KR") : "시간 확인 필요"}</p> : null}
+              </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" onClick={() => void updateSubmissionStatus("reviewing")} className="rounded-full bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">
+                <button type="button" disabled={!canChangeSubmissionStatus(selected.status, "reviewing") || Boolean(selected.place_id || selected.approval_token)} onClick={() => void updateSubmissionStatus("reviewing")} className="min-h-11 rounded-full bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 disabled:opacity-40">
                   검토중
                 </button>
-                <button type="button" onClick={() => void updateSubmissionStatus("rejected")} className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+                <button type="button" disabled={!canChangeSubmissionStatus(selected.status, "rejected") || Boolean(selected.place_id || selected.approval_token)} onClick={() => void updateSubmissionStatus("rejected")} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 disabled:opacity-40">
                   <XCircle size={14} aria-hidden="true" />
                   거절
                 </button>
-                <button type="button" onClick={() => void updateSubmissionStatus("duplicate")} className="rounded-full bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                <button type="button" disabled={!canChangeSubmissionStatus(selected.status, "duplicate") || Boolean(selected.place_id || selected.approval_token)} onClick={() => void updateSubmissionStatus("duplicate")} className="min-h-11 rounded-full bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 disabled:opacity-40">
                   중복
                 </button>
               </div>
+              <details className="mt-4 rounded-xl bg-white p-3 ring-1 ring-slate-200">
+                <summary className="cursor-pointer text-sm font-black text-slate-900">관리자 작업 이력 ({auditEvents.length})</summary>
+                {auditError ? <p className="mt-2 text-sm font-semibold text-rose-700">{auditError}</p> : null}
+                <ol className="mt-3 space-y-2 text-xs text-slate-700">
+                  {auditEvents.map((event) => <li key={event.id} className="break-words border-t border-slate-100 pt-2">{new Date(event.created_at).toLocaleString("ko-KR")} · {event.event_type} · {event.previous_status || "-"} → {event.next_status || "-"}{event.actor_id ? ` · 작업자 ${event.actor_id}` : ""}{event.error_code ? ` · ${event.error_code}` : ""}</li>)}
+                  {!auditEvents.length && !auditError ? <li>기록이 없습니다.</li> : null}
+                </ol>
+              </details>
             </section>
           ) : null}
 
@@ -2160,7 +2264,7 @@ function PublishFormView({
 
       {status ? <p role="status" className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold leading-5 text-amber-800">{status}</p> : null}
 
-      <button type="button" onClick={onPublish} disabled={saving || geocoding} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-60 sm:w-auto">
+      <button type="button" onClick={onPublish} disabled={saving || geocoding || Boolean(selected && (!canApproveSubmission(selected.status) || selected.approval_token))} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-60 sm:w-auto">
         <Send size={16} aria-hidden="true" />
         {saving ? "저장 중" : geocoding ? "좌표 검색 중" : "장소 등록"}
       </button>
