@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { mergeGuestDataToAccount } from "@/lib/guest-sync";
+import { hasAdminAccess, type AccountRole } from "@/lib/account-role";
 import { getSupabaseClient } from "@/lib/supabase";
 import { defaultLocale, getLocaleFromPath, type Locale } from "@/lib/i18n";
 
@@ -11,7 +12,7 @@ export type UserProfile = {
   email: string | null;
   display_name: string | null;
   avatar_url: string | null;
-  role: "user" | "tourist" | "business_owner" | "admin";
+  role: AccountRole;
   terms_accepted_at?: string | null;
   privacy_accepted_at?: string | null;
   marketing_opt_in?: boolean;
@@ -176,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       user: session?.user ?? null,
       profile,
-      isAdmin: profile?.role === "admin",
+      isAdmin: hasAdminAccess(profile?.role),
       loading,
       authError,
       guestMergePending,

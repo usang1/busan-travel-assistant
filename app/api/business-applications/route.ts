@@ -4,6 +4,7 @@ import { parseMapUrl } from "@/lib/map-url";
 import { createServerAnonClient, createServerServiceClient } from "@/lib/server-supabase";
 import { sendBusinessApplicationNotification } from "@/lib/telegram";
 import { isLocale } from "@/lib/i18n";
+import { hasBusinessOwnerAccess } from "@/lib/account-role";
 
 export const runtime = "nodejs";
 const maxBytes = 20_000;
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     if (Buffer.byteLength(raw) > maxBytes) throw appError("request_too_large", 413);
     const body = JSON.parse(raw) as Record<string, unknown>;
     const { client, user, profile } = await actor(request);
-    if (profile.role !== "business_owner") throw appError("business_owner_required", 403);
+    if (!hasBusinessOwnerAccess(profile.role)) throw appError("business_owner_required", 403);
     const storeName = text(body.storeName, 120); const address = text(body.address, 300);
     const category = text(body.category, 80); const contactName = text(body.contactName, 120);
     const contactEmail = text(body.contactEmail, 200); const contactPhone = text(body.contactPhone, 40);

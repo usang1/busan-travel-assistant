@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { hasAdminAccess } from "@/lib/account-role";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -56,7 +57,7 @@ export async function requireAdmin(request: Request): Promise<AdminContext> {
     .eq("id", userData.user.id)
     .maybeSingle();
 
-  if (profileError || !profile || profile.role !== "admin") {
+  if (profileError || !profile || !hasAdminAccess(profile.role)) {
     throw adminHttpError("관리자 권한이 필요합니다.", 403);
   }
 

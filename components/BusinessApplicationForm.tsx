@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
+import { hasBusinessOwnerAccess } from "@/lib/account-role";
 import { parseMapUrl } from "@/lib/map-url";
 import type { Locale } from "@/lib/i18n";
 
@@ -14,7 +15,7 @@ export function BusinessApplicationForm({ locale }: { locale: Locale }) {
   useEffect(() => { if (profile) setForm((current) => ({ ...current, contactName: current.contactName || profile.display_name || "", contactEmail: current.contactEmail || profile.email || "" })); }, [profile]);
   if (loading) return <p>{text.loading}</p>;
   if (!session) return <AuthRequiredPanel title={text.title} description={text.login} locale={locale} />;
-  if (profile?.role !== "business_owner") return <p className="rounded-2xl bg-amber-50 p-4 font-bold text-amber-900">{text.ownerOnly}</p>;
+  if (!hasBusinessOwnerAccess(profile?.role)) return <p className="rounded-2xl bg-amber-50 p-4 font-bold text-amber-900">{text.ownerOnly}</p>;
   const field = (key: keyof typeof form, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setMessage("");
