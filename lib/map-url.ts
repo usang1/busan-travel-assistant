@@ -26,6 +26,8 @@ export type ParsedMapUrl = {
   failureReason?: string;
   title?: string;
   searchQuery?: string;
+  sharedTitle?: string;
+  sharedAddress?: string;
 };
 
 type CoordinateMatch = {
@@ -58,8 +60,9 @@ export function parseMapUrl(value: string): ParsedMapUrl {
   const provider = detectPlaceProvider(url);
   const placeId = extractPlaceId(url, provider);
   const coordinates = provider === "unknown" ? null : extractCoordinates(url, provider);
-  const title = extractTitle(url, coordinates);
-  const searchQuery = extractSearchQuery(url, provider);
+  const sharedText = extractSharedText(value);
+  const title = extractTitle(url, coordinates) || sharedText.title;
+  const searchQuery = extractSearchQuery(url, provider) || sharedText.address || sharedText.title;
 
   return {
     provider,
@@ -68,6 +71,8 @@ export function parseMapUrl(value: string): ParsedMapUrl {
     placeId: placeId ?? undefined,
     title: title || undefined,
     searchQuery: searchQuery || undefined,
+    sharedTitle: sharedText.title || undefined,
+    sharedAddress: sharedText.address || undefined,
     latitude: coordinates?.latitude,
     longitude: coordinates?.longitude,
     coordinateSource: coordinates?.source ?? "none",
@@ -77,21 +82,57 @@ export function parseMapUrl(value: string): ParsedMapUrl {
 }
 
 export function normalizeMapUrl(value: string) {
-  const trimmed = value.trim();
+  const trimmed = value.normalize("NFKC").trim();
 
   if (!trimmed) {
     return "";
   }
 
-  try {
-    return new URL(trimmed).toString();
-  } catch {
+  const candidates = extractHttpUrlCandidates(trimmed);
+  for (const candidate of candidates) {
     try {
-      return new URL(`https://${trimmed}`).toString();
+      const url = new URL(candidate);
+      if (isAllowedPlaceHost(url.hostname)) return url.toString();
     } catch {
-      return trimmed;
+      // Continue to the next URL embedded in the shared text.
     }
   }
+
+  for (const candidate of candidates) {
+    try {
+      return new URL(candidate).toString();
+    } catch {
+      // Preserve the previous invalid URL behavior below.
+    }
+  }
+
+  try {
+    const url = new URL(`https://${trimmed}`);
+    return url.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
+function extractHttpUrlCandidates(value: string) {
+  const matches = value.match(/https?:\/\/[^\s<>"'`]+/giu) ?? [];
+  const stripped = matches.map((candidate) => candidate.replace(/[\])}>.,!?;:，。！？；：]+$/u, ""));
+  if (stripped.length) return stripped;
+
+  return /^(?:www\.)?(?:naver\.me|map\.naver\.com|m\.map\.naver\.com|place\.map\.kakao\.com|map\.kakao\.com|maps\.app\.goo\.gl|maps\.google\.[a-z.]+)\//iu.test(value)
+    ? [`https://${value}`]
+    : [];
+}
+
+function extractSharedText(value: string) {
+  const lines = value
+    .normalize("NFKC")
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^https?:\/\//iu.test(line) && !/^\[[^\]]+\]$/u.test(line));
+  const address = lines.find((line) => /(?:특별시|광역시|특별자치도|특별자치시|[가-힣]+도)\s|(?:시|군|구)\s/u.test(line)) ?? "";
+  const title = lines.find((line) => line !== address) ?? "";
+  return { title, address };
 }
 
 export function detectMapProvider(hostname: string): MapProvider {

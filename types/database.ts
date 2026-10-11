@@ -87,6 +87,13 @@ export type PlaceRecord = {
   status?: PlaceStatus;
   closed_days?: string;
   last_verified_at?: string | null;
+  verification_tier?: 0 | 1 | 2 | 3;
+  verification_checked_at?: string | null;
+  verification_checked_by?: string | null;
+  verification_note?: string | null;
+  verification_source_urls?: string[];
+  verified_visit_at?: string | null;
+  direct_visit_photos?: Array<{ url: string; caption?: string; captured_at?: string | null; is_cover?: boolean }>;
   nearest_station: string;
   nearest_exit: string;
   walking_minutes: number;
@@ -220,7 +227,10 @@ export type PlaceDecisionProfileRecord = {
   not_recommended_for: string[];
   primary_warning: Partial<Record<"ko" | "zh" | "en" | "ja", string>>;
   visit_summary: Partial<Record<"ko" | "zh" | "en" | "ja", string>>;
-  worth_detour_level: "nearby_only" | "worth_short_detour" | "worth_long_detour" | "destination" | null;
+  worth_detour_level: "nearby_only" | "worth_short_detour" | "worth_long_detour" | "destination" | "purpose_dependent" | "not_recommended" | null;
+  worth_reason?: Partial<Record<"ko" | "zh" | "en" | "ja", string>>;
+  information_status?: "complete" | "partial" | "not_checked" | "not_applicable";
+  information_status_note?: Partial<Record<"ko" | "zh" | "en" | "ja", string>>;
   solo_difficulty: number | null;
   foreigner_difficulty: number | null;
   confidence_score: number | null;

@@ -125,7 +125,7 @@ assert.match(nextConfigSource, /\/storage\/v1\/object\/public\/place-images\/\*\
 const placeStoreSource = readFileSync(new URL("../lib/place-store.ts", import.meta.url), "utf8");
 const placeDuplicatesSource = readFileSync(new URL("../lib/place-duplicates.ts", import.meta.url), "utf8");
 assert.match(placeStoreSource, /adaptPlaceWriteRowForLegacySchema/, "place writes must adapt to older production schemas");
-assert.match(placeStoreSource, /\["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code"\]/, "place writes must omit unavailable optional columns on legacy schemas");
+assert.match(placeStoreSource, /\["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code",/, "place writes must omit unavailable optional columns on legacy schemas");
 assert.match(placeStoreSource, /row\.status === "PUBLISHED" \? "ACTIVE" : "DRAFT"/, "place writes must map workflow statuses to legacy public statuses");
 assert.match(placeStoreSource, /from\("places"\)\.insert\(compatiblePlaceRow\)/, "place creation must retry with a compatible row");
 assert.match(placeStoreSource, /from\("places"\)\.update\(compatiblePlaceRow\)/, "place updates must retry with a compatible row");
@@ -138,7 +138,7 @@ assert.match(placeStoreSource, /findExistingPlaceIdForApproval/, "submission app
 assert.match(placeStoreSource, /from\("places"\)\.delete\(\)\.eq\("id", id\)/, "failed place creation must clean up its partial place row");
 assert.match(placeStoreSource, /getMissingSchemaColumn/, "China info writes must tolerate optional columns missing from an older production schema");
 assert.match(placeStoreSource, /runPlaceSaveStage\("메뉴"/, "place relation failures must identify the failing save stage for admins");
-assert.match(placeStoreSource, /if \(deleteError\) throw new Error\(deleteError\.message\)/, "menu replacement must stop when deleting the previous rows fails");
+assert.match(placeStoreSource, /rpc\("replace_place_menu_items"/, "menu replacement must use the atomic database function");
 assert.match(placeStoreSource, /menuSchemaMigrationError/, "missing menu schema errors must tell admins which migration is required");
 assert.match(placeStoreSource, /findArchivedPlaceIdForCreate/, "new place saves must revive an archived matching place instead of colliding with retained source keys");
 assert.match(placeStoreSource, /return updatePlace\(archivedPlaceId, payload, resolvedClient\)/, "archived place revival must reuse the existing place row");

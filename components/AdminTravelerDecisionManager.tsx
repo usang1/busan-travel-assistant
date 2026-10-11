@@ -85,13 +85,16 @@ function DecisionEditor({ value, onChange, onSave, busy }: EditorProps<"decision
       <RatingField label="주문 난이도" value={value.order_difficulty} onChange={(order_difficulty) => patch({ order_difficulty })} />
       <RatingField label="혼자 이용 난이도" value={value.solo_difficulty} onChange={(solo_difficulty) => patch({ solo_difficulty })} />
       <RatingField label="외국인 이용 난이도" value={value.foreigner_difficulty} onChange={(foreigner_difficulty) => patch({ foreigner_difficulty })} />
-      <label className="text-sm font-bold">우회 방문 가치<select className={inputClass} value={value.worth_detour_level ?? ""} onChange={(event) => patch({ worth_detour_level: (event.target.value || null) as typeof value.worth_detour_level })}><option value="">미확인</option><option value="nearby_only">근처라면</option><option value="worth_short_detour">짧은 우회 가치</option><option value="worth_long_detour">긴 우회 가치</option><option value="destination">목적지로 방문</option></select></label>
-      <label className="text-sm font-bold">확인 상태<select className={inputClass} value={value.verification_status} onChange={(event) => patch({ verification_status: event.target.value as typeof value.verification_status })}>{verificationOptions}</select></label>
+      <label className="text-sm font-bold">일부러 갈 가치<select className={inputClass} value={value.worth_detour_level ?? ""} onChange={(event) => patch({ worth_detour_level: (event.target.value || null) as typeof value.worth_detour_level })}><option value="">판단 보류 / 정보 부족</option><option value="destination">일부러 방문할 가치 있음</option><option value="nearby_only">근처에 있다면 추천</option><option value="purpose_dependent">목적에 따라 추천</option><option value="not_recommended">추천하기 어려움</option><option value="worth_short_detour">짧게 우회할 가치 있음</option><option value="worth_long_detour">멀리서 찾아갈 가치 있음</option></select></label>
+      <label className="text-sm font-bold">정보 확인 상태<select className={inputClass} value={value.information_status} onChange={(event) => patch({ information_status: event.target.value as typeof value.information_status })}><option value="complete">확인 완료</option><option value="partial">일부 정보 미확인</option><option value="not_checked">확인 전</option><option value="not_applicable">해당 없음</option></select></label>
+      <label className="text-sm font-bold">근거 검수 상태<select className={inputClass} value={value.verification_status} onChange={(event) => patch({ verification_status: event.target.value as typeof value.verification_status })}>{verificationOptions}</select></label>
       <label className="text-sm font-bold">마지막 확인일<input type="datetime-local" className={inputClass} value={toLocalDateTime(value.last_verified_at)} onChange={(event) => patch({ last_verified_at: event.target.value || null })} /></label>
     </div>
     <ThemeSelector label="추천 대상" value={value.recommended_for} onChange={(recommended_for) => patch({ recommended_for })} />
     <ThemeSelector label="비추천 대상" value={value.not_recommended_for} onChange={(not_recommended_for) => patch({ not_recommended_for })} />
     <LocalizedTextEditor label="30초 방문 요약" value={value.visit_summary} onChange={(visit_summary) => patch({ visit_summary })} />
+    <LocalizedTextEditor label="일부러 갈 가치 판단 근거" value={value.worth_reason} onChange={(worth_reason) => patch({ worth_reason })} />
+    <LocalizedTextEditor label="미확인 사유 / 상태 설명" value={value.information_status_note} onChange={(information_status_note) => patch({ information_status_note })} />
     <LocalizedTextEditor label="실패 경고" value={value.primary_warning} onChange={(primary_warning) => patch({ primary_warning })} />
   </EditorSection>;
 }

@@ -22,8 +22,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { client } = await requireAdmin(request);
+    const { client, user } = await requireAdmin(request);
     const payload = (await request.json()) as PlacePayload;
+    payload.verification_checked_by = (payload.verification_tier ?? 0) > 0 ? user.id : null;
     if (isPublicPlace(payload)) validatePlaceReadyForPublication(payload);
     const place = await createPlace(payload, client);
     revalidateTag(publicPlacesCacheTag, { expire: 0 });

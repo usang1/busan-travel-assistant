@@ -379,6 +379,20 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       </section>
 
       <PlaceVisitTools place={place} locale={locale} coordinates={coordinates} />
+      {place.direct_visit_photos?.length ? (
+        <section className="mt-6 rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <h2 className="text-lg font-black text-slate-950">{{ ko: "관리자 직접 방문 사진", zh: "管理员实地拍摄", en: "Photos from an in-person review", ja: "管理者の現地訪問写真" }[locale]}</h2>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{{ ko: "현장 검수 과정에서 관리자가 직접 촬영한 사진입니다.", zh: "管理员在实地核验时拍摄。", en: "Taken by an administrator during an on-site review.", ja: "現地確認時に管理者が撮影した写真です。" }[locale]}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {place.direct_visit_photos.map((photo, index) => (
+              <figure key={`${photo.url}-${index}`} className="overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200">
+                <img src={photo.url} alt={photo.caption || `${content.name} ${index + 1}`} className="aspect-[4/3] w-full object-cover" />
+                {photo.caption ? <figcaption className="p-3 text-sm font-bold text-slate-700">{photo.caption}</figcaption> : null}
+              </figure>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <DetailDisclosure title={detailGroups.traveler}>
         <TravelerDecisionCard place={place} locale={locale} variant="detail" className="rounded-lg" />
         <TravelerTrustSignals placeId={place.id} locale={locale} />

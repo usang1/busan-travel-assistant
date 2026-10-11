@@ -15,9 +15,10 @@ type RouteContext = {
 
 export async function PUT(request: Request, { params }: RouteContext) {
   try {
-    const { client } = await requireAdmin(request);
+    const { client, user } = await requireAdmin(request);
     const { id } = await params;
     const payload = (await request.json()) as PlacePayload;
+    payload.verification_checked_by = (payload.verification_tier ?? 0) > 0 ? user.id : null;
     if (isPublicPlace(payload)) {
       const { data: existing, error: readError } = await client.from("places").select("status, is_active").eq("id", id).maybeSingle();
       if (readError) throw new Error(readError.message);

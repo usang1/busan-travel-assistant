@@ -100,10 +100,6 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
     return;
   }
   if (section === "menus") {
-    if ((value as TravelerDecisionBundle["menus"]).some((item) => item.price_is_variable)) {
-      const { error: schemaError } = await client.from("place_menu_items").select("price_is_variable").limit(1);
-      if (schemaError) throw publicError("가격 변동 메뉴를 저장하려면 039_menu_variable_price.sql 마이그레이션이 필요합니다.", 409);
-    }
     const rows = (value as TravelerDecisionBundle["menus"]).map((item) => ({
       id: item.id ?? crypto.randomUUID(), place_id: id, name_ko: item.korean_original_name,
       name_zh: item.localized_name.zh, description_zh: item.ordering_note.zh, price: item.price,
@@ -116,7 +112,8 @@ async function saveSection(client: AdminClient, id: string, section: TravelerDec
       ordering_note: item.ordering_note, menu_warning: item.menu_warning, availability_time: item.availability_time,
       sold_out_risk: item.sold_out_risk, sort_order: item.sort_order,
     }));
-    await replaceRows(client, "place_menu_items", "place_id", id, rows);
+    const { error } = await client.rpc("replace_place_menu_items", { target_place_id: id, menu_items: rows });
+    if (error) throw error.code === "PGRST202" ? publicError("메뉴 원자 저장 migration(042)을 먼저 적용해주세요.", 503) : migrationError(error);
     return;
   }
   if (section === "evidence") {
@@ -161,7 +158,7 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
   const practical = practicalRow ?? {};
   const travelerInsights = isRecord(practical.traveler_insights) ? practical.traveler_insights : {};
   return {
-    decision: { ...empty.decision, ...decisionRow, order_difficulty: numberOrNull(practical.ordering_difficulty), primary_warning: localeValue(decisionRow?.primary_warning), visit_summary: localeValue(decisionRow?.visit_summary) },
+    decision: { ...empty.decision, ...decisionRow, order_difficulty: numberOrNull(practical.ordering_difficulty), primary_warning: localeValue(decisionRow?.primary_warning), visit_summary: localeValue(decisionRow?.visit_summary), worth_reason: localeValue(decisionRow?.worth_reason), information_status_note: localeValue(decisionRow?.information_status_note) },
     practical: {
       ...empty.practical, spicy_level: numberOrNull(practical.spicy_level), oily_level: numberOrNull(practical.greasy_level),
       aroma_level: numberOrNull(practical.smell_level), sweetness_level: numberOrNull(practical.sweetness_level), portion_level: numberOrNull(practical.portion_level),

@@ -121,12 +121,12 @@ export function PlaceSubmissionForm({ locale = defaultLocale, initialValues }: P
       <form className="mt-5 space-y-4" onSubmit={submit}>
         <label className="block">
           <span className="text-sm font-bold text-slate-700">{copy.submissions.mapUrl}</span>
-          <input
-            type="url"
+          <textarea
             value={mapUrl}
             onChange={(event) => setMapUrl(event.target.value)}
-            placeholder="Naver / Kakao / Google Maps URL"
-            className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200"
+            rows={3}
+            placeholder="지도 URL 또는 앱에서 복사한 상호명·주소·URL 공유문"
+            className="mt-2 w-full rounded-2xl bg-slate-50 px-3 py-3 text-base outline-none ring-1 ring-slate-200"
           />
           {mapUrl && parsed.provider === "unknown" ? <span className="mt-2 block text-sm font-bold text-rose-700">{copy.submissions.invalidMapUrl}</span> : null}
         </label>

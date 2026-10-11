@@ -9,7 +9,8 @@ export const travelerThemes = [
 export type TravelerTheme = (typeof travelerThemes)[number];
 export type TravelerVerificationStatus = "verified" | "partially_verified" | "unverified" | "stale" | "conflicting" | "rejected";
 export type PlaceFactSourceType = "official_source" | "owner_merchant" | "administrator" | "traveler_report" | "inferred" | "unverified";
-export type WorthDetourLevel = "nearby_only" | "worth_short_detour" | "worth_long_detour" | "destination";
+export type WorthDetourLevel = "nearby_only" | "worth_short_detour" | "worth_long_detour" | "destination" | "purpose_dependent" | "not_recommended";
+export type InformationStatus = "complete" | "partial" | "not_checked" | "not_applicable";
 export type PlaceTravelMode = "walk" | "transit" | "taxi" | "car" | "mixed";
 export type LocaleText = { ko: string; zh: string; en: string; ja: string };
 
@@ -21,6 +22,9 @@ export type PlaceDecisionProfile = {
   primary_warning: LocaleText;
   visit_summary: LocaleText;
   worth_detour_level: WorthDetourLevel | null;
+  worth_reason: LocaleText;
+  information_status: InformationStatus;
+  information_status_note: LocaleText;
   order_difficulty: number | null;
   solo_difficulty: number | null;
   foreigner_difficulty: number | null;

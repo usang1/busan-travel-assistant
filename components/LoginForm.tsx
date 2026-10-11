@@ -86,10 +86,16 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const locale = getLocaleFromPath(pathname) ?? defaultLocale;
   const text = ui[locale].authFlow;
-  const { session, loading } = useAuth();
+  const { session, profile, loading } = useAuth();
   const [mode, setMode] = useState<AuthMode>(() => getModeFromSearch(searchParams));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [accountType, setAccountType] = useState<"tourist" | "business_owner">("tourist");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [socialSubmitting, setSocialSubmitting] = useState<SocialProviderId | null>(null);
@@ -173,10 +179,10 @@ export function LoginForm() {
     async (userId: string) => {
       setMessage(text.signedIn);
       await consumePendingSave(userId, locale);
-      router.replace(nextPath);
+      router.replace(profile?.onboarding_completed === false ? `${withLocale("/onboarding", locale)}?next=${encodeURIComponent(nextPath)}` : nextPath);
       router.refresh();
     },
-    [consumePendingSave, locale, nextPath, router, text.signedIn],
+    [consumePendingSave, locale, nextPath, profile?.onboarding_completed, router, text.signedIn],
   );
 
   useEffect(() => {
@@ -227,6 +233,12 @@ export function LoginForm() {
       return;
     }
 
+    if (mode === "signup") {
+      if (password !== passwordConfirmation) { setMessage(signupCopy[locale].passwordMismatch); return; }
+      if (password.length < 8 || !/[A-Za-z]/u.test(password) || !/\d/u.test(password)) { setMessage(signupCopy[locale].passwordPolicy); return; }
+      if (!displayName.trim() || !termsAccepted || !privacyAccepted) { setMessage(signupCopy[locale].required); return; }
+    }
+
     setSubmitting(true);
     setMessage("");
     recordAuthAnalyticsEvent(authAnalyticsEventNames[mode]);
@@ -238,7 +250,8 @@ export function LoginForm() {
             email,
             password,
             options: {
-              emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}&locale=${locale}`,
+              emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(accountType === "business_owner" ? withLocale("/business-application", locale) : nextPath)}&locale=${locale}`,
+              data: { display_name: displayName.trim(), account_type: accountType, preferred_locale: locale, terms_accepted: true, privacy_accepted: true, marketing_opt_in: marketingOptIn },
             },
           });
 
@@ -321,6 +334,13 @@ export function LoginForm() {
           </span>
         </label>
 
+        {mode === "signup" ? (
+          <>
+            <label className="block"><span className="text-sm font-bold text-slate-700">{signupCopy[locale].name}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={80} autoComplete="name" className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200" /></label>
+            <label className="block"><span className="text-sm font-bold text-slate-700">{signupCopy[locale].accountType}</span><select value={accountType} onChange={(event) => setAccountType(event.target.value as typeof accountType)} className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200"><option value="tourist">{signupCopy[locale].tourist}</option><option value="business_owner">{signupCopy[locale].owner}</option></select></label>
+          </>
+        ) : null}
+
         <label className="block">
           <span className="text-sm font-bold text-slate-700">{text.password}</span>
           <input
@@ -328,11 +348,21 @@ export function LoginForm() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
-            minLength={6}
+            minLength={mode === "signup" ? 8 : 6}
             autoComplete={mode === "signin" ? "current-password" : "new-password"}
             className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base text-slate-950 outline-none ring-1 ring-slate-200"
           />
         </label>
+
+        {mode === "signup" ? (
+          <>
+            <label className="block"><span className="text-sm font-bold text-slate-700">{signupCopy[locale].confirmPassword}</span><input type="password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required minLength={8} autoComplete="new-password" className="mt-2 h-12 w-full rounded-2xl bg-slate-50 px-3 text-base outline-none ring-1 ring-slate-200" /></label>
+            <p className="text-xs font-semibold text-slate-500">{signupCopy[locale].passwordPolicy}</p>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} required />{signupCopy[locale].terms}</label>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} required />{signupCopy[locale].privacy}</label>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={marketingOptIn} onChange={(event) => setMarketingOptIn(event.target.checked)} />{signupCopy[locale].marketing}</label>
+          </>
+        ) : null}
 
         <button
           type="submit"
@@ -359,3 +389,10 @@ export function LoginForm() {
     </section>
   );
 }
+
+const signupCopy = {
+  ko: { name: "닉네임 또는 이름", accountType: "회원 유형", tourist: "관광객", owner: "가게 사장님", confirmPassword: "비밀번호 확인", passwordPolicy: "비밀번호는 영문과 숫자를 포함해 8자 이상이어야 합니다.", passwordMismatch: "비밀번호 확인이 일치하지 않습니다.", required: "이름, 이용약관 및 개인정보 처리방침 동의가 필요합니다.", terms: "서비스 이용약관 동의 (필수)", privacy: "개인정보 처리방침 동의 (필수)", marketing: "마케팅 정보 수신 동의 (선택)" },
+  zh: { name: "昵称或姓名", accountType: "会员类型", tourist: "游客", owner: "商家", confirmPassword: "确认密码", passwordPolicy: "密码至少8位，并包含字母和数字。", passwordMismatch: "两次密码不一致。", required: "请输入姓名并同意服务条款和隐私政策。", terms: "同意服务条款（必选）", privacy: "同意隐私政策（必选）", marketing: "同意接收营销信息（可选）" },
+  en: { name: "Nickname or name", accountType: "Account type", tourist: "Traveler", owner: "Business owner", confirmPassword: "Confirm password", passwordPolicy: "Use at least 8 characters with a letter and a number.", passwordMismatch: "Passwords do not match.", required: "Name, Terms, and Privacy consent are required.", terms: "Agree to Terms (required)", privacy: "Agree to Privacy Policy (required)", marketing: "Marketing messages (optional)" },
+  ja: { name: "ニックネームまたは氏名", accountType: "会員タイプ", tourist: "旅行者", owner: "店舗オーナー", confirmPassword: "パスワード確認", passwordPolicy: "英字と数字を含む8文字以上で入力してください。", passwordMismatch: "パスワードが一致しません。", required: "氏名、利用規約、プライバシーポリシーへの同意が必要です。", terms: "利用規約に同意（必須）", privacy: "プライバシーポリシーに同意（必須）", marketing: "マーケティング受信（任意）" },
+} satisfies Record<Locale, Record<string, string>>;

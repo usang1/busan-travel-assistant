@@ -368,6 +368,19 @@ assert.equal(mapUrl.parseMapUrl("https://map.kakao.com/link/map/Test,0,0").latit
 assert.equal(mapUrl.parseMapUrl("https://map.naver.com/?lat=NaN&lng=NaN").latitude, undefined);
 assert.equal(mapUrl.parseMapUrl("https://map.kakao.com/link/map/Test,95,190").latitude, undefined);
 
+const naverMobileShare = `[네이버지도]
+스탠다드짐 재송점
+부산 해운대구 해운대로91번길 21-5 지하층
+https://naver.me/GGGMTSic`;
+const parsedNaverMobileShare = mapUrl.parseMapUrl(naverMobileShare);
+assert.equal(parsedNaverMobileShare.provider, "naver");
+assert.equal(parsedNaverMobileShare.normalizedUrl, "https://naver.me/GGGMTSic");
+assert.equal(parsedNaverMobileShare.sharedTitle, "스탠다드짐 재송점");
+assert.equal(parsedNaverMobileShare.sharedAddress, "부산 해운대구 해운대로91번길 21-5 지하층");
+assert.equal(parsedNaverMobileShare.searchQuery, "부산 해운대구 해운대로91번길 21-5 지하층");
+assert.equal(mapUrl.parseMapUrl(`상호명\nhttps://example.com/not-a-map\nhttps://naver.me/GGGMTSic`).provider, "naver");
+assert.equal(mapUrl.parseMapUrl("javascript:alert(1)").provider, "unknown");
+
 const googleDetailsFetcher = async (input, init = {}) => {
   const url = input.toString();
   if (url.startsWith("https://dapi.kakao.com/v2/local/search/category.json")) {

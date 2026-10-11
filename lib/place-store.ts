@@ -630,7 +630,7 @@ function adaptPlaceWriteRowForLegacySchema(
   error: { code?: string; message?: string },
 ) {
   const missingColumn = getMissingSchemaColumn(error);
-  const optionalColumns = new Set(["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code"]);
+  const optionalColumns = new Set(["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code", "verification_tier", "verification_checked_at", "verification_checked_by", "verification_note", "verification_source_urls", "verified_visit_at", "direct_visit_photos"]);
 
   if (missingColumn && optionalColumns.has(missingColumn) && missingColumn in row) {
     const nextRow = { ...row };
@@ -701,21 +701,6 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
     throw new Error("Place storage is not configured.");
   }
 
-  if (menuItems.some((item) => item.price_is_variable === true)) {
-    const { error: schemaError } = await resolvedClient.from("place_menu_items").select("price_is_variable").limit(1);
-    if (schemaError) {
-      if (getMissingSchemaColumn(schemaError) === "price_is_variable") throw menuSchemaMigrationError();
-      throw new Error(schemaError.message);
-    }
-  }
-
-  const { error: deleteError } = await resolvedClient.from("place_menu_items").delete().eq("place_id", placeId);
-  if (deleteError) throw new Error(deleteError.message);
-
-  if (menuItems.length === 0) {
-    return;
-  }
-
   const rows = menuItems.map((item, index) => ({
     ...(item.id ? { id: item.id } : {}),
     place_id: placeId,
@@ -744,23 +729,20 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
     sold_out_risk: item.sold_out_risk ?? null,
   }));
 
-  let { error } = await resolvedClient.from("place_menu_items").insert(rows);
+  const { error } = await resolvedClient.rpc("replace_place_menu_items", {
+    target_place_id: placeId,
+    menu_items: rows,
+  });
 
-  if (error && (error.code === "PGRST204" || error.code === "42703")) {
-    if (rows.some((row) => row.price_is_variable)) {
-      throw menuSchemaMigrationError();
-    }
-    const legacyRows = rows.map((row) => ({
-      ...(row.id ? { id: row.id } : {}), place_id: row.place_id, name_ko: row.name_ko, name_zh: row.name_zh,
-      description_zh: row.description_zh, price: row.price, is_recommended: row.is_recommended, sort_order: row.sort_order,
-    }));
-    const retry = await resolvedClient.from("place_menu_items").insert(legacyRows);
-    error = retry.error;
+  if (!error) return;
+  if (error.code === "PGRST202" || /replace_place_menu_items/i.test(error.message ?? "")) {
+    throw Object.assign(
+      new Error("메뉴를 안전하게 저장하려면 042_atomic_place_menu_replace.sql 마이그레이션을 먼저 적용해 주세요."),
+      { status: 503, expose: true },
+    );
   }
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (getMissingSchemaColumn(error) === "price_is_variable") throw menuSchemaMigrationError();
+  throw new Error(error.message);
 }
 
 function menuSchemaMigrationError() {
@@ -1130,6 +1112,10 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   validatePlacePayloadForSave(payload);
   await assertNoExactSourceDuplicate(payload, resolvedClient, id);
 
+  // Run the atomic menu replacement first. A menu constraint/RLS/RPC failure
+  // therefore leaves both the existing menu and the place base row untouched.
+  await runPlaceSaveStage("메뉴", () => syncMenuItems(id, payload.menu_items, resolvedClient));
+
   const placeRow = toPlaceWriteRow(payload);
   let compatiblePlaceRow: Record<string, unknown> = { ...placeRow };
   let { error } = await resolvedClient.from("places").update(compatiblePlaceRow).eq("id", id);
@@ -1147,7 +1133,6 @@ export async function updatePlace(id: string, payload: PlacePayload, client?: Su
   }
 
   await runPlaceSaveStage("카테고리 태그", () => syncTags(id, payload.tags, resolvedClient));
-  await runPlaceSaveStage("메뉴", () => syncMenuItems(id, payload.menu_items, resolvedClient));
   await runPlaceSaveStage("다국어 정보", () => syncTranslations(id, payload, resolvedClient));
   await runPlaceSaveStage("지도 출처", () => syncSource(id, payload, resolvedClient));
   await runPlaceSaveStage("여행자 정보", () => syncChinaInfo(id, payload, resolvedClient));

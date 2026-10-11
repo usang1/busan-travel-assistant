@@ -5,11 +5,13 @@ import {
   getDecisionEvidence,
   getDecisionStatus,
   getDecisionStatusLabel,
+  getInformationStatusLabel,
   getDecisionWarnings,
   getLocalizedDecisionText,
   getPracticalFacts,
   getThemeLabels,
   getWorthLabel,
+  getVerificationTierLabel,
 } from "@/lib/traveler-decision-display";
 import type { PlaceFactTristate, PlaceWithRelations } from "@/types/database";
 import { getForeignerDifficultyDimensions, getLargestKnownObstacle } from "@/lib/traveler-practical-display";
@@ -30,6 +32,8 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
   const warnings = getDecisionWarnings(place, locale);
   const evidence = getDecisionEvidence(place, locale);
   const summary = getLocalizedDecisionText(place.decision_profile?.visit_summary, locale);
+  const worthReason = getLocalizedDecisionText(place.decision_profile?.worth_reason, locale);
+  const informationNote = getLocalizedDecisionText(place.decision_profile?.information_status_note, locale);
   const obstacle = getLargestKnownObstacle(place, locale);
 
   if (variant === "compact") {
@@ -75,9 +79,12 @@ export function TravelerDecisionCard({ place, locale, variant = "compact", class
           </h2>
         </div>
         <StatusBadge status={status} label={getDecisionStatusLabel(status, locale)} />
+        <span className="rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-black text-blue-900 ring-1 ring-blue-100">{getVerificationTierLabel(place, locale)}</span>
       </div>
 
       {summary ? <p className="mt-3 text-sm leading-6 text-slate-700">{summary}</p> : null}
+      {worthReason ? <p className="mt-2 text-sm leading-6 text-slate-700">{worthReason}</p> : null}
+      <p className="mt-2 text-xs font-bold text-slate-600">{getInformationStatusLabel(place, locale)}{informationNote ? ` · ${informationNote}` : ""}</p>
 
       {(recommended.length || notRecommended.length) ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">

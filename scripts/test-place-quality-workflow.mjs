@@ -229,7 +229,7 @@ const missingCoordinates = {
 const missingCoordinateQuality = evaluatePlaceQuality(missingCoordinates);
 assert.equal(missingCoordinateQuality.canPublish, false);
 assert.ok(missingCoordinateQuality.missingRequired.some((item) => item.key === "coordinates"));
-assert.throws(() => validatePlacePayloadForSave(missingCoordinates), /부산 공개 범위를 확인해 주세요/);
+assert.throws(() => validatePlacePayloadForSave(missingCoordinates), /공개 장소의 도시·지역·좌표를 확인해 주세요/);
 assert.equal(isPublishablePlace(missingCoordinates), true);
 
 const draftWithoutCoordinates = {

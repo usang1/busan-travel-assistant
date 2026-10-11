@@ -14,6 +14,7 @@ import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasV
 import { buildPlaceRegionTags, cityRegions, getPlaceRegion, inferPlaceCity, isPlaceRegionTag, placeCities, placeRegionLabel, type PlaceCity } from "@/lib/city-regions";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
+import { fromDateInputValue, toDateInputValue } from "@/lib/date-input";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import {
   buildChinaPlaceSummary,
@@ -26,6 +27,7 @@ import { buildChinaDiscoveryTags, chinaDiscoveryTagOptions, getChinaDiscoveryKey
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
 import { analyzePlaceMapSource } from "@/lib/place-ai/map-source";
 import { evaluatePlaceQuality, type PlaceQualityResult } from "@/lib/place-quality";
+import { getPriceLevelLabel, priceLevelCodes } from "@/lib/price-level";
 import {
   formatVerifiedBlockMessage,
   getPlacePublicationState,
@@ -66,6 +68,7 @@ type AdminPlaceManagerProps = {
 
 type MenuDraft = {
   id?: string;
+  client_key: string;
   name_ko: string;
   name_zh: string;
   description_zh: string;
@@ -86,6 +89,14 @@ type MenuDraft = {
   menu_warning?: { ko: string; zh: string; en: string; ja: string };
   availability_time?: Array<{ weekdays: number[]; start: string; end: string; note?: string }>;
   sold_out_risk?: number | null;
+};
+
+type DirectVisitPhotoDraft = {
+  client_key: string;
+  url: string;
+  caption: string;
+  captured_at: string;
+  is_cover: boolean;
 };
 
 type FormState = {
@@ -138,6 +149,12 @@ type FormState = {
   status: PlaceWorkflowStatus;
   closed_days: string;
   last_verified_at: string;
+  verification_tier: 0 | 1 | 2 | 3;
+  verification_checked_at: string;
+  verification_note: string;
+  verification_source_urls: string;
+  verified_visit_at: string;
+  direct_visit_photos: DirectVisitPhotoDraft[];
   is_featured: boolean;
   is_active: boolean;
   tags_text: string;
@@ -184,6 +201,7 @@ type TriStateConfig = {
 };
 
 type QualityFilter = "all" | "missing" | "review" | "stale";
+type QualitySort = "completeness_asc" | "completeness_desc" | "created_desc" | "updated_desc";
 
 const localStorageKey = "busan-travel-assistant-admin-places";
 const scoreOptions = [1, 2, 3, 4, 5] as const;
@@ -352,6 +370,12 @@ function createEmptyForm(): FormState {
     status: "DRAFT",
     closed_days: "",
     last_verified_at: "",
+    verification_tier: 0,
+    verification_checked_at: "",
+    verification_note: "",
+    verification_source_urls: "",
+    verified_visit_at: "",
+    direct_visit_photos: [],
     is_featured: false,
     is_active: false,
     tags_text: "",
@@ -450,7 +474,16 @@ function toForm(place: PlaceWithRelations): FormState {
     source_fetched_at: source?.last_synced_at ?? "",
     status: normalizePlaceStatusForWrite(place),
     closed_days: place.closed_days ?? "",
-    last_verified_at: place.last_verified_at?.slice(0, 10) ?? "",
+    last_verified_at: toDateInputValue(place.last_verified_at),
+    verification_tier: place.verification_tier ?? 0,
+    verification_checked_at: toDateInputValue(place.verification_checked_at),
+    verification_note: place.verification_note ?? "",
+    verification_source_urls: (place.verification_source_urls ?? []).join("\n"),
+    verified_visit_at: toDateInputValue(place.verified_visit_at),
+    direct_visit_photos: (place.direct_visit_photos ?? []).map((photo) => ({
+      client_key: createMenuDraftKey(), url: photo.url, caption: photo.caption ?? "",
+      captured_at: toDateInputValue(photo.captured_at), is_cover: photo.is_cover === true,
+    })),
     is_featured: place.is_featured,
     is_active: isPublicPlace(place),
     tags_text: place.tags.filter((tag) => !isHomeIntentTagSlug(tag.slug) && !isPlaceRegionTag(tag.slug) && !isChinaDiscoveryTagSlug(tag.slug)).map((tag) => `${tag.label_zh} | ${tag.label_ko} | ${tag.slug}`).join("\n"),
@@ -458,6 +491,7 @@ function toForm(place: PlaceWithRelations): FormState {
     china_discovery_keys: getChinaDiscoveryKeysFromTags(place.tags),
     menu_items: place.menu_items.map((item) => ({
       id: item.id,
+      client_key: item.id,
       name_ko: item.name_ko,
       name_zh: item.name_zh,
       description_zh: item.description_zh,
@@ -527,6 +561,7 @@ function isFoodPlaceCategory(category: PlaceCategory | "") {
 
 function createPrimaryMenuDraft(sortOrder = "1"): MenuDraft {
   return {
+    client_key: createMenuDraftKey(),
     name_ko: "",
     name_zh: "",
     description_zh: "",
@@ -534,6 +569,12 @@ function createPrimaryMenuDraft(sortOrder = "1"): MenuDraft {
     is_recommended: true,
     sort_order: sortOrder,
   };
+}
+
+function createMenuDraftKey() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `menu-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getPrimaryMenuDraft(form: Pick<FormState, "menu_items">) {
@@ -554,7 +595,7 @@ function mergeMenuDrafts(current: MenuDraft[], incoming: MenuDraft[]) {
         is_recommended: existing.is_recommended || item.is_recommended,
       };
     } else {
-      merged.push({ ...item, sort_order: String(merged.length + 1) });
+      merged.push({ ...item, client_key: item.client_key || createMenuDraftKey(), sort_order: String(merged.length + 1) });
     }
   }
 
@@ -697,7 +738,16 @@ function toPayload(form: FormState): PlacePayload {
     latitude: normalizeLatitude(form.latitude),
     longitude: normalizeLongitude(form.longitude),
     closed_days: form.closed_days.trim(),
-    last_verified_at: form.last_verified_at || null,
+    last_verified_at: fromDateInputValue(form.last_verified_at),
+    verification_tier: form.verification_tier,
+    verification_checked_at: fromDateInputValue(form.verification_checked_at),
+    verification_checked_by: null,
+    verification_note: form.verification_note.trim() || null,
+    verification_source_urls: form.verification_source_urls.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean),
+    verified_visit_at: fromDateInputValue(form.verified_visit_at),
+    direct_visit_photos: form.direct_visit_photos.filter((photo) => photo.url.trim()).map(({ url, caption, captured_at, is_cover }) => ({
+      url: url.trim(), caption: caption.trim(), captured_at: fromDateInputValue(captured_at), is_cover,
+    })),
     nearest_station: form.nearest_station,
     nearest_exit: form.nearest_exit,
     walking_minutes: Number(form.walking_minutes) || 0,
@@ -786,6 +836,7 @@ function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): Form
   const enriched = enrichPlaceForm({ ...form, provider: form.source_provider }, place);
   const { provider, ...nextForm } = enriched;
   const incomingMenu = (place.menu ?? []).map((item, index) => ({
+    client_key: createMenuDraftKey(),
     name_ko: item.name,
     name_zh: item.name,
     description_zh: "",
@@ -1131,6 +1182,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
+  const [qualitySort, setQualitySort] = useState<QualitySort>("updated_desc");
   const [tasteChecklistExpanded, setTasteChecklistExpanded] = useState(false);
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info), { includeAdminNotes: true }), [form.china_info]);
   const formQuality = useMemo(() => evaluatePlaceQuality(toPayload(form)), [form]);
@@ -1168,6 +1220,14 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
     if (qualityFilter === "stale") {
       qualityFiltered.sort((a, b) => verificationTime(a) - verificationTime(b));
+    } else if (qualitySort === "completeness_asc") {
+      qualityFiltered.sort((a, b) => evaluatePlaceQuality(a).score - evaluatePlaceQuality(b).score);
+    } else if (qualitySort === "completeness_desc") {
+      qualityFiltered.sort((a, b) => evaluatePlaceQuality(b).score - evaluatePlaceQuality(a).score);
+    } else if (qualitySort === "created_desc") {
+      qualityFiltered.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    } else {
+      qualityFiltered.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     }
 
     if (!lowered) {
@@ -1180,7 +1240,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         .toLowerCase()
         .includes(lowered),
     );
-  }, [places, qualityFilter, query]);
+  }, [places, qualityFilter, qualitySort, query]);
 
   function adminHeaders() {
     return {
@@ -1957,6 +2017,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     updateField("menu_items", [
       ...form.menu_items,
       {
+        client_key: createMenuDraftKey(),
         name_ko: "",
         name_zh: "",
         description_zh: "",
@@ -2051,6 +2112,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             </button>
           ))}
         </div>
+        <select aria-label="장소 정렬" value={qualitySort} onChange={(event) => setQualitySort(event.target.value as QualitySort)} className="h-11 w-full rounded-2xl bg-white px-3 text-sm font-bold text-slate-700 outline-none ring-1 ring-slate-200">
+          <option value="completeness_asc">완성도 낮은 순</option>
+          <option value="completeness_desc">완성도 높은 순</option>
+          <option value="created_desc">최근 등록 순</option>
+          <option value="updated_desc">최근 수정 순</option>
+        </select>
         <div className="rounded-[24px] bg-white p-2 shadow-sm ring-1 ring-slate-200">
           {visiblePlaces.length > 0 ? (
             visiblePlaces.map((place) => {
@@ -2235,11 +2302,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   <Field label="가격대">
                     <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
                       <option value="">정보 없음</option>
-                      <option value="0">무료</option>
-                      <option value="1">₩</option>
-                      <option value="2">₩₩</option>
-                      <option value="3">₩₩₩</option>
-                      <option value="4">₩₩₩₩</option>
+                      {priceLevelCodes.map((level) => <option key={level} value={level}>{getPriceLevelLabel(level, "ko")}</option>)}
                     </select>
                   </Field>
                 </>
@@ -2255,15 +2318,47 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   />
                 </Field>
               </div>
+              <div className="space-y-4 rounded-2xl bg-blue-50 p-4 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-black text-blue-950">검수 정보</p>
+                  <p className="mt-1 text-xs font-semibold text-blue-800">검수 방식, 정보 완성도, 방문 추천 평가는 서로 독립적으로 관리됩니다.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="검수 등급">
+                    <select value={form.verification_tier} onChange={(event) => updateField("verification_tier", Number(event.target.value) as FormState["verification_tier"])} className={inputClass}>
+                      <option value={0}>Tier 0 · 미검수</option><option value={1}>Tier 1 · 온라인 정보 조사</option><option value={2}>Tier 2 · 온라인 교차검증</option><option value={3}>Tier 3 · 직접 방문 검수</option>
+                    </select>
+                  </Field>
+                  <Field label="검수일"><input type="date" value={form.verification_checked_at} onChange={(event) => updateField("verification_checked_at", event.target.value)} className={inputClass} /></Field>
+                  <Field label="직접 방문일"><input type="date" value={form.verified_visit_at} onChange={(event) => updateField("verified_visit_at", event.target.value)} className={inputClass} /></Field>
+                  <Field label="검수 메모"><textarea value={form.verification_note} onChange={(event) => updateField("verification_note", event.target.value)} className={textareaClass} /></Field>
+                  <div className="sm:col-span-2"><Field label="검수 출처 URL (한 줄에 하나)"><textarea value={form.verification_source_urls} onChange={(event) => updateField("verification_source_urls", event.target.value)} className={textareaClass} /></Field></div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black text-blue-950">관리자 직접 방문 사진</p>
+                  <button type="button" onClick={() => updateField("direct_visit_photos", [...form.direct_visit_photos, { client_key: createMenuDraftKey(), url: "", caption: "", captured_at: form.verified_visit_at, is_cover: form.direct_visit_photos.length === 0 }])} className="min-h-11 rounded-lg bg-blue-700 px-3 text-sm font-bold text-white">사진 추가</button>
+                </div>
+                {form.direct_visit_photos.map((photo, index) => (
+                  <div key={photo.client_key} className="rounded-xl bg-white p-3 ring-1 ring-blue-100">
+                    <AdminPlaceImageUpload accessToken={adminAccessToken ?? ""} value={photo.url} onChange={(url) => updateField("direct_visit_photos", form.direct_visit_photos.map((item, itemIndex) => itemIndex === index ? { ...item, url } : item))} />
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <input value={photo.caption} onChange={(event) => updateField("direct_visit_photos", form.direct_visit_photos.map((item, itemIndex) => itemIndex === index ? { ...item, caption: event.target.value } : item))} placeholder="사진 설명" className={inputClass} />
+                      <input type="date" value={photo.captured_at} onChange={(event) => updateField("direct_visit_photos", form.direct_visit_photos.map((item, itemIndex) => itemIndex === index ? { ...item, captured_at: event.target.value } : item))} className={inputClass} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <CheckField label="대표 직접 방문 사진" checked={photo.is_cover} onChange={() => updateField("direct_visit_photos", form.direct_visit_photos.map((item, itemIndex) => ({ ...item, is_cover: itemIndex === index })))} />
+                      <button type="button" disabled={index === 0} onClick={() => { const next = [...form.direct_visit_photos]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; updateField("direct_visit_photos", next); }} className="min-h-11 rounded-lg px-3 text-sm font-bold text-blue-800 ring-1 ring-blue-200 disabled:opacity-40">위로</button>
+                      <button type="button" disabled={index === form.direct_visit_photos.length - 1} onClick={() => { const next = [...form.direct_visit_photos]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; updateField("direct_visit_photos", next); }} className="min-h-11 rounded-lg px-3 text-sm font-bold text-blue-800 ring-1 ring-blue-200 disabled:opacity-40">아래로</button>
+                      <button type="button" onClick={() => updateField("direct_visit_photos", form.direct_visit_photos.filter((_item, itemIndex) => itemIndex !== index))} className="min-h-11 rounded-lg px-3 text-sm font-bold text-rose-700 ring-1 ring-rose-200">삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
               {!isFoodPlace ? (
                 <Field label="가격대">
                   <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
                     <option value="">정보 없음</option>
-                    <option value="0">무료</option>
-                    <option value="1">₩</option>
-                    <option value="2">₩₩</option>
-                    <option value="3">₩₩₩</option>
-                    <option value="4">₩₩₩₩</option>
+                    {priceLevelCodes.map((level) => <option key={level} value={level}>{getPriceLevelLabel(level, "ko")}</option>)}
                   </select>
                 </Field>
               ) : null}
@@ -2718,7 +2813,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 </button>
                 <div className="mt-3 space-y-3">
                   {form.menu_items.map((item, index) => (
-                    <div key={`${index}-${item.name_ko}`} className="rounded-2xl bg-slate-50 p-3">
+                    <div key={item.id ?? item.client_key} className="rounded-2xl bg-slate-50 p-3">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <input placeholder="메뉴명 KO" value={item.name_ko} onChange={(event) => updateMenu(index, { name_ko: event.target.value })} className={inputClass} />
                         <input placeholder="메뉴명 ZH" value={item.name_zh} onChange={(event) => updateMenu(index, { name_zh: event.target.value })} className={inputClass} />

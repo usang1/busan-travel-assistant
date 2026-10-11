@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
+export async function GET(request: Request) { try { const { client } = await requireAdmin(request); const { data, error } = await client.from("business_applications").select("*").order("created_at", { ascending: false }).limit(200); if (error) throw error; return NextResponse.json({ applications: data ?? [] }, { headers: { "Cache-Control": "private, no-store" } }); } catch (error) { const value = adminErrorResponse(error); return NextResponse.json({ message: value.message }, { status: value.status }); } }

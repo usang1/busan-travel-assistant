@@ -45,8 +45,7 @@ const seoulBakery = {
 assert.equal(scope.isBusanScopedPlace(seoulBakery), false);
 assert.equal(scope.isCityScopedPlace(seoulBakery, "seoul"), true);
 assert.equal(scope.isSupportedCityScopedPlace(seoulBakery), true);
-assert.ok(scope.getPlaceScopeIssues(seoulBakery).includes("not_busan"));
-assert.ok(scope.getPlaceScopeIssues(seoulBakery).includes("coordinates_outside_busan"));
+assert.deepEqual(scope.getPlaceScopeIssues(seoulBakery), []);
 
 const conflictingCity = { ...validBusan, address_ko: "서울특별시 강남구 신사동" };
 assert.ok(scope.getPlaceScopeIssues(conflictingCity).includes("city_conflict"));
@@ -63,6 +62,8 @@ const validJeju = {
   tags: [],
 };
 assert.equal(scope.isCityScopedPlace(validJeju, "jeju"), true);
+assert.deepEqual(scope.getPlaceScopeIssues(validJeju), []);
+assert.ok(scope.getPlaceScopeIssues({ ...seoulBakery, latitude: 35.1532, longitude: 129.1186 }).includes("coordinates_outside_city"));
 assert.equal(scope.isCityScopedPlace({ ...seoulBakery, latitude: 35.1532, longitude: 129.1186 }, "seoul"), false);
 assert.equal(scope.isCityScopedPlace({ ...seoulBakery, address_ko: "부산광역시 수영구" }, "seoul"), false);
 

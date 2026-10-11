@@ -15,7 +15,7 @@ export function Header() {
   const basePath = withoutLocale(pathname);
   const queryString = searchParams.toString();
   const querySuffix = queryString ? `?${queryString}` : "";
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
 
   async function signOut() {
     const client = getSupabaseClient();
@@ -63,6 +63,11 @@ export function Header() {
                 <UserRound size={16} aria-hidden="true" />
                 <span className="hidden text-sm font-black sm:inline">{copy.auth.mypage}</span>
               </Link>
+              {profile?.role === "business_owner" ? (
+                <Link href={withLocale("/business-application", currentLocale)} className="hidden h-11 items-center rounded-full bg-teal-50 px-3 text-sm font-black text-teal-800 ring-1 ring-teal-100 sm:inline-flex">
+                  {{ ko: "가게 입점 신청", zh: "商家入驻", en: "List my business", ja: "店舗掲載申請" }[currentLocale]}
+                </Link>
+              ) : null}
               {isAdmin ? (
                 <Link
                   href={withLocale("/admin", currentLocale)}

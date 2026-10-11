@@ -109,9 +109,31 @@ export function getWorthLabel(place: PlaceWithRelations, locale: Locale) {
     worth_short_detour: { ko: "짧게 우회할 가치 있음", zh: "值得稍微绕路", en: "Worth a short detour", ja: "少し寄り道する価値あり" },
     worth_long_detour: { ko: "멀리서 찾아갈 가치 있음", zh: "值得专程前往", en: "Worth a longer detour", ja: "遠くから行く価値あり" },
     destination: { ko: "여행 목적지로 추천", zh: "可作为旅行目的地", en: "Worth making a destination", ja: "旅の目的地におすすめ" },
+    purpose_dependent: { ko: "목적에 따라 추천", zh: "视出行目的而定", en: "Recommended for the right purpose", ja: "目的によりおすすめ" },
+    not_recommended: { ko: "추천하기 어려움", zh: "较难推荐", en: "Difficult to recommend", ja: "おすすめしにくい" },
   } as const;
   const level = place.decision_profile?.worth_detour_level;
   return level ? labels[level][locale] : copy[locale].unknownWorth;
+}
+
+export function getInformationStatusLabel(place: PlaceWithRelations, locale: Locale) {
+  const status = place.decision_profile?.information_status ?? "not_checked";
+  return {
+    complete: { ko: "정보 확인 완료", zh: "信息已确认", en: "Information checked", ja: "情報確認済み" },
+    partial: { ko: "일부 정보 미확인", zh: "部分信息未确认", en: "Some information unchecked", ja: "一部情報は未確認" },
+    not_checked: { ko: "정보 확인 전", zh: "信息待确认", en: "Information not checked yet", ja: "情報確認前" },
+    not_applicable: { ko: "확인 대상 아님", zh: "不适用", en: "Not applicable", ja: "該当なし" },
+  }[status][locale];
+}
+
+export function getVerificationTierLabel(place: PlaceWithRelations, locale: Locale) {
+  const tier = place.verification_tier ?? 0;
+  return [
+    { ko: "Tier 0 · 미검수", zh: "Tier 0 · 未审核", en: "Tier 0 · Unreviewed", ja: "Tier 0 · 未確認" },
+    { ko: "Tier 1 · 온라인 조사", zh: "Tier 1 · 在线调查", en: "Tier 1 · Online research", ja: "Tier 1 · オンライン調査" },
+    { ko: "Tier 2 · 교차검증", zh: "Tier 2 · 交叉核验", en: "Tier 2 · Cross-checked", ja: "Tier 2 · 複数情報で確認" },
+    { ko: "Tier 3 · 직접 방문", zh: "Tier 3 · 实地探访", en: "Tier 3 · Visited in person", ja: "Tier 3 · 現地訪問" },
+  ][tier][locale];
 }
 
 export function getDecisionStatus(place: PlaceWithRelations): DecisionStatus {

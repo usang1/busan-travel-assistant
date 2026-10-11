@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
+import sharp from "sharp";
 
 const placeImageBucket = "place-images";
 const maxImageBytes = 8 * 1024 * 1024;
@@ -48,15 +49,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "이미지 파일은 8MB 이하여야 합니다." }, { status: 413 });
     }
 
-    const objectPath = `${user.id}/${Date.now()}-${randomUUID()}.${extension}`;
+    const objectPath = `${user.id}/${Date.now()}-${randomUUID()}.webp`;
     const bytes = await image.arrayBuffer();
     if (!matchesImageSignature(image.type, new Uint8Array(bytes))) {
       return NextResponse.json({ message: "파일 내용이 올바른 이미지 형식이 아닙니다." }, { status: 415 });
     }
 
-    const { error } = await client.storage.from(placeImageBucket).upload(objectPath, bytes, {
+    const optimized = await sharp(Buffer.from(bytes))
+      .rotate()
+      .resize({ width: 2400, height: 2400, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 84 })
+      .toBuffer();
+    const { error } = await client.storage.from(placeImageBucket).upload(objectPath, optimized, {
       cacheControl: "31536000",
-      contentType: image.type,
+      contentType: "image/webp",
       upsert: false,
     });
 

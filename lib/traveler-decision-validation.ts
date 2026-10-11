@@ -4,7 +4,8 @@ const verificationStatuses = ["verified", "partially_verified", "unverified", "s
 const sourceTypes = ["official_source", "owner_merchant", "administrator", "traveler_report", "inferred", "unverified"] as const;
 const tristates = ["yes", "no", "unknown"] as const;
 const travelModes = ["walk", "transit", "taxi", "car", "mixed"] as const;
-const detourLevels = ["nearby_only", "worth_short_detour", "worth_long_detour", "destination"] as const;
+const detourLevels = ["nearby_only", "worth_short_detour", "worth_long_detour", "destination", "purpose_dependent", "not_recommended"] as const;
+const informationStatuses = ["complete", "partial", "not_checked", "not_applicable"] as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fieldKey = /^[a-z][a-z0-9_.]{1,99}$/;
 const locales = ["ko", "zh", "en", "ja"] as const;
@@ -18,7 +19,8 @@ export function createEmptyTravelerDecisionBundle(): TravelerDecisionBundle {
   return {
     decision: {
       tourist_fit_score: null, recommended_for: [], not_recommended_for: [], primary_warning: emptyLocaleText(),
-      visit_summary: emptyLocaleText(), worth_detour_level: null, order_difficulty: null, solo_difficulty: null,
+      visit_summary: emptyLocaleText(), worth_detour_level: null, worth_reason: emptyLocaleText(),
+      information_status: "not_checked", information_status_note: emptyLocaleText(), order_difficulty: null, solo_difficulty: null,
       foreigner_difficulty: null, confidence_score: null, evidence_count: 0, last_verified_at: null,
       verification_status: "unverified",
     },
@@ -60,6 +62,9 @@ function validateDecision(value: unknown): TravelerDecisionBundle["decision"] {
     recommended_for: themes(input.recommended_for), not_recommended_for: themes(input.not_recommended_for),
     primary_warning: localeText(input.primary_warning), visit_summary: localeText(input.visit_summary),
     worth_detour_level: nullableOneOf(input.worth_detour_level, detourLevels),
+    worth_reason: localeText(input.worth_reason),
+    information_status: oneOf(input.information_status, informationStatuses, "정보 확인 상태"),
+    information_status_note: localeText(input.information_status_note),
     order_difficulty: nullableInteger(input.order_difficulty, 1, 5),
     solo_difficulty: nullableInteger(input.solo_difficulty, 1, 5),
     foreigner_difficulty: nullableInteger(input.foreigner_difficulty, 1, 5),

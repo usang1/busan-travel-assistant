@@ -47,15 +47,27 @@ export function validatePlacePayloadForSave(payload: PlacePayload) {
     throw validationError("공개 장소는 도시와 구·군을 확인해야 합니다.");
   }
 
-  if (isPublic && payload.city_code === "busan") {
+  if (isPublic && payload.city_code) {
     const scopeIssues = getPlaceScopeIssueLabels(payload);
     if (scopeIssues.length > 0) {
-      throw validationError(`부산 공개 범위를 확인해 주세요: ${scopeIssues.join(", ")}`);
+      throw validationError(`공개 장소의 도시·지역·좌표를 확인해 주세요: ${scopeIssues.join(", ")}`);
     }
   }
 
-  if (isPublic && payload.city_code && payload.city_code !== "busan" && !isCityScopedPlace(payload, payload.city_code)) {
-    throw validationError("공개 장소의 선택 도시, 주소, 구역, 좌표가 서로 일치하는지 확인해 주세요.");
+  if (isPublic && payload.city_code && !isCityScopedPlace(payload, payload.city_code)) throw validationError("공개 장소의 선택 도시, 주소, 구역, 좌표가 서로 일치하는지 확인해 주세요.");
+
+  const tier = payload.verification_tier ?? 0;
+  const sources = payload.verification_source_urls ?? [];
+  if (tier >= 1 && (!payload.verification_checked_at || sources.length < 1)) throw validationError("Tier 1 이상은 검수일과 출처 URL이 필요합니다.");
+  if (tier >= 2 && sources.length < 2) throw validationError("Tier 2 교차검증은 서로 다른 출처 URL 2개 이상이 필요합니다.");
+  if (tier === 3 && (!payload.verified_visit_at || !(payload.direct_visit_photos?.length))) throw validationError("Tier 3 직접 방문 검수는 방문일과 직접 촬영 사진이 필요합니다.");
+  for (const url of sources) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error();
+    } catch {
+      throw validationError("검수 출처 URL은 http 또는 https 주소여야 합니다.");
+    }
   }
 
   if (payload.china_info?.verification_basis === "official_source" && !payload.source?.source_url && !payload.website) {

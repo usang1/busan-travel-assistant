@@ -11,7 +11,11 @@ export type UserProfile = {
   email: string | null;
   display_name: string | null;
   avatar_url: string | null;
-  role: "user" | "admin";
+  role: "user" | "tourist" | "business_owner" | "admin";
+  terms_accepted_at?: string | null;
+  privacy_accepted_at?: string | null;
+  marketing_opt_in?: boolean;
+  onboarding_completed?: boolean;
   preferred_locale: Locale;
   auth_provider: string | null;
   auth_provider_id: string | null;
@@ -61,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data, error } = await client
       .from("profiles")
-      .select("id, email, display_name, avatar_url, role, preferred_locale, auth_provider, auth_provider_id, created_at, updated_at")
+      .select("id, email, display_name, avatar_url, role, preferred_locale, auth_provider, auth_provider_id, terms_accepted_at, privacy_accepted_at, marketing_opt_in, onboarding_completed, created_at, updated_at")
       .eq("id", userId)
       .maybeSingle();
 

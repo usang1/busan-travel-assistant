@@ -1,0 +1,1 @@
+import { AccountOnboarding } from "@/components/AccountOnboarding"; import { SectionTitle } from "@/components/SectionTitle"; export default function Page() { return <main className="mx-auto max-w-xl px-4 py-8"><SectionTitle as="h1" title="회원 정보 설정" subtitle="account onboarding" /><div className="mt-5"><AccountOnboarding locale="ko" /></div></main>; }

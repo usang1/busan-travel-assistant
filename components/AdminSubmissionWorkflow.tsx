@@ -10,6 +10,7 @@ import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasV
 import { buildPlaceRegionTags, cityRegions, getPlaceRegion, inferCityRegion, inferPlaceCity, isPlaceRegionTag, placeCities, placeRegionLabel, type PlaceCity } from "@/lib/city-regions";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
+import { fromDateInputValue, toDateInputValue } from "@/lib/date-input";
 import { normalizeLatitude, normalizeLongitude, parseMapUrl } from "@/lib/map-url";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { buildPlaceSourceData, hasPlaceAiGeneratedContent } from "@/lib/place-ai/content-draft";
@@ -19,6 +20,7 @@ import { ratingHelp, type ChinaRatingKey } from "@/lib/place-china/format";
 import { findPlaceDuplicateMatches } from "@/lib/place-duplicates";
 import { isPublicPlace, normalizePlaceStatusForWrite, publishedPlaceStatus } from "@/lib/place-publishing";
 import { validatePlacePayloadForSave } from "@/lib/place-validation";
+import { getPriceLevelLabel, priceLevelCodes } from "@/lib/price-level";
 import { canApproveSubmission, canChangeSubmissionStatus } from "@/lib/submission-workflow";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import { formatPlaceFactSource } from "@/lib/place-draft";
@@ -42,6 +44,8 @@ type TranslationDraft = {
 type PayloadTranslation = NonNullable<PlacePayload["translations"]>[number];
 
 type PublishMenuDraft = {
+  id?: string;
+  client_key: string;
   name_ko: string;
   price: number | null;
   price_is_variable?: boolean;
@@ -236,10 +240,17 @@ function isFoodPlaceCategory(category: PlaceCategory | "") {
 
 function createPrimaryMenuDraft(): PublishMenuDraft {
   return {
+    client_key: createMenuDraftKey(),
     name_ko: "",
     price: null,
     is_recommended: true,
   };
+}
+
+function createMenuDraftKey() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `menu-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getPrimaryMenuDraft(form: Pick<PublishForm, "menu_items">) {
@@ -491,6 +502,8 @@ function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRe
     price_min: place.price_min?.toString() ?? "",
     price_max: place.price_max?.toString() ?? "",
     menu_items: place.menu_items.map((item) => ({
+      id: item.id,
+      client_key: item.id,
       name_ko: item.name_ko || item.name_zh,
       price: item.price,
       price_is_variable: item.price_is_variable === true,
@@ -521,7 +534,7 @@ function formFromPlace(place: PlaceWithRelations, submission?: PlaceSubmissionRe
     source_fetched_at: source?.last_synced_at ?? "",
     status: normalizePlaceStatusForWrite(place),
     closed_days: place.closed_days ?? "",
-    last_verified_at: (place.last_verified_at ?? chinaInfo?.verified_at ?? "").slice(0, 10),
+    last_verified_at: toDateInputValue(place.last_verified_at ?? chinaInfo?.verified_at),
     nearest_station: place.nearest_station,
     nearest_exit: place.nearest_exit,
     walking_minutes: place.walking_minutes.toString(),
@@ -639,7 +652,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     latitude: normalizeLatitude(form.latitude),
     longitude: normalizeLongitude(form.longitude),
     closed_days: form.closed_days.trim(),
-    last_verified_at: form.last_verified_at || null,
+    last_verified_at: fromDateInputValue(form.last_verified_at),
     nearest_station: form.nearest_station,
     nearest_exit: form.nearest_exit,
     walking_minutes: Number(form.walking_minutes) || 0,
@@ -661,6 +674,7 @@ function buildPayload(form: PublishForm): PlacePayload {
     is_active: form.status === publishedPlaceStatus,
     tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...(city ? buildPlaceRegionTags(city, district, form.address_ko) : [])],
     menu_items: form.menu_items.map((item, index) => ({
+      ...(item.id ? { id: item.id } : {}),
       name_ko: item.name_ko,
       name_zh: item.name_ko,
       description_zh: "",
@@ -687,6 +701,7 @@ function buildPayload(form: PublishForm): PlacePayload {
 function applyProviderFactsToPublishForm(form: PublishForm, place: NormalizedPlace): PublishForm {
   const enriched = enrichPlaceForm(form, place);
   const incomingMenu = (place.menu ?? []).map((item) => ({
+    client_key: createMenuDraftKey(),
     name_ko: item.name,
     price: item.price ?? null,
     is_recommended: item.role === "signature" || item.role === "popular",
@@ -2037,7 +2052,8 @@ function PublishFormView({
               </Field>
               <Field label="가격대">
                 <select value={form.price_level} onChange={(event) => onFieldChange("price_level", event.target.value)} className={inputClass}>
-                  <option value="">정보 없음</option><option value="0">무료</option><option value="1">₩</option><option value="2">₩₩</option><option value="3">₩₩₩</option><option value="4">₩₩₩₩</option>
+                  <option value="">정보 없음</option>
+                  {priceLevelCodes.map((level) => <option key={level} value={level}>{getPriceLevelLabel(level, "ko")}</option>)}
                 </select>
               </Field>
             </>
@@ -2056,7 +2072,8 @@ function PublishFormView({
           {!isFoodPlace ? (
             <Field label="가격대">
               <select value={form.price_level} onChange={(event) => onFieldChange("price_level", event.target.value)} className={inputClass}>
-                <option value="">정보 없음</option><option value="0">무료</option><option value="1">₩</option><option value="2">₩₩</option><option value="3">₩₩₩</option><option value="4">₩₩₩₩</option>
+                <option value="">정보 없음</option>
+                {priceLevelCodes.map((level) => <option key={level} value={level}>{getPriceLevelLabel(level, "ko")}</option>)}
               </select>
             </Field>
           ) : null}
@@ -2232,7 +2249,7 @@ function PublishFormView({
           <div className="space-y-3 md:col-span-2">
             <p className="text-sm font-bold text-slate-700">확인된 메뉴</p>
             {form.menu_items.map((item, index) => (
-              <div key={`${item.name_ko}-${index}`} className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
+              <div key={item.id ?? item.client_key} className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
                 <input value={item.name_ko} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, name_ko: event.target.value } : menu))} className={inputClass} aria-label={`메뉴 ${index + 1} 이름`} />
                 <input value={item.price_is_variable ? "" : item.price ?? ""} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, price: nullableNumber(event.target.value) } : menu))} className={inputClass} inputMode="numeric" aria-label={`메뉴 ${index + 1} 가격`} placeholder={item.price_is_variable ? "가격 변동" : "가격 미확인"} disabled={item.price_is_variable === true} />
                 <CheckField label="대표" checked={item.is_recommended} onChange={(checked) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, is_recommended: checked } : menu))} />
