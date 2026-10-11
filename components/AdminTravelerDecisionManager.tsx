@@ -15,6 +15,7 @@ const buttonClass = "inline-flex min-h-11 items-center justify-center gap-2 roun
 export function AdminTravelerDecisionManager({ accessToken, places }: { accessToken: string; places: PlaceWithRelations[] }) {
   const [placeId, setPlaceId] = useState(places[0]?.id ?? "");
   const [bundle, setBundle] = useState<TravelerDecisionBundle>(createEmptyTravelerDecisionBundle());
+  const [dirtySections, setDirtySections] = useState<Set<TravelerDecisionSection>>(() => new Set());
   const [busy, setBusy] = useState<TravelerDecisionSection | "load" | null>(null);
   const [message, setMessage] = useState("");
   const selectedPlace = places.find((place) => place.id === placeId);
@@ -31,7 +32,7 @@ export function AdminTravelerDecisionManager({ accessToken, places }: { accessTo
 
   const load = useCallback(async (id: string) => {
     if (!id) return;
-    setBusy("load"); setMessage("");
+    setBusy("load"); setMessage(""); setDirtySections(new Set());
     try { const result = await api(id); setBundle(result.bundle ?? createEmptyTravelerDecisionBundle()); }
     catch (error) { setBundle(createEmptyTravelerDecisionBundle()); setMessage(error instanceof Error ? error.message : "불러오지 못했습니다."); }
     finally { setBusy(null); }
@@ -43,13 +44,18 @@ export function AdminTravelerDecisionManager({ accessToken, places }: { accessTo
     if (!placeId || busy) return;
     setBusy(section); setMessage("");
     try {
+      const savedPendingEvidence = section === "decision" && dirtySections.has("evidence");
+      if (savedPendingEvidence) {
+        await api(placeId, { method: "PUT", body: JSON.stringify({ section: "evidence", value: bundle.evidence }) });
+      }
       await api(placeId, { method: "PUT", body: JSON.stringify({ section, value: bundle[section] }) });
-      await load(placeId); setMessage(`${sectionLabels[section]} 영역을 저장했습니다.`);
+      await load(placeId); setMessage(savedPendingEvidence ? "확인 근거와 방문 결정 영역을 함께 저장했습니다." : `${sectionLabels[section]} 영역을 저장했습니다.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "저장하지 못했습니다."); setBusy(null); }
   }
 
   function update<Section extends TravelerDecisionSection>(section: Section, value: TravelerDecisionBundle[Section]) {
     setBundle((current) => ({ ...current, [section]: value }));
+    setDirtySections((current) => new Set(current).add(section));
   }
 
   const unknownFields = useMemo(() => collectUnknownFields(bundle), [bundle]);
@@ -63,11 +69,11 @@ export function AdminTravelerDecisionManager({ accessToken, places }: { accessTo
       {message ? <p role="status" className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</p> : null}
       {!selectedPlace ? <p className="text-sm text-slate-500">먼저 장소를 등록해 주세요.</p> : busy === "load" ? <p className="text-sm text-slate-500">불러오는 중...</p> : (
         <div className="space-y-4">
+          <EvidenceEditor value={bundle.evidence} onChange={(value) => update("evidence", value)} onSave={() => void save("evidence")} busy={Boolean(busy)} />
           <DecisionEditor value={bundle.decision} onChange={(value) => update("decision", value)} onSave={() => void save("decision")} busy={Boolean(busy)} />
           <PracticalEditor value={bundle.practical} onChange={(value) => update("practical", value)} onSave={() => void save("practical")} busy={Boolean(busy)} />
           <OperatingEditor value={bundle.operating} onChange={(value) => update("operating", value)} onSave={() => void save("operating")} busy={Boolean(busy)} />
           <MenuEditor value={bundle.menus} onChange={(value) => update("menus", value)} onSave={() => void save("menus")} busy={Boolean(busy)} />
-          <EvidenceEditor value={bundle.evidence} onChange={(value) => update("evidence", value)} onSave={() => void save("evidence")} busy={Boolean(busy)} />
           <ConnectionEditor value={bundle.connections} places={places.filter((place) => place.id !== placeId)} onChange={(value) => update("connections", value)} onSave={() => void save("connections")} busy={Boolean(busy)} />
           <PreviewAndMissing bundle={bundle} unknownFields={unknownFields} />
         </div>
@@ -78,7 +84,7 @@ export function AdminTravelerDecisionManager({ accessToken, places }: { accessTo
 
 function DecisionEditor({ value, onChange, onSave, busy }: EditorProps<"decision">) {
   const patch = (next: Partial<typeof value>) => onChange({ ...value, ...next });
-  return <EditorSection title="방문 결정 · 실패 경고" description={`확인된 근거 ${value.evidence_count}개. 추천 점수는 근거가 있을 때만 저장됩니다.`} onSave={onSave} busy={busy}>
+  return <EditorSection title="방문 결정 · 실패 경고" description={`저장된 필드별 확인 근거 ${value.evidence_count}개. ‘일부 확인’ 또는 ‘확인 완료’ 상태만 집계하며 추천 점수는 근거가 있을 때만 저장됩니다.`} onSave={onSave} busy={busy}>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <NumberField label="관광 적합도 (0-100)" value={value.tourist_fit_score} min={0} max={100} onChange={(tourist_fit_score) => patch({ tourist_fit_score })} />
       <NumberField label="신뢰도 (0-100)" value={value.confidence_score} min={0} max={100} onChange={(confidence_score) => patch({ confidence_score })} />
@@ -93,7 +99,7 @@ function DecisionEditor({ value, onChange, onSave, busy }: EditorProps<"decision
     <ThemeSelector label="추천 대상" value={value.recommended_for} onChange={(recommended_for) => patch({ recommended_for })} />
     <ThemeSelector label="비추천 대상" value={value.not_recommended_for} onChange={(not_recommended_for) => patch({ not_recommended_for })} />
     <LocalizedTextEditor label="30초 방문 요약" value={value.visit_summary} onChange={(visit_summary) => patch({ visit_summary })} />
-    <LocalizedTextEditor label="일부러 갈 가치 판단 근거" value={value.worth_reason} onChange={(worth_reason) => patch({ worth_reason })} />
+    <LocalizedTextEditor label="일부러 갈 가치 설명 (확인 근거 수에는 미포함)" value={value.worth_reason} onChange={(worth_reason) => patch({ worth_reason })} />
     <LocalizedTextEditor label="미확인 사유 / 상태 설명" value={value.information_status_note} onChange={(information_status_note) => patch({ information_status_note })} />
     <LocalizedTextEditor label="실패 경고" value={value.primary_warning} onChange={(primary_warning) => patch({ primary_warning })} />
   </EditorSection>;
@@ -156,7 +162,7 @@ function MenuEditor({ value, onChange, onSave, busy }: EditorProps<"menus">) {
 function EvidenceEditor({ value, onChange, onSave, busy }: EditorProps<"evidence">) {
   function add() { const item: PlaceFactEvidence = { field_key: "", fact_value: null, source_type: "unverified", source_label: "", source_url: "", observed_at: null, verified_at: null, verification_status: "unverified", notes: "" }; onChange([...value, item]); }
   const update = (index: number, item: PlaceFactEvidence) => onChange(value.map((current, currentIndex) => currentIndex === index ? item : current));
-  return <EditorSection title="확인 상태와 필드별 출처" description="공식·점주·관리자·여행자·추론·미확인을 구분합니다. 여행자 원본 제보는 별도 비공개 테이블에 저장됩니다." onSave={onSave} busy={busy} action={<button type="button" className={buttonClass} onClick={add}><Plus size={16} />근거 추가</button>}>
+  return <EditorSection title="확인 상태와 필드별 출처" description="이 영역의 행만 상단 확인 근거 수에 포함됩니다. 출처 종류와 관찰일을 입력하고 확인 상태를 ‘일부 확인’ 또는 ‘확인 완료’로 선택하세요. 방문 결정을 저장하면 아직 저장하지 않은 이 영역도 먼저 함께 저장됩니다." onSave={onSave} busy={busy} action={<button type="button" className={buttonClass} onClick={add}><Plus size={16} />근거 추가</button>}>
     {!value.length ? <p className="text-sm text-slate-500">저장된 확인 근거가 없습니다.</p> : value.map((item, index) => <div key={item.id ?? index} className="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2 lg:grid-cols-4">
       <label className="text-sm font-bold">필드 키<input className={inputClass} placeholder="foreign_card" value={item.field_key} onChange={(event) => update(index, { ...item, field_key: event.target.value })} /></label>
       <label className="text-sm font-bold">출처 종류<select className={inputClass} value={item.source_type} onChange={(event) => update(index, { ...item, source_type: event.target.value as PlaceFactEvidence["source_type"] })}><option value="unverified">미확인</option><option value="official_source">공식 출처</option><option value="owner_merchant">점주</option><option value="administrator">관리자</option><option value="traveler_report">여행자 제보</option><option value="inferred">추론</option></select></label>

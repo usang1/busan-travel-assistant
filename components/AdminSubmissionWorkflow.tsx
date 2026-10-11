@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ExternalLink, Languages, Plus, RefreshCw, Send, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, ExternalLink, Languages, Plus, RefreshCw, Send, Sparkles, Trash2, XCircle } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
@@ -673,16 +673,18 @@ function buildPayload(form: PublishForm): PlacePayload {
     is_featured: false,
     is_active: form.status === publishedPlaceStatus,
     tags: [...parseTagsText(form.tags_text, category), ...buildHomeIntentTags(form.home_intent_keys), ...buildChinaDiscoveryTags(form.china_discovery_keys), ...(city ? buildPlaceRegionTags(city, district, form.address_ko) : [])],
-    menu_items: form.menu_items.map((item, index) => ({
-      ...(item.id ? { id: item.id } : {}),
-      name_ko: item.name_ko,
-      name_zh: item.name_ko,
-      description_zh: "",
-      price: item.price_is_variable ? null : item.price,
-      price_is_variable: item.price_is_variable === true,
-      is_recommended: item.is_recommended,
-      sort_order: index + 1,
-    })),
+    menu_items: form.menu_items
+      .filter((item) => item.name_ko.trim())
+      .map((item, index) => ({
+        ...(item.id ? { id: item.id } : {}),
+        name_ko: item.name_ko,
+        name_zh: item.name_ko,
+        description_zh: "",
+        price: item.price_is_variable ? null : item.price,
+        price_is_variable: item.price_is_variable === true,
+        is_recommended: item.is_recommended,
+        sort_order: index + 1,
+      })),
     translations: [
       { locale: "zh", ...zh },
       form.name_en || form.description_en || form.tips_en || form.address_en
@@ -1940,6 +1942,27 @@ function PublishFormView({
     );
   }
 
+  function addMenu() {
+    onFieldChange("menu_items", [
+      ...form.menu_items,
+      {
+        ...createPrimaryMenuDraft(),
+        is_recommended: form.menu_items.length === 0,
+      },
+    ]);
+  }
+
+  function updateMenu(index: number, patch: Partial<PublishMenuDraft>) {
+    onFieldChange(
+      "menu_items",
+      form.menu_items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
+    );
+  }
+
+  function removeMenu(index: number) {
+    onFieldChange("menu_items", form.menu_items.filter((_item, itemIndex) => itemIndex !== index));
+  }
+
   return (
     <section className="rounded-[24px] bg-white p-4 ring-1 ring-slate-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2105,6 +2128,13 @@ function PublishFormView({
         </div>
       </section>
 
+      <PublishMenuEditor
+        items={form.menu_items}
+        onAdd={addMenu}
+        onUpdate={updateMenu}
+        onRemove={removeMenu}
+      />
+
       <section className="border-b border-slate-200 py-5">
         <h4 className="text-sm font-black text-slate-950">3. 중국인 입맛 평가</h4>
         <p className="mt-1 text-xs font-semibold text-slate-500">1은 낮음, 5는 높음이며 확인되지 않은 값은 비워 둘 수 있습니다.</p>
@@ -2245,19 +2275,6 @@ function PublishFormView({
             <textarea value={form.recommended_order_ko} onChange={(event) => onFieldChange("recommended_order_ko", event.target.value)} className={textareaClass} placeholder="확인된 근거가 있을 때만 표시됩니다." />
           </Field>
         </div>
-        {form.menu_items.length ? (
-          <div className="space-y-3 md:col-span-2">
-            <p className="text-sm font-bold text-slate-700">확인된 메뉴</p>
-            {form.menu_items.map((item, index) => (
-              <div key={item.id ?? item.client_key} className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
-                <input value={item.name_ko} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, name_ko: event.target.value } : menu))} className={inputClass} aria-label={`메뉴 ${index + 1} 이름`} />
-                <input value={item.price_is_variable ? "" : item.price ?? ""} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, price: nullableNumber(event.target.value) } : menu))} className={inputClass} inputMode="numeric" aria-label={`메뉴 ${index + 1} 가격`} placeholder={item.price_is_variable ? "가격 변동" : "가격 미확인"} disabled={item.price_is_variable === true} />
-                <CheckField label="대표" checked={item.is_recommended} onChange={(checked) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, is_recommended: checked } : menu))} />
-                <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-slate-700 sm:col-span-3"><input type="checkbox" checked={item.price_is_variable === true} onChange={(event) => onFieldChange("menu_items", form.menu_items.map((menu, menuIndex) => menuIndex === index ? { ...menu, price_is_variable: event.target.checked, price: event.target.checked ? null : menu.price } : menu))} />가격 변동 (정가 없음 · 주문 전 확인)</label>
-              </div>
-            ))}
-          </div>
-        ) : null}
         <Field label="가까운 역"><input value={form.nearest_station} onChange={(event) => onFieldChange("nearest_station", event.target.value)} className={inputClass} /></Field>
         <Field label="출구"><input value={form.nearest_exit} onChange={(event) => onFieldChange("nearest_exit", event.target.value)} className={inputClass} /></Field>
         <Field label="도보 시간"><input value={form.walking_minutes} onChange={(event) => onFieldChange("walking_minutes", event.target.value)} inputMode="numeric" className={inputClass} /></Field>
@@ -2414,6 +2431,86 @@ function readStringArray(value: unknown) {
   if (!Array.isArray(value)) return undefined;
   const values = value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
   return values.length ? values : undefined;
+}
+
+function PublishMenuEditor({
+  items,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  items: PublishMenuDraft[];
+  onAdd: () => void;
+  onUpdate: (index: number, patch: Partial<PublishMenuDraft>) => void;
+  onRemove: (index: number) => void;
+}) {
+  return (
+    <section aria-labelledby="submission-menu-title" className="border-b border-slate-200 py-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h4 id="submission-menu-title" className="text-sm font-black text-slate-950">메뉴 관리</h4>
+          <p className="mt-1 text-xs font-semibold text-slate-500">장소를 처음 저장하기 전에 메뉴를 추가·수정·삭제할 수 있습니다.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white sm:w-auto"
+        >
+          <Plus size={16} aria-hidden="true" />
+          메뉴 추가
+        </button>
+      </div>
+
+      {items.length ? (
+        <div className="mt-4 space-y-3">
+          {items.map((item, index) => {
+            const menuLabel = item.name_ko.trim() || `메뉴 ${index + 1}`;
+
+            return (
+              <div key={item.id ?? item.client_key} className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem]">
+                  <input
+                    value={item.name_ko}
+                    onChange={(event) => onUpdate(index, { name_ko: event.target.value })}
+                    className={inputClass}
+                    aria-label={`${menuLabel} 이름`}
+                    placeholder="메뉴명"
+                  />
+                  <input
+                    value={item.price_is_variable ? "" : item.price ?? ""}
+                    onChange={(event) => onUpdate(index, { price: nullableNumber(event.target.value) })}
+                    className={inputClass}
+                    inputMode="numeric"
+                    aria-label={`${menuLabel} 가격`}
+                    placeholder={item.price_is_variable ? "가격 변동" : "가격 미확인"}
+                    disabled={item.price_is_variable === true}
+                  />
+                </div>
+                <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-bold text-slate-700">
+                  <input type="checkbox" checked={item.price_is_variable === true} onChange={(event) => onUpdate(index, { price_is_variable: event.target.checked, price: event.target.checked ? null : item.price })} />
+                  가격 변동 (정가 없음 · 주문 전 확인)
+                </label>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <CheckField label="대표 메뉴" checked={item.is_recommended} onChange={(checked) => onUpdate(index, { is_recommended: checked })} />
+                  <button
+                    type="button"
+                    aria-label={`${menuLabel} 삭제`}
+                    onClick={() => onRemove(index)}
+                    className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl px-3 text-sm font-bold text-rose-700 ring-1 ring-rose-200"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                    삭제
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">등록된 메뉴가 없습니다. ‘메뉴 추가’를 눌러 첫 메뉴를 입력하세요.</p>
+      )}
+    </section>
+  );
 }
 
 function SubmissionPreviewValue({ label, value }: { label: string; value: string }) {

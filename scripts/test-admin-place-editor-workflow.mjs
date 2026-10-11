@@ -75,6 +75,16 @@ assert.match(submissionWorkflowSource, /status: "PUBLISHED"/, "submission publis
 assert.match(submissionWorkflowSource, /buildHomeIntentTags\(form\.home_intent_keys\)/, "submission publishing must persist selected home category mappings");
 assert.match(submissionWorkflowSource, /mergePublishMenuDrafts\(form\.menu_items, incomingMenu\)/, "submission web enrichment must merge all discovered menus");
 assert.match(placeManagerSource, /mergeMenuDrafts\(nextForm\.menu_items, incomingMenu\)/, "place manager web enrichment must merge all discovered menus");
+assert.match(submissionWorkflowSource, /menu_items: form\.menu_items[\s\S]*\.filter\(\(item\) => item\.name_ko\.trim\(\)\)[\s\S]*\.map/, "blank menu drafts must not be persisted during initial registration");
+assert.match(placeManagerSource, /<PlaceMenuEditor[\s\S]*<details className="group/, "direct place creation must expose menu CRUD before the closed advanced editor");
+assert.match(submissionWorkflowSource, /<PublishMenuEditor[\s\S]*<details className="group/, "submission-based place creation must expose menu CRUD before the closed advanced editor");
+for (const source of [placeManagerSource, submissionWorkflowSource]) {
+  assert.match(source, /function addMenu\(\)[\s\S]*menu_items/, "initial place registration must be able to add menu drafts");
+  assert.match(source, /function removeMenu\(index: number\)[\s\S]*filter/, "initial place registration must be able to delete menu drafts");
+  assert.match(source, /is_recommended: form\.menu_items\.length === 0/, "the first manually added menu must become the representative menu");
+  assert.match(source, /onClick=\{onAdd\}[\s\S]*메뉴 추가/, "the visible menu editor must expose an add action");
+  assert.match(source, /onClick=\{\(\) => onRemove\(index\)\}[\s\S]*삭제/, "each visible menu row must expose a delete action");
+}
 assert.match(submissionWorkflowSource, /china_info: chinaInfo/, "submission publishing must persist waiting info through china_info");
 assert.match(submissionWorkflowSource, /3\. 중국인 입맛 평가/, "submission publishing must expose Chinese taste ratings in the primary form");
 for (const field of ["chinese_taste_score", "spicy_level", "greasy_level", "smell_level", "portion_level", "ordering_difficulty"]) {

@@ -42,6 +42,15 @@ export function createEmptyTravelerDecisionBundle(): TravelerDecisionBundle {
   };
 }
 
+export function countVerifiedTravelerEvidence(value: unknown) {
+  if (!Array.isArray(value)) return 0;
+  return value.filter((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const status = (item as { verification_status?: unknown }).verification_status;
+    return status === "verified" || status === "partially_verified";
+  }).length;
+}
+
 export function validateTravelerDecisionSection(section: unknown, value: unknown) {
   if (!["decision", "practical", "operating", "menus", "evidence", "connections"].includes(String(section))) {
     throw inputError("저장할 편집 영역이 올바르지 않습니다.");
@@ -74,7 +83,7 @@ function validateDecision(value: unknown): TravelerDecisionBundle["decision"] {
     verification_status: oneOf(input.verification_status, verificationStatuses, "확인 상태"),
   };
   const recommends = result.tourist_fit_score !== null || result.recommended_for.length > 0 || result.worth_detour_level !== null;
-  if (recommends && result.evidence_count === 0) throw inputError("추천도·추천 대상·우회 방문 가치는 확인된 근거를 먼저 저장해야 합니다.");
+  if (recommends && result.evidence_count === 0) throw inputError("추천도·추천 대상·우회 방문 가치는 ‘확인 상태와 필드별 출처’에서 일부 확인 또는 확인 완료 근거를 먼저 저장해야 합니다. 설명 문구와 메뉴 추천 근거는 이 숫자에 포함되지 않습니다.");
   if (result.tourist_fit_score !== null && result.confidence_score === null) throw inputError("방문 적합도 점수에는 신뢰도 점수가 필요합니다.");
   if (["verified", "partially_verified"].includes(result.verification_status) && !result.last_verified_at) throw inputError("확인 완료 상태에는 마지막 확인일이 필요합니다.");
   return result;

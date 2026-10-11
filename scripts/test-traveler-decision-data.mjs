@@ -13,10 +13,16 @@ function load(request, mocks = {}) {
   return module.exports;
 }
 
-const { createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } = load("@/lib/traveler-decision-validation", {
+const { countVerifiedTravelerEvidence, createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } = load("@/lib/traveler-decision-validation", {
   "@/types/traveler-decision": { travelerThemes: ["first_trip", "solo", "couple", "parents", "rainy_day", "food_trip", "photo_trip", "cafe_trip", "night_view", "low_walking", "luggage_day", "late_night"] },
 });
 const empty = createEmptyTravelerDecisionBundle();
+
+assert.equal(countVerifiedTravelerEvidence([
+  { verification_status: "verified" },
+  { verification_status: "partially_verified" },
+  { verification_status: "unverified" },
+]), 2, "Only verified and partially verified field evidence must be counted");
 
 assert.equal(empty.practical.foreign_card, "unknown", "Unverified facts must not default to false");
 assert.equal(empty.decision.tourist_fit_score, null, "Scores must remain null without evidence");
@@ -77,6 +83,12 @@ for (const status of [401, 403]) {
 const routeSource = fs.readFileSync("app/api/admin/places/[id]/traveler-decision/route.ts", "utf8");
 assert.match(routeSource, /count: "exact", head: true/);
 assert.match(routeSource, /\.in\("verification_status", \["verified", "partially_verified"\]\)/);
+assert.match(routeSource, /evidence_count: countVerifiedTravelerEvidence\(evidenceRows\)/, "admin reads must derive the count from saved evidence even before a decision profile exists");
 assert.match(routeSource, /revalidateTag\(publicPlacesCacheTag, \{ expire: 0 \}\)/);
+
+const managerSource = fs.readFileSync("components/AdminTravelerDecisionManager.tsx", "utf8");
+assert.match(managerSource, /dirtySections\.has\("evidence"\)[\s\S]*section: "evidence"[\s\S]*section, value: bundle\[section\]/, "saving a decision must first persist edited evidence");
+assert.match(managerSource, /<EvidenceEditor[\s\S]*<DecisionEditor/, "the evidence editor must appear before evidence-dependent decision fields");
+assert.match(managerSource, /확인 근거 수에는 미포함/, "explanatory copy must not be presented as counted source evidence");
 
 process.stdout.write("Traveler decision validation, unknown-state defaults, provenance, RLS and privacy tests passed.\n");

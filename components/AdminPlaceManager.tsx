@@ -2022,7 +2022,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         name_zh: "",
         description_zh: "",
         price: "",
-        is_recommended: false,
+        is_recommended: form.menu_items.length === 0,
         sort_order: (form.menu_items.length + 1).toString(),
       },
     ]);
@@ -2394,6 +2394,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               </div>
             </div>
           </section>
+
+          <PlaceMenuEditor
+            items={form.menu_items}
+            onAdd={addMenu}
+            onUpdate={updateMenu}
+            onRemove={removeMenu}
+          />
 
           <section id="admin-place-taste-checklist" className="min-w-0 border-b border-slate-200 pb-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2801,47 +2808,6 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               </Field>
             </FormSection>
 
-            <FormSection title="메뉴 CRUD">
-              <div className="sm:col-span-2">
-                <button
-                  type="button"
-                  onClick={addMenu}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-200"
-                >
-                  <Plus size={16} aria-hidden="true" />
-                  메뉴 추가
-                </button>
-                <div className="mt-3 space-y-3">
-                  {form.menu_items.map((item, index) => (
-                    <div key={item.id ?? item.client_key} className="rounded-2xl bg-slate-50 p-3">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <input placeholder="메뉴명 KO" value={item.name_ko} onChange={(event) => updateMenu(index, { name_ko: event.target.value })} className={inputClass} />
-                        <input placeholder="메뉴명 ZH" value={item.name_zh} onChange={(event) => updateMenu(index, { name_zh: event.target.value })} className={inputClass} />
-                        <input placeholder={item.price_is_variable ? "가격 변동" : "가격 미확인"} value={item.price_is_variable ? "" : item.price} onChange={(event) => updateMenu(index, { price: event.target.value })} className={inputClass} inputMode="numeric" aria-label={`${item.name_ko || `메뉴 ${index + 1}`} 가격`} disabled={item.price_is_variable === true} />
-                        <input placeholder="정렬" value={item.sort_order} onChange={(event) => updateMenu(index, { sort_order: event.target.value })} className={inputClass} inputMode="numeric" />
-                      </div>
-                      <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-bold text-slate-700">
-                        <input type="checkbox" checked={item.price_is_variable === true} onChange={(event) => updateMenu(index, { price_is_variable: event.target.checked, price: event.target.checked ? "" : item.price })} />
-                        가격 변동 (정가 없음 · 주문 전 확인)
-                      </label>
-                      <textarea
-                        placeholder="중국어 메뉴 설명"
-                        value={item.description_zh}
-                        onChange={(event) => updateMenu(index, { description_zh: event.target.value })}
-                        className={`${textareaClass} mt-3`}
-                      />
-                      <div className="mt-3 flex items-center justify-between">
-                        <CheckField label="추천 메뉴" checked={item.is_recommended} onChange={(checked) => updateMenu(index, { is_recommended: checked })} />
-                        <button type="button" onClick={() => removeMenu(index)} className="inline-flex items-center gap-1 text-sm font-semibold text-rose-700">
-                          <Trash2 size={16} aria-hidden="true" />
-                          삭제
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </FormSection>
                 </div>
 
                 <section className="xl:sticky xl:top-24 xl:self-start">
@@ -2893,6 +2859,81 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
 
 function formatQualityBlockText(result: PlaceQualityResult) {
   return result.missingRequired.map((item) => `${item.label}: ${item.reason}`).join("\n");
+}
+
+function PlaceMenuEditor({
+  items,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  items: MenuDraft[];
+  onAdd: () => void;
+  onUpdate: (index: number, patch: Partial<MenuDraft>) => void;
+  onRemove: (index: number) => void;
+}) {
+  return (
+    <section aria-labelledby="admin-place-menu-title" className="border-b border-slate-200 pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 id="admin-place-menu-title" className="text-base font-black text-slate-950">메뉴 관리</h3>
+          <p className="mt-1 text-xs font-semibold text-slate-500">최초 등록 전에도 메뉴를 추가·수정·삭제할 수 있습니다. 변경 내용은 장소를 저장할 때 함께 반영됩니다.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white sm:w-auto"
+        >
+          <Plus size={16} aria-hidden="true" />
+          메뉴 추가
+        </button>
+      </div>
+
+      {items.length ? (
+        <div className="mt-4 space-y-3">
+          {items.map((item, index) => {
+            const menuLabel = item.name_ko.trim() || `메뉴 ${index + 1}`;
+
+            return (
+              <div key={item.id ?? item.client_key} className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input aria-label={`${menuLabel} 한국어 이름`} placeholder="메뉴명 KO" value={item.name_ko} onChange={(event) => onUpdate(index, { name_ko: event.target.value })} className={inputClass} />
+                  <input aria-label={`${menuLabel} 중국어 이름`} placeholder="메뉴명 ZH" value={item.name_zh} onChange={(event) => onUpdate(index, { name_zh: event.target.value })} className={inputClass} />
+                  <input aria-label={`${menuLabel} 가격`} placeholder={item.price_is_variable ? "가격 변동" : "가격 미확인"} value={item.price_is_variable ? "" : item.price} onChange={(event) => onUpdate(index, { price: event.target.value })} className={inputClass} inputMode="numeric" disabled={item.price_is_variable === true} />
+                  <input aria-label={`${menuLabel} 정렬 순서`} placeholder="정렬" value={item.sort_order} onChange={(event) => onUpdate(index, { sort_order: event.target.value })} className={inputClass} inputMode="numeric" />
+                </div>
+                <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-bold text-slate-700">
+                  <input type="checkbox" checked={item.price_is_variable === true} onChange={(event) => onUpdate(index, { price_is_variable: event.target.checked, price: event.target.checked ? "" : item.price })} />
+                  가격 변동 (정가 없음 · 주문 전 확인)
+                </label>
+                <textarea
+                  aria-label={`${menuLabel} 중국어 설명`}
+                  placeholder="중국어 메뉴 설명"
+                  value={item.description_zh}
+                  onChange={(event) => onUpdate(index, { description_zh: event.target.value })}
+                  className={`${textareaClass} mt-3`}
+                />
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <CheckField label="추천 메뉴" checked={item.is_recommended} onChange={(checked) => onUpdate(index, { is_recommended: checked })} />
+                  <button
+                    type="button"
+                    aria-label={`${menuLabel} 삭제`}
+                    onClick={() => onRemove(index)}
+                    className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl px-3 text-sm font-bold text-rose-700 ring-1 ring-rose-200"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                    삭제
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">등록된 메뉴가 없습니다. ‘메뉴 추가’를 눌러 첫 메뉴를 입력하세요.</p>
+      )}
+    </section>
+  );
 }
 
 function PlaceQualityPanel({ result }: { result: PlaceQualityResult }) {

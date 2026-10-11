@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
 import { publicPlacesCacheTag } from "@/lib/cache-tags";
-import { createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } from "@/lib/traveler-decision-validation";
+import { countVerifiedTravelerEvidence, createEmptyTravelerDecisionBundle, validateTravelerDecisionSection } from "@/lib/traveler-decision-validation";
 import type { TravelerDecisionBundle, TravelerDecisionSection } from "@/types/traveler-decision";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -158,7 +158,7 @@ function toBundle(decisionRow: Record<string, unknown> | null, practicalRow: Rec
   const practical = practicalRow ?? {};
   const travelerInsights = isRecord(practical.traveler_insights) ? practical.traveler_insights : {};
   return {
-    decision: { ...empty.decision, ...decisionRow, order_difficulty: numberOrNull(practical.ordering_difficulty), primary_warning: localeValue(decisionRow?.primary_warning), visit_summary: localeValue(decisionRow?.visit_summary), worth_reason: localeValue(decisionRow?.worth_reason), information_status_note: localeValue(decisionRow?.information_status_note) },
+    decision: { ...empty.decision, ...decisionRow, evidence_count: countVerifiedTravelerEvidence(evidenceRows), order_difficulty: numberOrNull(practical.ordering_difficulty), primary_warning: localeValue(decisionRow?.primary_warning), visit_summary: localeValue(decisionRow?.visit_summary), worth_reason: localeValue(decisionRow?.worth_reason), information_status_note: localeValue(decisionRow?.information_status_note) },
     practical: {
       ...empty.practical, spicy_level: numberOrNull(practical.spicy_level), oily_level: numberOrNull(practical.greasy_level),
       aroma_level: numberOrNull(practical.smell_level), sweetness_level: numberOrNull(practical.sweetness_level), portion_level: numberOrNull(practical.portion_level),
