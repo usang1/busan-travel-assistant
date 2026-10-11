@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { Languages, LogIn, LogOut, MapPin, Send, ShieldCheck, Sparkles, Store, UserRound } from "lucide-react";
+import { Languages, LogIn, LogOut, MapPin, Send, ShieldCheck, Store, UserRound } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, getLocaleFromPath, localeMeta, locales, ui, withLocale, withoutLocale } from "@/lib/i18n";
@@ -12,6 +13,7 @@ export function Header() {
   const searchParams = useSearchParams();
   const currentLocale = getLocaleFromPath(pathname) ?? defaultLocale;
   const copy = ui[currentLocale];
+  const brandLogo = currentLocale === "zh" ? "/brand/spotzari-zh.png" : "/brand/spotzari-ko.png";
   const basePath = withoutLocale(pathname);
   const queryString = searchParams.toString();
   const querySuffix = queryString ? `?${queryString}` : "";
@@ -30,13 +32,13 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-slate-50/90 px-4 py-3 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <Link href={withLocale("/", currentLocale)} className="flex min-h-11 min-w-[160px] flex-1 items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-2xl bg-teal-700 text-white shadow-sm">
-            <Sparkles size={18} aria-hidden="true" />
+        <Link href={withLocale("/", currentLocale)} className="flex min-h-12 min-w-[160px] flex-1 items-center gap-2.5" aria-label={`${copy.siteName} ${copy.nav.home}`}>
+          <span className="relative size-12 shrink-0 overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200">
+            <Image src={brandLogo} alt="" width={48} height={48} className="size-12 object-cover" preload aria-hidden="true" />
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold text-slate-950">{copy.siteName}</span>
-            <span className="block text-[11px] text-slate-500">Korea Travel Assistant</span>
+            <span className="block truncate text-lg font-black tracking-tight text-slate-950">{copy.siteName}</span>
+            <span className="block text-[11px] font-semibold text-slate-500">Korea local food &amp; travel</span>
           </span>
         </Link>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">

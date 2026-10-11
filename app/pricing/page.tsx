@@ -3,7 +3,7 @@ import { PricingClient } from "@/components/PricingClient";
 import { absoluteUrl } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: "서비스 준비 중｜韩国旅行助手",
+  title: "서비스 준비 중｜spotzari",
   description: "유료 기능은 정식 결제와 운영 정책이 준비된 뒤 제공됩니다.",
   alternates: { canonical: absoluteUrl("/pricing") },
   robots: { index: false, follow: false },

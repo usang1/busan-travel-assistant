@@ -13,7 +13,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
-  title: `${siteConfig.name} | ${siteConfig.englishName}`,
+  title: siteConfig.name,
   description: siteConfig.description,
   manifest: "/manifest.webmanifest",
   alternates: {

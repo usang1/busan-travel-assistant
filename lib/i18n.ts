@@ -137,7 +137,7 @@ export function buildLocalizedMetadata({
       siteName: ui[locale].siteName,
       locale: localeMeta[locale].openGraphLocale,
       type,
-      images: images ?? [{ url: absoluteUrl("/og.png"), width: 1200, height: 630, alt: "Korea Travel Assistant - Busan" }],
+      images: images ?? [{ url: absoluteUrl("/og.png"), width: 1200, height: 630, alt: "spotzari" }],
     },
     twitter: {
       card: "summary_large_image",
@@ -165,7 +165,7 @@ export const categoryLabels = {
 
 export const ui = {
   zh: {
-    siteName: "韩国旅行助手",
+    siteName: "spotzari",
     siteDescription: "面向中国自由行游客的韩国旅行决策工具，整理首尔、釜山、济州公开地点及其审核状态、点餐、避坑信息与路线。",
     region: "首尔・釜山・济州",
     nav: {
@@ -222,7 +222,7 @@ export const ui = {
     },
     admin: {
       eyebrow: "管理",
-      title: "Korea Travel Assistant 管理",
+      title: "spotzari 管理",
       description: "审核用户提交的地点，补充缺失数据后发布为最终地点。",
       checkingTitle: "正在确认管理员权限",
       checkingDescription: "正在确认登录会话和管理员权限。",
@@ -376,7 +376,7 @@ export const ui = {
     },
   },
   en: {
-    siteName: "Korea Travel Assistant",
+    siteName: "spotzari",
     siteDescription: "A Korea travel decision tool covering public places with review status, ordering guidance, warnings, and routes across Seoul, Busan, and Jeju.",
     region: "Seoul · Busan · Jeju",
     nav: {
@@ -433,7 +433,7 @@ export const ui = {
     },
     admin: {
       eyebrow: "Admin",
-      title: "Korea Travel Assistant admin",
+      title: "spotzari admin",
       description: "Review user-submitted places, fill missing data, and publish final place records.",
       checkingTitle: "Checking admin access",
       checkingDescription: "Checking your session and administrator permissions.",
@@ -587,7 +587,7 @@ export const ui = {
     },
   },
   ja: {
-    siteName: "韓国旅行アシスタント",
+    siteName: "spotzari",
     siteDescription: "ソウル・釜山・済州の公開スポットと確認状態、注文、失敗注意、旅程をまとめた韓国旅行判断ツール。",
     region: "ソウル・釜山・済州",
     nav: {
@@ -644,7 +644,7 @@ export const ui = {
     },
     admin: {
       eyebrow: "管理",
-      title: "Korea Travel Assistant 管理",
+      title: "spotzari 管理",
       description: "ユーザー投稿スポットを確認し、不足データを補完して最終スポットとして公開します。",
       checkingTitle: "管理者権限を確認中",
       checkingDescription: "ログインセッションと管理者権限を確認しています。",
@@ -798,7 +798,7 @@ export const ui = {
     },
   },
   ko: {
-    siteName: "한국 여행 어시스턴트",
+    siteName: "spotzari",
     siteDescription: "서울·부산·제주의 공개 장소와 검수 상태, 주문 정보, 실패 주의사항과 여행 동선을 연결하는 한국 여행 의사결정 도구입니다.",
     region: "서울 · 부산 · 제주",
     nav: {
@@ -855,7 +855,7 @@ export const ui = {
     },
     admin: {
       eyebrow: "관리자",
-      title: "한국 여행 어시스턴트 관리자",
+      title: "spotzari 관리자",
       description: "사용자 장소 제보를 검수하고, 부족한 데이터를 보완해 최종 장소로 등록합니다.",
       checkingTitle: "관리자 확인 중",
       checkingDescription: "로그인 세션과 관리자 권한을 확인하고 있습니다.",

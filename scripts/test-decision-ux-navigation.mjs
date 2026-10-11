@@ -7,6 +7,10 @@ const header = readFileSync(new URL("../components/Header.tsx", import.meta.url)
 const bottomNavigation = readFileSync(new URL("../components/BottomNavigation.tsx", import.meta.url), "utf8");
 const nearby = readFileSync(new URL("../components/NearbyExplorer.tsx", import.meta.url), "utf8");
 const i18n = readFileSync(new URL("../lib/i18n.ts", import.meta.url), "utf8");
+const siteConfig = readFileSync(new URL("../config/site.ts", import.meta.url), "utf8");
+const manifest = readFileSync(new URL("../public/manifest.webmanifest", import.meta.url), "utf8");
+const koreanBrandLogo = readFileSync(new URL("../public/brand/spotzari-ko.png", import.meta.url));
+const chineseBrandLogo = readFileSync(new URL("../public/brand/spotzari-zh.png", import.meta.url));
 
 for (const message of [
   "한국에서 실패하지 않는 여행",
@@ -28,6 +32,14 @@ assert.match(home, /districtEmptyCopy/);
 assert.match(home, /withLocale\("\/contact", locale\)/);
 
 assert.doesNotMatch(header, /href: "\/guides"/);
+assert.match(header, /currentLocale === "zh" \? "\/brand\/spotzari-zh\.png" : "\/brand\/spotzari-ko\.png"/);
+assert.match(header, /<Image src=\{brandLogo\}/);
+assert.doesNotMatch(header, /Korea Travel Assistant/);
+assert.match(siteConfig, /name: "spotzari"/);
+assert.match(manifest, /"name": "spotzari"/);
+assert.match(manifest, /"src": "\/brand\/spotzari-zh\.png"/);
+assert.ok(koreanBrandLogo.length > 10_000);
+assert.ok(chineseBrandLogo.length > 10_000);
 for (const href of ["/", "/places", "/nearby", "/itinerary", "/saved", "/business-application"]) {
   assert.match(header, new RegExp(`href: "${href.replaceAll("/", "\\/")}"`));
   assert.match(bottomNavigation, new RegExp(`href: "${href.replaceAll("/", "\\/")}"`));
@@ -50,5 +62,6 @@ assert.match(nearby, /locationDenied: "위치 권한이 거부되었습니다/);
 for (const label of ["places: \"找地点\"", "places: \"Find places\"", "places: \"スポット検索\"", "places: \"장소 찾기\"", "nearby: \"附近地图\"", "nearby: \"Nearby map\"", "nearby: \"近くの地図\"", "nearby: \"내 주변 지도\""]) {
   assert.match(i18n, new RegExp(label));
 }
+assert.equal((i18n.match(/siteName: "spotzari"/g) ?? []).length, 4);
 
 console.log("Decision UX tests passed (multi-city scope, dynamic Busan districts, six-item navigation, mobile map/list, and four locales).");

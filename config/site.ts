@@ -1,6 +1,6 @@
 export const siteConfig = {
-  name: "韩国旅行助手",
-  englishName: "Korea Travel Assistant",
+  name: "spotzari",
+  englishName: "spotzari",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://busan-travel-assistant.vercel.app",
   description: "面向首尔、釜山、济州自由行游客，帮助判断现在值不值得去、该点什么、外国人是否方便，以及要避开什么。",
   locale: "zh_CN",

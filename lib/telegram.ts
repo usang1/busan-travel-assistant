@@ -70,7 +70,7 @@ export async function sendPlaceSubmissionNotification({
 }: PlaceSubmissionNotificationInput) {
   const reviewUrl = absoluteUrl(submissionId ? `/admin?submission=${encodeURIComponent(submissionId)}#place-submissions` : "/admin#place-submissions");
   const text = [
-    "[Busan Travel Assistant]",
+    "[spotzari]",
     "유형: 일반 장소 제보",
     `제보자: ${submitterLabel.trim() || "익명"}`,
     `검수 링크: ${reviewUrl}`,
@@ -82,7 +82,7 @@ export async function sendPlaceSubmissionNotification({
 export async function sendBusinessApplicationNotification(input: { applicationId: string; storeName: string; address: string; contactName: string }) {
   const reviewUrl = absoluteUrl(`/admin?businessApplication=${encodeURIComponent(input.applicationId)}#business-applications`);
   return sendTelegramMessage({ text: [
-    "[Busan Travel Assistant]", "유형: 사장님 입점 신청", `가게명: ${input.storeName}`,
+    "[spotzari]", "유형: 사장님 입점 신청", `가게명: ${input.storeName}`,
     `주소: ${input.address}`, `담당자: ${input.contactName}`, "연락처: 관리자 화면에서 확인",
     `접수시간: ${new Date().toISOString()}`, `관리자 확인 링크: ${reviewUrl}`,
   ].join("\n") });

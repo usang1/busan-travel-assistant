@@ -2,7 +2,7 @@ import { LegalPage, legalMetadata } from "@/components/LegalPage";
 
 export const metadata = legalMetadata(
   "服务说明",
-  "韩国旅行助手 서울·부산·제주 서비스 범위, 데이터 출처와 이용 안내",
+  "spotzari 서울·부산·제주 서비스 범위, 데이터 출처와 이용 안내",
   "/service-info",
 );
 
@@ -11,7 +11,7 @@ export default function ServiceInfoPage() {
     <LegalPage
       titleZh="服务说明"
       titleKo="서비스 안내"
-      description="韩国旅行助手整理首尔、釜山、济州的公开地点，并分别标注审核状态，帮助自由行游客快速做出决定。"
+      description="spotzari整理首尔、釜山、济州的公开地点，并分别标注审核状态，帮助自由行游客快速做出决定。"
       sections={[
         {
           title: "服务范围",

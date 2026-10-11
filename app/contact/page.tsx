@@ -5,7 +5,7 @@ import { siteConfig } from "@/config/site";
 
 export const metadata = legalMetadata(
   "联系方式",
-  "韩国旅行助手 문의 및 운영자 연락처",
+  "spotzari 문의 및 운영자 연락처",
   "/contact",
 );
 
