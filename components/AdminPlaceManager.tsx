@@ -1132,11 +1132,13 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
+  const [tasteChecklistExpanded, setTasteChecklistExpanded] = useState(false);
   const preview = useMemo(() => buildChinaPlaceSummary(toChinaInfoPayload(form.china_info), { includeAdminNotes: true }), [form.china_info]);
   const formQuality = useMemo(() => evaluatePlaceQuality(toPayload(form)), [form]);
   const mapLinkState = useMemo(() => getMapLinkState(form.source_url), [form.source_url]);
   const isFoodPlace = isFoodPlaceCategory(form.category);
   const primaryMenu = getPrimaryMenuDraft(form);
+  const selectedTasteCount = ratingControls.filter(({ key }) => typeof form.china_info[key] === "number").length;
   const selectedCity = form.city || inferPlaceCity(form.address_ko) || "busan";
   const homeIntentDistrictLabel = placeRegionLabel(selectedCity, form.region_key, form.address_ko);
   const aiCurrentContent = useMemo(
@@ -1970,9 +1972,37 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     );
   }
 
+  function showEditorOnMobile() {
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      window.requestAnimationFrame(() => document.getElementById("admin-place-editor")?.scrollIntoView({ block: "start" }));
+    }
+  }
+
+  function startNewPlace() {
+    setForm(createEmptyForm());
+    setAiDraft(null);
+    setLastNormalizedPlace(null);
+    setAdminSummaryFailed(false);
+    setAdminSummaryErrorMessage("");
+    setProviderLookupNotice("");
+    setTasteChecklistExpanded(false);
+    showEditorOnMobile();
+  }
+
+  function selectPlace(place: PlaceWithRelations) {
+    setForm(toForm(place));
+    setAiDraft(null);
+    setLastNormalizedPlace(null);
+    setAdminSummaryFailed(false);
+    setAdminSummaryErrorMessage("");
+    setProviderLookupNotice("");
+    setTasteChecklistExpanded(false);
+    showEditorOnMobile();
+  }
+
   return (
-    <div id="place-manager" className="scroll-mt-24 grid gap-6 lg:grid-cols-[360px_1fr]">
-      <aside className="space-y-4">
+    <div id="place-manager" className="scroll-mt-24 grid min-w-0 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+      <aside className="min-w-0 space-y-4">
         <div className="grid grid-cols-3 gap-2">
           <Stat label="전체" value={places.length.toString()} />
           <Stat label="활성" value={activeCount.toString()} />
@@ -1980,19 +2010,15 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         </div>
         <button
           type="button"
-          onClick={() => {
-            setForm(createEmptyForm());
-            setAiDraft(null);
-            setLastNormalizedPlace(null);
-            setAdminSummaryFailed(false);
-            setAdminSummaryErrorMessage("");
-            setProviderLookupNotice("");
-          }}
+          onClick={startNewPlace}
           className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-95"
         >
           <Plus size={17} aria-hidden="true" />
           새 장소 추가
         </button>
+        <a href="#admin-place-editor" className="block py-2 text-center text-sm font-bold text-teal-800 lg:hidden">
+          입력 폼으로 이동
+        </a>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -2025,14 +2051,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               const publicationState = getPlacePublicationState(place);
               return (
               <div key={place.id} className="rounded-[20px] p-3 transition hover:bg-slate-50">
-                <button type="button" onClick={() => {
-                  setForm(toForm(place));
-                  setAiDraft(null);
-                  setLastNormalizedPlace(null);
-                  setAdminSummaryFailed(false);
-                  setAdminSummaryErrorMessage("");
-                  setProviderLookupNotice("");
-                }} className="block w-full text-left">
+                <button type="button" onClick={() => selectPlace(place)} className="block w-full text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-950">{place.name_ko}</p>
@@ -2067,14 +2086,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   <p className="mt-2 text-xs font-semibold leading-5 text-rose-700">지역 오류: {scopeIssues.join(", ")}</p>
                 ) : null}
                 <div className="mt-3 flex gap-2">
-                  <IconButton label="수정" onClick={() => {
-                    setForm(toForm(place));
-                    setAiDraft(null);
-                    setLastNormalizedPlace(null);
-                    setAdminSummaryFailed(false);
-                    setAdminSummaryErrorMessage("");
-                    setProviderLookupNotice("");
-                  }} icon={Pencil} />
+                  <IconButton label="수정" onClick={() => selectPlace(place)} icon={Pencil} />
                   <PublicationButton published={isPublicPlace(place)} canPublish={quality.canPublish} blockReason={formatQualityBlockText(quality)} onClick={() => void togglePlace(place, "is_active")} />
                   <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
                   <IconButton label="비공개" onClick={() => void deleteSelected(place)} icon={Trash2} danger />
@@ -2088,7 +2100,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         </div>
       </aside>
 
-      <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <section id="admin-place-editor" className="min-w-0 scroll-mt-24 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-black text-slate-950">{form.id ? "장소 수정" : "장소 추가"}</h2>
@@ -2098,7 +2110,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
           </div>
         </div>
 
-        {status ? <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{status}</p> : null}
+        {status ? <p role="status" className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{status}</p> : null}
 
         <div className="mt-6 space-y-6">
           <section className="border-y border-slate-200 py-5">
@@ -2279,6 +2291,36 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             </div>
           </section>
 
+          <section id="admin-place-taste-checklist" className="min-w-0 border-b border-slate-200 pb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-950">중국인 입맛 체크리스트</h3>
+                <p className="mt-1 text-xs font-semibold text-slate-500">1은 낮음, 5는 높음이며 확인되지 않은 값은 비워 둘 수 있습니다. · {selectedTasteCount}개 선택됨</p>
+              </div>
+              <button
+                type="button"
+                aria-expanded={tasteChecklistExpanded}
+                aria-controls="admin-place-taste-fields"
+                onClick={() => setTasteChecklistExpanded((expanded) => !expanded)}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal-50 px-4 text-sm font-black text-teal-800 ring-1 ring-teal-200 sm:hidden"
+              >
+                {tasteChecklistExpanded ? "접기" : "펼치기"}
+                <ChevronDown size={17} className={tasteChecklistExpanded ? "rotate-180" : ""} aria-hidden="true" />
+              </button>
+            </div>
+            <div id="admin-place-taste-fields" className={`mt-4 min-w-0 gap-3 sm:grid sm:grid-cols-2 ${tasteChecklistExpanded ? "grid" : "hidden"}`}>
+              {ratingControls.map((control) => (
+                <RatingSelector
+                  key={control.key}
+                  label={control.title}
+                  value={form.china_info[control.key]}
+                  help={ratingHelp[control.key].values}
+                  onChange={(value) => updateChinaField(control.key, value)}
+                />
+              ))}
+            </div>
+          </section>
+
           <PlaceQualityPanel result={formQuality} />
           <MobilePlacePreview form={form} quality={formQuality} />
 
@@ -2337,7 +2379,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
           <details className="group rounded-lg border border-slate-200 bg-slate-50">
             <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-black text-slate-900">
-              고급 편집 펼치기
+              고급 편집 펼치기 · 다국어, 주소, 결제, 메뉴, 편의정보
               <ChevronDown size={18} className="transition group-open:rotate-180" aria-hidden="true" />
             </summary>
             <div className="border-t border-slate-200 p-4">
@@ -2553,20 +2595,6 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <CheckField label="추천 장소" checked={form.is_featured} onChange={(checked) => updateField("is_featured", checked)} />
             </FormSection>
 
-            <FormSection title="2. 중국인 입맛 평가">
-              <div className="space-y-4 sm:col-span-2">
-                {ratingControls.map((control) => (
-                  <RatingSelector
-                    key={control.key}
-                    label={control.title}
-                    value={form.china_info[control.key]}
-                    help={ratingHelp[control.key].values}
-                    onChange={(value) => updateChinaField(control.key, value)}
-                  />
-                ))}
-              </div>
-            </FormSection>
-
             <FormSection title="3. 결제 및 이용 편의">
               {convenienceControls.map((control) => (
                 <TriStateSelector
@@ -2728,6 +2756,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             <Save size={17} aria-hidden="true" />
             {saving ? "저장 중" : geocoding ? "좌표 검색 중" : "저장"}
           </button>
+          {status ? <p className="text-sm font-semibold leading-6 text-slate-700 sm:hidden">{status}</p> : null}
         </div>
       </section>
     </div>
@@ -3031,13 +3060,13 @@ function RatingSelector({
   onChange: (value: number | null) => void;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-3">
+    <div className="min-w-0 rounded-2xl bg-slate-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-black text-slate-950">{label}</p>
           <p className="mt-1 text-xs text-slate-500">{value ? `${value} = ${help[value].ko}` : "확인 필요"}</p>
         </div>
-        <button type="button" onClick={() => onChange(null)} className="rounded-full px-3 py-1.5 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+        <button type="button" onClick={() => onChange(null)} aria-label={`${label} 초기화`} className="min-h-11 rounded-full px-3 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
           초기화
         </button>
       </div>
@@ -3047,8 +3076,10 @@ function RatingSelector({
             key={score}
             type="button"
             onClick={() => onChange(score)}
+            aria-label={`${label} ${score}점`}
+            aria-pressed={value === score}
             className={[
-              "min-h-12 rounded-2xl px-2 text-center text-sm font-black ring-1 transition active:scale-95",
+              "min-h-12 min-w-0 rounded-2xl px-1 text-center text-sm font-black ring-1 transition active:scale-95 sm:px-2",
               value === score ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100",
             ].join(" ")}
             title={`${score} = ${help[score].ko}`}
@@ -3088,7 +3119,7 @@ function TriStateSelector({
             type="button"
             onClick={() => onChange(option.value as PlaceFactTristate)}
             className={[
-              "h-10 rounded-2xl px-2 text-sm font-black ring-1 transition active:scale-95",
+              "min-h-11 rounded-2xl px-2 text-sm font-black ring-1 transition active:scale-95",
               value === option.value ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100",
             ].join(" ")}
           >
@@ -3122,7 +3153,7 @@ function SegmentedGroup({
             type="button"
             onClick={() => onChange(option.value)}
             className={[
-              "rounded-full px-3 py-2 text-sm font-black ring-1 transition active:scale-95",
+              "min-h-11 rounded-full px-3 py-2 text-sm font-black ring-1 transition active:scale-95",
               value === option.value ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100",
             ].join(" ")}
           >
@@ -3210,7 +3241,7 @@ function IconButton({ label, onClick, icon: Icon, danger = false }: IconButtonPr
       type="button"
       onClick={onClick}
       className={[
-        "grid size-9 place-items-center rounded-full ring-1 transition active:scale-95",
+        "grid size-11 place-items-center rounded-full ring-1 transition active:scale-95",
         danger ? "bg-rose-50 text-rose-700 ring-rose-100" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
       ].join(" ")}
       aria-label={label}

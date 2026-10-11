@@ -58,6 +58,11 @@ for (const source of [placeManagerSource, submissionWorkflowSource]) {
   assert.doesNotMatch(source, /label="대표 이미지 URL"|placeholder="관리자 이미지 URL"/, "admin place forms must not expose representative image URL inputs");
 }
 assert.match(placeManagerSource, /status: "PUBLISHED"/, "new admin places should default to public");
+assert.match(placeManagerSource, /id="admin-place-taste-checklist"[\s\S]*ratingControls\.map[\s\S]*<PlaceQualityPanel[\s\S]*<details className="group/, "the manual editor must expose taste ratings before the initially closed advanced editor");
+assert.match(placeManagerSource, /selectedTasteCount[\s\S]*\{selectedTasteCount\}개 선택됨/, "the mobile taste checklist must show the number of selected ratings");
+assert.match(placeManagerSource, /aria-expanded=\{tasteChecklistExpanded\}[\s\S]*aria-controls="admin-place-taste-fields"/, "the mobile taste checklist must have an accessible toggle");
+assert.match(placeManagerSource, /function toForm\(place: PlaceWithRelations\): FormState \{[\s\S]*const chinaInfo = \{ \.\.\.createEmptyChinaInfo\(\), \.\.\.\(place\.china_info \?\? \{\}\) \};[\s\S]*china_info: \{[\s\S]*\.\.\.chinaInfo,/, "editing a place must restore saved taste ratings into the shared form");
+assert.match(placeManagerSource, /const chinaInfo = toChinaInfoPayload\(form\.china_info\);[\s\S]*china_info: chinaInfo/, "saving a place must write taste ratings through the shared payload");
 assert.match(placeManagerSource, /is_active: true/, "new admin places should default to active");
 assert.match(placeManagerSource, /name_zh: unifiedName/, "place payload must reuse the Korean place name for the zh name field");
 assert.match(placeManagerSource, /buildHomeIntentTags\(form\.home_intent_keys\)/, "place manager must persist selected home category mappings");
