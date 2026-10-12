@@ -57,9 +57,5 @@ export const naverMapNcpKeyId = (
 );
 
 export function getPreferredMapProvider(): TravelMapProvider {
-  if (naverMapNcpKeyId) {
-    return mapProviders.naver;
-  }
-
-  return mapProviders.fallback;
+  return mapProviders.naver;
 }

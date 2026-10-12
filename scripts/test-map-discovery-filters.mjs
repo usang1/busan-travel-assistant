@@ -9,6 +9,7 @@ const homeSearchForm = readFileSync(new URL("../components/HomeSearchForm.tsx", 
 const placesExplorer = readFileSync(new URL("../components/PlacesExplorer.tsx", import.meta.url), "utf8");
 const placeCard = readFileSync(new URL("../components/PlaceCard.tsx", import.meta.url), "utf8");
 const travelMap = readFileSync(new URL("../components/TravelMap.tsx", import.meta.url), "utf8");
+const mapProviderSource = readFileSync(new URL("../lib/map-provider.ts", import.meta.url), "utf8");
 const locationSource = readFileSync(new URL("../lib/location.ts", import.meta.url), "utf8");
 const directionsSource = readFileSync(new URL("../lib/directions.ts", import.meta.url), "utf8");
 const placeSearchUrlSource = readFileSync(new URL("../lib/place-search-url.ts", import.meta.url), "utf8");
@@ -24,6 +25,18 @@ const locationModule = { exports: {} };
 
 new Function("module", "exports", "require", compiledLocation)(locationModule, locationModule.exports, () => {
   throw new Error("location.ts must not have runtime imports");
+});
+
+const compiledMapProvider = ts.transpileModule(mapProviderSource, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+  },
+}).outputText;
+const mapProviderModule = { exports: {} };
+
+new Function("module", "exports", "require", compiledMapProvider)(mapProviderModule, mapProviderModule.exports, () => {
+  throw new Error("map-provider.ts must not have runtime imports");
 });
 
 const compiledDirections = ts.transpileModule(directionsSource, {
@@ -60,6 +73,7 @@ new Function("module", "exports", "require", compiledPlaceSearchUrl)(placeSearch
 });
 
 const { calculateDistanceMeters, formatDistance, isValidCoordinates } = locationModule.exports;
+const { getPreferredMapProvider, naverMapNcpKeyId } = mapProviderModule.exports;
 const { buildDirectionsUrl } = directionsModule.exports;
 const { buildLocalizedPlacesSearchHref, readPlacesSearchQuery } = placeSearchUrlModule.exports;
 
@@ -68,6 +82,8 @@ assert.equal(isValidCoordinates({ latitude: null, longitude: 129.11 }), false);
 assert.equal(isValidCoordinates({ latitude: Number.NaN, longitude: 129.11 }), false);
 assert.equal(isValidCoordinates({ latitude: 0, longitude: 0 }), false);
 assert.equal(isValidCoordinates({ latitude: 91, longitude: 129.11 }), false);
+assert.equal(getPreferredMapProvider().id, "naver", "Naver Maps must remain the default map provider");
+assert.ok(naverMapNcpKeyId, "Naver Maps must always have a public client key");
 assert.equal(formatDistance(null, "ko"), "거리 확인 필요");
 assert.equal(formatDistance(null, "en"), "Distance needs checking");
 assert.equal(buildLocalizedPlacesSearchHref("ko", " 카페 "), "/ko/places?search=%EC%B9%B4%ED%8E%98");
