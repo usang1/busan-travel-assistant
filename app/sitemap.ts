@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 const routes = [
   "/",
+  "/explore",
   "/places",
   "/nearby",
   "/translator",

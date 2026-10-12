@@ -21,7 +21,7 @@ export function BottomNavigation() {
   const currentPath = withoutLocale(pathname);
   const copy = ui[locale];
 
-  if (currentPath.startsWith("/admin")) {
+  if (currentPath === "/" || currentPath.startsWith("/admin")) {
     return null;
   }
 

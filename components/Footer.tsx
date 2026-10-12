@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { defaultLocale, getLocaleFromPath, ui, withLocale } from "@/lib/i18n";
+import { defaultLocale, getLocaleFromPath, ui, withLocale, withoutLocale } from "@/lib/i18n";
 
 const legalLinks = [
   { href: "/service-info", key: "serviceInfo" },
@@ -15,6 +15,8 @@ export function Footer() {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname) ?? defaultLocale;
   const copy = ui[locale];
+
+  if (withoutLocale(pathname) === "/") return null;
 
   return (
     <footer className="mx-auto max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+104px)] pt-10 text-sm text-slate-600 md:pb-8">

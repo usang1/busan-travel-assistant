@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
-import { StructuredData } from "@/components/StructuredData";
+import { LandingPage } from "@/components/landing/LandingPage";
+import { landingCopy } from "@/components/landing/landing-copy";
 import {
   buildLocalizedMetadata,
   isLocale,
-  localeMeta,
-  localizedCanonical,
   type Locale,
-  ui,
 } from "@/lib/i18n";
-import { getCachedPublicPlaces } from "@/lib/public-cache";
-import { translatedPlaceLocales } from "@/lib/public-seo";
-import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
 
 type LocalePageProps = {
   params: Promise<{
@@ -34,42 +28,17 @@ async function getLocale(params: LocalePageProps["params"]): Promise<Locale> {
 
 export async function generateMetadata({ params }: LocalePageProps): Promise<Metadata> {
   const locale = await getLocale(params);
-  const copy = ui[locale];
+  const copy = landingCopy[locale];
 
   return buildLocalizedMetadata({
     locale,
-    title: copy.home.title,
-    description: copy.home.description,
+    title: copy.metaTitle,
+    description: copy.metaDescription,
     path: "/",
   });
 }
 
 export default async function LocalizedHome({ params }: LocalePageProps) {
   const locale = await getLocale(params);
-  const { places: publicPlaces } = await getCachedPublicPlaces(locale);
-  const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
-  const copy = ui[locale];
-  return (
-    <>
-      <StructuredData
-        data={{
-          "@context": "https://schema.org",
-          "@type": "WebSite",
-          name: copy.siteName,
-          url: localizedCanonical("/", locale),
-          inLanguage: localeMeta[locale].languageTag,
-          description: copy.home.description,
-          potentialAction: {
-            "@type": "SearchAction",
-            target: {
-              "@type": "EntryPoint",
-              urlTemplate: `${localizedCanonical("/places", locale)}?search={search_term_string}`,
-            },
-            "query-input": "required name=search_term_string",
-          },
-        }}
-      />
-      <HomeDiscoveryPage locale={locale} places={places} socialDiscoveryEnabled={isSocialDiscoveryEnabled()} />
-    </>
-  );
+  return <LandingPage locale={locale} />;
 }

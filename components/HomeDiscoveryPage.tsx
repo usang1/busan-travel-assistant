@@ -201,7 +201,7 @@ export function BusanDiscoveryPage({ locale, places, guides, selectedDistrict }:
     <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
       <section className="rounded-[28px] bg-slate-950 p-5 text-white shadow-xl shadow-teal-900/10">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <Link href={withLocale("/", locale)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white/10 px-3 text-sm font-bold text-teal-50 ring-1 ring-white/10">
+          <Link href={withLocale("/explore", locale)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white/10 px-3 text-sm font-bold text-teal-50 ring-1 ring-white/10">
             <ArrowLeft size={16} aria-hidden="true" />
             {districtCopy[locale].cities}
           </Link>

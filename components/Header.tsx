@@ -30,6 +30,8 @@ export function Header() {
     await client.auth.signOut();
   }
 
+  if (basePath === "/") return null;
+
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-slate-50/90 px-4 py-3 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2">

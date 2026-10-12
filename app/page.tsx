@@ -1,40 +1,20 @@
 import type { Metadata } from "next";
-import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
-import { StructuredData } from "@/components/StructuredData";
-import { buildLocalizedMetadata, localeMeta, localizedCanonical, ui } from "@/lib/i18n";
-import { getCachedPublicPlaces } from "@/lib/public-cache";
-import { translatedPlaceLocales } from "@/lib/public-seo";
-import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
+import { LandingPage } from "@/components/landing/LandingPage";
+import { landingCopy } from "@/components/landing/landing-copy";
+import { buildLocalizedMetadata } from "@/lib/i18n";
 
 export const revalidate = 300;
 
 const locale = "zh";
-const copy = ui[locale];
+const copy = landingCopy[locale];
 
 export const metadata: Metadata = buildLocalizedMetadata({
   locale,
-  title: copy.home.title,
-  description: copy.home.description,
+  title: copy.metaTitle,
+  description: copy.metaDescription,
   path: "/",
 });
 
 export default async function Home() {
-  const { places: publicPlaces } = await getCachedPublicPlaces(locale);
-  const places = publicPlaces.filter((place) => translatedPlaceLocales(place).includes(locale));
-
-  return (
-    <>
-      <StructuredData
-        data={{
-          "@context": "https://schema.org",
-          "@type": "WebSite",
-          name: copy.siteName,
-          url: localizedCanonical("/", locale),
-          inLanguage: localeMeta[locale].languageTag,
-          description: copy.home.description,
-        }}
-      />
-      <HomeDiscoveryPage locale={locale} places={places} socialDiscoveryEnabled={isSocialDiscoveryEnabled()} />
-    </>
-  );
+  return <LandingPage locale={locale} />;
 }
