@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
+    <main className="safe-bottom mx-auto max-w-2xl px-4 pb-10 pt-10 sm:px-6 lg:pt-16">
       <Suspense fallback={null}>
         <LoginForm />
       </Suspense>

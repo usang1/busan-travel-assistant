@@ -19,16 +19,16 @@ export function Footer() {
   if (withoutLocale(pathname) === "/") return null;
 
   return (
-    <footer className="mx-auto max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+104px)] pt-10 text-sm text-slate-600 md:pb-8">
-      <div className="border-t border-slate-200 py-5">
-        <p className="font-black text-slate-950">{copy.siteName}</p>
+    <footer className="mx-auto max-w-7xl px-4 pb-[calc(env(safe-area-inset-bottom)+104px)] pt-16 text-sm text-[#6f746e] md:pb-8">
+      <div className="border-t border-[#e8e4dd] py-8">
+        <p className="text-lg font-black tracking-[-0.03em] text-[#252824]">{copy.siteName}</p>
         <p className="mt-2 leading-6">{copy.siteDescription}</p>
         <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
           {legalLinks.map((link) => (
             <Link
               key={link.href}
               href={withLocale(link.href, locale)}
-              className="flex min-h-11 items-center break-words px-3 py-3 text-slate-700 transition hover:bg-slate-100"
+              className="flex min-h-11 items-center break-words border-b border-[#e8e4dd] px-1 py-3 text-[#555b55] transition hover:text-[#4f6652]"
             >
               <span className="block font-bold">{copy.footerLinks[link.key]}</span>
             </Link>

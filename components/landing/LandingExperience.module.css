@@ -82,6 +82,8 @@
 .sectionHeading > span, .businessCopy > span, .finalCta > div > span { display: block; max-width: 600px; margin-top: 18px; color: #556460; font-size: 16px; line-height: 1.75; }
 
 .discoverScene { background: #f6f7f2; }
+.homeBridge { position: relative; z-index: 4; scroll-margin-top: 70px; background: #f8f7f4; color: #252824; }
+.homeBridge::before { position: absolute; inset: 0 0 auto; height: 120px; transform: translateY(-100%); background: linear-gradient(transparent, #f8f7f4); pointer-events: none; content: ""; }
 .discoveryCanvas { position: absolute; right: max(24px, calc((100vw - 1120px) / 2)); bottom: 7vh; left: max(24px, calc((100vw - 1120px) / 2)); height: 54vh; min-height: 390px; }
 .categoryRail { position: absolute; z-index: 7; top: 0; left: 0; display: flex; gap: 7px; transform: translateY(calc((1 - var(--scene-progress)) * 20px)); opacity: calc(.2 + var(--scene-progress) * 2); }
 .categoryRail span { display:flex; min-height:38px; align-items:center; gap:6px; padding:0 13px; border:1px solid #d8dfda; border-radius:999px; background:white; color:#6c7774; font-size:11px; font-weight:800; }

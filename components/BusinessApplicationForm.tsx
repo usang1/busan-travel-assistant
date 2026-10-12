@@ -50,7 +50,7 @@ export function BusinessApplicationForm({ locale }: { locale: Locale }) {
   }), [form, text]);
   const isReady = Object.values(fieldErrors).every((error) => !error);
 
-  if (loading) return <p className="rounded-[24px] bg-white p-5 text-sm font-bold text-slate-600 ring-1 ring-slate-200">{text.loading}</p>;
+  if (loading) return <p className="border border-[#e8e4dd] bg-white p-5 text-sm font-bold text-[#6f746e]">{text.loading}</p>;
   if (!session) return <AuthRequiredPanel title={text.loginTitle} description={text.login} locale={locale} />;
   const accessToken = session.access_token;
 
@@ -109,11 +109,11 @@ export function BusinessApplicationForm({ locale }: { locale: Locale }) {
 
   return (
     <div className="space-y-4">
-      <ol aria-label={text.progressLabel} className="grid grid-cols-4 gap-1 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:gap-2 sm:p-4">
-        {text.steps.map((step, index) => <li key={step} className="min-w-0 text-center"><span className={`mx-auto flex size-7 items-center justify-center rounded-full text-xs font-black ${index === 0 ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}</span><span className="mt-1 block break-keep text-[11px] font-bold leading-4 text-slate-600 sm:text-xs">{step}</span></li>)}
+      <ol aria-label={text.progressLabel} className="grid grid-cols-4 gap-1 border border-[#e8e4dd] bg-white p-3 sm:gap-2 sm:p-4">
+        {text.steps.map((step, index) => <li key={step} className="min-w-0 text-center"><span className={`mx-auto flex size-7 items-center justify-center text-xs font-black ${index === 0 ? "bg-[#4f6652] text-white" : "bg-[#f1eee8] text-[#6f746e]"}`}>{index + 1}</span><span className="mt-1 block break-keep text-[11px] font-bold leading-4 text-[#626862] sm:text-xs">{step}</span></li>)}
       </ol>
 
-      <form onSubmit={submit} noValidate className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
+      <form onSubmit={submit} noValidate className="border border-[#e8e4dd] bg-white p-5 shadow-[0_20px_60px_rgba(37,40,36,0.06)] sm:p-8">
         <div>
           <h2 className="text-xl font-black text-slate-950">{text.formTitle}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">{text.description}</p>
@@ -128,7 +128,7 @@ export function BusinessApplicationForm({ locale }: { locale: Locale }) {
           <fieldset>
             <legend className="text-sm font-black text-slate-800">{text.applicantRole} <RequiredMark label={text.required} /></legend>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              {roles.map((role) => <label key={role.value} className={`flex min-h-20 cursor-pointer items-start gap-3 rounded-2xl p-3 ring-1 transition ${form.applicantRole === role.value ? "bg-teal-50 ring-2 ring-teal-700" : "bg-slate-50 ring-slate-200 hover:bg-slate-100"}`}><input id={role.value === "owner" ? "business-applicantRole" : undefined} type="radio" name="applicantRole" value={role.value} checked={form.applicantRole === role.value} onChange={() => { update("applicantRole", role.value); touch("applicantRole"); }} className="mt-1 size-4 accent-teal-700" /><span><span className="block text-sm font-black text-slate-900">{role.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{role.detail}</span></span></label>)}
+              {roles.map((role) => <label key={role.value} className={`flex min-h-20 cursor-pointer items-start gap-3 p-3 ring-1 transition ${form.applicantRole === role.value ? "bg-[#edf2eb] ring-2 ring-[#4f6652]" : "bg-[#faf9f6] ring-[#e8e4dd] hover:bg-[#f1eee8]"}`}><input id={role.value === "owner" ? "business-applicantRole" : undefined} type="radio" name="applicantRole" value={role.value} checked={form.applicantRole === role.value} onChange={() => { update("applicantRole", role.value); touch("applicantRole"); }} className="mt-1 size-4 accent-[#4f6652]" /><span><span className="block text-sm font-black text-slate-900">{role.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{role.detail}</span></span></label>)}
             </div>
             {errorFor("applicantRole") ? <p id="business-applicantRole-error" role="alert" className="mt-2 text-sm font-bold text-rose-700">{errorFor("applicantRole")}</p> : null}
             {form.applicantRole === "agency" ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900 ring-1 ring-amber-200">{text.agencyNotice}</p> : null}
@@ -151,7 +151,7 @@ export function BusinessApplicationForm({ locale }: { locale: Locale }) {
           </div>
         </div>
 
-        <button type="submit" disabled={!isReady || saving || completed} className="mt-6 flex min-h-12 w-full items-center justify-center rounded-2xl bg-teal-700 px-4 font-black text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">{saving ? text.saving : completed ? text.completed : text.submit}</button>
+        <button type="submit" disabled={!isReady || saving || completed} className="mt-6 flex min-h-12 w-full items-center justify-center bg-[#4f6652] px-4 font-black text-white transition hover:bg-[#405444] active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">{saving ? text.saving : completed ? text.completed : text.submit}</button>
         {message ? <p role="status" aria-live="polite" className={`mt-4 rounded-xl p-3 text-sm font-bold ${completed ? "bg-teal-50 text-teal-900" : "bg-rose-50 text-rose-800"}`}>{message}</p> : null}
         {completed ? <Link href={withLocale("/business/dashboard", locale)} className="mt-3 inline-flex min-h-11 items-center text-sm font-black text-teal-800 underline underline-offset-4">{text.viewStatus}</Link> : null}
       </form>
@@ -164,7 +164,7 @@ function Field({ label, required, requiredLabel, error, errorId, children }: { l
 }
 
 function RequiredMark({ label }: { label: string }) { return <span className="text-rose-600" aria-label={label}>*</span>; }
-function inputClass(invalid: boolean) { return `min-h-12 w-full rounded-2xl bg-white px-4 py-3 text-base text-slate-950 outline-none ring-1 transition placeholder:text-slate-400 focus:ring-2 ${invalid ? "ring-rose-400 focus:ring-rose-500" : "ring-slate-300 focus:ring-teal-700"}`; }
+function inputClass(invalid: boolean) { return `min-h-12 w-full bg-white px-4 py-3 text-base text-slate-950 outline-none ring-1 transition placeholder:text-slate-400 focus:ring-2 ${invalid ? "ring-rose-400 focus:ring-rose-500" : "ring-[#d8d3cb] focus:ring-[#4f6652]"}`; }
 
 const copy = {
   ko: {

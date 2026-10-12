@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const home = readFileSync(new URL("../components/HomeDiscoveryPage.tsx", import.meta.url), "utf8");
 const localizedHome = readFileSync(new URL("../app/[locale]/page.tsx", import.meta.url), "utf8");
+const landingPage = readFileSync(new URL("../components/landing/LandingPage.tsx", import.meta.url), "utf8");
 const header = readFileSync(new URL("../components/Header.tsx", import.meta.url), "utf8");
 const bottomNavigation = readFileSync(new URL("../components/BottomNavigation.tsx", import.meta.url), "utf8");
 const nearby = readFileSync(new URL("../components/NearbyExplorer.tsx", import.meta.url), "utf8");
@@ -21,8 +22,10 @@ for (const message of [
   assert.match(home, new RegExp(message));
 }
 
-assert.match(localizedHome, /getCachedPublicPlaces\(locale\)/);
-assert.match(localizedHome, /translatedPlaceLocales\(place\)\.includes\(locale\)/);
+assert.match(localizedHome, /<LandingPage locale=\{locale\} \/>/);
+assert.match(landingPage, /getCachedPublicPlaces\(locale\)/);
+assert.match(landingPage, /translatedPlaceLocales\(place\)\.includes\(locale\)/);
+assert.match(landingPage, /<HomeDiscoveryPage/);
 assert.match(home, /const districtCounts = getDistrictCounts\(places\)/);
 assert.match(home, /\.filter\(\(district\) => district\.count > 0\)/);
 assert.match(home, /activeCities\.map/);

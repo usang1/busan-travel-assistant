@@ -215,7 +215,7 @@ export function SavedItemsView({ locale, compact = false }: SavedItemsViewProps)
   }
 
   if (loading || isLoading) {
-    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.common.loading}</div>;
+    return <div className="border border-[#e8e4dd] bg-white p-5 text-sm font-semibold text-[#6f746e]">{copy.common.loading}</div>;
   }
 
   return (
@@ -337,7 +337,7 @@ function SavedMapSelection({ place, locale }: { place: PlaceWithRelations; local
   const description = getPublicPlaceDescription(place, locale) || getPlaceTrustCopy(locale).noPublicDescription;
 
   return (
-    <article className="grid grid-cols-[76px_1fr] gap-3 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
+    <article className="grid grid-cols-[76px_1fr] gap-3 border border-[#e8e4dd] bg-white p-3 shadow-[0_10px_30px_rgba(37,40,36,0.05)]">
       <SavedPlaceThumb place={place} locale={locale} href={href} contentName={content.name} size="76px" />
       <div className="min-w-0">
         <p className="truncate text-base font-black text-slate-950">{nameDisplay.name}</p>
@@ -369,7 +369,7 @@ function SavedPlaceCard({
   const coordinates = hasCoordinates(place) ? { latitude: place.latitude, longitude: place.longitude } : null;
 
   return (
-    <article className="grid grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-200">
+    <article className="grid grid-cols-[88px_1fr] gap-3 border border-[#e8e4dd] bg-white p-3 shadow-[0_10px_30px_rgba(37,40,36,0.05)]">
       <SavedPlaceThumb place={place} locale={locale} href={href} contentName={nameDisplay.name} size="88px" />
       <div className="min-w-0 py-1">
         <Link href={href} className="block min-w-0">

@@ -2,7 +2,22 @@
 
 :root {
   color-scheme: light;
-  background: #f8fafc;
+  --ui-background: #f8f7f4;
+  --ui-surface: #ffffff;
+  --ui-text: #252824;
+  --ui-muted: #6f746e;
+  --ui-sage: #768a75;
+  --ui-sage-dark: #4f6652;
+  --ui-border: #e8e4dd;
+  --ui-warm: #f1eee8;
+  --ui-focus: #4f6652;
+  --ui-danger: #b42318;
+  --ui-radius: 16px;
+  --ui-shadow: 0 18px 50px rgba(37, 40, 36, 0.07);
+  --ui-container: 1280px;
+  --motion-fast: 180ms;
+  --motion-base: 280ms;
+  background: var(--ui-background);
 }
 
 * {
@@ -18,11 +33,14 @@ body {
   margin: 0;
   min-height: 100dvh;
   background:
-    linear-gradient(180deg, rgba(240, 253, 250, 0.88) 0%, rgba(248, 250, 252, 0) 340px),
-    #f8fafc;
-  color: #0f172a;
+    radial-gradient(circle at 88% 0%, rgba(118, 138, 117, 0.09), transparent 28rem),
+    var(--ui-background);
+  color: var(--ui-text);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Noto Sans KR",
+    "Noto Sans SC", "Noto Sans JP", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -32,8 +50,8 @@ input {
 }
 
 ::selection {
-  background: #99f6e4;
-  color: #042f2e;
+  background: #dce6dc;
+  color: var(--ui-text);
 }
 
 .safe-bottom {
@@ -45,7 +63,7 @@ input {
 }
 
 :where(a, button, input, select, textarea, summary):focus-visible {
-  outline: 3px solid #0f766e;
+  outline: 3px solid var(--ui-focus);
   outline-offset: 3px;
 }
 
@@ -59,4 +77,62 @@ input {
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
+
+.page-shell {
+  width: min(100% - 2rem, var(--ui-container));
+  margin-inline: auto;
+}
+
+.editorial-heading {
+  color: var(--ui-text);
+  font-size: clamp(2rem, 4vw, 3.75rem);
+  font-weight: 850;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+
+.ui-surface {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow);
+}
+
+.ui-input {
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.ui-input:focus {
+  border-color: var(--ui-sage-dark);
+  box-shadow: 0 0 0 4px rgba(118, 138, 117, 0.15);
+  outline: none;
+}
+
+.ui-button-primary,
+.ui-button-secondary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  padding-inline: 1rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition: transform var(--motion-fast) ease, background-color var(--motion-fast) ease;
+}
+
+.ui-button-primary { background: var(--ui-sage-dark); color: white; }
+.ui-button-secondary { border: 1px solid var(--ui-border); background: white; color: var(--ui-text); }
+.ui-button-primary:hover, .ui-button-secondary:hover { transform: translateY(-1px); }

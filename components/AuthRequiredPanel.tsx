@@ -17,12 +17,12 @@ export function AuthRequiredPanel({ title, description, locale }: AuthRequiredPa
   const copy = ui[currentLocale];
 
   return (
-    <section className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <h2 className="text-lg font-black text-slate-950">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+    <section className="border border-[#e8e4dd] bg-white p-5 shadow-[0_18px_50px_rgba(37,40,36,0.06)] sm:p-7">
+      <h2 className="text-xl font-black tracking-[-0.03em] text-[#252824]">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-[#6f746e]">{description}</p>
       <Link
         href={`${withLocale("/login", currentLocale)}?next=${encodeURIComponent(pathname)}`}
-        className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-95"
+        className="mt-5 inline-flex h-11 items-center justify-center gap-2 bg-[#4f6652] px-4 text-sm font-black text-white transition hover:bg-[#405444] active:scale-95"
       >
         <LogIn size={17} aria-hidden="true" />
         {copy.auth.login}

@@ -64,7 +64,7 @@ export function MySubmissionsView({ locale = defaultLocale }: MySubmissionsViewP
   }, [user]);
 
   if (loading) {
-    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.common.loading}</div>;
+    return <div className="border border-[#e8e4dd] bg-white p-5 text-sm font-semibold text-[#6f746e]">{copy.common.loading}</div>;
   }
 
   if (!user) {
@@ -79,7 +79,7 @@ export function MySubmissionsView({ locale = defaultLocale }: MySubmissionsViewP
           const label = copy.submissions.status[submission.status];
 
           return (
-            <article key={submission.id} className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <article key={submission.id} className="border border-[#e8e4dd] bg-white p-5 shadow-[0_12px_35px_rgba(37,40,36,0.05)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="truncate text-lg font-black text-slate-950">{submission.name || copy.submissions.title}</h2>
@@ -110,7 +110,7 @@ export function MySubmissionsView({ locale = defaultLocale }: MySubmissionsViewP
           );
         })
       ) : (
-        <div className="rounded-[24px] bg-white p-5 text-sm text-slate-600 ring-1 ring-slate-200">
+        <div className="border border-[#e8e4dd] bg-white p-5 text-sm text-[#6f746e]">
           {copy.submissions.empty}
         </div>
       )}

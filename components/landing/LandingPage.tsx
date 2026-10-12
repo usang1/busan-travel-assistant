@@ -1,13 +1,17 @@
 import { LandingExperience } from "@/components/landing/LandingExperience";
+import { HomeDiscoveryPage } from "@/components/HomeDiscoveryPage";
 import type { LandingPlace } from "@/components/landing/types";
 import { StructuredData } from "@/components/StructuredData";
 import { landingCopy } from "@/components/landing/landing-copy";
 import { getCachedPublicPlaces } from "@/lib/public-cache";
+import { isSocialDiscoveryEnabled } from "@/lib/feature-flags";
 import { buildPlaceCardFacts, getPlaceCategoryLabel, getPlaceNameDisplay, getTrustedPlaceImageUrl, getVerificationStatus } from "@/lib/place-trust";
 import { getPlaceContent, localeMeta, localizedCanonical, type Locale } from "@/lib/i18n";
+import { translatedPlaceLocales } from "@/lib/public-seo";
 
 export async function LandingPage({ locale }: { locale: Locale }) {
   const result = await getCachedPublicPlaces(locale);
+  const publicPlaces = result.places.filter((place) => translatedPlaceLocales(place).includes(locale));
   const places = [...result.places]
     .sort((a, b) => Number(Boolean(getTrustedPlaceImageUrl(b))) - Number(Boolean(getTrustedPlaceImageUrl(a))) || Number(b.is_featured) - Number(a.is_featured))
     .slice(0, 3)
@@ -46,7 +50,14 @@ export async function LandingPage({ locale }: { locale: Locale }) {
           "query-input": "required name=search_term_string",
         },
       }} />
-      <LandingExperience locale={locale} places={places} />
+      <LandingExperience locale={locale} places={places}>
+        <HomeDiscoveryPage
+          locale={locale}
+          places={publicPlaces}
+          socialDiscoveryEnabled={isSocialDiscoveryEnabled()}
+          embedded
+        />
+      </LandingExperience>
     </>
   );
 }

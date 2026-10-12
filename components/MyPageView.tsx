@@ -30,7 +30,7 @@ export function MyPageView({ locale }: MyPageViewProps) {
   }
 
   if (loading) {
-    return <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">{copy.common.loading}</div>;
+    return <div className="border border-[#e8e4dd] bg-white p-5 text-sm font-semibold text-[#6f746e]">{copy.common.loading}</div>;
   }
 
   if (!user) {
@@ -43,13 +43,13 @@ export function MyPageView({ locale }: MyPageViewProps) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <section className="border border-[#e8e4dd] bg-white p-5 shadow-[0_18px_50px_rgba(37,40,36,0.06)] sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="grid size-12 place-items-center rounded-2xl bg-teal-50 text-teal-700">
+            <div className="grid size-12 place-items-center bg-[#edf2eb] text-[#4f6652]">
               <UserRound size={24} aria-hidden="true" />
             </div>
-            <h2 className="mt-4 text-xl font-black text-slate-950">{copy.mypage.profile}</h2>
+            <h2 className="mt-4 text-2xl font-black tracking-[-0.035em] text-[#252824]">{copy.mypage.profile}</h2>
             <p className="mt-1 text-sm text-slate-500">{copy.mypage.settingsUnavailable}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -121,8 +121,8 @@ function ProfileItem({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
-      <Icon size={17} className="text-teal-700" aria-hidden="true" />
+    <div className="border border-[#e8e4dd] bg-[#faf9f6] p-4">
+      <Icon size={17} className="text-[#4f6652]" aria-hidden="true" />
       <p className="mt-2 text-xs font-bold text-slate-500">{label}</p>
       <p className="mt-1 truncate text-sm font-black text-slate-950">{value}</p>
     </div>

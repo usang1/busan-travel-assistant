@@ -225,7 +225,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
   }[locale];
 
   return (
-    <main className="safe-bottom mx-auto max-w-5xl px-4 pb-6 pt-4">
+    <main className="safe-bottom mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-10">
       <StructuredData data={placeSchema(place, locale)} />
       <StructuredData data={breadcrumbSchema([
         { name: copy.nav.home, url: localizedCanonical("/", locale) },
@@ -252,9 +252,9 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
 
       {error ? <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</p> : null}
 
-      <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
+      <section className="overflow-hidden border border-[#e8e4dd] bg-white shadow-[0_24px_70px_rgba(37,40,36,0.07)]">
         <div className="lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div className="relative h-[260px] bg-slate-200 sm:h-[300px] lg:h-[420px]">
+        <div className="relative h-[280px] bg-[#ece9e3] sm:h-[360px] lg:h-[520px]">
           {photo.kind === "image" ? (
             <Image
               src={photo.url}
@@ -273,15 +273,15 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
               </div>
             </div>
           )}
-          <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-sm backdrop-blur">
+          <div className="absolute left-4 top-4 bg-white/92 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#3f493f] backdrop-blur">
             {getPlaceCategoryLabel(place.category, locale)}
           </div>
         </div>
-        <div className="p-5">
+        <div className="p-5 sm:p-7 lg:p-9">
           <div className="flex items-start justify-between gap-4">
             <div>
               <TagChip tone={place.is_active ? "green" : "amber"}>{place.is_active ? copy.common.available : copy.common.unavailable}</TagChip>
-              <h1 className="mt-3 text-3xl font-black tracking-normal text-slate-950">{nameDisplay.name}</h1>
+              <h1 className="mt-3 text-[clamp(2rem,4vw,3.75rem)] font-black leading-[1.02] tracking-[-0.045em] text-[#252824]">{nameDisplay.name}</h1>
               {nameDisplay.secondaryName ? <p className="mt-1 text-base text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
               {nameDisplay.translationMissing ? <p className="mt-2 text-sm font-black text-amber-700">{nameDisplay.translationNotice}</p> : null}
             </div>
@@ -318,7 +318,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           </div>
           <TimeAwareStatus place={place} locale={locale} travelMinutes={0} variant="detail" />
 
-          <section className="mt-5 rounded-[24px] bg-slate-950 p-4 text-white">
+          <section className="mt-6 bg-[#26352c] p-5 text-white sm:p-6">
             <div className="flex items-center gap-2">
               <BadgeCheck size={19} className="text-teal-200" aria-hidden="true" />
               <h2 className="text-lg font-black">{visitCheck.copy.title}</h2>

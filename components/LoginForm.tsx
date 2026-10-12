@@ -272,13 +272,13 @@ export function LoginForm() {
   }
 
   return (
-    <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <section className="border border-[#e8e4dd] bg-white p-5 shadow-[0_24px_70px_rgba(37,40,36,0.07)] sm:p-8">
       <div className="flex items-start gap-3">
-        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white">
+        <span className="grid size-11 shrink-0 place-items-center bg-[#4f6652] text-white">
           <LogIn size={20} aria-hidden="true" />
         </span>
         <div>
-          <h1 className="text-2xl font-black tracking-normal text-slate-950">{title}</h1>
+          <h1 className="text-3xl font-black tracking-[-0.04em] text-[#252824]">{title}</h1>
           <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
         </div>
       </div>
@@ -321,7 +321,7 @@ export function LoginForm() {
       <form className="mt-5 space-y-4" onSubmit={submit}>
         <label className="block">
           <span className="text-sm font-bold text-slate-700">{text.email}</span>
-          <span className="mt-2 flex h-12 items-center gap-2 rounded-2xl bg-slate-50 px-3 ring-1 ring-slate-200">
+          <span className="mt-2 flex h-12 items-center gap-2 border border-[#e0dcd5] bg-[#faf9f6] px-3 focus-within:border-[#768a75] focus-within:ring-4 focus-within:ring-[#e3ebe1]">
             <Mail size={17} className="text-slate-500" aria-hidden="true" />
             <input
               type="email"
@@ -367,7 +367,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={submitting || !isSupabaseConfigured}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-[0.98] disabled:opacity-50"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 bg-[#4f6652] px-4 text-sm font-black text-white transition hover:bg-[#405444] active:scale-[0.98] disabled:opacity-50"
         >
           {mode === "signin" ? <LogIn size={18} aria-hidden="true" /> : <UserPlus size={18} aria-hidden="true" />}
           {submitLabel}

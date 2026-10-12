@@ -12,5 +12,5 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
     en: { title: "List your business on Spotzari", subtitle: "Register your business and introduce it to international travelers." },
     ja: { title: "Spotzari 店舗掲載申請", subtitle: "店舗を登録して、海外からの旅行者に紹介しましょう。" },
   };
-  return <main className="safe-bottom mx-auto max-w-3xl px-4 pb-8 pt-5"><SectionTitle as="h1" title={titles[locale].title} subtitle={titles[locale].subtitle} /><div className="mt-5"><SubmissionTypeNavigation active="business" locale={locale} /></div><div className="mt-4"><BusinessApplicationForm locale={locale} /></div></main>;
+  return <main className="safe-bottom mx-auto max-w-4xl px-4 pb-10 pt-8 sm:px-6 lg:pt-12"><SectionTitle as="h1" title={titles[locale].title} subtitle={titles[locale].subtitle} /><div className="mt-6"><SubmissionTypeNavigation active="business" locale={locale} /></div><div className="mt-4"><BusinessApplicationForm locale={locale} /></div></main>;
 }

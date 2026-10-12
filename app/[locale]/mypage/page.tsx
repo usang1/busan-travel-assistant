@@ -39,10 +39,10 @@ export default async function LocalizedMyPage({ params }: LocalizedMyPageProps) 
   const copy = ui[locale];
 
   return (
-    <main className="safe-bottom mx-auto max-w-3xl px-4 pb-6 pt-5">
-      <h1 className="text-2xl font-black text-slate-950">{copy.mypage.title}</h1>
-      <p className="mt-1 text-sm text-slate-500">{copy.mypage.subtitle}</p>
-      <div className="mt-5">
+    <main className="safe-bottom mx-auto max-w-5xl px-4 pb-10 pt-8 sm:px-6 lg:px-8 lg:pt-12">
+      <h1 className="editorial-heading">{copy.mypage.title}</h1>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6f746e]">{copy.mypage.subtitle}</p>
+      <div className="mt-7">
         <MyPageView locale={locale} />
       </div>
     </main>

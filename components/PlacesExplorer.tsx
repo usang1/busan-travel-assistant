@@ -262,16 +262,16 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
 
   return (
     <div>
-      <div className="space-y-4 rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <div className="space-y-5 border border-[#e8e4dd] bg-white p-4 shadow-[0_14px_45px_rgba(37,40,36,0.05)] sm:p-6">
         <label className="relative block">
           <span className="sr-only">{copy.places.searchPlaceholder}</span>
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#768a75]" aria-hidden="true" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onBlur={() => { if (query.trim()) trackFilter("search", "present"); }}
             placeholder={copy.places.searchPlaceholder}
-            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-[16px] text-slate-900 outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
+            className="h-14 w-full border border-[#dcd8d1] bg-[#faf9f6] pl-11 pr-12 text-[16px] text-[#252824] outline-none transition focus:border-[#768a75] focus:bg-white focus:ring-4 focus:ring-[#e3ebe1]"
           />
           {query ? (
             <button
@@ -323,12 +323,12 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           </label>
         </div>
 
-        <details className="rounded-2xl bg-slate-50 ring-1 ring-slate-200" open={advancedFilterCount > 0 ? true : undefined}>
+        <details className="border border-[#e8e4dd] bg-[#faf9f6]" open={advancedFilterCount > 0 ? true : undefined}>
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-black text-slate-800">
             <span className="inline-flex items-center gap-2"><SlidersHorizontal size={18} aria-hidden="true" />{explorerCopy.moreFilters}</span>
             {advancedFilterCount > 0 ? <span className="rounded-full bg-teal-700 px-2.5 py-1 text-xs text-white">{explorerCopy.activeFilters} {advancedFilterCount}</span> : null}
           </summary>
-          <div className="space-y-4 border-t border-slate-200 p-4">
+          <div className="space-y-4 border-t border-[#e8e4dd] p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-xs font-black text-slate-500">{explorerCopy.price}</span>
@@ -359,7 +359,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
               const active = activeChinaFilters.includes(filter.key);
               return <button key={filter.key} type="button" onClick={() => toggleChinaFilter(filter.key)} className="min-h-11 active:scale-95"><TagChip tone={active ? "green" : "default"}>{filter.label[locale]}</TagChip></button>;
             })}</div> : null}
-            <button type="button" onClick={requestLocation} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-blue-50 px-4 text-sm font-black text-blue-700 ring-1 ring-blue-100">
+            <button type="button" onClick={requestLocation} className="inline-flex min-h-11 items-center gap-2 bg-[#edf2eb] px-4 text-sm font-black text-[#4f6652] ring-1 ring-[#d8e0d5]">
               <LocateFixed size={16} aria-hidden="true" />{explorerCopy.distanceSort}
             </button>
           </div>
@@ -378,7 +378,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       </div>
 
       {filteredPlaces.length > 0 ? (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredPlaces.map(({ place, distance }, index) => (
             <PlaceCard key={place.id} place={place} priority={index === 0} locale={locale} distanceMeters={distance} />
           ))}
@@ -628,12 +628,12 @@ function buildSearchText(place: PlaceWithRelations, locale: Locale) {
 
 function filterClass(active: boolean) {
   return cn(
-    "min-h-11 shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
-    active ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+    "min-h-11 shrink-0 px-4 py-2 text-sm font-black ring-1 transition active:scale-95",
+    active ? "bg-[#4f6652] text-white ring-[#4f6652]" : "bg-[#faf9f6] text-[#555b55] ring-[#e8e4dd] hover:bg-[#efede7]",
   );
 }
 
-const selectClass = "h-11 w-full rounded-2xl bg-slate-50 px-3 text-sm font-bold text-slate-800 outline-none ring-1 ring-slate-200";
+const selectClass = "h-12 w-full border border-[#e0dcd5] bg-white px-3 text-sm font-bold text-[#3f433f] outline-none transition focus:border-[#768a75] focus:ring-4 focus:ring-[#e3ebe1]";
 
 function getInitialCategory(searchParams: URLSearchParams, initialCategory?: string) {
   const categoryParam = searchParams.get("category") ?? initialCategory;

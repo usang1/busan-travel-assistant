@@ -48,17 +48,17 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
   const recommendation = getPublicPlaceDescription(place, locale);
 
   return (
-    <article className="overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+    <article className="group overflow-hidden border border-[#e8e4dd] bg-white transition duration-200 hover:-translate-y-1 hover:border-[#cbd5c9] hover:shadow-[0_18px_45px_rgba(37,40,36,0.09)]">
       <ProductAnalytics eventType="place_impression" locale={locale} placeId={place.id} mode="visible" metadata={{ surface: compact ? "compact_card" : "place_card", category: place.category }} />
       <Link href={placeHref} className="block">
-        <div className="relative aspect-[16/10] bg-slate-200">
+        <div className="relative aspect-[4/3] overflow-hidden bg-[#ece9e3] sm:aspect-[16/11]">
           {photo.kind === "image" ? (
             <Image
               src={photo.url}
               alt={nameDisplay.secondaryName ? `${nameDisplay.name} / ${nameDisplay.secondaryName}` : nameDisplay.name}
               fill
               sizes="(max-width: 768px) 100vw, 420px"
-              className="object-cover"
+              className="object-cover transition duration-500 group-hover:scale-[1.025]"
               priority={priority}
             />
           ) : (
@@ -70,15 +70,15 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
               </div>
             </div>
           )}
-          <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur">
+          <div className="absolute left-3 top-3 bg-white/92 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#3f493f] backdrop-blur">
             {getPlaceCategoryLabel(place.category, locale)}
           </div>
         </div>
       </Link>
-      <div className={compact ? "p-3" : "p-4"}>
+      <div className={compact ? "p-3" : "p-4 sm:p-5"}>
         <div className="flex items-start justify-between gap-3">
           <Link href={placeHref} className="min-w-0">
-            <h3 className={compact ? "truncate text-base font-bold text-slate-950" : "truncate text-lg font-bold text-slate-950"}>{nameDisplay.name}</h3>
+            <h3 className={compact ? "truncate text-base font-extrabold text-[#252824]" : "truncate text-xl font-extrabold tracking-[-0.025em] text-[#252824]"}>{nameDisplay.name}</h3>
             {nameDisplay.secondaryName ? <p className="mt-0.5 text-sm text-slate-500">{nameDisplay.secondaryLabel} · {nameDisplay.secondaryName}</p> : null}
             {nameDisplay.translationMissing ? <p className="mt-1 text-xs font-bold text-amber-700">{nameDisplay.translationNotice}</p> : null}
           </Link>
@@ -99,7 +99,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
         <TimeAwareStatus place={place} locale={locale} travelMinutes={displayDistance === null ? 0 : Math.max(1, Math.round(displayDistance / 72))} />
         <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
           {priorityFacts.map((fact) => (
-            <span key={fact.key} className="inline-flex min-h-9 items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+            <span key={fact.key} className="inline-flex min-h-9 items-start gap-2 border-l-2 border-[#b7c6b4] bg-[#f7f7f3] px-3 py-2">
               <PlaceFactIcon factKey={fact.key} />
               <span className="min-w-0">
                 <span className="mr-1 font-bold text-slate-500">{fact.label}</span>
@@ -123,12 +123,12 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
           ) : null}
         </div>
         {distanceWarning ? <p className="mt-2 text-xs font-bold text-amber-800">{distanceWarning}</p> : null}
-        {recommendation ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{recommendation}</p> : null}
-        <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-slate-100 pt-3" />
+        {recommendation ? <p className="mt-4 line-clamp-2 border-t border-[#ece9e3] pt-3 text-sm leading-6 text-[#626862]">{recommendation}</p> : null}
+        <TravelerDecisionCard place={place} locale={locale} className="mt-3 border-t border-[#ece9e3] pt-3" />
         <TasteProfileCard place={place} locale={locale} />
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
-            <Link href={correctionHref} className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100">
+            <Link href={correctionHref} className="inline-flex min-h-11 items-center gap-1.5 bg-[#f8f7f4] px-3 text-xs font-black text-[#555b55] ring-1 ring-[#e8e4dd] transition hover:bg-[#efede7]">
               <MessageSquarePlus size={15} aria-hidden="true" />
               {correctionLabel}
             </Link>
@@ -137,7 +137,7 @@ export function PlaceCard({ place, priority = false, locale = defaultLocale, dis
                 href={naverPlaceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-green-50 px-3 text-xs font-black text-green-800 ring-1 ring-green-100 transition hover:bg-green-100"
+                className="inline-flex min-h-11 items-center gap-1.5 bg-[#edf2eb] px-3 text-xs font-black text-[#4f6652] ring-1 ring-[#d8e0d5] transition hover:bg-[#dfe8dc]"
               >
                 <ExternalLink size={15} aria-hidden="true" />
                 {naverPlaceLabel}
@@ -171,5 +171,5 @@ function PlaceFactIcon({ factKey }: { factKey: ReturnType<typeof buildPlaceCardF
           ? MapPin
           : Clock3;
 
-  return <Icon size={15} className="mt-0.5 shrink-0 text-teal-700" aria-hidden="true" />;
+  return <Icon size={15} className="mt-0.5 shrink-0 text-[#4f6652]" aria-hidden="true" />;
 }

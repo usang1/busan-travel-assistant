@@ -78,7 +78,7 @@ export default async function LocalizedPlacesPage({ params, searchParams }: Loca
   };
 
   return (
-    <main className="safe-bottom mx-auto max-w-6xl px-4 pb-6 pt-5">
+    <main className="safe-bottom mx-auto max-w-7xl px-4 pb-10 pt-7 sm:px-6 lg:px-8 lg:pt-10">
       <CitySwitcher locale={locale} activeCity={city} path="/places" />
       <SectionTitle as="h1" title={copy.places.title} subtitle={source === "demo" ? copy.common.sampleData : countCopy} />
       <div className="mt-4">

@@ -549,7 +549,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
       {userLocation ? <NearbyPopularPlaces origin={userLocation} locale={locale} /> : null}
 
       <section className="hidden min-h-[calc(100dvh-180px)] grid-cols-[minmax(320px,38%)_minmax(0,1fr)] gap-4 lg:grid">
-        <aside className="flex min-h-0 flex-col rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
+        <aside className="flex min-h-0 flex-col border border-[#e8e4dd] bg-white shadow-[0_18px_50px_rgba(37,40,36,0.06)]">
           <div className="border-b border-slate-100 p-4">{searchControls}</div>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">{list}</div>
         </aside>
@@ -711,7 +711,7 @@ function SearchAndFilters({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-[24px] bg-slate-950 p-4 text-white lg:bg-transparent lg:p-0 lg:text-slate-950 lg:shadow-none">
+      <div className="bg-[#26352c] p-4 text-white lg:bg-transparent lg:p-0 lg:text-[#252824] lg:shadow-none">
         <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-teal-100 ring-1 ring-white/10 lg:bg-teal-50 lg:text-teal-700 lg:ring-teal-100">
           <MapPinned size={16} aria-hidden="true" />
           {originMode === "current" ? localizedCopy.currentLocation : defaultLocationLabel}
@@ -746,7 +746,7 @@ function SearchAndFilters({
             title={option.value === "saved" && !userLoggedIn ? localizedCopy.savedLoginRequired : undefined}
             className={cn(
               "inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-black ring-1 transition active:scale-95",
-              category === option.value ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-700 ring-slate-200",
+              category === option.value ? "bg-[#4f6652] text-white ring-[#4f6652]" : "bg-white text-[#555b55] ring-[#e8e4dd]",
             )}
           >
             {option.value === "saved" ? <Heart size={15} fill={category === "saved" ? "currentColor" : "none"} aria-hidden="true" /> : null}
@@ -1034,8 +1034,8 @@ function PlaceListCard({
     <article
       aria-current={active ? "true" : undefined}
       className={cn(
-        "rounded-[24px] p-3 shadow-sm ring-1 transition",
-        active ? "bg-teal-50 ring-2 ring-teal-700" : "bg-white ring-slate-200 hover:ring-teal-200",
+        "p-3 shadow-sm ring-1 transition",
+        active ? "bg-[#edf2eb] ring-2 ring-[#4f6652]" : "bg-white ring-[#e8e4dd] hover:ring-[#b7c6b4]",
       )}
     >
       <button type="button" onClick={onSelect} className="grid w-full grid-cols-[92px_1fr] gap-3 text-left">
@@ -1385,7 +1385,7 @@ const nearbyCopy: Record<Locale, {
   },
 };
 
-const selectClass = "h-11 w-full rounded-2xl bg-white px-3 text-sm font-bold text-slate-800 outline-none ring-1 ring-slate-200";
+const selectClass = "h-11 w-full bg-white px-3 text-sm font-bold text-[#3f433f] outline-none ring-1 ring-[#e8e4dd] focus:ring-2 focus:ring-[#4f6652]";
 
 function readCategory(searchParams: URLSearchParams): MapCategoryFilter {
   const value = searchParams.get("category");

@@ -21,8 +21,10 @@ for (const file of [
 }
 
 const cityHomePage = fs.readFileSync("app/[locale]/page.tsx", "utf8");
+const landingPage = fs.readFileSync("components/landing/LandingPage.tsx", "utf8");
 assert.doesNotMatch(cityHomePage, /force-dynamic/);
-assert.match(cityHomePage, /getCachedPublicPlaces\(locale\)/, "the multi-city home page should use cached public place data for live counts");
+assert.match(cityHomePage, /<LandingPage locale=\{locale\} \/>/, "the locale route should render the landing data boundary");
+assert.match(landingPage, /getCachedPublicPlaces\(locale\)/, "the multi-city landing page should use cached public place data for live counts");
 assert.match(cityHomePage, /revalidate = 300/, "the multi-city home page should remain revalidated rather than request-scoped");
 
 for (const file of [

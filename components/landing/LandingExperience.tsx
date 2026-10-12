@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowRight,
@@ -25,9 +25,9 @@ import type { LandingPlace } from "@/components/landing/types";
 import { localeMeta, locales, type Locale, withLocale } from "@/lib/i18n";
 import styles from "./LandingExperience.module.css";
 
-type Props = { locale: Locale; places: LandingPlace[] };
+type Props = { locale: Locale; places: LandingPlace[]; children?: ReactNode };
 
-export function LandingExperience({ locale, places }: Props) {
+export function LandingExperience({ locale, places, children }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const copy = landingCopy[locale];
   const featured = places[0];
@@ -73,6 +73,7 @@ export function LandingExperience({ locale, places }: Props) {
       <LandingHeader locale={locale} />
       <div className={styles.progress} aria-hidden="true"><span /></div>
       <Hero locale={locale} imageUrl={featured?.imageUrl ?? ""} />
+      {children ? <section id="explore-home" className={styles.homeBridge}>{children}</section> : null}
       <Discover locale={locale} places={places} />
       <Decide locale={locale} place={featured} />
       <Plan locale={locale} places={places} />
@@ -128,7 +129,7 @@ function Hero({ locale, imageUrl }: { locale: Locale; imageUrl: string }) {
           <p className={styles.heroBody}>{copy.heroBody}</p>
           <div className={styles.heroActions}>
             <Link href={withLocale("/explore", locale)} className={styles.primaryButton}>{copy.heroExplore}<ArrowRight size={17} /></Link>
-            <a href="#discover" className={styles.secondaryButton}>{copy.heroMore}<ArrowDown size={17} /></a>
+            <a href="#explore-home" className={styles.secondaryButton}>{copy.heroMore}<ArrowDown size={17} /></a>
           </div>
         </div>
         <div className={styles.heroInterface} aria-hidden="true">
