@@ -7,6 +7,7 @@ type Application = {
   id: string; store_name: string; address: string; category: string; contact_name: string;
   contact_email: string | null; contact_phone: string | null; applicant_relationship: string;
   request_notes: string; status: string; admin_notes: string | null; linked_place_id: string | null;
+  applicant_role: "owner" | "staff" | "agency" | null;
   map_url: string | null; map_provider: string; created_at: string; notification_status: string | null;
 };
 
@@ -53,8 +54,8 @@ export function AdminBusinessApplications({ accessToken, places }: { accessToken
       <div className="mt-4 space-y-4">
         {items.map((item, index) => (
           <article key={item.id} className="rounded-2xl bg-slate-50 p-4">
-            <div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-black">{item.store_name}</h3><p className="text-sm text-slate-600">{item.address} · {item.category}</p></div><span className="text-xs font-bold">Telegram: {item.notification_status ?? "미기록"}</span></div>
-            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><div><dt className="font-black">담당자</dt><dd>{item.contact_name} · {item.applicant_relationship}</dd></div><div><dt className="font-black">연락처</dt><dd>{item.contact_email || item.contact_phone}</dd></div></dl>
+            <div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-black">{item.store_name || "네이버 플레이스 입점 신청"}</h3><p className="text-sm text-slate-600">{item.address} · {item.category}</p></div><div className="text-right text-xs font-bold text-slate-500"><p>{new Date(item.created_at).toLocaleString("ko-KR")}</p><p>Telegram: {item.notification_status ?? "미기록"}</p></div></div>
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3"><div><dt className="font-black">신청자</dt><dd>{item.contact_name}</dd></div><div><dt className="font-black">신청자 역할</dt><dd>{applicantRoleLabel(item.applicant_role, item.applicant_relationship)}</dd></div><div><dt className="font-black">연락처</dt><dd>{item.contact_phone || item.contact_email || "미입력"}</dd></div></dl>
             {item.map_url ? <div className="mt-3 flex flex-wrap items-center gap-2 text-sm"><a href={item.map_url} target="_blank" rel="noreferrer" className="font-bold text-blue-700 underline">신청 지도 링크 열기</a>{item.status !== "approved" ? <button type="button" onClick={() => update(index, { linked_place_id: item.map_url })} className="min-h-9 rounded-lg bg-white px-3 text-xs font-black ring-1 ring-slate-200">이 링크로 기존 장소 찾기</button> : null}</div> : null}
             <p className="mt-3 whitespace-pre-wrap text-sm">{item.request_notes}</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -72,3 +73,6 @@ export function AdminBusinessApplications({ accessToken, places }: { accessToken
 }
 
 const inputClass = "min-h-11 rounded-lg bg-white px-3 text-sm ring-1 ring-slate-200 outline-none disabled:bg-slate-100";
+function applicantRoleLabel(role: Application["applicant_role"], legacy: string) {
+  return role ? { owner: "대표자 / 사업주", staff: "직원 / 매니저", agency: "마케팅 대행사" }[role] : legacy;
+}

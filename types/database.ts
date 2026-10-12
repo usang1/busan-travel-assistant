@@ -442,6 +442,7 @@ export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at">
 export type PlaceChinaInfoPayload = Omit<PlaceChinaInfoRecord, "id" | "place_id" | "created_at" | "updated_at">;
 
 export type BusinessApplicationStatus = "pending" | "reviewing" | "more_info_requested" | "approved" | "rejected";
+export type BusinessApplicantRole = "owner" | "staff" | "agency";
 
 export type BusinessApplicationRecord = {
   id: string;
@@ -451,6 +452,11 @@ export type BusinessApplicationRecord = {
   address: string;
   category: string;
   contact_name?: string;
+  contact_phone?: string | null;
+  applicant_role?: BusinessApplicantRole | null;
+  applicant_relationship?: string;
+  map_url?: string | null;
+  consent_version?: string | null;
   status: BusinessApplicationStatus;
   linked_place_id: string | null;
   admin_notes: string | null;

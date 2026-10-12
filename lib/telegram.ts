@@ -79,11 +79,11 @@ export async function sendPlaceSubmissionNotification({
   return sendTelegramMessage({ text });
 }
 
-export async function sendBusinessApplicationNotification(input: { applicationId: string; storeName: string; address: string; contactName: string }) {
+export async function sendBusinessApplicationNotification(input: { applicationId: string; placeUrl: string; applicantName: string; applicantRole: string }) {
   const reviewUrl = absoluteUrl(`/admin?businessApplication=${encodeURIComponent(input.applicationId)}#business-applications`);
   return sendTelegramMessage({ text: [
-    "[spotzari]", "유형: 사장님 입점 신청", `가게명: ${input.storeName}`,
-    `주소: ${input.address}`, `담당자: ${input.contactName}`, "연락처: 관리자 화면에서 확인",
+    "[spotzari]", "유형: 입점 신청", `네이버 플레이스: ${input.placeUrl}`,
+    `신청자: ${input.applicantName}`, `신청자 역할: ${input.applicantRole}`, "연락처: 관리자 화면에서 확인",
     `접수시간: ${new Date().toISOString()}`, `관리자 확인 링크: ${reviewUrl}`,
   ].join("\n") });
 }
