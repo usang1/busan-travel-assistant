@@ -1,4 +1,80 @@
 import { NextResponse } from "next/server";
-import { adminErrorResponse, requireAdmin } from "@/lib/admin-auth";
-const statuses = ["pending", "reviewing", "more_info_requested", "approved", "rejected"];
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { try { const { client, user } = await requireAdmin(request); const { id } = await params; const body = await request.json() as { status?: string; admin_notes?: string; linked_place_id?: string | null }; if (!statuses.includes(body.status ?? "")) return NextResponse.json({ message: "처리 상태가 올바르지 않습니다." }, { status: 400 }); const { error } = await client.from("business_applications").update({ status: body.status, admin_notes: body.admin_notes?.trim() || null, linked_place_id: body.linked_place_id || null, reviewed_by: user.id, reviewed_at: new Date().toISOString() }).eq("id", id); if (error) throw error; return NextResponse.json({ ok: true }); } catch (error) { const value = adminErrorResponse(error); return NextResponse.json({ message: value.message }, { status: value.status }); } }
+import { requireAdmin } from "@/lib/admin-auth";
+import { isUuid } from "@/lib/business-auth";
+
+const statuses = new Set(["pending", "reviewing", "more_info_requested", "approved", "rejected"]);
+const publicErrors: Record<string, { status: number; message: string }> = {
+  login_required: { status: 401, message: "로그인이 필요합니다." },
+  admin_required: { status: 403, message: "관리자 권한이 없습니다." },
+  invalid_status: { status: 400, message: "처리 상태가 올바르지 않습니다." },
+  application_not_found: { status: 404, message: "입점 신청 데이터를 찾지 못했습니다." },
+  applicant_profile_missing: { status: 409, message: "신청자 계정과 프로필을 연결할 수 없습니다." },
+  place_not_found: { status: 404, message: "연결할 업체 장소를 찾지 못했습니다. 장소 UUID를 확인해 주세요." },
+  approved_application_immutable: { status: 409, message: "이미 승인된 신청은 다른 상태로 되돌릴 수 없습니다." },
+  approved_place_mismatch: { status: 409, message: "이미 승인된 신청에 다른 업체를 연결할 수 없습니다." },
+  ownership_link_failed: { status: 409, message: "업체 소유권 연결에 실패했습니다." },
+  database_permission_denied: { status: 503, message: "DB 권한 또는 정책 때문에 승인 처리를 완료하지 못했습니다." },
+};
+
+type ReviewResult = { ok?: boolean; code?: string; application_id?: string; user_id?: string; place_id?: string | null; status?: string };
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  let stage = "authentication";
+  let applicationId = "unknown";
+  try {
+    const { client } = await requireAdmin(request);
+    applicationId = (await params).id;
+    if (!isUuid(applicationId)) return apiError("invalid_application_id", 400, "입점 신청 ID가 올바르지 않습니다.");
+
+    const body = await request.json() as { status?: string; admin_notes?: string; linked_place_id?: string | null };
+    if (!body.status || !statuses.has(body.status)) return apiError("invalid_status", 400, "처리 상태가 올바르지 않습니다.");
+    if ((body.status === "rejected" || body.status === "more_info_requested") && !body.admin_notes?.trim()) {
+      return apiError("review_notes_required", 400, body.status === "rejected" ? "반려 사유를 입력해 주세요." : "추가로 필요한 정보를 입력해 주세요.");
+    }
+    const linkedPlaceId = body.linked_place_id?.trim() || null;
+    if (linkedPlaceId && !isUuid(linkedPlaceId)) return apiError("invalid_place_id", 400, "연결할 장소 UUID 형식이 올바르지 않습니다.");
+
+    stage = body.status === "approved" ? "approval_transaction" : "status_update";
+    const { data, error } = await client.rpc("review_business_application", {
+      application_id: applicationId,
+      next_status: body.status,
+      review_notes: body.admin_notes?.trim() || null,
+      target_place_id: linkedPlaceId,
+    });
+    if (error) {
+      if (error.code === "PGRST202" || /review_business_application/iu.test(error.message ?? "")) {
+        return apiError("migration_required", 503, "입점 승인 DB 마이그레이션(047)을 먼저 적용해 주세요.");
+      }
+      throw error;
+    }
+
+    const result = data as ReviewResult | null;
+    if (!result?.ok) {
+      const code = result?.code ?? "review_failed";
+      const known = publicErrors[code];
+      return apiError(code, known?.status ?? 500, known?.message ?? "입점 승인 처리를 완료하지 못했습니다.");
+    }
+
+    return NextResponse.json({
+      ok: true,
+      code: result.code,
+      message: result.code === "already_approved"
+        ? "이미 승인된 신청입니다. 사업자 권한과 업체 소유권 연결 상태를 다시 확인했습니다."
+        : body.status === "approved"
+          ? linkedPlaceId
+            ? "승인, 사업자 권한 부여, 업체 소유권 연결을 완료했습니다."
+            : "승인과 사업자 권한 부여를 완료했습니다. 사업자가 새 업체 정보를 작성할 수 있습니다."
+          : "입점 신청 처리 상태를 저장했습니다.",
+      result,
+    });
+  } catch (caught) {
+    const value = caught as { status?: number; code?: string };
+    const status = typeof value.status === "number" ? value.status : 500;
+    process.stderr.write(`[business-applications:review-failed] ${JSON.stringify({ applicationId, stage, code: value.code ?? "unknown", error: caught instanceof Error ? caught.name : "unknown" })}\n`);
+    return apiError(status === 401 ? "login_required" : status === 403 ? "admin_required" : "server_error", status, status === 401 ? "유효한 관리자 세션이 필요합니다." : status === 403 ? "관리자 권한이 없습니다." : "입점 승인 처리 중 서버 오류가 발생했습니다.");
+  }
+}
+
+function apiError(code: string, status: number, message: string) {
+  return NextResponse.json({ code, message }, { status });
+}

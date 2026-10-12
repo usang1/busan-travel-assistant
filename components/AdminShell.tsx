@@ -11,6 +11,7 @@ import { AdminSocialDiscoveryManager } from "@/components/AdminSocialDiscoveryMa
 import { AdminSubmissionWorkflow } from "@/components/AdminSubmissionWorkflow";
 import { AdminTravelerDecisionManager } from "@/components/AdminTravelerDecisionManager";
 import { AdminBusinessApplications } from "@/components/AdminBusinessApplications";
+import { AdminBusinessPlaceChanges } from "@/components/AdminBusinessPlaceChanges";
 import { AdminTravelerReportWorkflow } from "@/components/AdminTravelerReportWorkflow";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, type Locale, ui, withLocale } from "@/lib/i18n";
@@ -134,12 +135,14 @@ export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
       <nav aria-label={copy.menu} className="flex flex-wrap gap-2">
         <a href="#traveler-decision" className="inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-bold text-white">여행자 데이터</a>
         <a href="#business-applications" className="inline-flex min-h-11 items-center rounded-lg bg-blue-700 px-4 text-sm font-bold text-white">입점 신청</a>
+        <a href="#business-place-changes" className="inline-flex min-h-11 items-center rounded-lg bg-indigo-700 px-4 text-sm font-bold text-white">사업자 변경 검수</a>
         <a href="#traveler-reports" className="inline-flex min-h-11 items-center rounded-lg bg-amber-600 px-4 text-sm font-bold text-white">현장 제보 검수</a>
         <a href="#social-discovery" className="inline-flex min-h-11 items-center rounded-lg bg-cyan-700 px-4 text-sm font-bold text-white">SNS 장소 연결</a>
         <a href="#guides" className="inline-flex min-h-11 items-center rounded-lg bg-slate-900 px-4 text-sm font-bold text-white">{copy.guides}</a>
       </nav>
       <AdminDashboard places={places} photoSpots={[] as PhotoSpotRecord[]} />
-      <AdminBusinessApplications accessToken={accessToken as string} />
+      <AdminBusinessApplications accessToken={accessToken as string} places={places} />
+      <AdminBusinessPlaceChanges accessToken={accessToken as string} onApproved={loadPlaces} />
       <AdminTravelerReportWorkflow accessToken={accessToken as string} />
       <AdminSocialDiscoveryManager accessToken={accessToken as string} />
       <AdminTravelerDecisionManager accessToken={accessToken as string} places={places} />

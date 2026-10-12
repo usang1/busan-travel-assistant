@@ -24,6 +24,8 @@ export function createEmptyTravelerInsights(): Required<TravelerInsights> {
     reservation: "unknown",
     waiting: "unknown",
     luggage_storage: "unknown",
+    parking: "unknown",
+    other_amenities: "",
     toilet: "unknown",
     spicy: "unknown",
     cilantro: "unknown",
@@ -48,6 +50,8 @@ export function normalizeTravelerInsights(value: unknown): Required<TravelerInsi
     reservation: oneOf(input.reservation, reservations, empty.reservation),
     waiting: oneOf(input.waiting, waitingLevels, empty.waiting),
     luggage_storage: oneOf(input.luggage_storage, tristates, empty.luggage_storage),
+    parking: oneOf(input.parking, tristates, empty.parking),
+    other_amenities: typeof input.other_amenities === "string" ? input.other_amenities.slice(0, 500) : empty.other_amenities,
     toilet: oneOf(input.toilet, toilets, empty.toilet),
     spicy: oneOf(input.spicy, intensities, empty.spicy),
     cilantro: oneOf(input.cilantro, possibilities, empty.cilantro),
@@ -109,7 +113,7 @@ export function travelerInsightsFromPlaceInfo(
 
 export function hasVisibleTravelerInsights(insights: TravelerInsights | null | undefined) {
   const value = normalizeTravelerInsights(insights);
-  return Object.values(value).some((item) => item !== "unknown");
+  return Object.values(value).some((item) => item !== "unknown" && item !== "");
 }
 
 export function isPlaceInformationStale(verifiedAt: string | null | undefined, now = new Date()) {

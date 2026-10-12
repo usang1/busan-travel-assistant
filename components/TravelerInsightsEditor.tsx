@@ -13,6 +13,7 @@ type TravelerInsightsEditorProps = {
   onChange: (value: Required<TravelerInsights>) => void;
   onVerificationStatusChange: (value: PlaceVerificationStatus) => void;
   onVerifiedAtChange: (value: string) => void;
+  showVerificationControls?: boolean;
 };
 
 const inputClass = "mt-2 h-12 w-full rounded-2xl bg-white px-3 text-sm font-semibold text-slate-800 outline-none ring-1 ring-slate-200 focus:ring-teal-300";
@@ -24,6 +25,7 @@ export function TravelerInsightsEditor({
   onChange,
   onVerificationStatusChange,
   onVerifiedAtChange,
+  showVerificationControls = true,
 }: TravelerInsightsEditorProps) {
   const insights = normalizeTravelerInsights(value);
   const update = <Key extends keyof TravelerInsights>(key: Key, nextValue: Required<TravelerInsights>[Key]) => {
@@ -41,6 +43,7 @@ export function TravelerInsightsEditor({
         <SelectFact label="혼밥" value={insights.solo_dining} onChange={(next) => update("solo_dining", next)} options={tristateOptions("가능", "어려움")} />
         <SelectFact label="카드 결제" value={insights.card_payment} onChange={(next) => update("card_payment", next)} options={tristateOptions("가능", "불가")} />
         <SelectFact label="짐 보관" value={insights.luggage_storage} onChange={(next) => update("luggage_storage", next)} options={tristateOptions("가능", "불가")} />
+        <SelectFact label="주차" value={insights.parking} onChange={(next) => update("parking", next)} options={tristateOptions("가능", "불가")} />
         <SelectFact label="관광객 이용 편의" value={insights.tourist_friendly} onChange={(next) => update("tourist_friendly", next)} options={tristateOptions("편함", "어려움")} />
         <SelectFact label="주문 방식" value={insights.ordering_method} onChange={(next) => update("ordering_method", next)} options={[
           ["unknown", "확인 필요"], ["kiosk", "키오스크"], ["staff", "직원 주문"], ["both", "키오스크/직원 모두"],
@@ -67,13 +70,17 @@ export function TravelerInsightsEditor({
         ]} />
       </div>
 
+      <label className="block text-sm font-black text-slate-800">기타 편의시설
+        <input value={insights.other_amenities} onChange={(event) => update("other_amenities", event.target.value)} maxLength={500} placeholder="예: 유아 의자, 반려동물 동반, 수유실" className={inputClass} />
+      </label>
+
       <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3">
         <CheckFact label="현금 필요" checked={insights.cash_required === "yes"} onChange={(checked) => update("cash_required", checked ? "yes" : "unknown")} />
         <CheckFact label="중국어 메뉴 있음" checked={insights.chinese_menu === "yes"} onChange={(checked) => update("chinese_menu", checked ? "yes" : "unknown")} />
         <CheckFact label="영어 메뉴 있음" checked={insights.english_menu === "yes"} onChange={(checked) => update("english_menu", checked ? "yes" : "unknown")} />
       </div>
 
-      <div className="grid gap-4 rounded-2xl bg-teal-50 p-4 sm:grid-cols-2">
+      {showVerificationControls ? <div className="grid gap-4 rounded-2xl bg-teal-50 p-4 sm:grid-cols-2">
         <label className="block text-sm font-black text-slate-800">
           정보 확인 상태
           <select value={verificationStatus} onChange={(event) => onVerificationStatusChange(event.target.value as PlaceVerificationStatus)} className={inputClass}>
@@ -87,7 +94,7 @@ export function TravelerInsightsEditor({
           마지막 정보 확인일
           <input type="date" value={verifiedAt.slice(0, 10)} onChange={(event) => onVerifiedAtChange(event.target.value)} className={inputClass} />
         </label>
-      </div>
+      </div> : null}
     </div>
   );
 }

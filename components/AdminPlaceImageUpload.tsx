@@ -12,6 +12,7 @@ type AdminPlaceImageUploadProps = {
   previewUrl?: string;
   previewAttribution?: string;
   onChange: (url: string) => void;
+  endpoint?: string;
 };
 
 export function AdminPlaceImageUpload({
@@ -20,6 +21,7 @@ export function AdminPlaceImageUpload({
   previewUrl = "",
   previewAttribution = "",
   onChange,
+  endpoint = "/api/admin/place-image",
 }: AdminPlaceImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -43,7 +45,7 @@ export function AdminPlaceImageUpload({
     try {
       const body = new FormData();
       body.set("image", file);
-      const response = await fetch("/api/admin/place-image", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
         body,

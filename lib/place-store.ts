@@ -630,7 +630,7 @@ function adaptPlaceWriteRowForLegacySchema(
   error: { code?: string; message?: string },
 ) {
   const missingColumn = getMissingSchemaColumn(error);
-  const optionalColumns = new Set(["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code", "verification_tier", "verification_checked_at", "verification_checked_by", "verification_note", "verification_source_urls", "verified_visit_at", "direct_visit_photos"]);
+  const optionalColumns = new Set(["admin_summary", "closed_days", "last_verified_at", "city_code", "district_code", "gallery_images", "verification_tier", "verification_checked_at", "verification_checked_by", "verification_note", "verification_source_urls", "verified_visit_at", "direct_visit_photos"]);
 
   if (missingColumn && optionalColumns.has(missingColumn) && missingColumn in row) {
     const nextRow = { ...row };
@@ -707,6 +707,7 @@ async function syncMenuItems(placeId: string, menuItems: PlacePayload["menu_item
     name_ko: item.name_ko,
     name_zh: item.name_zh,
     description_zh: item.description_zh,
+    image_url: item.image_url?.trim() || null,
     price: item.price,
     price_is_variable: item.price_is_variable === true,
     is_recommended: item.is_recommended,

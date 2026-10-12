@@ -56,6 +56,8 @@ export type TravelerInsights = {
   reservation?: TravelerInsightReservation;
   waiting?: TravelerInsightWaiting;
   luggage_storage?: PlaceFactTristate;
+  parking?: PlaceFactTristate;
+  other_amenities?: string;
   toilet?: TravelerInsightToilet;
   spicy?: TravelerInsightIntensity;
   cilantro?: TravelerInsightPossibility;
@@ -111,6 +113,7 @@ export type PlaceRecord = {
   tips_zh: string;
   tips_ko: string;
   thumbnail_url: string;
+  gallery_images?: Array<{ url: string; caption?: string; kind?: "gallery" | "menu" | "interior" | "exterior" }>;
   is_featured: boolean;
   is_active: boolean;
   created_at: string;
@@ -142,6 +145,7 @@ export type PlaceMenuItem = {
   name_ko: string;
   name_zh: string;
   description_zh: string;
+  image_url?: string | null;
   price: number | null;
   price_is_variable?: boolean;
   is_recommended: boolean;
@@ -436,6 +440,65 @@ export type PlacePayload = Omit<PlaceRecord, "id" | "created_at" | "updated_at">
 };
 
 export type PlaceChinaInfoPayload = Omit<PlaceChinaInfoRecord, "id" | "place_id" | "created_at" | "updated_at">;
+
+export type BusinessApplicationStatus = "pending" | "reviewing" | "more_info_requested" | "approved" | "rejected";
+
+export type BusinessApplicationRecord = {
+  id: string;
+  user_id: string;
+  locale: "zh" | "en" | "ja" | "ko";
+  store_name: string;
+  address: string;
+  category: string;
+  contact_name?: string;
+  status: BusinessApplicationStatus;
+  linked_place_id: string | null;
+  admin_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BusinessPlaceMembershipRecord = {
+  id: string;
+  place_id: string;
+  user_id: string;
+  membership_role: "owner" | "manager";
+  status: "active" | "revoked";
+  source_application_id: string | null;
+  granted_at: string;
+  updated_at: string;
+};
+
+export type BusinessPlaceChangeStatus = "draft" | "pending_review" | "changes_requested" | "approved" | "rejected";
+
+export type BusinessPlaceChangeRecord = {
+  id: string;
+  user_id: string;
+  application_id: string;
+  place_id: string | null;
+  payload: Partial<PlacePayload>;
+  status: BusinessPlaceChangeStatus;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  published_place_id: string | null;
+  created_at: string;
+  updated_at: string;
+  application?: Pick<BusinessApplicationRecord, "id" | "user_id" | "store_name" | "status" | "address" | "contact_name"> | null;
+  existing_place?: PlaceWithRelations | null;
+  audit?: BusinessPlaceChangeAuditRecord[];
+};
+
+export type BusinessPlaceChangeAuditRecord = {
+  id: number;
+  change_id: string;
+  actor_id: string | null;
+  event_type: string;
+  previous_status: string | null;
+  next_status: BusinessPlaceChangeStatus;
+  reason: string | null;
+  created_at: string;
+};
 
 export type SubmissionStatus = "pending" | "reviewing" | "approved" | "rejected" | "duplicate";
 

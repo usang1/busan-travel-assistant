@@ -4,7 +4,6 @@ import { parseMapUrl } from "@/lib/map-url";
 import { createServerAnonClient, createServerServiceClient } from "@/lib/server-supabase";
 import { sendBusinessApplicationNotification } from "@/lib/telegram";
 import { isLocale } from "@/lib/i18n";
-import { hasBusinessOwnerAccess } from "@/lib/account-role";
 
 export const runtime = "nodejs";
 const maxBytes = 20_000;
@@ -24,8 +23,7 @@ export async function POST(request: NextRequest) {
     const raw = await request.text();
     if (Buffer.byteLength(raw) > maxBytes) throw appError("request_too_large", 413);
     const body = JSON.parse(raw) as Record<string, unknown>;
-    const { client, user, profile } = await actor(request);
-    if (!hasBusinessOwnerAccess(profile.role)) throw appError("business_owner_required", 403);
+    const { client, user } = await actor(request);
     const storeName = text(body.storeName, 120); const address = text(body.address, 300);
     const category = text(body.category, 80); const contactName = text(body.contactName, 120);
     const contactEmail = text(body.contactEmail, 200); const contactPhone = text(body.contactPhone, 40);
@@ -61,7 +59,7 @@ async function actor(request: NextRequest) {
   if (error || !data.user) throw appError("login_required", 401);
   const { data: profile } = await client.from("profiles").select("role, display_name, email").eq("id", data.user.id).single();
   if (!profile) throw appError("profile_required", 403);
-  return { client, user: data.user, profile };
+  return { client, user: data.user };
 }
 function text(value: unknown, max: number) { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
 function appError(message: string, status: number) { return Object.assign(new Error(message), { status }); }

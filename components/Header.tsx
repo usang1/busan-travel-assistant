@@ -14,10 +14,11 @@ export function Header() {
   const currentLocale = getLocaleFromPath(pathname) ?? defaultLocale;
   const copy = ui[currentLocale];
   const brandLogo = currentLocale === "zh" ? "/brand/spotzari-zh.png" : "/brand/spotzari-ko.png";
+  const businessDashboardLabel = { ko: "내 가게 관리", zh: "我的店铺", en: "My business", ja: "店舗管理" }[currentLocale];
   const basePath = withoutLocale(pathname);
   const queryString = searchParams.toString();
   const querySuffix = queryString ? `?${queryString}` : "";
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
 
   async function signOut() {
     const client = getSupabaseClient();
@@ -65,6 +66,7 @@ export function Header() {
           </Link>
           {user ? (
             <>
+              {profile?.role === "business_owner" ? <Link href={withLocale("/business/dashboard", currentLocale)} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-indigo-50 px-3 text-sm font-black text-indigo-800 ring-1 ring-indigo-100"><Store size={16} aria-hidden="true" /><span className="hidden sm:inline">{businessDashboardLabel}</span></Link> : null}
               <Link
                 href={withLocale("/mypage", currentLocale)}
                 className="inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95 sm:w-auto sm:gap-1.5 sm:px-3"
@@ -134,6 +136,7 @@ export function Header() {
           { href: "/itinerary", label: copy.nav.itinerary },
           { href: "/saved", label: copy.nav.saved },
           { href: "/business-application", label: copy.nav.businessApplication },
+          ...(profile?.role === "business_owner" ? [{ href: "/business/dashboard", label: businessDashboardLabel }] : []),
         ].map((item) => <Link key={item.href} href={withLocale(item.href, currentLocale)} aria-current={basePath === item.href ? "page" : undefined} className="inline-flex min-h-11 items-center px-3 text-sm font-bold text-slate-700 hover:bg-teal-50 aria-[current=page]:bg-teal-50 aria-[current=page]:text-teal-800">{item.label}</Link>)}
       </nav>
     </header>

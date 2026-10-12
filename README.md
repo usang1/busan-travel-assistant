@@ -100,7 +100,7 @@ OPENAI_TRIP_PLANNER_MODEL=
 - `OPENAI_TRANSLATION_MODEL`: 사용자용 외국어 → 한국어 GPT 번역 모델입니다. 비우면 `OPENAI_PLACE_MODEL`, 그것도 비어 있으면 `gpt-5-mini`를 사용합니다.
 - `OPENAI_SOCIAL_DISCOVERY_MODEL`: SNS 캡처에서 보이는 장소 단서만 추출하는 모델입니다. 비우면 `OPENAI_PLACE_MODEL`, 이후 `gpt-5-mini`를 사용합니다. 캡처는 `store: false`로 처리하고 저장하지 않습니다.
 
-관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 브라우저에서는 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
+관리자 주소 자동 좌표 변환은 Naver Maps JavaScript API의 `geocoder` submodule을 사용합니다. Naver Cloud 콘솔에서 Web Dynamic Map/Geocoding 사용 설정과 localhost 및 배포 도메인 허용 설정이 필요합니다. 운영 도메인이 `spotzari.com`이면 `https://spotzari.com`과 실제 사용하는 `https://www.spotzari.com`을 Web 서비스 URL에 각각 등록하고, Vercel의 `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`가 그 애플리케이션의 Key ID인지 확인해야 합니다. 환경변수가 없거나 SDK 인증이 실패하면 사용자 지도는 좌표 기반 fallback으로 전환됩니다. 브라우저에서는 공개 Key ID만 사용하며, REST API secret이나 Supabase service role key를 노출하지 않습니다.
 
 관리자 지도 링크 분석은 Google Maps, Naver Map, Kakao Map provider를 자동 감지합니다. 단축 링크는 서버에서 redirect를 확인하고, 공식 provider API가 설정된 경우 공통 장소 사실정보로 보강합니다. `GOOGLE_MAPS_API_KEY`, `NAVER_SEARCH_CLIENT_SECRET`, `KAKAO_REST_API_KEY`에는 `NEXT_PUBLIC_` 접두사를 붙이지 마세요.
 

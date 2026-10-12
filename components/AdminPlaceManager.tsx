@@ -55,6 +55,7 @@ import {
   type PlaceSourceProvider,
   type PlaceWorkflowStatus,
   type PlaceWithRelations,
+  type BusinessPlaceChangeRecord,
 } from "@/types/database";
 import type { AdminTranslationFields, PlaceAiGeneratedContent, PlaceAiGenerationResponse, PlaceContentLocale } from "@/types/place-ai";
 
@@ -64,6 +65,11 @@ type AdminPlaceManagerProps = {
   error?: string;
   supabaseConfigured: boolean;
   adminAccessToken?: string;
+  mode?: "admin" | "business";
+  businessApplicationId?: string;
+  businessChanges?: BusinessPlaceChangeRecord[];
+  onBusinessSaved?: () => Promise<void>;
+  allowNewBusinessPlace?: boolean;
 };
 
 type MenuDraft = {
@@ -72,6 +78,7 @@ type MenuDraft = {
   name_ko: string;
   name_zh: string;
   description_zh: string;
+  image_url?: string;
   price: string;
   price_is_variable?: boolean;
   is_recommended: boolean;
@@ -97,6 +104,13 @@ type DirectVisitPhotoDraft = {
   caption: string;
   captured_at: string;
   is_cover: boolean;
+};
+
+type GalleryPhotoDraft = {
+  client_key: string;
+  url: string;
+  caption: string;
+  kind: "gallery" | "menu" | "interior" | "exterior";
 };
 
 type FormState = {
@@ -139,6 +153,7 @@ type FormState = {
   tips_ja: string;
   tips_ko: string;
   thumbnail_url: string;
+  gallery_images: GalleryPhotoDraft[];
   provider_image_preview_url: string;
   provider_image_attribution: string;
   provider_rating: string;
@@ -360,6 +375,7 @@ function createEmptyForm(): FormState {
     tips_ja: "",
     tips_ko: "",
     thumbnail_url: "",
+    gallery_images: [],
     provider_image_preview_url: "",
     provider_image_attribution: "",
     provider_rating: "",
@@ -465,6 +481,9 @@ function toForm(place: PlaceWithRelations): FormState {
     tips_ja: ja?.travel_tip ?? "",
     tips_ko: place.tips_ko,
     thumbnail_url: place.thumbnail_url,
+    gallery_images: (place.gallery_images ?? []).map((photo) => ({
+      client_key: createMenuDraftKey(), url: photo.url, caption: photo.caption ?? "", kind: photo.kind ?? "gallery",
+    })),
     provider_image_preview_url: "",
     provider_image_attribution: "",
     provider_rating: metadataNumber(sourceMetadata, "rating"),
@@ -495,6 +514,7 @@ function toForm(place: PlaceWithRelations): FormState {
       name_ko: item.name_ko,
       name_zh: item.name_zh,
       description_zh: item.description_zh,
+      image_url: item.image_url ?? "",
       price: item.price?.toString() ?? "",
       price_is_variable: item.price_is_variable === true,
       is_recommended: item.is_recommended,
@@ -765,6 +785,7 @@ function toPayload(form: FormState): PlacePayload {
     tips_zh: form.tips_zh,
     tips_ko: form.tips_ko,
     thumbnail_url: form.thumbnail_url.trim(),
+    gallery_images: form.gallery_images.filter((photo) => photo.url.trim()).map(({ url, caption, kind }) => ({ url: url.trim(), caption: caption.trim(), kind })),
     is_featured: form.is_featured,
     is_active: form.status === publishedPlaceStatus,
     tags,
@@ -775,6 +796,7 @@ function toPayload(form: FormState): PlacePayload {
         name_ko: item.name_ko,
         name_zh: item.name_zh,
         description_zh: item.description_zh,
+        image_url: item.image_url?.trim() || null,
         price: item.price_is_variable ? null : nullableNumber(item.price),
         price_is_variable: item.price_is_variable === true,
         is_recommended: item.is_recommended,
@@ -963,6 +985,23 @@ function localPlaceFromPayload(payload: PlacePayload, id?: string): PlaceWithRel
       place_id: placeId,
     })),
   };
+}
+
+function initialBusinessForm(places: PlaceWithRelations[], changes: BusinessPlaceChangeRecord[]) {
+  const editable = changes.find((change) => change.status === "draft" || change.status === "changes_requested" || change.status === "rejected");
+  if (!editable) return places[0] ? toForm(places[0]) : createEmptyForm();
+  const existing = editable.place_id ? places.find((place) => place.id === editable.place_id) : null;
+  const baseForm = existing ? toForm(existing) : createEmptyForm();
+  const basePayload = toPayload(baseForm);
+  const draftPayload = editable.payload;
+  const payload = {
+    ...basePayload,
+    ...draftPayload,
+    china_info: draftPayload.china_info ? { ...basePayload.china_info, ...draftPayload.china_info } : basePayload.china_info,
+  } as PlacePayload;
+  const restored = toForm(localPlaceFromPayload(payload, editable.place_id ?? undefined));
+  restored.id = editable.place_id ?? undefined;
+  return restored;
 }
 
 function buildTranslationFieldsFromForm(form: FormState): AdminTranslationFields {
@@ -1162,9 +1201,10 @@ function hasEnoughAiSourceFacts(form: FormState) {
   return hasPlaceName && hasFact;
 }
 
-export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfigured, adminAccessToken }: AdminPlaceManagerProps) {
+export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfigured, adminAccessToken, mode = "admin", businessApplicationId, businessChanges = [], onBusinessSaved, allowNewBusinessPlace = true }: AdminPlaceManagerProps) {
+  const businessMode = mode === "business";
   const [places, setPlaces] = useState(initialPlaces);
-  const [form, setForm] = useState<FormState>(() => (initialPlaces[0] ? toForm(initialPlaces[0]) : createEmptyForm()));
+  const [form, setForm] = useState<FormState>(() => mode === "business" ? initialBusinessForm(initialPlaces, businessChanges) : initialPlaces[0] ? toForm(initialPlaces[0]) : createEmptyForm());
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -1853,11 +1893,11 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }
   }
 
-  async function savePlace(nextForm = form) {
+  async function savePlace(nextForm = form, submitForReview = false) {
     let formToSave = nextForm;
     let translationNotice = "";
 
-    if (!unifiedPlaceName(formToSave) || !formToSave.category || !(formToSave.slug || slugify(unifiedPlaceName(formToSave)))) {
+    if ((!businessMode || submitForReview) && (!unifiedPlaceName(formToSave) || !formToSave.category || !(formToSave.slug || slugify(unifiedPlaceName(formToSave))))) {
       setStatus("장소명, 카테고리, slug는 필수입니다.");
       return;
     }
@@ -1881,6 +1921,22 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setStatus("");
 
     try {
+      if (businessMode) {
+        if (!businessApplicationId) throw new Error("승인된 입점 신청을 찾지 못했습니다.");
+        const payload = toPayload(formToSave);
+        const existingChange = businessChanges.find((change) => change.place_id === (formToSave.id ?? null) && (change.status === "draft" || change.status === "changes_requested" || change.status === "rejected"))
+          ?? businessChanges.find((change) => !formToSave.id && change.place_id === null && (change.status === "draft" || change.status === "changes_requested" || change.status === "rejected"));
+        const response = await fetch("/api/business/place-changes", {
+          method: "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify({ changeId: existingChange?.id ?? null, applicationId: businessApplicationId, placeId: formToSave.id ?? null, payload, submit: submitForReview }),
+        });
+        const body = await response.json() as { message?: string };
+        if (!response.ok) throw new Error(body.message ?? "저장하지 못했습니다.");
+        setStatus(body.message ?? (submitForReview ? "검수를 요청했습니다." : "임시 저장했습니다."));
+        await onBusinessSaved?.();
+        return;
+      }
       if (!hasCoordinateInput(formToSave) && (formToSave.source_url.trim() || geocodeQueryFromForm(formToSave))) {
         setGeocoding(true);
         setStatus("좌표가 비어 있어 주소로 자동 검색하는 중입니다.");
@@ -2073,19 +2129,19 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   return (
     <div id="place-manager" className="scroll-mt-24 grid min-w-0 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
       <aside className="min-w-0 space-y-4">
-        <div className="grid grid-cols-3 gap-2">
+        {!businessMode ? <div className="grid grid-cols-3 gap-2">
           <Stat label="전체" value={places.length.toString()} />
           <Stat label="활성" value={activeCount.toString()} />
           <Stat label="추천" value={featuredCount.toString()} />
-        </div>
-        <button
+        </div> : null}
+        {(!businessMode || allowNewBusinessPlace) ? <button
           type="button"
           onClick={startNewPlace}
           className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-95"
         >
           <Plus size={17} aria-hidden="true" />
           새 장소 추가
-        </button>
+        </button> : null}
         <a href="#admin-place-editor" className="block py-2 text-center text-sm font-bold text-teal-800 lg:hidden">
           입력 폼으로 이동
         </a>
@@ -2163,9 +2219,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 ) : null}
                 <div className="mt-3 flex gap-2">
                   <IconButton label="수정" onClick={() => selectPlace(place)} icon={Pencil} />
-                  <PublicationButton published={isPublicPlace(place)} canPublish={quality.canPublish} blockReason={formatQualityBlockText(quality)} onClick={() => void togglePlace(place, "is_active")} />
-                  <IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} />
-                  <IconButton label="비공개" onClick={() => void deleteSelected(place)} icon={Trash2} danger />
+                  {!businessMode ? <><PublicationButton published={isPublicPlace(place)} canPublish={quality.canPublish} blockReason={formatQualityBlockText(quality)} onClick={() => void togglePlace(place, "is_active")} /><IconButton label="추천 토글" onClick={() => void togglePlace(place, "is_featured")} icon={Star} /><IconButton label="비공개" onClick={() => void deleteSelected(place)} icon={Trash2} danger /></> : null}
                 </div>
               </div>
               );
@@ -2179,9 +2233,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       <section id="admin-place-editor" className="min-w-0 scroll-mt-24 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-black text-slate-950">{form.id ? "장소 수정" : "장소 추가"}</h2>
+            <h2 className="text-xl font-black text-slate-950">{form.id ? businessMode ? "내 가게 정보 수정" : "장소 수정" : businessMode ? "내 가게 정보 등록" : "장소 추가"}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              현재 데이터 소스: {source === "supabase" ? "서버 저장소" : "임시 저장소"}
+              {businessMode ? "저장한 내용은 관리자 검수 승인 후 공개됩니다." : `현재 데이터 소스: ${source === "supabase" ? "서버 저장소" : "임시 저장소"}`}
             </p>
           </div>
         </div>
@@ -2199,15 +2253,15 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 placeholder="Google Maps / 네이버지도 / 카카오맵 링크"
                 className={`${inputClass} min-w-0 break-all`}
               />
-              <button
+              {!businessMode ? <button
                 type="button"
                 onClick={() => void parseSourceUrl()}
                 disabled={analyzing || webSearching || !mapLinkState.valid}
                 className="min-h-12 w-full shrink-0 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {analyzing ? `${providerDisplayName(mapLinkState.provider)} 정보를 불러오는 중...` : form.id ? "지도 정보 다시 확인" : "장소 정보 불러오기"}
-              </button>
-              <button
+              </button> : null}
+              {!businessMode ? <button
                 type="button"
                 onClick={() => void parseSourceUrl(true)}
                 disabled={analyzing || webSearching || !mapLinkState.valid || !form.source_url.trim()}
@@ -2215,14 +2269,14 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               >
                 <Sparkles size={16} aria-hidden="true" />
                 {webSearching ? "웹검색 보완 중..." : "웹검색으로 보완"}
-              </button>
+              </button> : null}
             </div>
             <p className="mt-2 text-xs font-semibold text-slate-500">Google Maps / 네이버지도 / 카카오맵 지원</p>
             {form.id ? <p className="mt-1 text-xs font-semibold text-amber-700">기존 관리자 입력값은 링크 재분석으로 덮어쓰지 않습니다.</p> : null}
           </section>
 
           <section className="border-b border-slate-200 pb-6">
-            <h3 className="text-base font-black text-slate-950">2. 관리자 기본 입력</h3>
+            <h3 className="text-base font-black text-slate-950">{businessMode ? "2. 가게 기본 입력" : "2. 관리자 기본 입력"}</h3>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field label="장소명">
                 <input value={form.name_ko} onChange={(event) => updateField("name_ko", event.target.value)} className={inputClass} />
@@ -2311,6 +2365,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <Field label="대표 이미지">
                   <AdminPlaceImageUpload
                     accessToken={adminAccessToken ?? ""}
+                    endpoint={businessMode ? "/api/business/place-image" : "/api/admin/place-image"}
                     value={form.thumbnail_url}
                     previewUrl={form.provider_image_preview_url}
                     previewAttribution={form.provider_image_attribution}
@@ -2318,7 +2373,21 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   />
                 </Field>
               </div>
-              <div className="space-y-4 rounded-2xl bg-blue-50 p-4 sm:col-span-2">
+              <div className="space-y-3 rounded-2xl bg-slate-50 p-4 sm:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="text-sm font-black text-slate-950">갤러리·현장 사진</p><p className="mt-1 text-xs text-slate-600">최대 30장까지 유형과 설명을 함께 저장합니다.</p></div>
+                  <button type="button" disabled={form.gallery_images.length >= 30} onClick={() => updateField("gallery_images", [...form.gallery_images, { client_key: createMenuDraftKey(), url: "", caption: "", kind: "gallery" }])} className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-black text-white disabled:opacity-40">사진 추가</button>
+                </div>
+                {form.gallery_images.map((photo, index) => <div key={photo.client_key} className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
+                  <AdminPlaceImageUpload accessToken={adminAccessToken ?? ""} endpoint={businessMode ? "/api/business/place-image" : "/api/admin/place-image"} value={photo.url} onChange={(url) => updateField("gallery_images", form.gallery_images.map((item, itemIndex) => itemIndex === index ? { ...item, url } : item))} />
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr_auto]">
+                    <select value={photo.kind} onChange={(event) => updateField("gallery_images", form.gallery_images.map((item, itemIndex) => itemIndex === index ? { ...item, kind: event.target.value as GalleryPhotoDraft["kind"] } : item))} className={inputClass}><option value="gallery">일반</option><option value="interior">실내</option><option value="exterior">외관</option><option value="menu">메뉴판</option></select>
+                    <input value={photo.caption} onChange={(event) => updateField("gallery_images", form.gallery_images.map((item, itemIndex) => itemIndex === index ? { ...item, caption: event.target.value } : item))} placeholder="사진 설명" className={inputClass} />
+                    <button type="button" onClick={() => updateField("gallery_images", form.gallery_images.filter((_item, itemIndex) => itemIndex !== index))} className="min-h-11 rounded-xl px-3 text-sm font-bold text-rose-700 ring-1 ring-rose-200">삭제</button>
+                  </div>
+                </div>)}
+              </div>
+              {!businessMode ? <div className="space-y-4 rounded-2xl bg-blue-50 p-4 sm:col-span-2">
                 <div>
                   <p className="text-sm font-black text-blue-950">검수 정보</p>
                   <p className="mt-1 text-xs font-semibold text-blue-800">검수 방식, 정보 완성도, 방문 추천 평가는 서로 독립적으로 관리됩니다.</p>
@@ -2353,7 +2422,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                     </div>
                   </div>
                 ))}
-              </div>
+              </div> : null}
               {!isFoodPlace ? (
                 <Field label="가격대">
                   <select value={form.price_level} onChange={(event) => updateField("price_level", event.target.value)} className={inputClass}>
@@ -2362,20 +2431,20 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </select>
                 </Field>
               ) : null}
-              <Field label="상태">
+              {!businessMode ? <Field label="상태">
                 <select value={form.status} onChange={(event) => updateField("status", event.target.value as PlaceWorkflowStatus)} className={inputClass}>
                   {placeWorkflowStatuses.map((workflowStatus) => (
                     <option key={workflowStatus} value={workflowStatus}>{workflowStatusLabels[workflowStatus]}</option>
                   ))}
                 </select>
-              </Field>
-              <Field label="마지막 확인일">
+              </Field> : null}
+              {!businessMode ? <Field label="마지막 확인일">
                 <input type="date" value={form.last_verified_at} onChange={(event) => updateField("last_verified_at", event.target.value)} className={inputClass} />
-              </Field>
+              </Field> : null}
               <Field label="휴무일">
                 <input value={form.closed_days} onChange={(event) => updateField("closed_days", event.target.value)} className={inputClass} placeholder="예: 매주 월요일 / 확인 필요" />
               </Field>
-              <div className="sm:col-span-2">
+              {!businessMode ? <div className="sm:col-span-2">
                 <Field label="AI 장소 요약 (관리자 내부 메모)">
                   <textarea value={form.admin_summary} onChange={(event) => updateField("admin_summary", event.target.value)} className={textareaClass} />
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -2391,7 +2460,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   </div>
                   {adminSummaryFailed ? <p className="mt-2 text-xs font-bold leading-5 text-rose-700">AI 장소 요약 생성 실패: {adminSummaryErrorMessage || "다시 생성해 주세요."} Provider 사실정보는 유지됩니다.</p> : null}
                 </Field>
-              </div>
+              </div> : null}
             </div>
           </section>
 
@@ -2400,6 +2469,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             onAdd={addMenu}
             onUpdate={updateMenu}
             onRemove={removeMenu}
+            accessToken={adminAccessToken ?? ""}
+            imageEndpoint={businessMode ? "/api/business/place-image" : "/api/admin/place-image"}
           />
 
           <section id="admin-place-taste-checklist" className="min-w-0 border-b border-slate-200 pb-6">
@@ -2445,8 +2516,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               onChange={(value) => updateChinaField("traveler_insights", value)}
               onVerificationStatusChange={updateTravelerVerificationStatus}
               onVerifiedAtChange={(value) => updateChinaField("verified_at", value)}
+              showVerificationControls={!businessMode}
             />
-            <div className="mt-4 grid gap-4 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3">
+            {!businessMode ? <div className="mt-4 grid gap-4 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3">
               <Field label="확인 근거">
                 <select
                   value={form.china_info.verification_basis ?? "unverified"}
@@ -2473,10 +2545,10 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 checked={Boolean(form.china_info.has_information_conflict)}
                 onChange={(checked) => updateChinaField("has_information_conflict", checked)}
               />
-            </div>
+            </div> : null}
           </section>
 
-          <section className="border-b border-slate-200 pb-6">
+          {!businessMode ? <section className="border-b border-slate-200 pb-6">
             <button
               type="button"
               onClick={() => void prepareAiDraft()}
@@ -2486,7 +2558,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Sparkles size={17} aria-hidden="true" />
               {generatingAiDraft ? "AI 콘텐츠 생성 중..." : "AI 콘텐츠 생성"}
             </button>
-          </section>
+          </section> : null}
 
           <details className="group rounded-lg border border-slate-200 bg-slate-50">
             <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-black text-slate-900">
@@ -2494,7 +2566,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <ChevronDown size={18} className="transition group-open:rotate-180" aria-hidden="true" />
             </summary>
             <div className="border-t border-slate-200 p-4">
-              <div className="mb-5 flex flex-col gap-2 sm:flex-row">
+              {!businessMode ? <div className="mb-5 flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => void translateTextFields()}
@@ -2512,7 +2584,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   <RotateCcw size={17} aria-hidden="true" />
                   중국 특화 값 초기화
                 </button>
-              </div>
+              </div> : null}
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="space-y-7">
             <FormSection title="1. 기본 장소 정보">
@@ -2564,7 +2636,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="지도 장소 ID">
                 <input value={form.source_external_id} onChange={(event) => updateField("source_external_id", event.target.value)} className={inputClass} />
               </Field>
-              <div className="sm:col-span-2">
+              {!businessMode ? <div className="sm:col-span-2">
                 <AdminAiDraftPanel
                   draft={aiDraft}
                   generating={generatingAiDraft}
@@ -2574,17 +2646,17 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                   onApply={applyAiDraft}
                   onCancel={() => setAiDraft(null)}
                 />
-              </div>
+              </div> : null}
               <Field label="URL 주소명">
                 <input value={form.slug} onChange={(event) => updateField("slug", slugify(event.target.value))} className={inputClass} />
               </Field>
-              <Field label="상태">
+              {!businessMode ? <Field label="상태">
                 <select value={form.status} onChange={(event) => updateField("status", event.target.value as PlaceWorkflowStatus)} className={inputClass}>
                   {placeWorkflowStatuses.map((workflowStatus) => (
                     <option key={workflowStatus} value={workflowStatus}>{workflowStatusLabels[workflowStatus]}</option>
                   ))}
                 </select>
-              </Field>
+              </Field> : null}
               <Field label="카테고리">
                 <select value={form.category} onChange={(event) => updateField("category", event.target.value as PlaceCategory)} className={inputClass}>
                   <option value="">선택 필요</option>
@@ -2691,9 +2763,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="휴무일">
                 <input value={form.closed_days} onChange={(event) => updateField("closed_days", event.target.value)} className={inputClass} />
               </Field>
-              <Field label="마지막 확인일">
+              {!businessMode ? <Field label="마지막 확인일">
                 <input type="date" value={form.last_verified_at} onChange={(event) => updateField("last_verified_at", event.target.value)} className={inputClass} />
-              </Field>
+              </Field> : null}
               <Field label="Provider 평점">
                 <input value={form.provider_rating} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} />
               </Field>
@@ -2703,7 +2775,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="Provider 편의정보">
                 <input value={form.provider_amenities} readOnly aria-readonly="true" className={`${inputClass} bg-slate-100 text-slate-600`} />
               </Field>
-              <CheckField label="추천 장소" checked={form.is_featured} onChange={(checked) => updateField("is_featured", checked)} />
+              {!businessMode ? <CheckField label="추천 장소" checked={form.is_featured} onChange={(checked) => updateField("is_featured", checked)} /> : null}
             </FormSection>
 
             <FormSection title="3. 결제 및 이용 편의">
@@ -2772,22 +2844,22 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             </FormSection>
 
             <FormSection title="7. 선택적 직접 수정">
-              <Field label="중국인 대상 설명 직접 수정">
+              {!businessMode ? <Field label="중국인 대상 설명 직접 수정">
                 <textarea
                   value={form.china_info.manual_summary_override ?? ""}
                   onChange={(event) => updateChinaField("manual_summary_override", event.target.value)}
                   className={textareaClass}
                   placeholder="비워두면 자동 생성 문장을 사용합니다."
                 />
-              </Field>
-              <Field label="주의사항 직접 수정">
+              </Field> : null}
+              {!businessMode ? <Field label="주의사항 직접 수정">
                 <textarea
                   value={form.china_info.manual_warning_override ?? ""}
                   onChange={(event) => updateChinaField("manual_warning_override", event.target.value)}
                   className={textareaClass}
                   placeholder="비워두면 자동 경고만 사용합니다. 입력하면 가장 먼저 표시됩니다."
                 />
-              </Field>
+              </Field> : null}
               <Field label="추천 주문 중국어">
                 <textarea value={form.recommended_order_zh} onChange={(event) => updateField("recommended_order_zh", event.target.value)} className={textareaClass} />
               </Field>
@@ -2817,14 +2889,23 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
             </div>
           </details>
 
+          {businessMode ? <button
+            type="button"
+            onClick={() => void savePlace(form, false)}
+            disabled={saving || geocoding}
+            className="mr-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-slate-900 ring-1 ring-slate-300 disabled:opacity-60 sm:w-auto"
+          >
+            <Save size={17} aria-hidden="true" />
+            {saving ? "저장 중" : "임시 저장"}
+          </button> : null}
           <button
             type="button"
-            onClick={() => void savePlace()}
+            onClick={() => void savePlace(form, businessMode)}
             disabled={saving || geocoding}
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             <Save size={17} aria-hidden="true" />
-            {saving ? "저장 중" : geocoding ? "좌표 검색 중" : form.status === "DRAFT" ? "임시저장" : "저장"}
+            {saving ? "저장 중" : geocoding ? "좌표 검색 중" : businessMode ? "검수 요청" : form.status === "DRAFT" ? "임시저장" : "저장"}
           </button>
           {status ? <p className="text-sm font-semibold leading-6 text-slate-700 sm:hidden">{status}</p> : null}
         </div>
@@ -2866,11 +2947,15 @@ function PlaceMenuEditor({
   onAdd,
   onUpdate,
   onRemove,
+  accessToken,
+  imageEndpoint,
 }: {
   items: MenuDraft[];
   onAdd: () => void;
   onUpdate: (index: number, patch: Partial<MenuDraft>) => void;
   onRemove: (index: number) => void;
+  accessToken: string;
+  imageEndpoint: string;
 }) {
   return (
     <section aria-labelledby="admin-place-menu-title" className="border-b border-slate-200 pb-6">
@@ -2913,6 +2998,7 @@ function PlaceMenuEditor({
                   onChange={(event) => onUpdate(index, { description_zh: event.target.value })}
                   className={`${textareaClass} mt-3`}
                 />
+                <div className="mt-3"><p className="mb-2 text-xs font-black text-slate-600">메뉴 이미지</p><AdminPlaceImageUpload accessToken={accessToken} endpoint={imageEndpoint} value={item.image_url ?? ""} onChange={(url) => onUpdate(index, { image_url: url })} /></div>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <CheckField label="추천 메뉴" checked={item.is_recommended} onChange={(checked) => onUpdate(index, { is_recommended: checked })} />
                   <button

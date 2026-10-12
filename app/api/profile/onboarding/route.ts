@@ -37,7 +37,9 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (profileError || !currentProfile) throw new Error("profile_required");
 
-    const effectiveRole = hasAdminAccess(currentProfile.role) ? "admin" : requestedRole;
+    // Account intent is not authorization.  business_owner is granted only by
+    // the transactional application approval RPC.
+    const effectiveRole = hasAdminAccess(currentProfile.role) ? "admin" : currentProfile.role === "business_owner" ? "business_owner" : "tourist";
     const now = new Date().toISOString();
     const { error } = await client
       .from("profiles")

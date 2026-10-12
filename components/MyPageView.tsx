@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Flag, LogOut, Mail, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Flag, LogOut, Mail, ShieldCheck, Store, UserRound, type LucideIcon } from "lucide-react";
 import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
 import { MySubmissionsView } from "@/components/MySubmissionsView";
 import { MyTripsPanel } from "@/components/MyTripsPanel";
@@ -53,6 +53,7 @@ export function MyPageView({ locale }: MyPageViewProps) {
             <p className="mt-1 text-sm text-slate-500">{copy.mypage.settingsUnavailable}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {profile?.role === "business_owner" ? <Link href={withLocale("/business/dashboard", locale)} className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-indigo-700 px-4 text-sm font-black text-white"><Store size={16} aria-hidden="true" />{{ ko: "내 가게 관리", zh: "我的店铺", en: "My business", ja: "店舗管理" }[locale]}</Link> : null}
             {isAdmin ? (
               <Link
                 href={withLocale("/admin", locale)}
