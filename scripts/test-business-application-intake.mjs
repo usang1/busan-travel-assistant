@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 
@@ -71,13 +72,16 @@ assert.match(migration, /status, duplicate_key[\s\S]*'pending'/, "new applicatio
 const route = readFileSync(new URL("../app/api/business-applications/route.ts", import.meta.url), "utf8");
 assert.match(route, /validateBusinessApplicationInput/);
 assert.match(route, /rpc\("submit_business_application"/);
-assert.doesNotMatch(route, /from\("business_applications"\)\.insert/, "the API must use the validated intake RPC");
+assert.match(route, /createLegacyCompatibleApplication/, "rolling deploys must retain a compatible intake path");
+assert.match(route, /if \(error\.code === "PGRST202"[\s\S]*createLegacyCompatibleApplication/, "the legacy path may run only when the RPC is absent");
 assert.doesNotMatch(route, /process\.stderr\.write\([^\n]*contactPhone/, "phone numbers must not be logged");
 assert.match(route, /cross_site_blocked/);
 
 let rpcResult = { ok: true, code: "created", application_id: "11111111-1111-4111-8111-111111111111" };
 let rpcInput;
 let authenticated = true;
+let rpcError = null;
+let legacyInsert;
 const profileQuery = {
   select: () => profileQuery,
   eq: () => profileQuery,
@@ -86,18 +90,28 @@ const profileQuery = {
 const client = {
   auth: { getUser: async () => authenticated ? { data: { user: { id: "user-1" } }, error: null } : { data: { user: null }, error: { message: "expired" } } },
   from: (table) => {
-    assert.equal(table, "profiles");
-    return profileQuery;
+    if (table === "profiles") return profileQuery;
+    assert.equal(table, "business_applications");
+    const query = {
+      select: () => query,
+      eq: () => query,
+      neq: () => query,
+      limit: async () => ({ data: [], error: null }),
+      insert: (value) => { legacyInsert = value; return query; },
+      single: async () => ({ data: { id: "22222222-2222-4222-8222-222222222222" }, error: null }),
+    };
+    return query;
   },
   rpc: async (name, input) => {
     assert.equal(name, "submit_business_application");
     rpcInput = input;
-    return { data: rpcResult, error: null };
+    return { data: rpcResult, error: rpcError };
   },
 };
 const serviceClient = { from: () => ({ update: () => ({ eq: async () => ({ error: null }) }) }) };
 const response = { json: (body, init = {}) => ({ status: init.status ?? 200, body }) };
 const routeModule = compile("../app/api/business-applications/route.ts", {
+  "node:crypto": { createHash },
   "next/server": { NextResponse: response },
   "@/lib/map-url": { parseMapUrl: (value) => ({ provider: "naver", sourceProvider: "NAVER", normalizedUrl: value, placeId: value.match(/\d+$/u)?.[0] }) },
   "@/lib/server-supabase": { createServerAnonClient: () => client, createServerServiceClient: () => serviceClient },
@@ -132,6 +146,14 @@ authenticated = false;
 apiResult = await routeModule.POST(request({ ...validInput, locale: "ko" }));
 assert.equal(apiResult.status, 401);
 authenticated = true;
+rpcError = { code: "PGRST202", message: "Could not find function public.submit_business_application" };
+apiResult = await routeModule.POST(request({ ...validInput, locale: "ko" }));
+assert.equal(apiResult.status, 201, "the API must accept applications during a deployment where migration 048 is not applied yet");
+assert.equal(legacyInsert.applicant_relationship, "agency");
+assert.equal(legacyInsert.privacy_consent_at.length > 0, true);
+assert.equal(legacyInsert.request_notes.includes(validation.BUSINESS_APPLICATION_CONSENT_VERSION), true, "the accepted notice version must survive on the legacy schema");
+assert.equal(legacyInsert.status, undefined, "the applicant must not set review status");
+rpcError = null;
 
 const form = readFileSync(new URL("../components/BusinessApplicationForm.tsx", import.meta.url), "utf8");
 for (const role of ["owner", "staff", "agency"]) assert.match(form, new RegExp(`value: "${role}"`));

@@ -12,6 +12,32 @@ alter table public.business_applications
   add constraint business_applications_consent_version_check
     check (consent_version is null or length(consent_version) between 1 and 80);
 
+-- Requests received during a rolling deployment can be written by the API's
+-- legacy-schema compatibility path. Move their metadata into dedicated fields.
+do $$
+declare
+  application_row record;
+  metadata jsonb;
+begin
+  for application_row in
+    select id, request_notes from public.business_applications
+    where request_notes like '__SPOTZARI_APPLICATION_META__:%'
+  loop
+    begin
+      metadata := substring(application_row.request_notes from length('__SPOTZARI_APPLICATION_META__:') + 1)::jsonb;
+      update public.business_applications
+      set applicant_role = nullif(metadata ->> 'applicant_role', ''),
+          consent_version = nullif(metadata ->> 'consent_version', ''),
+          request_notes = ''
+      where id = application_row.id;
+    exception when others then
+      -- Preserve the original note if a value does not contain valid metadata.
+      continue;
+    end;
+  end loop;
+end;
+$$;
+
 comment on column public.business_applications.applicant_role is
   'Normalized applicant relationship: owner, staff, or agency. Legacy rows may be null.';
 comment on column public.business_applications.consent_version is
