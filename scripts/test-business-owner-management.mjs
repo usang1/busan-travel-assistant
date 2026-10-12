@@ -64,11 +64,29 @@ const response = { json: (body, init = {}) => ({ status: init.status ?? 200, bod
 const applicationId = "11111111-1111-4111-8111-111111111111";
 let rpcResult = { ok: true, code: "updated" };
 let rpcInput;
-const client = { rpc: async (name, input) => { rpcInput = { name, input }; return { data: rpcResult, error: null }; } };
+let sourceRows = [];
+const client = {
+  rpc: async (name, input) => { rpcInput = { name, input }; return { data: rpcResult, error: null }; },
+  from: (table) => {
+    assert.equal(table, "place_sources");
+    const filters = [];
+    const query = {
+      select: () => query,
+      eq: (field, value) => { filters.push([field, value]); return query; },
+      limit: async () => ({ data: sourceRows, error: null, filters }),
+    };
+    return query;
+  },
+};
 const route = compile("../app/api/admin/business-applications/[id]/route.ts", {
   "next/server": { NextResponse: response },
   "@/lib/admin-auth": { requireAdmin: async () => ({ client }) },
   "@/lib/business-auth": { isUuid: (value) => /^[0-9a-f-]{36}$/i.test(value) },
+  "@/lib/map-url": {
+    parseMapUrl: (value) => value.includes("map.naver.com")
+      ? { provider: "naver", sourceProvider: "NAVER", normalizedUrl: value, placeId: value.match(/\d+$/)?.[0] }
+      : { provider: "unknown", sourceProvider: "MANUAL", normalizedUrl: value },
+  },
 });
 const request = (body) => ({ json: async () => body });
 let result = await route.PATCH(request({ status: "approved", linked_place_id: null }), { params: Promise.resolve({ id: applicationId }) });
@@ -85,6 +103,19 @@ result = await route.PATCH(request({ status: "approved" }), { params: Promise.re
 assert.equal(result.status, 200);
 assert.match(result.body.message, /이미 승인/);
 assert.equal((await route.PATCH(request({ status: "approved", linked_place_id: "forged" }), { params: Promise.resolve({ id: applicationId }) })).status, 400);
+rpcResult = { ok: true, code: "updated" };
+const existingPlaceId = "22222222-2222-4222-8222-222222222222";
+sourceRows = [{ place_id: existingPlaceId }];
+result = await route.PATCH(request({ status: "approved", linked_place_id: "1987654321" }), { params: Promise.resolve({ id: applicationId }) });
+assert.equal(result.status, 200);
+assert.equal(rpcInput.input.target_place_id, existingPlaceId, "a Naver place number must resolve to the internal place UUID");
+result = await route.PATCH(request({ status: "approved", linked_place_id: "https://map.naver.com/p/entry/place/1987654321" }), { params: Promise.resolve({ id: applicationId }) });
+assert.equal(result.status, 200);
+assert.equal(rpcInput.input.target_place_id, existingPlaceId, "a Naver place link must resolve to the internal place UUID");
+sourceRows = [];
+result = await route.PATCH(request({ status: "approved", linked_place_id: "1987654321" }), { params: Promise.resolve({ id: applicationId }) });
+assert.equal(result.status, 404);
+assert.match(result.body.message, /신규 업체라면 입력칸을 비우고/);
 assert.equal((await route.PATCH(request({ status: "not-a-status" }), { params: Promise.resolve({ id: applicationId }) })).status, 400);
 
 const manager = readFileSync(new URL("../components/AdminPlaceManager.tsx", import.meta.url), "utf8");

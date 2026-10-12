@@ -7,7 +7,7 @@ type Application = {
   id: string; store_name: string; address: string; category: string; contact_name: string;
   contact_email: string | null; contact_phone: string | null; applicant_relationship: string;
   request_notes: string; status: string; admin_notes: string | null; linked_place_id: string | null;
-  created_at: string; notification_status: string | null;
+  map_url: string | null; map_provider: string; created_at: string; notification_status: string | null;
 };
 
 export function AdminBusinessApplications({ accessToken, places }: { accessToken: string; places: PlaceWithRelations[] }) {
@@ -48,17 +48,18 @@ export function AdminBusinessApplications({ accessToken, places }: { accessToken
   return (
     <section id="business-applications" className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <h2 className="text-2xl font-black">사장님 입점 신청</h2>
-      <p className="mt-2 text-sm text-slate-600">승인하면 신청 상태, 사업자 역할, 기존 업체 소유권 연결이 한 트랜잭션으로 처리됩니다. 장소 UUID가 비어 있으면 사업자가 새 장소 정보를 작성해 검수를 요청할 수 있습니다.</p>
+      <p className="mt-2 text-sm text-slate-600">승인하면 신청 상태, 사업자 역할, 기존 업체 소유권 연결이 한 트랜잭션으로 처리됩니다. 기존 장소는 목록에서 선택하거나 지도 링크·네이버 플레이스 번호로 찾을 수 있으며, 내부 UUID를 알 필요가 없습니다. 신규 업체는 입력칸을 비워 두세요.</p>
       {message ? <p role="status" className="mt-3 rounded-xl bg-teal-50 p-3 text-sm font-bold text-teal-800">{message}</p> : null}
       <div className="mt-4 space-y-4">
         {items.map((item, index) => (
           <article key={item.id} className="rounded-2xl bg-slate-50 p-4">
             <div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-black">{item.store_name}</h3><p className="text-sm text-slate-600">{item.address} · {item.category}</p></div><span className="text-xs font-bold">Telegram: {item.notification_status ?? "미기록"}</span></div>
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><div><dt className="font-black">담당자</dt><dd>{item.contact_name} · {item.applicant_relationship}</dd></div><div><dt className="font-black">연락처</dt><dd>{item.contact_email || item.contact_phone}</dd></div></dl>
+            {item.map_url ? <div className="mt-3 flex flex-wrap items-center gap-2 text-sm"><a href={item.map_url} target="_blank" rel="noreferrer" className="font-bold text-blue-700 underline">신청 지도 링크 열기</a>{item.status !== "approved" ? <button type="button" onClick={() => update(index, { linked_place_id: item.map_url })} className="min-h-9 rounded-lg bg-white px-3 text-xs font-black ring-1 ring-slate-200">이 링크로 기존 장소 찾기</button> : null}</div> : null}
             <p className="mt-3 whitespace-pre-wrap text-sm">{item.request_notes}</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               <select disabled={item.status === "approved"} value={item.status} onChange={(event) => update(index, { status: event.target.value })} className={inputClass}><option value="pending">접수</option><option value="reviewing">검토 중</option><option value="more_info_requested">추가 정보 요청</option><option value="approved">승인</option><option value="rejected">반려</option></select>
-              <input list="business-application-place-options" disabled={item.status === "approved"} value={item.linked_place_id ?? ""} onChange={(event) => update(index, { linked_place_id: event.target.value })} placeholder="기존 장소 UUID (선택)" className={inputClass} />
+              <input list="business-application-place-options" disabled={item.status === "approved"} value={item.linked_place_id ?? ""} onChange={(event) => update(index, { linked_place_id: event.target.value })} placeholder="기존 장소 선택 · 지도 링크/번호 (선택)" aria-label="연결할 기존 장소, 지도 링크 또는 네이버 플레이스 번호" className={inputClass} />
               <input value={item.admin_notes ?? ""} onChange={(event) => update(index, { admin_notes: event.target.value })} placeholder={item.status === "rejected" ? "반려 사유 (필수 권장)" : "처리 메모"} className={inputClass} />
             </div>
             <button disabled={savingId === item.id} type="button" onClick={() => void save(item)} className="mt-3 min-h-11 rounded-lg bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">{savingId === item.id ? "처리 중" : item.status === "approved" ? "연결 상태 재확인" : "처리 저장"}</button>
