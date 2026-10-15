@@ -82,6 +82,16 @@ export async function POST(request: NextRequest) {
       const service = createServerServiceClient();
       await service.from("business_applications").update({ notification_status: notificationStatus, notification_attempts: 1, notification_last_attempt_at: new Date().toISOString(), notification_sent_at: sent.ok ? new Date().toISOString() : null, notification_last_error: sent.ok ? null : sent.skipped ? "missing_configuration" : "telegram_failed" }).eq("id", applicationId);
     } catch (notificationError) { process.stderr.write(`[business-applications:telegram-failed] ${notificationError instanceof Error ? notificationError.name : "unknown"}\n`); }
+    try {
+      await client.from("place_action_events").insert({
+        user_id: user.id,
+        event_type: "business_application_submitted",
+        locale,
+        metadata: { provider: "naver", application_id: applicationId },
+      });
+    } catch {
+      // Analytics availability must not change the application result.
+    }
     return NextResponse.json({ application: { id: applicationId }, notification: notificationStatus }, { status: 201 });
   } catch (error) { return response(error); }
 }

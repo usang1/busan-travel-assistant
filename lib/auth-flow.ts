@@ -9,9 +9,18 @@ export type PendingPlaceSave = {
 };
 
 export function getSafeNextPath(value: string | null, fallback: string) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  // Browsers normalize backslashes and strip control characters when parsing
+  // URLs. Validate the parsed destination as well as its original spelling.
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\") || [...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) {
     return fallback;
   }
 
-  return value;
+  try {
+    const origin = "https://spotzari.invalid";
+    const url = new URL(value, origin);
+    if (url.origin !== origin || url.pathname.startsWith("//")) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
 }

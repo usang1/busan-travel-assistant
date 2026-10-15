@@ -10,6 +10,8 @@ const supabaseHostname = (() => {
 
 const nextConfig: NextConfig = {
   images: {
+    imageSizes: [32, 48, 64, 96, 128, 256, 320, 384, 480],
+    qualities: [65, 75],
     remotePatterns: [
       {
         protocol: "https",

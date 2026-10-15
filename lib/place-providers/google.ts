@@ -1,7 +1,7 @@
 import { asRecord, finiteNumber, normalizeCoordinates, text } from "@/lib/place-providers/normalize";
 import type { NormalizedPlace, PlaceProvider, PlaceProviderLookupContext } from "@/lib/place-providers/types";
 
-const placeFields = [
+export const googlePlaceFields = [
   "id",
   "displayName",
   "formattedAddress",
@@ -75,7 +75,7 @@ export const googleMapsProvider: PlaceProvider = {
 
 async function fetchGooglePlaceDetails(placeId: string, apiKey: string, fetcher: typeof fetch) {
   const response = await fetcher(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=ko&regionCode=KR`, {
-    headers: googleHeaders(apiKey, placeFields),
+    headers: googleHeaders(apiKey, googlePlaceFields),
     cache: "no-store",
   });
 
@@ -97,7 +97,7 @@ async function searchGooglePlace(
   const response = await fetcher("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
-      ...googleHeaders(apiKey, placeFields.split(",").map((field) => `places.${field}`).join(",")),
+      ...googleHeaders(apiKey, googlePlaceFields.split(",").map((field) => `places.${field}`).join(",")),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -120,7 +120,7 @@ async function searchGooglePlace(
   return Array.isArray(body?.places) ? body.places[0] : null;
 }
 
-function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> | null {
+export function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> | null {
   const place = asRecord(value);
   if (!place) return null;
 
@@ -167,7 +167,7 @@ function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> | null {
   };
 }
 
-async function resolveGooglePhotos(value: unknown, apiKey: string, fetcher: typeof fetch) {
+export async function resolveGooglePhotos(value: unknown, apiKey: string, fetcher: typeof fetch) {
   const place = asRecord(value);
   const rawPhotos = Array.isArray(place?.photos) ? place.photos.slice(0, 3) : [];
   const fetchedAt = new Date().toISOString();

@@ -137,8 +137,11 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
     ? (row.place_operating_profiles[0] ?? null)
     : (row.place_operating_profiles ?? null);
 
+  // Relations are normalized below. Do not serialize a second copy of every
+  // translation, source, menu, and decision profile to the browser.
+  const { place_china_info, place_decision_profiles, place_operating_profiles, place_translations, place_sources, place_tags, place_menu_items, ...record } = row;
   return {
-    ...row,
+    ...record,
     price_level: pricing.priceTier,
     price_min: pricing.priceMin,
     price_max: pricing.priceMax,
@@ -151,6 +154,16 @@ function mapPlace(row: SupabasePlaceRow): PlaceWithRelations {
     menu_items: menuItems,
     translations: normalizePlaceTranslations(row),
     sources: row.place_sources ?? [],
+  };
+}
+
+export function toPublicPlace(place: PlaceWithRelations): PlaceWithRelations {
+  return {
+    ...place,
+    admin_summary: "",
+    verification_checked_by: null,
+    verification_note: null,
+    sources: (place.sources ?? []).map((source) => ({ ...source, raw_metadata: null })),
   };
 }
 
@@ -226,19 +239,19 @@ async function addSaveCounts(places: PlaceWithRelations[]) {
   return withPlaceSaveCounts(places, counts);
 }
 
-async function finalizePlaceRows(rows: unknown, activeOnly: boolean, cityCode?: PlaceCity): Promise<{ places: PlaceWithRelations[]; candidateCount: number }> {
+async function finalizePlaceRows(rows: unknown, activeOnly: boolean, cityCode?: PlaceCity, includeAdminRelations = false): Promise<{ places: PlaceWithRelations[]; candidateCount: number }> {
   const mapped = mapPlaceRows(rows);
   const publishable = activeOnly ? filterPublishablePlaces(mapped) : mapped;
   const scoped = filterCityScopedPlaces(publishable, cityCode);
   const places = await addSaveCounts(scoped);
 
   return {
-    places,
+    places: includeAdminRelations ? places : places.map(toPublicPlace),
     candidateCount: mapped.length,
   };
 }
 
-async function finalizePlace(place: PlaceWithRelations, activeOnly: boolean, cityCode?: PlaceCity) {
+async function finalizePlace(place: PlaceWithRelations, activeOnly: boolean, cityCode?: PlaceCity, includeAdminRelations = false) {
   if (activeOnly && !isPublishablePlace(place)) {
     return null;
   }
@@ -246,11 +259,11 @@ async function finalizePlace(place: PlaceWithRelations, activeOnly: boolean, cit
   if (cityCode ? !isCityScopedPlace(place, cityCode) : !isSupportedCityScopedPlace(place)) return null;
 
   const counts = await getPlaceSaveCounts([place.id]);
-  return { ...place, save_count: counts.get(place.id) ?? 0 };
+  return { ...(includeAdminRelations ? place : toPublicPlace(place)), save_count: counts.get(place.id) ?? 0 };
 }
 
 export async function getPlaces(
-  options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string; cityCode?: PlaceCity; range?: { from: number; to: number } } = {},
+  options: { activeOnly?: boolean; featuredOnly?: boolean; includeAdminRelations?: boolean; locale?: Locale; debugLabel?: string; cityCode?: PlaceCity; ids?: string[]; range?: { from: number; to: number } } = {},
   client?: SupabaseClient,
 ): Promise<PlaceListResult> {
   const resolvedClient = resolveClient(client);
@@ -278,6 +291,7 @@ export async function getPlaces(
     query = query.eq("is_featured", true);
   }
 
+  if (options.ids) query = query.in("id", options.ids);
   if (options.range) query = query.order("id").range(options.range.from, options.range.to);
   const { data, error } = await query;
 
@@ -304,11 +318,12 @@ export async function getPlaces(
       compatibleQuery = compatibleQuery.eq("is_featured", true);
     }
 
+    if (options.ids) compatibleQuery = compatibleQuery.in("id", options.ids);
     if (options.range) compatibleQuery = compatibleQuery.order("id").range(options.range.from, options.range.to);
     const compatibleResult = await compatibleQuery;
 
     if (!compatibleResult.error && compatibleResult.data) {
-      const { places, candidateCount } = await finalizePlaceRows(compatibleResult.data, options.activeOnly ?? true, options.cityCode);
+      const { places, candidateCount } = await finalizePlaceRows(compatibleResult.data, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
       debugPlaceList("compatible", {
         label: options.debugLabel,
         filters: activeFilters,
@@ -346,17 +361,19 @@ export async function getPlaces(
       translationQuery = translationQuery.eq("is_featured", true);
     }
 
+    if (options.ids) translationQuery = translationQuery.in("id", options.ids);
     if (options.range) translationQuery = translationQuery.order("id").range(options.range.from, options.range.to);
     const translationResult = await translationQuery;
 
     if (!translationResult.error && translationResult.data) {
-      const { places, candidateCount } = await finalizePlaceRows(translationResult.data, options.activeOnly ?? true, options.cityCode);
+      const { places, candidateCount } = await finalizePlaceRows(translationResult.data, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
       return { places, source: "supabase", candidateCount };
     }
 
     let legacyQuery = resolvedClient.from("places").select(legacyPlaceSelect).order("is_featured", { ascending: false }).order("updated_at", { ascending: false });
     if (options.activeOnly ?? true) legacyQuery = legacyQuery.eq("is_active", true).in("status", publicStatusFilters);
     if (options.featuredOnly) legacyQuery = legacyQuery.eq("is_featured", true);
+    if (options.ids) legacyQuery = legacyQuery.in("id", options.ids);
     if (options.range) legacyQuery = legacyQuery.order("id").range(options.range.from, options.range.to);
     const legacyResult = await legacyQuery;
 
@@ -371,7 +388,7 @@ export async function getPlaces(
       return emptyPlaceResult("장소 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.");
     }
 
-    const { places, candidateCount } = await finalizePlaceRows(legacyResult.data, options.activeOnly ?? true, options.cityCode);
+    const { places, candidateCount } = await finalizePlaceRows(legacyResult.data, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
     debugPlaceList("legacy", {
       label: options.debugLabel,
       filters: activeFilters,
@@ -387,7 +404,7 @@ export async function getPlaces(
     };
   }
 
-  const { places, candidateCount } = await finalizePlaceRows(data, options.activeOnly ?? true, options.cityCode);
+  const { places, candidateCount } = await finalizePlaceRows(data, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
   debugPlaceList("primary", {
     label: options.debugLabel,
     filters: activeFilters,
@@ -508,7 +525,7 @@ export async function getPlaceBySlug(
 
     if (!compatibleResult.error && compatibleResult.data) {
       const place = mapPlaceRow(compatibleResult.data);
-      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
 
       if (!publicPlace) {
         return {
@@ -537,7 +554,7 @@ export async function getPlaceBySlug(
 
     if (!translationResult.error && translationResult.data) {
       const place = mapPlaceRow(translationResult.data);
-      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
       if (publicPlace) return { place: publicPlace, source: "supabase" };
     }
 
@@ -547,7 +564,7 @@ export async function getPlaceBySlug(
 
     if (!legacyResult.error && legacyResult.data) {
       const place = mapPlaceRow(legacyResult.data);
-      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
+      const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
 
       if (!publicPlace) {
         return {
@@ -591,7 +608,7 @@ export async function getPlaceBySlug(
   }
 
   const place = mapPlaceRow(data);
-  const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode);
+  const publicPlace = await finalizePlace(place, options.activeOnly ?? true, options.cityCode, options.includeAdminRelations);
 
   if (!publicPlace) {
     return {

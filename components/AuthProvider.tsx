@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { mergeGuestDataToAccount } from "@/lib/guest-sync";
 import { hasAdminAccess, type AccountRole } from "@/lib/account-role";
@@ -55,103 +55,112 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authError, setAuthError] = useState("");
   const [guestMergePending, setGuestMergePending] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [profileNonce, setProfileNonce] = useState(0);
+  const activeUserId = useRef<string | null>(null);
+  const profileRequest = useRef(0);
 
-  async function loadProfile(userId: string) {
+  const loadProfile = useCallback(async (userId: string) => {
     const client = getSupabaseClient();
+    const requestId = ++profileRequest.current;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8000);
+    const isCurrent = () => activeUserId.current === userId && profileRequest.current === requestId;
 
-    if (!client) {
-      setProfile(null);
-      return;
+    try {
+      if (!client) return;
+      const { data, error } = await client
+        .from("profiles")
+        .select("id, email, display_name, avatar_url, role, preferred_locale, auth_provider, auth_provider_id, terms_accepted_at, privacy_accepted_at, marketing_opt_in, onboarding_completed, created_at, updated_at")
+        .eq("id", userId)
+        .abortSignal(controller.signal)
+        .maybeSingle();
+      if (!isCurrent()) return;
+      if (error || !data) throw new Error("Profile unavailable");
+      setProfile(data as UserProfile);
+      setAuthError("");
+    } catch {
+      if (isCurrent()) {
+        setProfile(null);
+        setAuthError("로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.");
+      }
+    } finally {
+      window.clearTimeout(timer);
+      if (isCurrent()) setLoading(false);
     }
+  }, []);
 
-    const { data, error } = await client
-      .from("profiles")
-      .select("id, email, display_name, avatar_url, role, preferred_locale, auth_provider, auth_provider_id, terms_accepted_at, privacy_accepted_at, marketing_opt_in, onboarding_completed, created_at, updated_at")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (error || !data) {
-      setProfile(null);
-      return;
-    }
-
-    setProfile(data as UserProfile);
-  }
-
-  async function refreshProfile() {
-    if (!session?.user) {
-      setProfile(null);
-      return;
-    }
-
-    await loadProfile(session.user.id);
-  }
+  const refreshProfile = useCallback(async () => {
+    const userId = activeUserId.current;
+    if (userId) await loadProfile(userId);
+  }, [loadProfile]);
 
   useEffect(() => {
     const client = getSupabaseClient();
-
     if (!client) {
       setLoading(false);
       return;
     }
 
     let mounted = true;
-
+    let authEventReceived = false;
     setLoading(true);
     setAuthError("");
 
-    withTimeout(client.auth.getSession(), 8000)
-      .then(({ data }) => {
-        if (!mounted) {
-          return;
-        }
-
-        setSession(data.session);
-        if (data.session?.user) {
-          void loadProfile(data.session.user.id).finally(() => {
-            if (mounted) {
-              setLoading(false);
-            }
-          });
-          return;
-        }
-
-        setProfile(null);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setSession(null);
-        setProfile(null);
-        setAuthError("로그인 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
-        setLoading(false);
-      });
-
-    const { data: listener } = client.auth.onAuthStateChange((_event, nextSession) => {
+    function applySession(nextSession: Session | null) {
       if (!mounted) return;
+      const nextUserId = nextSession?.user.id ?? null;
+      if (activeUserId.current !== nextUserId) {
+        ++profileRequest.current;
+        setProfile(null);
+        setLoading(Boolean(nextUserId));
+        setProfileNonce((value) => value + 1);
+      }
+      activeUserId.current = nextUserId;
       setSession(nextSession);
       setAuthError("");
-      if (nextSession?.user) {
-        void loadProfile(nextSession.user.id).finally(() => {
-          if (mounted) {
-            setLoading(false);
-          }
-        });
-        return;
-      }
+      if (!nextUserId) setLoading(false);
+    }
 
-      setProfile(null);
-      setLoading(false);
+    // Keep database calls outside Supabase's auth callback/lock. The effect
+    // below loads the profile only when the user changes (or explicitly retries).
+    const { data: listener } = client.auth.onAuthStateChange((event, nextSession) => {
+      authEventReceived = true;
+      const refreshExistingProfile = nextSession?.user.id === activeUserId.current && (event === "TOKEN_REFRESHED" || event === "USER_UPDATED");
+      applySession(nextSession);
+      if (refreshExistingProfile) setProfileNonce((value) => value + 1);
     });
+
+    void withTimeout(client.auth.getSession(), 8000)
+      .then(({ data, error }) => {
+        if (!mounted || authEventReceived) return;
+        if (error) throw error;
+        applySession(data.session);
+      })
+      .catch(() => {
+        if (!mounted || authEventReceived) return;
+        applySession(null);
+        setAuthError("로그인 상태를 확인하지 못했습니다. 다시 시도해 주세요.");
+      });
 
     return () => {
       mounted = false;
+      activeUserId.current = null;
+      ++profileRequest.current;
       listener.subscription.unsubscribe();
     };
   }, [retryNonce]);
 
+  const userId = session?.user.id;
   useEffect(() => {
-    if (!session?.user || loading) return;
+    if (userId) void loadProfile(userId);
+    return () => { ++profileRequest.current; };
+  }, [loadProfile, profileNonce, userId]);
+
+  useEffect(() => {
+    if (!session?.user || loading) {
+      setGuestMergePending(false);
+      return;
+    }
 
     let cancelled = false;
     const locale = getLocaleFromPath(window.location.pathname) ?? profile?.preferred_locale ?? defaultLocale;
@@ -163,6 +172,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAuthError("저장한 게스트 데이터를 계정에 병합하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
       })
+      .catch(() => {
+        if (!cancelled) setAuthError("저장한 게스트 데이터를 계정에 병합하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      })
       .finally(() => {
         if (!cancelled) setGuestMergePending(false);
       });
@@ -170,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [loading, profile?.preferred_locale, session?.user]);
+  }, [loading, profile?.preferred_locale, session?.user.id]);
 
   const value = useMemo(
     () => ({
@@ -184,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile,
       retryAuth: async () => setRetryNonce((current) => current + 1),
     }),
-    [authError, guestMergePending, loading, profile, session],
+    [authError, guestMergePending, loading, profile, refreshProfile, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -195,10 +207,15 @@ export function useAuth() {
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => {
-      window.setTimeout(() => reject(new Error("Auth request timed out.")), timeoutMs);
-    }),
-  ]);
+  let timer: number | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error("Auth request timed out.")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    window.clearTimeout(timer);
+  }
 }

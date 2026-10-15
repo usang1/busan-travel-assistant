@@ -83,7 +83,9 @@ assert.equal(isValidCoordinates({ latitude: Number.NaN, longitude: 129.11 }), fa
 assert.equal(isValidCoordinates({ latitude: 0, longitude: 0 }), false);
 assert.equal(isValidCoordinates({ latitude: 91, longitude: 129.11 }), false);
 assert.equal(getPreferredMapProvider().id, "naver", "Naver Maps must remain the default map provider");
-assert.ok(naverMapNcpKeyId, "Naver Maps must always have a public client key");
+assert.equal(typeof naverMapNcpKeyId, "string", "Naver Maps configuration must be represented as a string");
+assert.match(mapProviderSource, /process\.env\.NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID/);
+assert.doesNotMatch(mapProviderSource, /\|\|\s*["'][A-Za-z0-9_-]{20,}["']/, "A public map key must not be hardcoded as a fallback");
 assert.equal(formatDistance(null, "ko"), "거리 확인 필요");
 assert.equal(formatDistance(null, "en"), "Distance needs checking");
 assert.equal(buildLocalizedPlacesSearchHref("ko", " 카페 "), "/ko/places?search=%EC%B9%B4%ED%8E%98");

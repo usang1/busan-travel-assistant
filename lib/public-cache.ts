@@ -36,7 +36,7 @@ export const getCachedPublicPlaces = unstable_cache(
     const client = createPublicSupabaseClient();
     return getPlaces({ activeOnly: true, locale, cityCode, debugLabel: "cached-public-places" }, client ?? undefined);
   },
-  ["public-places"],
+  ["public-places-v2-public-fields"],
   {
     tags: [publicPlacesCacheTag],
     revalidate: publicPageRevalidateSeconds,
@@ -48,7 +48,7 @@ export const getCachedPublicPlaceBySlug = unstable_cache(
     const client = createPublicSupabaseClient();
     return getPlaceBySlug(slug, { activeOnly: true }, client ?? undefined);
   },
-  ["public-place-by-slug"],
+  ["public-place-by-slug-v2-public-fields"],
   {
     tags: [publicPlacesCacheTag],
     revalidate: publicPageRevalidateSeconds,
@@ -57,7 +57,7 @@ export const getCachedPublicPlaceBySlug = unstable_cache(
 
 export const getCachedPlaceRankings = unstable_cache(
   async (options: { limit?: number; category?: PlaceCategory; region?: string }) => getPlaceRankings(options),
-  ["public-place-rankings"],
+  ["public-place-rankings-v2-public-fields"],
   {
     tags: [publicPlacesCacheTag],
     revalidate: publicPageRevalidateSeconds,

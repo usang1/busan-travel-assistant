@@ -37,6 +37,10 @@ import { PlaceViewTracker } from "@/components/PlaceViewTracker";
 import { SaveButton } from "@/components/SaveButton";
 import { DirectionsButton } from "@/components/DirectionsButton";
 import { PlaceMobileActions } from "@/components/PlaceMobileActions";
+import { PlaceCouponPanel } from "@/components/PlaceCouponPanel";
+import { PlaceFieldVerificationSummary } from "@/components/PlaceFieldVerificationSummary";
+import { ProductAnalytics } from "@/components/ProductAnalytics";
+import { AnalyticsLink } from "@/components/AnalyticsLink";
 import { SectionTitle } from "@/components/SectionTitle";
 import { ShareButton } from "@/components/ShareButton";
 import { StructuredData } from "@/components/StructuredData";
@@ -50,6 +54,7 @@ import { formatPriceRange } from "@/lib/place-store";
 import { getMenuPriceLabel } from "@/lib/menu-price";
 import { getPracticalRouteContext, getRelatedPlaces } from "@/lib/place-recommendations";
 import { formatOpeningStatus, hasCoordinates } from "@/lib/location";
+import { getPublicPlaceFieldVerifications } from "@/lib/public-place-verifications";
 import {
   getLastVerifiedLabel,
   getLastVerifiedAt,
@@ -140,7 +145,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
     notFound();
   }
 
-  const [relatedPlacesResult, relatedGuides, practicalRoute] = await Promise.all([
+  const [relatedPlacesResult, relatedGuides, practicalRoute, fieldVerifications] = await Promise.all([
     getRelatedPlaces(place),
     getCachedRelatedGuidesForPlace({
       placeId: place.id,
@@ -149,6 +154,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       limit: 4,
     }),
     getPracticalRouteContext(place),
+    getPublicPlaceFieldVerifications(place.id),
   ]);
   const relatedPlaces = relatedPlacesResult.filter((relatedPlace) => translatedPlaceLocales(relatedPlace).includes(locale));
 
@@ -357,8 +363,11 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             {content.address ? <DetailFact icon={MapPin} label={factLabels.address} value={content.address} /> : null}
             {locale === "zh" && content.addressTranslationMissing ? <DetailFact icon={MapPin} label={factLabels.address} value="中文地址确认中" /> : null}
             {locale === "zh" && content.addressOriginalKo ? <DetailFact icon={MapPin} label="韩国原地址" value={content.addressOriginalKo} /> : null}
-            {place.phone ? <DetailFact icon={Phone} label={factLabels.phone} value={place.phone} href={`tel:${place.phone.replace(/[^\d+]/g, "")}`} /> : null}
+            {place.phone ? <DetailFact icon={Phone} label={factLabels.phone} value={place.phone} href={`tel:${place.phone.replace(/[^\d+]/g, "")}`} eventType="phone_click" locale={locale} placeId={place.id} /> : null}
             {websiteHref ? <DetailFact icon={Globe2} label={factLabels.website} value={place.website ?? ""} href={websiteHref} external /> : null}
+          </div>
+          <div className="mt-6">
+            <PlaceFieldVerificationSummary rows={fieldVerifications} locale={locale} />
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">{detailGroups.scope}</p>
 
@@ -377,6 +386,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
       </section>
 
       <PlaceVisitTools place={place} locale={locale} coordinates={coordinates} />
+      <PlaceCouponPanel placeId={place.id} locale={locale} />
       {place.direct_visit_photos?.length ? (
         <section className="mt-6 rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-lg font-black text-slate-950">{{ ko: "관리자 직접 방문 사진", zh: "管理员实地拍摄", en: "Photos from an in-person review", ja: "管理者の現地訪問写真" }[locale]}</h2>
@@ -422,7 +432,10 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         </ul> : null}
 
       {place.category === "restaurant" ? (
-        <OrderGuide place={place} locale={locale} />
+        <>
+          <ProductAnalytics eventType="menu_view" locale={locale} placeId={place.id} mode="visible" dedupeKey={`menu:${place.id}`} metadata={{ surface: "place_detail" }} />
+          <OrderGuide place={place} locale={locale} />
+        </>
       ) : (content.recommendedOrder || place.recommended_order_ko ? (
         <section className="mt-6 space-y-3">
           <SectionTitle title={copy.placeDetail.howToSay} />
@@ -696,12 +709,18 @@ function DetailFact({
   value,
   href,
   external = false,
+  eventType,
+  locale,
+  placeId,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   href?: string;
   external?: boolean;
+  eventType?: "phone_click";
+  locale?: Locale;
+  placeId?: string;
 }) {
   const content = <span className="break-all text-sm font-semibold text-slate-800">{value}</span>;
 
@@ -709,7 +728,11 @@ function DetailFact({
     <div className="grid grid-cols-[20px_72px_1fr] items-start gap-2 py-3">
       <Icon size={17} className="mt-0.5 text-teal-700" aria-hidden="true" />
       <span className="text-sm text-slate-500">{label}</span>
-      {href ? (
+      {href && eventType && locale ? (
+        <AnalyticsLink href={href} eventType={eventType} locale={locale} placeId={placeId} metadata={{ surface: "place_detail" }} className="min-w-0 text-teal-700 underline-offset-4 hover:underline">
+          {content}
+        </AnalyticsLink>
+      ) : href ? (
         <a
           href={href}
           target={external ? "_blank" : undefined}

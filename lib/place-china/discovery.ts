@@ -549,7 +549,6 @@ function placeTextIncludes(place: PlaceWithRelations, keywords: string[]) {
     place.recommended_order_ko,
     place.tips_zh,
     place.tips_ko,
-    place.admin_summary,
     place.nearest_station,
     place.nearest_exit,
     ...place.tags.flatMap((tag) => [tag.slug, tag.label_zh, tag.label_ko]),

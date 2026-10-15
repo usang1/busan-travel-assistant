@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: siteConfig.name,
   description: siteConfig.description,
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon.svg",
+  },
   alternates: {
     canonical: absoluteUrl("/"),
     languages: localeAlternates("/"),

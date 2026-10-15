@@ -1,7 +1,7 @@
 import { normalizeCoordinates, stripHtml, text } from "@/lib/place-providers/normalize";
 import type { NormalizedPlace, PlaceProvider } from "@/lib/place-providers/types";
 
-type NaverLocalItem = {
+export type NaverLocalItem = {
   title?: unknown;
   link?: unknown;
   category?: unknown;
@@ -106,7 +106,7 @@ function selectNaverItem(
   return items.length === 1 ? items[0] : null;
 }
 
-function normalizeNaverItem(item: NaverLocalItem, parsedPlaceId?: string): Partial<NormalizedPlace> {
+export function normalizeNaverItem(item: NaverLocalItem, parsedPlaceId?: string): Partial<NormalizedPlace> {
   const longitude = normalizeNaverCoordinate(item.mapx, "longitude");
   const latitude = normalizeNaverCoordinate(item.mapy, "latitude");
   const coordinates = normalizeCoordinates(latitude, longitude);

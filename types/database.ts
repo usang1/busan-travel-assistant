@@ -385,6 +385,7 @@ export type PlaceCorrectionRecord = {
 };
 
 export type PlaceActionEventType =
+  | "page_view"
   | "home_view"
   | "city_selected"
   | "district_selected"
@@ -419,6 +420,23 @@ export type PlaceActionEventType =
   | "directions_click"
   | "share"
   | "share_click"
+  | "place_search"
+  | "place_import_search"
+  | "place_import_applied"
+  | "place_import_modified"
+  | "location_requested"
+  | "location_succeeded"
+  | "location_failed"
+  | "address_search"
+  | "map_location_selected"
+  | "coordinate_save_failed"
+  | "phone_click"
+  | "menu_view"
+  | "coupon_issued"
+  | "coupon_redeemed"
+  | "stay_qr_landing"
+  | "business_application_submitted"
+  | "admin_review_completed"
   | "submission_created"
   | "correction_submitted";
 

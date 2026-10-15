@@ -48,12 +48,10 @@ export const mapProviders: Record<MapProviderId, TravelMapProvider> = {
   },
 };
 
-const defaultNaverMapNcpKeyId = "agas2u5535";
-
 export const naverMapNcpKeyId = (
   process.env.NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID?.trim()
   || process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID?.trim()
-  || defaultNaverMapNcpKeyId
+  || ""
 );
 
 export function getPreferredMapProvider(): TravelMapProvider {

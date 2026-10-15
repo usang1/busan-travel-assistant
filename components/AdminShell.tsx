@@ -13,6 +13,12 @@ import { AdminTravelerDecisionManager } from "@/components/AdminTravelerDecision
 import { AdminBusinessApplications } from "@/components/AdminBusinessApplications";
 import { AdminBusinessPlaceChanges } from "@/components/AdminBusinessPlaceChanges";
 import { AdminTravelerReportWorkflow } from "@/components/AdminTravelerReportWorkflow";
+import { AdminGrowthAnalytics } from "@/components/AdminGrowthAnalytics";
+import { AdminStayManager } from "@/components/AdminStayManager";
+import { AdminCouponReview } from "@/components/AdminCouponReview";
+import { AdminSubscriptionManager } from "@/components/AdminSubscriptionManager";
+import { AdminPlaceImportManager } from "@/components/AdminPlaceImportManager";
+import { AdminVerificationQueue } from "@/components/AdminVerificationQueue";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, type Locale, ui, withLocale } from "@/lib/i18n";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
@@ -134,13 +140,23 @@ export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
     <div className="space-y-8">
       <nav aria-label={copy.menu} className="flex flex-wrap gap-2">
         <a href="#traveler-decision" className="inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-bold text-white">여행자 데이터</a>
+        <a href="#growth-analytics" className="inline-flex min-h-11 items-center rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white">유입·전환 분석</a>
+        <a href="#stay-management" className="inline-flex min-h-11 items-center rounded-lg bg-violet-700 px-4 text-sm font-bold text-white">숙소·QR</a>
+        <a href="#coupon-review" className="inline-flex min-h-11 items-center rounded-lg bg-orange-700 px-4 text-sm font-bold text-white">쿠폰 검수</a>
+        <a href="#subscription-management" className="inline-flex min-h-11 items-center rounded-lg bg-slate-700 px-4 text-sm font-bold text-white">요금제·구독</a>
         <a href="#business-applications" className="inline-flex min-h-11 items-center rounded-lg bg-blue-700 px-4 text-sm font-bold text-white">입점 신청</a>
         <a href="#business-place-changes" className="inline-flex min-h-11 items-center rounded-lg bg-indigo-700 px-4 text-sm font-bold text-white">사업자 변경 검수</a>
         <a href="#traveler-reports" className="inline-flex min-h-11 items-center rounded-lg bg-amber-600 px-4 text-sm font-bold text-white">현장 제보 검수</a>
         <a href="#social-discovery" className="inline-flex min-h-11 items-center rounded-lg bg-cyan-700 px-4 text-sm font-bold text-white">SNS 장소 연결</a>
         <a href="#guides" className="inline-flex min-h-11 items-center rounded-lg bg-slate-900 px-4 text-sm font-bold text-white">{copy.guides}</a>
+        <a href="#place-imports" className="inline-flex min-h-11 items-center rounded-lg bg-teal-800 px-4 text-sm font-bold text-white">CSV 일괄 등록</a>
+        <a href="#verification-priority" className="inline-flex min-h-11 items-center rounded-lg bg-amber-700 px-4 text-sm font-bold text-white">검증 우선순위</a>
       </nav>
       <AdminDashboard places={places} photoSpots={[] as PhotoSpotRecord[]} />
+      <AdminGrowthAnalytics accessToken={accessToken as string} places={places} />
+      <AdminStayManager accessToken={accessToken as string} places={places} />
+      <AdminCouponReview accessToken={accessToken as string} />
+      <AdminSubscriptionManager accessToken={accessToken as string} />
       <AdminBusinessApplications accessToken={accessToken as string} places={places} />
       <AdminBusinessPlaceChanges accessToken={accessToken as string} onApproved={loadPlaces} />
       <AdminTravelerReportWorkflow accessToken={accessToken as string} />
@@ -149,6 +165,8 @@ export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
       <AdminGuideManager accessToken={accessToken as string} places={places} />
       <AdminSubmissionWorkflow accessToken={accessToken as string} places={places} onPlaceCreated={loadPlaces} />
       <AdminCorrectionWorkflow accessToken={accessToken as string} />
+      <AdminVerificationQueue accessToken={accessToken as string} />
+      <AdminPlaceImportManager accessToken={accessToken as string} onCompleted={loadPlaces} />
       <AdminPlaceManager
         initialPlaces={places}
         source={source}

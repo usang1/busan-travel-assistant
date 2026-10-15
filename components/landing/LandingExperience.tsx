@@ -72,6 +72,7 @@ export function LandingExperience({ locale, places, children }: Props) {
     <div ref={rootRef} className={styles.root}>
       <LandingHeader locale={locale} />
       <div className={styles.progress} aria-hidden="true"><span /></div>
+      <main>
       <Hero locale={locale} imageUrl={featured?.imageUrl ?? ""} />
       {children ? <section id="explore-home" className={styles.homeBridge}>{children}</section> : null}
       <Discover locale={locale} places={places} />
@@ -79,6 +80,7 @@ export function LandingExperience({ locale, places, children }: Props) {
       <Plan locale={locale} places={places} />
       <Business locale={locale} place={featured} />
       <FinalCta locale={locale} />
+      </main>
       <footer className={styles.footer}>
         <p>{copy.footer}</p>
         <nav aria-label="Legal">
@@ -120,7 +122,7 @@ function Hero({ locale, imageUrl }: { locale: Locale; imageUrl: string }) {
     <section className={`${styles.scene} ${styles.heroScene}`} data-scroll-scene>
       <div className={styles.sticky}>
         <div className={styles.heroBackdrop}>
-          {imageUrl ? <Image src={imageUrl} alt="" fill priority sizes="100vw" className={styles.heroImage} /> : null}
+          {imageUrl ? <Image src={imageUrl} alt="" fill priority quality={65} sizes="100vw" className={styles.heroImage} /> : null}
           <div className={styles.heroShade} />
         </div>
         <div className={styles.heroContent}>
@@ -160,7 +162,7 @@ function Discover({ locale, places }: { locale: Locale; places: LandingPlace[] }
             {places.length ? places.slice(0, 3).map((place, index) => (
               <article key={place.id} className={styles.placeCard} style={{ "--card-index": index } as CSSProperties}>
                 <div className={styles.cardImage}>
-                  {place.imageUrl ? <Image src={place.imageUrl} alt="" fill sizes="(max-width: 768px) 78vw, 330px" className="object-cover" /> : <div className={styles.photoFallback}><MapPin /></div>}
+                  {place.imageUrl ? <Image src={place.imageUrl} alt="" fill sizes="(max-width: 767px) 270px, 310px" className="object-cover" /> : <div className={styles.photoFallback}><MapPin /></div>}
                   <span>{place.category}</span>
                 </div>
                 <div className={styles.cardBody}><p>{place.secondaryName}</p><h3><Link href={withLocale(`/places/${place.slug}`, locale)}>{place.name}</Link></h3><small><MapPin size={13} />{place.address}</small><span className={styles.savePill}><Bookmark size={15} />{copy.saved}</span></div>
@@ -195,7 +197,7 @@ function Decide({ locale, place }: { locale: Locale; place?: LandingPlace }) {
         <div className={styles.decisionStage}>
           <div className={styles.phone}>
             <div className={styles.phoneTop}><span /><b>{copy.detail}</b><Menu size={17} /></div>
-            <div className={styles.phonePhoto}>{place?.imageUrl ? <Image src={place.imageUrl} alt="" fill sizes="320px" className="object-cover" /> : <MapPin size={38} />}</div>
+            <div className={styles.phonePhoto}>{place?.imageUrl ? <Image src={place.imageUrl} alt="" fill sizes="(max-width: 767px) 270px, 320px" className="object-cover" /> : <MapPin size={38} />}</div>
             <div className={styles.phoneBody}><small>{place?.category ?? "Spotzari"}</small><h3>{place?.name ?? copy.noPlaces}</h3><p>{place?.address}</p>
               <div className={styles.factList}>{place?.facts.slice(0, 4).map((fact) => { const Icon = factIcons[fact.key]; return <div key={fact.key}><Icon size={16} /><span><small>{fact.label}</small><b>{fact.value}</b></span></div>; })}</div>
             </div>

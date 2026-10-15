@@ -1,7 +1,7 @@
 import { normalizeCoordinates, text } from "@/lib/place-providers/normalize";
 import type { NormalizedPlace, PlaceProvider } from "@/lib/place-providers/types";
 
-type KakaoPlaceDocument = {
+export type KakaoPlaceDocument = {
   id?: unknown;
   place_name?: unknown;
   category_name?: unknown;
@@ -84,7 +84,7 @@ function selectKakaoItem(
   return items.length === 1 ? items[0] : null;
 }
 
-function normalizeKakaoItem(item: KakaoPlaceDocument): Partial<NormalizedPlace> {
+export function normalizeKakaoItem(item: KakaoPlaceDocument): Partial<NormalizedPlace> {
   const coordinates = normalizeCoordinates(item.y, item.x);
 
   return {

@@ -1,4 +1,5 @@
 import { naverMapNcpKeyId } from "@/lib/map-provider";
+import { loadNaverMapsSdk } from "@/lib/naver-maps-sdk";
 
 export type NaverGeocodeResult = {
   latitude: number;
@@ -23,16 +24,6 @@ type NaverGeocoderMapsNamespace = {
   };
 };
 
-type NaverWindow = Window & {
-  naver?: {
-    maps?: Partial<NaverGeocoderMapsNamespace>;
-  };
-  __busanTravelAssistantNaverGeocoderReady?: () => void;
-};
-
-const callbackName = "__busanTravelAssistantNaverGeocoderReady";
-let geocoderPromise: Promise<NaverGeocoderMapsNamespace> | null = null;
-
 export function canUseNaverGeocoder() {
   return Boolean(naverMapNcpKeyId);
 }
@@ -44,7 +35,7 @@ export async function geocodeKoreanAddress(address: string): Promise<NaverGeocod
     throw new Error("주소를 먼저 입력해 주세요.");
   }
 
-  const maps = await loadNaverGeocoder();
+  const maps = await loadNaverMapsSdk<NaverGeocoderMapsNamespace>(naverMapNcpKeyId);
 
   return new Promise((resolve, reject) => {
     maps.Service.geocode({ address: query, query }, (status, response) => {
@@ -63,73 +54,6 @@ export async function geocodeKoreanAddress(address: string): Promise<NaverGeocod
       resolve(results);
     });
   });
-}
-
-function loadNaverGeocoder(): Promise<NaverGeocoderMapsNamespace> {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return Promise.reject(new Error("브라우저에서만 주소 검색을 사용할 수 있습니다."));
-  }
-
-  if (!naverMapNcpKeyId) {
-    return Promise.reject(new Error("NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID가 설정되어 있지 않습니다."));
-  }
-
-  const existingMaps = getNaverMaps();
-
-  if (hasGeocoder(existingMaps)) {
-    return Promise.resolve(existingMaps);
-  }
-
-  if (geocoderPromise) {
-    return geocoderPromise;
-  }
-
-  geocoderPromise = new Promise((resolve, reject) => {
-    const finish = () => {
-      const maps = getNaverMaps();
-
-      if (hasGeocoder(maps)) {
-        resolve(maps);
-        return;
-      }
-
-      reject(new Error("네이버 지도 Geocoder 모듈을 불러오지 못했습니다."));
-    };
-
-    const win = window as NaverWindow;
-    win[callbackName] = finish;
-
-    const existingScript = document.querySelector<HTMLScriptElement>("script[data-naver-maps-sdk='true']");
-
-    if (existingScript) {
-      existingScript.addEventListener("load", () => window.setTimeout(finish, 0), { once: true });
-      window.setTimeout(finish, 250);
-      return;
-    }
-
-    const script = document.createElement("script");
-    const params = new URLSearchParams({
-      ncpKeyId: naverMapNcpKeyId,
-      submodules: "geocoder",
-      callback: callbackName,
-    });
-
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?${params.toString()}`;
-    script.async = true;
-    script.dataset.naverMapsSdk = "true";
-    script.addEventListener("error", () => reject(new Error("네이버 지도 스크립트를 불러오지 못했습니다.")));
-    document.head.appendChild(script);
-  });
-
-  return geocoderPromise;
-}
-
-function getNaverMaps() {
-  return (window as NaverWindow).naver?.maps;
-}
-
-function hasGeocoder(maps: Partial<NaverGeocoderMapsNamespace> | undefined): maps is NaverGeocoderMapsNamespace {
-  return typeof maps?.Service?.geocode === "function" && typeof maps.Service.Status?.OK === "string";
 }
 
 function parseGeocodeResponse(response: unknown): NaverGeocodeResult[] {

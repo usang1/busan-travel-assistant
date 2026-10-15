@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { AlertTriangle, Check, ChevronDown, Eye, EyeOff, Languages, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Eye, EyeOff, Languages, LocateFixed, MapPin, Pencil, Plus, RotateCcw, Save, Sparkles, Star, Trash2, X, type LucideIcon } from "lucide-react";
 import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
+import { AdminPlaceVerificationManager } from "@/components/AdminPlaceVerificationManager";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
+import { TravelMap } from "@/components/TravelMap";
 import { TravelerInsightsEditor } from "@/components/TravelerInsightsEditor";
 import { buildAdminPlaceVisibilityNotice } from "@/lib/admin-place-visibility";
 import { buildPlaceSourcePayload, enrichPlaceForm, formatProviderAmenities, hasValidFormCoordinates, normalizePlaceFormLocation } from "@/lib/admin-place-enrichment";
-import { buildPlaceRegionTags, cityRegions, getPlaceRegion, inferPlaceCity, isPlaceRegionTag, placeCities, placeRegionLabel, type PlaceCity } from "@/lib/city-regions";
+import { buildPlaceRegionTags, cityRegions, getPlaceRegion, inferPlaceCity, isPlaceRegionTag, placeCities, placeCityCenters, placeRegionLabel, type PlaceCity } from "@/lib/city-regions";
 import { analyzeMapLink } from "@/lib/map-link-analysis";
 import { buildHomeIntentTags, getHomeIntentKeysFromTags, getHomeIntentLabel, homeIntentTagOptions, isHomeIntentTagSlug, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { fromDateInputValue, toDateInputValue } from "@/lib/date-input";
@@ -41,6 +43,9 @@ import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/p
 import { formatPlaceFactSource } from "@/lib/place-draft";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
+import { getCurrentBrowserLocation, isBrowserLocationError } from "@/lib/browser-geolocation";
+import { recordProductEvent } from "@/lib/place-events";
+import { getPreferredMapProvider } from "@/lib/map-provider";
 import { createEmptyTravelerInsights, normalizeTravelerInsights, travelerInsightsFromPlaceInfo } from "@/lib/traveler-insights";
 import {
   categoryLabels,
@@ -70,6 +75,16 @@ type AdminPlaceManagerProps = {
   businessChanges?: BusinessPlaceChangeRecord[];
   onBusinessSaved?: () => Promise<void>;
   allowNewBusinessPlace?: boolean;
+};
+
+type LocationApiResult = {
+  latitude: number;
+  longitude: number;
+  address: string;
+  roadAddress?: string;
+  jibunAddress?: string;
+  provider: "kakao";
+  fetchedAt: string;
 };
 
 type MenuDraft = {
@@ -687,6 +702,15 @@ function fillCoordinatesFromMapLink<Form extends Pick<FormState, "source_url" | 
   };
 }
 
+function applyGeocodedAddress<Form extends FormState>(form: Form, result: Pick<LocationApiResult, "latitude" | "longitude" | "address" | "roadAddress" | "jibunAddress">): Form {
+  return normalizePlaceFormLocation({
+    ...form,
+    latitude: result.latitude.toFixed(7),
+    longitude: result.longitude.toFixed(7),
+    address_ko: result.roadAddress || result.jibunAddress || result.address || form.address_ko,
+  }) as Form;
+}
+
 function nullableInteger(value: string) {
   const number = nullableNumber(value);
   return number === null ? null : Math.max(0, Math.round(number));
@@ -1118,11 +1142,36 @@ function getMapLinkState(value: string) {
   };
 }
 
-function providerDisplayName(provider: PlaceSourceProvider) {
-  if (provider === "GOOGLE") return "Google Maps";
-  if (provider === "NAVER") return "네이버지도";
-  if (provider === "KAKAO") return "카카오맵";
+function providerDisplayName(provider: PlaceSourceProvider | NormalizedPlace["provider"] | string) {
+  if (provider === "GOOGLE" || provider === "google") return "Google Maps";
+  if (provider === "NAVER" || provider === "naver") return "네이버지도";
+  if (provider === "KAKAO" || provider === "kakao") return "카카오맵";
   return "지도";
+}
+
+function describeAutoFilledFields(before: FormState, after: FormState) {
+  const fields: Array<{ key: keyof FormState; label: string }> = [
+    { key: "name_ko", label: "가게명" },
+    { key: "address_ko", label: "주소" },
+    { key: "latitude", label: "위도" },
+    { key: "longitude", label: "경도" },
+    { key: "phone", label: "전화번호" },
+    { key: "category", label: "카테고리" },
+    { key: "opening_hours", label: "영업시간" },
+    { key: "website", label: "웹사이트" },
+    { key: "price_level", label: "가격대" },
+    { key: "provider_image_preview_url", label: "대표 이미지 미리보기" },
+    { key: "source_external_id", label: "외부 장소 ID" },
+  ];
+  return fields
+    .filter(({ key }) => String(before[key] ?? "").trim() !== String(after[key] ?? "").trim())
+    .map(({ label }) => label);
+}
+
+function formatCollectedAt(value?: string) {
+  if (!value) return "확인 필요";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "확인 필요" : date.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
 }
 
 function normalizedPlaceForAdminSummary(form: FormState): NormalizedPlace | null {
@@ -1210,6 +1259,12 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [analyzing, setAnalyzing] = useState(false);
   const [webSearching, setWebSearching] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [placeSearchQuery, setPlaceSearchQuery] = useState("");
+  const [placeSearching, setPlaceSearching] = useState(false);
+  const [placeSearchResults, setPlaceSearchResults] = useState<NormalizedPlace[]>([]);
+  const [placeSearchProviderNotice, setPlaceSearchProviderNotice] = useState("");
+  const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
+  const [locationFocusRequest, setLocationFocusRequest] = useState(0);
   const [translating, setTranslating] = useState(false);
   const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
   const [generatingAdminSummary, setGeneratingAdminSummary] = useState(false);
@@ -1221,6 +1276,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [lastAiFingerprint, setLastAiFingerprint] = useState("");
   const [previewLocale, setPreviewLocale] = useState<PlaceContentLocale>("ko");
   const [status, setStatus] = useState(error ?? "");
+  const reverseRequestRef = useRef(0);
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
   const [qualitySort, setQualitySort] = useState<QualitySort>("updated_desc");
   const [tasteChecklistExpanded, setTasteChecklistExpanded] = useState(false);
@@ -1231,6 +1287,11 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const primaryMenu = getPrimaryMenuDraft(form);
   const selectedTasteCount = ratingControls.filter(({ key }) => typeof form.china_info[key] === "number").length;
   const selectedCity = form.city || inferPlaceCity(form.address_ko) || "busan";
+  const formCoordinates = useMemo(() => {
+    const latitude = normalizeLatitude(form.latitude);
+    const longitude = normalizeLongitude(form.longitude);
+    return latitude === null || longitude === null ? null : { latitude, longitude };
+  }, [form.latitude, form.longitude]);
   const homeIntentDistrictLabel = placeRegionLabel(selectedCity, form.region_key, form.address_ko);
   const aiCurrentContent = useMemo(
     () => ({
@@ -1320,6 +1381,66 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     } finally {
       setGeneratingAdminSummary(false);
     }
+  }
+
+  async function searchOfficialPlaces() {
+    const searchText = placeSearchQuery.trim();
+    if (searchText.length < 2) {
+      setStatus("가게명·주소·전화번호를 2자 이상 입력해 주세요.");
+      return;
+    }
+    if (!adminAccessToken) {
+      setStatus("로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.");
+      return;
+    }
+
+    setPlaceSearching(true);
+    setStatus("공식 장소 API에서 가게 정보를 검색하는 중입니다.");
+    void recordProductEvent({ eventType: "place_import_search", locale: "ko", metadata: { surface: businessMode ? "business_place" : "admin_place" } });
+    try {
+      const response = await fetch("/api/place-search", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          query: searchText,
+          ...(formCoordinates ?? {}),
+        }),
+      });
+      const body = await response.json().catch(() => ({})) as {
+        results?: NormalizedPlace[];
+        providers?: Array<{ provider: string; configured: boolean; ok: boolean; message?: string }>;
+        message?: string;
+      };
+      if (!response.ok) throw new Error(body.message || "장소 검색에 실패했습니다.");
+      const results = Array.isArray(body.results) ? body.results : [];
+      const failures = (body.providers ?? []).filter((item) => !item.ok).map((item) => `${providerDisplayName(item.provider)}: ${item.message || "사용 불가"}`);
+      setPlaceSearchResults(results);
+      setPlaceSearchProviderNotice(failures.join(" · "));
+      setStatus(results.length ? `${results.length}개의 공식 장소 검색 결과를 찾았습니다. 일치하는 가게를 선택해 확인해 주세요.` : "검색 결과가 없습니다. 주소나 전화번호를 추가해 다시 검색하거나 직접 입력해 주세요.");
+    } catch (error) {
+      setPlaceSearchResults([]);
+      setStatus(`${error instanceof Error ? error.message : "장소 검색에 실패했습니다."} 직접 입력으로 계속할 수 있습니다.`);
+    } finally {
+      setPlaceSearching(false);
+    }
+  }
+
+  function applyOfficialPlace(place: NormalizedPlace) {
+    const next = applyProviderFactsToForm(form, {
+      ...place,
+      sourceUrl: place.sourceUrl || place.providerUri || "",
+    });
+    const filled = describeAutoFilledFields(form, next);
+    setForm(next);
+    setLastNormalizedPlace(place);
+    setAutoFilledFields(filled);
+    setLocationFocusRequest((current) => current + 1);
+    setStatus(`공식 ${providerDisplayName(place.provider)} 정보를 적용했습니다.${filled.length ? ` 자동 입력: ${filled.join(", ")}.` : " 기존 직접 입력값은 유지했습니다."} 저장 전 실제 영업 여부와 영업시간을 확인해 주세요.`);
+    void recordProductEvent({
+      eventType: "place_import_applied",
+      locale: "ko",
+      metadata: { surface: businessMode ? "business_place" : "admin_place", provider: place.provider, field_count: filled.length },
+    });
   }
 
   useEffect(() => {
@@ -1613,28 +1734,160 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   async function resolveCoordinatesForForm(currentForm: FormState) {
     const formWithMapCoordinates = fillCoordinatesFromMapLink(currentForm);
 
-    if (hasCoordinateInput(formWithMapCoordinates) || !canUseNaverGeocoder()) {
+    if (hasCoordinateInput(formWithMapCoordinates)) {
       return formWithMapCoordinates;
     }
 
+    let lastError: unknown = null;
     for (const address of geocodeQueriesFromForm(formWithMapCoordinates)) {
-      try {
-        const [result] = await geocodeKoreanAddress(address);
+      if (canUseNaverGeocoder()) {
+        try {
+          const [result] = await geocodeKoreanAddress(address);
 
-        if (result) {
-          return normalizePlaceFormLocation({
-            ...formWithMapCoordinates,
-            latitude: result.latitude.toFixed(7),
-            longitude: result.longitude.toFixed(7),
-            address_ko: formWithMapCoordinates.address_ko || result.roadAddress || result.jibunAddress || result.address,
-          });
+          if (result) {
+            return applyGeocodedAddress(formWithMapCoordinates, result);
+          }
+        } catch (error) {
+          lastError = error;
         }
-      } catch {
-        // Try the next available address/name candidate before reporting no result.
+      }
+
+      try {
+        const [result] = await geocodeAddressViaServer(address);
+        if (result) return applyGeocodedAddress(formWithMapCoordinates, result);
+      } catch (error) {
+        lastError = error;
       }
     }
 
+    if (lastError) throw lastError;
     return formWithMapCoordinates;
+  }
+
+  async function geocodeAddressViaServer(query: string): Promise<LocationApiResult[]> {
+    if (!adminAccessToken) throw new Error("로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.");
+    const response = await fetch("/api/location", {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ mode: "forward", query }),
+    });
+    const body = await response.json().catch(() => ({})) as { results?: LocationApiResult[]; message?: string };
+    if (!response.ok) throw new Error(body.message || "주소 검색에 실패했습니다.");
+    return Array.isArray(body.results) ? body.results : [];
+  }
+
+  async function reverseGeocodeViaServer(latitude: number, longitude: number) {
+    if (!adminAccessToken) throw new Error("로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.");
+    const response = await fetch("/api/location", {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ mode: "reverse", latitude, longitude }),
+    });
+    const body = await response.json().catch(() => ({})) as { result?: LocationApiResult | null; message?: string };
+    if (!response.ok) throw new Error(body.message || "좌표의 주소를 확인하지 못했습니다.");
+    return body.result ?? null;
+  }
+
+  async function requestCurrentPlaceLocation() {
+    setGeocoding(true);
+    setStatus("현재 위치 권한을 확인하고 있습니다. 위치는 가게 좌표 확인에만 사용합니다.");
+    void recordProductEvent({ eventType: "location_requested", locale: "ko", metadata: { surface: businessMode ? "business_place" : "admin_place" } });
+
+    try {
+      const location = await getCurrentBrowserLocation();
+      const { latitude, longitude } = location.coordinates;
+      setForm((current) => ({ ...current, latitude: latitude.toFixed(7), longitude: longitude.toFixed(7) }));
+
+      let addressResult: LocationApiResult | null = null;
+      let reverseNotice = "";
+      try {
+        addressResult = await reverseGeocodeViaServer(latitude, longitude);
+      } catch (error) {
+        reverseNotice = ` 좌표는 보존했지만 주소 확인은 실패했습니다: ${error instanceof Error ? error.message : "알 수 없는 오류"}`;
+      }
+
+      if (addressResult) {
+        setForm((current) => applyGeocodedAddress(current, addressResult));
+      }
+
+      const accuracy = location.accuracyMeters === null ? "정확도 정보 없음" : `정확도 약 ${Math.round(location.accuracyMeters)}m`;
+      setStatus(`현재 위치 좌표를 입력했습니다 (${accuracy}).${location.lowAccuracy ? " 정확도가 낮아 지도 또는 주소로 다시 확인해 주세요." : ""}${reverseNotice}`);
+      void recordProductEvent({
+        eventType: "location_succeeded",
+        locale: "ko",
+        metadata: { surface: businessMode ? "business_place" : "admin_place", accuracy_bucket: location.lowAccuracy ? "low" : "acceptable" },
+      });
+    } catch (error) {
+      const reason = isBrowserLocationError(error) ? error.code : "unknown";
+      const guidance = reason === "permission_denied"
+        ? " 브라우저 사이트 설정에서 위치 권한을 허용하거나 주소 검색을 이용해 주세요."
+        : reason === "insecure_context"
+          ? " HTTPS 환경에서 다시 시도하거나 주소 검색을 이용해 주세요."
+          : " 주소 검색으로 위치를 입력할 수 있습니다.";
+      setStatus(`${error instanceof Error ? error.message : "현재 위치를 확인하지 못했습니다."}${guidance}`);
+      void recordProductEvent({
+        eventType: "location_failed",
+        locale: "ko",
+        metadata: { surface: businessMode ? "business_place" : "admin_place", reason },
+      });
+    } finally {
+      setGeocoding(false);
+    }
+  }
+
+  async function fillAddressFromCoordinates() {
+    const latitude = normalizeLatitude(form.latitude);
+    const longitude = normalizeLongitude(form.longitude);
+    if (latitude === null || longitude === null) {
+      setStatus("유효한 위도(-90~90)와 경도(-180~180)를 먼저 입력해 주세요.");
+      return;
+    }
+
+    setGeocoding(true);
+    setStatus("좌표와 일치하는 주소를 확인하는 중입니다.");
+    try {
+      const result = await reverseGeocodeViaServer(latitude, longitude);
+      if (!result) {
+        setStatus("좌표는 유효하지만 주소 검색 결과가 없습니다. 좌표를 보존하고 주소를 직접 확인해 주세요.");
+        return;
+      }
+      setForm((current) => applyGeocodedAddress(current, result));
+      setStatus(`좌표의 주소를 확인했습니다: ${result.address}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "좌표의 주소를 확인하지 못했습니다.");
+    } finally {
+      setGeocoding(false);
+    }
+  }
+
+  async function selectMapPosition(position: { latitude: number; longitude: number }) {
+    const requestId = reverseRequestRef.current + 1;
+    reverseRequestRef.current = requestId;
+    setForm((current) => ({
+      ...current,
+      latitude: position.latitude.toFixed(7),
+      longitude: position.longitude.toFixed(7),
+    }));
+    setLocationFocusRequest((current) => current + 1);
+    setGeocoding(true);
+    setStatus("지도에서 선택한 좌표의 주소를 확인하는 중입니다. 좌표는 이미 보존했습니다.");
+    void recordProductEvent({ eventType: "map_location_selected", locale: "ko", metadata: { surface: businessMode ? "business_place" : "admin_place" } });
+
+    try {
+      const result = await reverseGeocodeViaServer(position.latitude, position.longitude);
+      if (reverseRequestRef.current !== requestId) return;
+      if (!result) {
+        setStatus("지도에서 위치를 선택했습니다. 주소 결과가 없어 주소는 직접 확인해 주세요.");
+        return;
+      }
+      setForm((current) => applyGeocodedAddress(current, result));
+      setStatus(`지도 위치와 주소를 반영했습니다: ${result.address}`);
+    } catch (error) {
+      if (reverseRequestRef.current !== requestId) return;
+      setStatus(`지도 좌표는 보존했습니다. 주소 확인 실패: ${error instanceof Error ? error.message : "알 수 없는 오류"}`);
+    } finally {
+      if (reverseRequestRef.current === requestId) setGeocoding(false);
+    }
   }
 
   async function parseSourceUrl(forceWebSearch = false) {
@@ -1801,13 +2054,9 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       return;
     }
 
-    if (!canUseNaverGeocoder()) {
-      setStatus("네이버 지도 키가 없어 주소 자동 변환을 사용할 수 없습니다.");
-      return;
-    }
-
     setGeocoding(true);
-    setStatus("네이버 지도에서 주소 좌표를 찾는 중입니다.");
+    setStatus("주소와 일치하는 좌표를 찾는 중입니다.");
+    void recordProductEvent({ eventType: "address_search", locale: "ko", metadata: { surface: businessMode ? "business_place" : "admin_place" } });
 
     try {
       const nextForm = await resolveCoordinatesForForm(form);
@@ -2007,13 +2256,42 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
 
       const body = (await response.json()) as { place: PlaceWithRelations };
       const savedPlace = body.place;
+      let verificationNotice = "";
+      if (autoFilledFields.length && lastNormalizedPlace) {
+        try {
+          const verificationResponse = await fetch(`/api/admin/places/${savedPlace.id}/verifications`, {
+            method: "POST",
+            headers: adminHeaders(),
+            body: JSON.stringify({
+              action: "bootstrap_auto",
+              provider: lastNormalizedPlace.provider,
+              externalId: lastNormalizedPlace.providerPlaceId,
+              sourceUrl: lastNormalizedPlace.sourceUrl,
+              collectedAt: lastNormalizedPlace.fetchedAt,
+              fields: [
+                { fieldName: "name", value: formToSave.name_ko },
+                { fieldName: "address", value: formToSave.address_ko },
+                { fieldName: "coordinates", value: formCoordinates },
+                { fieldName: "phone", value: formToSave.phone },
+                { fieldName: "category", value: formToSave.category },
+                { fieldName: "website", value: formToSave.website },
+                { fieldName: "map_link", value: formToSave.source_url },
+                { fieldName: "opening_hours", value: formToSave.opening_hours },
+              ],
+            }),
+          });
+          verificationNotice = verificationResponse.ok ? " 자동 수집값은 정보별 검토 대기로 기록했습니다." : " 자동 수집 이력은 DB migration(053) 적용 후 기록할 수 있습니다.";
+        } catch {
+          verificationNotice = " 장소는 저장했지만 자동 수집 이력 기록은 재시도가 필요합니다.";
+        }
+      }
       setPlaces((current) =>
         current.some((place) => place.id === savedPlace.id)
           ? current.map((place) => (place.id === savedPlace.id ? savedPlace : place))
           : [savedPlace, ...current],
       );
       setForm(toForm(savedPlace));
-      setStatus(`저장했습니다.${translationNotice} 중국인 특화 구조화 정보도 함께 반영됩니다. ${buildAdminPlaceVisibilityNotice(savedPlace)}`);
+      setStatus(`저장했습니다.${translationNotice}${verificationNotice} 중국인 특화 구조화 정보도 함께 반영됩니다. ${buildAdminPlaceVisibilityNotice(savedPlace)}`);
     } catch (saveError) {
       setStatus(saveError instanceof Error ? saveError.message : "저장 중 오류가 발생했습니다.");
     } finally {
@@ -2243,6 +2521,81 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         {status ? <p role="status" className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{status}</p> : null}
 
         <div className="mt-6 space-y-6">
+          <section className="rounded-[24px] bg-[#f3f6f1] p-4 ring-1 ring-[#dce5d8] sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-teal-700">권장 시작 단계</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">가게명·주소·전화번호로 자동 입력</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-600">공식 Google Places·Kakao·Naver 지역 검색 결과를 검토한 뒤 적용합니다. 적용한 값도 저장 전에 직접 수정할 수 있습니다.</p>
+              </div>
+              <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-800">사업자 확인 필요</span>
+            </div>
+            <form className="mt-4 flex flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); void searchOfficialPlaces(); }}>
+              <input
+                value={placeSearchQuery}
+                onChange={(event) => setPlaceSearchQuery(event.target.value)}
+                placeholder="예: 가게명, 도로명 주소 또는 전화번호"
+                className={`${inputClass} min-w-0 flex-1`}
+                maxLength={120}
+              />
+              <button type="submit" disabled={placeSearching || placeSearchQuery.trim().length < 2} className="min-h-12 shrink-0 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
+                {placeSearching ? "공식 API 검색 중" : "가게 정보 검색"}
+              </button>
+            </form>
+            {placeSearchProviderNotice ? <p className="mt-2 text-xs font-semibold leading-5 text-amber-800">일부 제공자 사용 불가: {placeSearchProviderNotice}</p> : null}
+            {placeSearchResults.length ? (
+              <div className="mt-4 grid gap-3">
+                {placeSearchResults.map((place, index) => (
+                  <article key={`${place.provider}-${place.providerPlaceId || place.sourceUrl}-${index}`} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-slate-200 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-slate-950">{place.name || "이름 확인 필요"}</p>
+                        <span className="rounded-full bg-teal-50 px-2 py-1 text-[11px] font-black text-teal-800">{providerDisplayName(place.provider)} 자동 수집</span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">{place.roadAddressKo || place.formattedAddress || place.addressKo || "주소 정보 없음"}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">{[place.category, place.phone, place.openingHours ? "영업시간 있음" : "영업시간 확인 필요", place.latitude !== undefined && place.longitude !== undefined ? "좌표 있음" : "좌표 확인 필요"].filter(Boolean).join(" · ")}</p>
+                      <p className="mt-2 text-[11px] text-slate-400">수집 시각 {formatCollectedAt(place.fetchedAt)} · 외부 ID {place.providerPlaceId || "없음"}</p>
+                    </div>
+                    <button type="button" onClick={() => applyOfficialPlace(place)} className="min-h-11 rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition hover:bg-teal-800">이 정보 적용</button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+            {autoFilledFields.length ? (
+              <div className="mt-4 rounded-2xl bg-white px-4 py-3 ring-1 ring-teal-200">
+                <p className="text-xs font-black text-teal-900">자동 수집됨 · 사업자 확인 및 관리자 검수 전</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">{autoFilledFields.join(" · ")}</p>
+              </div>
+            ) : null}
+          </section>
+          {!businessMode && form.id && adminAccessToken ? (
+            <AdminPlaceVerificationManager
+              placeId={form.id}
+              accessToken={adminAccessToken}
+              snapshot={{
+                provider: form.source_provider.toLowerCase(),
+                externalId: form.source_external_id || undefined,
+                sourceUrl: form.source_url || undefined,
+                collectedAt: form.source_fetched_at || undefined,
+                fields: {
+                  name: form.name_ko,
+                  address: form.address_ko,
+                  coordinates: formCoordinates,
+                  phone: form.phone,
+                  category: form.category,
+                  website: form.website,
+                  map_link: form.source_url,
+                  opening_hours: form.opening_hours,
+                  menu: primaryMenu.name_ko,
+                  menu_price: primaryMenu.price,
+                  card_payment: form.china_info.foreign_card,
+                  solo_friendly: form.china_info.solo_friendly,
+                  waiting: form.china_info.waiting_level,
+                  restroom: form.china_info.toilet_available,
+                },
+              }}
+            />
+          ) : null}
           <section className="border-y border-slate-200 py-5">
             <h3 className="text-base font-black text-slate-950">1. 지도 링크</h3>
             <div className="mt-3 flex flex-col gap-3 sm:flex-row">
@@ -2709,14 +3062,26 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                     <p className="text-sm font-black text-teal-950">주소 자동 좌표 변환</p>
                     <p className="mt-1 text-xs font-semibold text-teal-700">한국어 주소를 우선 사용하고, 결과 좌표를 위도/경도에 채웁니다.</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void fillCoordinatesFromAddress()}
-                    disabled={geocoding}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {geocoding ? "검색 중" : "주소로 좌표 찾기"}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void fillCoordinatesFromAddress()}
+                      disabled={geocoding}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 text-sm font-black text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <MapPin size={16} aria-hidden="true" />
+                      {geocoding ? "확인 중" : "주소로 좌표 찾기"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void requestCurrentPlaceLocation()}
+                      disabled={geocoding}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-teal-800 ring-1 ring-teal-200 transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <LocateFixed size={16} aria-hidden="true" />
+                      현재 위치 사용
+                    </button>
+                  </div>
                 </div>
               </div>
               <Field label="위도">
@@ -2725,6 +3090,32 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
               <Field label="경도">
                 <input value={form.longitude} onChange={(event) => updateField("longitude", event.target.value)} className={inputClass} inputMode="decimal" />
               </Field>
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => void fillAddressFromCoordinates()}
+                  disabled={geocoding}
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-black text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  좌표로 주소 확인
+                </button>
+              </div>
+              <div className="space-y-3 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-black text-slate-900">지도에서 위치 확인</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">지도를 클릭하면 위도·경도와 주소가 함께 갱신됩니다. 주소 변환이 실패해도 좌표는 유지됩니다.</p>
+                </div>
+                <TravelMap
+                  center={formCoordinates ?? placeCityCenters[selectedCity]}
+                  markers={[]}
+                  userLocation={formCoordinates}
+                  currentLocationFocusRequest={locationFocusRequest}
+                  provider={getPreferredMapProvider()}
+                  locale="ko"
+                  onSelectPosition={(position) => void selectMapPosition(position)}
+                  className="h-[360px]"
+                />
+              </div>
               <Field label="전화번호">
                 <input value={form.phone} onChange={(event) => updateField("phone", event.target.value)} className={inputClass} />
               </Field>

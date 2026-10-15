@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { defaultLocale, type Locale } from "@/lib/i18n";
 import type { Coordinates } from "@/lib/location";
 import { naverMapNcpKeyId, type MapBounds, type MapMarker, type TravelMapProvider } from "@/lib/map-provider";
+import { loadNaverMapsSdk } from "@/lib/naver-maps-sdk";
 
 type TravelMapProps = {
   center: Coordinates;
@@ -22,6 +23,7 @@ type TravelMapProps = {
   searchAreaVisible?: boolean;
   onSearchArea?: (bounds: MapBounds) => void;
   onSelectMarker?: (id: string) => void;
+  onSelectPosition?: (position: Coordinates) => void;
   onRequestCurrentLocation?: () => void;
   onViewportSettled?: (bounds: MapBounds, source: "user" | "program") => void;
   onShowList?: () => void;
@@ -103,7 +105,7 @@ type NaverMapsNamespace = {
   InfoWindow: new (options: Record<string, unknown>) => NaverInfoWindowInstance;
   Point: new (x: number, y: number) => unknown;
   Event: {
-    addListener: (target: unknown, eventName: string, listener: () => void) => NaverEventListener;
+    addListener: (target: unknown, eventName: string, listener: (...args: unknown[]) => void) => NaverEventListener;
     removeListener: (listener: NaverEventListener) => void;
     trigger: (target: unknown, eventName: string) => void;
   };
@@ -135,7 +137,6 @@ const minLatitudeSpan = 0.028;
 const minLongitudeSpan = 0.038;
 const boundsPaddingRatio = 0.32;
 const clusterDistance = 5.6;
-let naverMapsPromise: Promise<NaverMapsNamespace> | null = null;
 
 const mapCopy: Record<Locale, {
   currentLocation: string;
@@ -205,6 +206,7 @@ function NaverTravelMap({
   searchAreaVisible = false,
   onSearchArea,
   onSelectMarker,
+  onSelectPosition,
   onRequestCurrentLocation,
   onViewportSettled,
   onShowList,
@@ -219,11 +221,13 @@ function NaverTravelMap({
   const userMarkerRef = useRef<NaverMarkerInstance | null>(null);
   const infoWindowRef = useRef<NaverInfoWindowInstance | null>(null);
   const idleListenerRef = useRef<NaverEventListener | null>(null);
+  const clickListenerRef = useRef<NaverEventListener | null>(null);
   const lastFocusedPlaceIdRef = useRef<string | null>(null);
   const lastFocusedLocationRequestRef = useRef(0);
   const viewportSourceRef = useRef<"user" | "program">("program");
   const onViewportSettledRef = useRef(onViewportSettled);
   const onSelectMarkerRef = useRef(onSelectMarker);
+  const onSelectPositionRef = useRef(onSelectPosition);
   const selectedIdRef = useRef(selectedId);
   const eventContextRef = useRef({ locale, providerId: provider.id, userId: undefined as string | undefined });
   const { user } = useAuth();
@@ -231,6 +235,7 @@ function NaverTravelMap({
 
   onViewportSettledRef.current = onViewportSettled;
   onSelectMarkerRef.current = onSelectMarker;
+  onSelectPositionRef.current = onSelectPosition;
   selectedIdRef.current = selectedId;
   eventContextRef.current = { locale, providerId: provider.id, userId: user?.id };
 
@@ -242,7 +247,7 @@ function NaverTravelMap({
 
     setScriptStatus("loading");
     setLoadTimedOut(false);
-    loadNaverMaps(ncpKeyId)
+    loadNaverMapsSdk<NaverMapsNamespace>(ncpKeyId)
       .then((loadedMaps) => {
         if (!active) {
           return;
@@ -295,6 +300,14 @@ function NaverTravelMap({
       onViewportSettledRef.current?.(bounds, viewportSourceRef.current);
       viewportSourceRef.current = "user";
     });
+    clickListenerRef.current = maps.Event.addListener(map, "click", (rawEvent) => {
+      const event = rawEvent as { coord?: NaverLatLng } | undefined;
+      const latitude = event?.coord?.lat();
+      const longitude = event?.coord?.lng();
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        onSelectPositionRef.current?.({ latitude: latitude as number, longitude: longitude as number });
+      }
+    });
 
     window.setTimeout(() => {
       if (mapInstanceRef.current !== map) {
@@ -311,6 +324,10 @@ function NaverTravelMap({
       if (idleListenerRef.current) {
         maps.Event.removeListener(idleListenerRef.current);
         idleListenerRef.current = null;
+      }
+      if (clickListenerRef.current) {
+        maps.Event.removeListener(clickListenerRef.current);
+        clickListenerRef.current = null;
       }
 
       markerRefs.current.forEach((marker) => marker.setMap(null));
@@ -451,7 +468,7 @@ function NaverTravelMap({
   }, [currentLocationFocusRequest, maps, userLocation]);
 
   if (scriptStatus === "error") {
-    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} currentLocationFocusRequest={currentLocationFocusRequest} locationPending={locationPending} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onRequestCurrentLocation={onRequestCurrentLocation} onViewportSettled={onViewportSettled} fallbackReason={localizedCopy.sdkFallback} />;
+    return <FallbackTravelMap center={center} markers={markers} userLocation={userLocation} provider={provider} locale={locale} selectedId={selectedId} currentLocationFocusRequest={currentLocationFocusRequest} locationPending={locationPending} className={className} searchAreaVisible={searchAreaVisible} onSearchArea={onSearchArea} onSelectMarker={onSelectMarker} onSelectPosition={onSelectPosition} onRequestCurrentLocation={onRequestCurrentLocation} onViewportSettled={onViewportSettled} fallbackReason={localizedCopy.sdkFallback} />;
   }
 
   return (
@@ -504,7 +521,7 @@ function NaverTravelMap({
                   onClick={() => {
                     setLoadTimedOut(false);
                     setScriptStatus("loading");
-                    void loadNaverMaps(ncpKeyId)
+                    void loadNaverMapsSdk<NaverMapsNamespace>(ncpKeyId)
                       .then((loadedMaps) => {
                         setMaps(loadedMaps);
                         setScriptStatus("ready");
@@ -552,6 +569,7 @@ function FallbackTravelMap({
   searchAreaVisible = false,
   onSearchArea,
   onSelectMarker,
+  onSelectPosition,
   onRequestCurrentLocation,
   onViewportSettled,
   fallbackReason,
@@ -837,6 +855,12 @@ function FallbackTravelMap({
     };
   }
 
+  function handleMapClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (!onSelectPosition || suppressClickRef.current) return;
+    if (event.target instanceof HTMLElement && event.target.closest("button, a, [data-map-control]")) return;
+    onSelectPosition(worldPointToCoordinates(containerToWorld(event.clientX, event.clientY), world));
+  }
+
   function selectMarker(markerId: string) {
     if (suppressClickRef.current) {
       return;
@@ -877,6 +901,7 @@ function FallbackTravelMap({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
+        onClick={handleMapClick}
       >
         <div
           className="absolute inset-[-12%] transition-transform duration-150"
@@ -1029,54 +1054,6 @@ function FallbackTravelMap({
   );
 }
 
-function loadNaverMaps(ncpKeyId: string): Promise<NaverMapsNamespace> {
-  if (typeof window === "undefined") {
-    return Promise.reject(new Error("Naver Maps can only load in the browser."));
-  }
-
-  if (window.naver?.maps) {
-    return Promise.resolve(window.naver.maps);
-  }
-
-  if (naverMapsPromise) {
-    return naverMapsPromise;
-  }
-
-  naverMapsPromise = new Promise((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>("script[data-naver-maps-sdk='true']");
-
-    if (existingScript) {
-      existingScript.addEventListener("load", () => {
-        if (window.naver?.maps) {
-          resolve(window.naver.maps);
-          return;
-        }
-
-        reject(new Error("Naver Maps SDK loaded without maps namespace."));
-      });
-      existingScript.addEventListener("error", () => reject(new Error("Failed to load Naver Maps SDK.")));
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(ncpKeyId)}&submodules=geocoder`;
-    script.async = true;
-    script.dataset.naverMapsSdk = "true";
-    script.addEventListener("load", () => {
-      if (window.naver?.maps) {
-        resolve(window.naver.maps);
-        return;
-      }
-
-      reject(new Error("Naver Maps SDK loaded without maps namespace."));
-    });
-    script.addEventListener("error", () => reject(new Error("Failed to load Naver Maps SDK.")));
-    document.head.appendChild(script);
-  });
-
-  return naverMapsPromise;
-}
-
 function toNaverLatLng(maps: NaverMapsNamespace, position: Coordinates) {
   return new maps.LatLng(position.latitude, position.longitude);
 }
@@ -1213,6 +1190,13 @@ function toWorldPoint(position: Coordinates, bounds: MapBounds): WorldPoint {
   return {
     x: clamp(((position.longitude - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100, 0, 100),
     y: clamp((1 - (position.latitude - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * 100, 0, 100),
+  };
+}
+
+function worldPointToCoordinates(point: WorldPoint, bounds: MapBounds): Coordinates {
+  return {
+    latitude: bounds.maxLat - (clamp(point.y, 0, 100) / 100) * (bounds.maxLat - bounds.minLat),
+    longitude: bounds.minLng + (clamp(point.x, 0, 100) / 100) * (bounds.maxLng - bounds.minLng),
   };
 }
 

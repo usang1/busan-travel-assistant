@@ -13,7 +13,8 @@ const results = [];
 try {
   for (const locale of ["ko", "zh", "en", "ja"]) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    for (const route of ["", "/places", "/nearby", "/guides", "/photo-spots", "/luggage", "/contact", "/service-info", "/privacy", "/terms", "/translator", "/saved", "/itinerary", "/login", "/mypage", "/pricing", "/submissions"]) {
+    page.on("pageerror", (error) => failures.push(`${new URL(page.url()).pathname}: ${error.message}`));
+    for (const route of ["", "/explore", "/busan", "/places", "/nearby", "/guides", "/photo-spots", "/luggage", "/contact", "/service-info", "/privacy", "/terms", "/translator", "/saved", "/itinerary", "/login", "/mypage", "/pricing", "/submissions", "/business-application", "/business/dashboard", "/onboarding", "/admin"]) {
       const url = `/${locale}${route}`;
       const response = await page.goto(base + url, { waitUntil: "networkidle", timeout: 90000 });
       const info = await page.evaluate(() => ({
@@ -28,7 +29,7 @@ try {
       if (response.status() !== 200) failures.push(`${url}: HTTP ${response.status()}`);
       if (info.headings.length !== 1) failures.push(`${url}: ${info.headings.length} H1s`);
       if (!info.title || !info.description || new URL(info.canonical || base).pathname !== url) failures.push(`${url}: missing/incorrect metadata`);
-      if (["/saved", "/login", "/mypage", "/itinerary"].includes(route) && !info.robots?.includes("noindex")) failures.push(`${url}: missing noindex`);
+      if (["/saved", "/login", "/mypage", "/itinerary", "/business/dashboard", "/onboarding", "/admin"].includes(route) && !info.robots?.includes("noindex")) failures.push(`${url}: missing noindex`);
       for (const width of [360, 390, 430, 768, 1024, 1440]) {
         await page.setViewportSize({ width, height: 844 });
         const layout = await page.evaluate(() => ({
@@ -41,7 +42,9 @@ try {
             .map((node) => node.outerHTML.slice(0, 120)),
         }));
         if (layout.scrollWidth > width + 1) failures.push(`${url} ${width}px: horizontal overflow ${layout.scrollWidth}`);
-        if (layout.bottomNav !== (width < 768)) failures.push(`${url} ${width}px: incorrect navigation`);
+        // The marketing landing has its own navigation; the discovery pages
+        // use the fixed mobile navigation.
+        if (layout.bottomNav !== (width < 768 && route !== "" && route !== "/admin")) failures.push(`${url} ${width}px: incorrect navigation`);
         if (layout.visibleHeadings !== 1) failures.push(`${url} ${width}px: H1 hidden`);
         if (layout.smallControls.length) failures.push(`${url} ${width}px: controls below 44px: ${layout.smallControls.join(", ")}`);
         if (["", "/places", "/nearby", "/contact"].includes(route) && [360, 1440].includes(width)) await page.screenshot({ path: path.join(output, `${locale}-${route.slice(1) || "home"}-${width}.png`), fullPage: true });

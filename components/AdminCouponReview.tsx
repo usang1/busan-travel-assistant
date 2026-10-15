@@ -1,0 +1,13 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+type Coupon = { id: string; name: string; benefit_text: string; status: string; valid_from: string; valid_until: string; places?: { name_ko?: string } | null };
+
+export function AdminCouponReview({ accessToken }: { accessToken: string }) {
+  const [coupons, setCoupons] = useState<Coupon[]>([]); const [message, setMessage] = useState("");
+  const load = useCallback(async () => { try { const response = await fetch("/api/admin/coupons", { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" }); const body = await response.json(); if (!response.ok) throw new Error(body.message); setCoupons(body.coupons || []); } catch (error) { setMessage(error instanceof Error ? error.message : "쿠폰을 불러오지 못했습니다."); } }, [accessToken]);
+  useEffect(() => { void load(); }, [load]);
+  async function decide(id: string, decision: "approved" | "rejected") { try { const response = await fetch("/api/admin/coupons", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ id, decision }) }); const body = await response.json(); if (!response.ok) throw new Error(body.message); setMessage(body.message); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : "쿠폰 검수에 실패했습니다."); } }
+  return <section id="coupon-review" className="scroll-mt-24 rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-slate-200"><h2 className="text-2xl font-black">쿠폰 검수</h2><p className="mt-2 text-sm text-slate-600">미검수 쿠폰은 관광객 화면에 공개되지 않습니다.</p>{message ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">{message}</p> : null}<div className="mt-4 space-y-3">{coupons.filter((coupon) => coupon.status === "pending_review").map((coupon) => <article key={coupon.id} className="rounded-2xl bg-slate-50 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black">{coupon.places?.name_ko || "장소"} · {coupon.name}</h3><p className="mt-1 text-sm text-slate-600">{coupon.benefit_text}</p><p className="mt-2 text-xs text-slate-500">{new Date(coupon.valid_from).toLocaleString("ko-KR")} ~ {new Date(coupon.valid_until).toLocaleString("ko-KR")}</p></div><div className="flex gap-2"><button type="button" onClick={() => void decide(coupon.id, "rejected")} className="ui-button-secondary">반려</button><button type="button" onClick={() => void decide(coupon.id, "approved")} className="ui-button-primary">승인</button></div></div></article>)}{!coupons.some((coupon) => coupon.status === "pending_review") ? <p className="text-sm text-slate-500">검수 대기 쿠폰이 없습니다.</p> : null}</div></section>;
+}

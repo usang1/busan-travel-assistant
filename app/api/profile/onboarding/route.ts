@@ -17,16 +17,16 @@ function getRequestedRole(role: string | undefined) {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization")?.replace(/^Bearer\s+/iu, "");
+    const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/iu)?.[1];
     if (!token) return NextResponse.json({ message: "login_required" }, { status: 401 });
 
     const client = createServerAnonClient(token);
     const { data } = await client.auth.getUser(token);
     if (!data.user) return NextResponse.json({ message: "login_required" }, { status: 401 });
 
-    const body = await request.json() as OnboardingBody;
-    const requestedRole = getRequestedRole(body.role);
-    if (!body.displayName?.trim() || !requestedRole || !body.terms || !body.privacy) {
+    const body = await request.json().catch(() => null) as OnboardingBody | null;
+    const requestedRole = getRequestedRole(body?.role);
+    if (!body || typeof body.displayName !== "string" || !body.displayName.trim() || body.displayName.trim().length > 80 || !requestedRole || body.terms !== true || body.privacy !== true) {
       return NextResponse.json({ message: "invalid_onboarding" }, { status: 400 });
     }
 

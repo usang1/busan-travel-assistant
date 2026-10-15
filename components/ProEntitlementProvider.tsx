@@ -25,7 +25,11 @@ function readEntitlementSnapshot() {
     return "";
   }
 
-  return window.localStorage.getItem(entitlementStorageKey) ?? "";
+  try {
+    return window.localStorage.getItem(entitlementStorageKey) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function parseEntitlement(snapshot: string) {
@@ -45,14 +49,14 @@ function getAnonymousSessionId() {
     return "server-session";
   }
 
-  const existing = window.localStorage.getItem(anonymousSessionStorageKey);
-
-  if (existing) {
-    return existing;
-  }
-
   const created = `anon_${crypto.randomUUID()}`;
-  window.localStorage.setItem(anonymousSessionStorageKey, created);
+  try {
+    const existing = window.localStorage.getItem(anonymousSessionStorageKey);
+    if (existing) return existing;
+    window.localStorage.setItem(anonymousSessionStorageKey, created);
+  } catch {
+    // Browsing remains available when the browser disallows persistence.
+  }
   return created;
 }
 

@@ -1,0 +1,48 @@
+import type { Locale } from "@/lib/i18n";
+
+export const accountCopy = {
+  ko: {
+    title: "회원 정보 설정", description: "회원 유형과 필수 동의를 확인하고 여행을 시작하세요.",
+    name: "닉네임 또는 이름", role: "이용 목적", tourist: "관광객", owner: "가게 사장님",
+    terms: "서비스 이용약관", privacy: "개인정보 처리방침", required: "동의 (필수)",
+    marketing: "마케팅 수신 동의 (선택)", continue: "계속", saving: "저장 중…",
+    loading: "로그인 정보를 확인하고 있습니다.", login: "로그인 후 회원 정보를 설정할 수 있습니다.",
+    error: "저장하지 못했습니다. 입력 내용과 연결 상태를 확인한 뒤 다시 시도해 주세요.",
+    authError: "로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.", retry: "다시 시도",
+    businessTitle: "내 가게 관리", businessDescription: "입점 신청 상태와 내 가게 정보를 관리하세요.",
+    applicationTitle: "Spotzari 입점신청", applicationDescription: "가게 정보를 등록하고 해외 여행자에게 소개해 보세요.",
+  },
+  zh: {
+    title: "完善账户信息", description: "请选择使用目的并确认必要的同意事项。",
+    name: "昵称或姓名", role: "使用目的", tourist: "旅行者", owner: "商家",
+    terms: "服务条款", privacy: "隐私政策", required: "同意（必选）",
+    marketing: "接收营销信息（可选）", continue: "继续", saving: "正在保存…",
+    loading: "正在确认登录信息。", login: "登录后可完善账户信息。",
+    error: "保存失败。请检查输入内容和网络连接后重试。",
+    authError: "无法确认登录信息，请重试。", retry: "重试",
+    businessTitle: "我的店铺管理", businessDescription: "查看入驻申请状态并管理店铺信息。",
+    applicationTitle: "Spotzari 商家入驻", applicationDescription: "登记您的店铺，向海外旅行者介绍您的业务。",
+  },
+  en: {
+    title: "Set up your account", description: "Choose how you will use Spotzari and review the required agreements.",
+    name: "Nickname or name", role: "How you will use Spotzari", tourist: "Traveler", owner: "Business owner",
+    terms: "Terms of service", privacy: "Privacy policy", required: "I agree (required)",
+    marketing: "Receive marketing messages (optional)", continue: "Continue", saving: "Saving…",
+    loading: "Checking your sign-in details.", login: "Sign in to set up your account.",
+    error: "Could not save. Check your details and connection, then try again.",
+    authError: "Could not check your sign-in details. Please try again.", retry: "Try again",
+    businessTitle: "My business", businessDescription: "View your application status and manage your business details.",
+    applicationTitle: "List your business on Spotzari", applicationDescription: "Register your business and introduce it to international travelers.",
+  },
+  ja: {
+    title: "アカウント設定", description: "利用目的を選択し、必要な同意事項をご確認ください。",
+    name: "ニックネームまたは名前", role: "利用目的", tourist: "旅行者", owner: "店舗オーナー",
+    terms: "利用規約", privacy: "プライバシーポリシー", required: "同意する（必須）",
+    marketing: "マーケティング情報を受け取る（任意）", continue: "続ける", saving: "保存中…",
+    loading: "ログイン情報を確認しています。", login: "ログイン後にアカウントを設定できます。",
+    error: "保存できませんでした。入力内容と接続を確認して、再度お試しください。",
+    authError: "ログイン情報を確認できませんでした。再度お試しください。", retry: "再試行",
+    businessTitle: "店舗管理", businessDescription: "掲載申請の状況と店舗情報を管理できます。",
+    applicationTitle: "Spotzari 店舗掲載申請", applicationDescription: "店舗を登録して、海外からの旅行者に紹介しましょう。",
+  },
+} satisfies Record<Locale, Record<string, string>>;

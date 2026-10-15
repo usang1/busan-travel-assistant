@@ -1,9 +1,10 @@
 "use client";
 
 import type { Provider } from "@supabase/supabase-js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle, LogIn, Mail, UserPlus } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { accountCopy } from "@/lib/account-copy";
 import { useAuth } from "@/components/AuthProvider";
 import { pendingPlaceSaveStorageKey, type PendingPlaceSave, getSafeNextPath } from "@/lib/auth-flow";
 import { recordPlaceEvent } from "@/lib/place-events";
@@ -86,7 +87,8 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const locale = getLocaleFromPath(pathname) ?? defaultLocale;
   const text = ui[locale].authFlow;
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, authError, retryAuth } = useAuth();
+  const finishingUser = useRef<string | null>(null);
   const [mode, setMode] = useState<AuthMode>(() => getModeFromSearch(searchParams));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -171,12 +173,15 @@ export function LoginForm() {
         metadata: { source: "pending_login" },
       });
     } catch {
-      window.localStorage.removeItem(pendingPlaceSaveStorageKey);
+      // A browser storage failure must not prevent sign-in or discard a save
+      // that can be retried after storage becomes available again.
     }
   }, []);
 
   const finishLogin = useCallback(
     async (userId: string) => {
+      if (finishingUser.current === userId) return;
+      finishingUser.current = userId;
       setMessage(text.signedIn);
       await consumePendingSave(userId, locale);
       router.replace(profile?.onboarding_completed === false ? `${withLocale("/onboarding", locale)}?next=${encodeURIComponent(nextPath)}` : nextPath);
@@ -186,10 +191,10 @@ export function LoginForm() {
   );
 
   useEffect(() => {
-    if (!loading && session) {
+    if (!loading && session && profile) {
       void finishLogin(session.user.id);
     }
-  }, [finishLogin, loading, session]);
+  }, [finishLogin, loading, profile, session]);
 
   async function startSocialLogin(providerId: SocialProviderId) {
     const client = getSupabaseClient();
@@ -210,17 +215,21 @@ export function LoginForm() {
     callbackUrl.searchParams.set("next", nextPath);
     callbackUrl.searchParams.set("locale", callbackLocale);
 
-    const { error } = await client.auth.signInWithOAuth({
-      provider: provider.provider,
-      options: {
-        redirectTo: callbackUrl.toString(),
-        ...(provider.scopes ? { scopes: provider.scopes } : {}),
-      },
-    });
-
-    if (error) {
+    try {
+      const { error } = await client.auth.signInWithOAuth({
+        provider: provider.provider,
+        options: {
+          redirectTo: callbackUrl.toString(),
+          ...(provider.scopes ? { scopes: provider.scopes } : {}),
+        },
+      });
+      if (error) {
+        setSocialSubmitting(null);
+        setMessage(getAuthErrorMessage(error, text, mode));
+      }
+    } catch {
       setSocialSubmitting(null);
-      setMessage(getAuthErrorMessage(error, text, mode));
+      setMessage(text.oauthErrorFallback);
     }
   }
 
@@ -243,32 +252,36 @@ export function LoginForm() {
     setMessage("");
     recordAuthAnalyticsEvent(authAnalyticsEventNames[mode]);
 
-    const result =
-      mode === "signin"
-        ? await client.auth.signInWithPassword({ email, password })
-        : await client.auth.signUp({
-            email,
-            password,
-            options: {
-              emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(accountType === "business_owner" ? withLocale("/business-application", locale) : nextPath)}&locale=${locale}`,
-              data: { display_name: displayName.trim(), account_type: accountType, preferred_locale: locale, terms_accepted: true, privacy_accepted: true, marketing_opt_in: marketingOptIn },
-            },
-          });
+    try {
+      const result =
+        mode === "signin"
+          ? await client.auth.signInWithPassword({ email, password })
+          : await client.auth.signUp({
+              email,
+              password,
+              options: {
+                emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(accountType === "business_owner" ? withLocale("/business-application", locale) : nextPath)}&locale=${locale}`,
+                data: { display_name: displayName.trim(), account_type: accountType, preferred_locale: locale, terms_accepted: true, privacy_accepted: true, marketing_opt_in: marketingOptIn },
+              },
+            });
 
-    setSubmitting(false);
+      if (result.error) {
+        setMessage(getAuthErrorMessage(result.error, text, mode));
+        return;
+      }
 
-    if (result.error) {
-      setMessage(getAuthErrorMessage(result.error, text, mode));
-      return;
+      if (result.data.session?.user) {
+        // AuthProvider finishes loading the profile before the effect navigates.
+        return;
+      }
+
+      updateMode("signin");
+      setMessage(text.confirmEmail);
+    } catch {
+      setMessage(mode === "signin" ? text.signinErrorFallback : text.signupErrorFallback);
+    } finally {
+      setSubmitting(false);
     }
-
-    if (result.data.session?.user) {
-      await finishLogin(result.data.session.user.id);
-      return;
-    }
-
-    updateMode("signin");
-    setMessage(text.confirmEmail);
   }
 
   return (
@@ -283,6 +296,7 @@ export function LoginForm() {
         </div>
       </div>
 
+      {authError && !profile ? <div role="alert" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm"><p>{accountCopy[locale].authError}</p><button type="button" onClick={retryAuth} className="ui-button-secondary mt-2">{accountCopy[locale].retry}</button></div> : null}
       <div className="mt-5 space-y-2">
         {socialProviders.map((provider) => {
           const label = text.socialLogin[provider.id];

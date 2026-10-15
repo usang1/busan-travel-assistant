@@ -47,6 +47,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error) throw error;
     revalidateTag(publicPlacesCacheTag, { expire: 0 });
     const result = data as { code?: string; place_id?: string } | null;
+    try {
+      await client.from("place_action_events").insert({
+        place_id: result?.place_id ?? null,
+        event_type: "admin_review_completed",
+        locale: "ko",
+        metadata: { review_kind: "business_place_change", decision: "approved", change_id: changeId },
+      });
+    } catch {
+      // Analytics availability must not change the review result.
+    }
     return NextResponse.json({
       change: result,
       message: result?.code === "already_approved"

@@ -62,6 +62,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return apiError(code, known?.status ?? 500, known?.message ?? "입점 승인 처리를 완료하지 못했습니다.");
     }
 
+    try {
+      await client.from("place_action_events").insert({
+        place_id: result.place_id ?? null,
+        event_type: "admin_review_completed",
+        locale: "ko",
+        metadata: { review_kind: "business_application", decision: body.status, application_id: applicationId },
+      });
+    } catch {
+      // Analytics availability must not change the review result.
+    }
+
     return NextResponse.json({
       ok: true,
       code: result.code,

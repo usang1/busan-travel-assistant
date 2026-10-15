@@ -64,6 +64,8 @@ const quickFilterIcons: Record<HomeQuickFilterKey, LucideIcon> = {
 };
 
 export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = false, embedded = false }: HomeDiscoveryPageProps) {
+  const Container = embedded ? "div" : "main";
+  const Heading = embedded ? "h2" : "h1";
   const copy = cityHomeCopy[locale];
   const districtCounts = getDistrictCounts(places);
   const activeDistricts = busanDistrictOptions
@@ -87,14 +89,14 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
   }, {});
 
   return (
-    <main className={`${embedded ? "" : "safe-bottom"} mx-auto max-w-7xl px-4 pb-10 pt-8 sm:px-6 lg:px-8 lg:pb-16 lg:pt-12`}>
+    <Container className={`${embedded ? "" : "safe-bottom"} mx-auto max-w-7xl px-4 pb-10 pt-8 sm:px-6 lg:px-8 lg:pb-16 lg:pt-12`}>
       <ProductAnalytics eventType="home_view" locale={locale} metadata={{ public_place_count: places.length }} />
       <section className="overflow-hidden border border-[#3f5143] bg-[#26352c] px-5 py-8 text-white shadow-[0_24px_70px_rgba(37,40,36,0.12)] sm:px-8 sm:py-12 lg:px-12 lg:py-14">
         <div className="inline-flex items-center gap-2 border border-white/15 bg-white/8 px-3 py-1.5 text-sm font-bold text-[#dbe7d9]">
           <MapPin size={16} aria-hidden="true" />
           {copy.area}
         </div>
-        <h1 className="mt-6 max-w-3xl text-[clamp(2rem,5vw,4.25rem)] font-black leading-[1.02] tracking-[-0.045em]">{copy.heading}</h1>
+        <Heading className="mt-6 max-w-3xl text-[clamp(2rem,5vw,4.25rem)] font-black leading-[1.02] tracking-[-0.045em]">{copy.heading}</Heading>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[#d3dbd2] sm:text-base">{copy.supporting}</p>
         <div className="mt-5 max-w-2xl">
           <HomeSearchForm locale={locale} socialDiscoveryEnabled={socialDiscoveryEnabled} />
@@ -166,7 +168,7 @@ export function HomeDiscoveryPage({ locale, places, socialDiscoveryEnabled = fal
           />
         )}
       </section>
-    </main>
+    </Container>
   );
 }
 

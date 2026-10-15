@@ -68,7 +68,7 @@ export function Header() {
           </Link>
           {user ? (
             <>
-              <Link href={withLocale("/business/dashboard", currentLocale)} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full bg-indigo-50 px-3 text-sm font-black text-indigo-800 ring-1 ring-indigo-100"><Store size={16} aria-hidden="true" /><span className="hidden sm:inline">{businessDashboardLabel}</span></Link>
+              <Link href={withLocale("/business/dashboard", currentLocale)} aria-label={businessDashboardLabel} className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full bg-indigo-50 px-3 text-sm font-black text-indigo-800 ring-1 ring-indigo-100"><Store size={16} aria-hidden="true" /><span className="hidden sm:inline">{businessDashboardLabel}</span></Link>
               <Link
                 href={withLocale("/mypage", currentLocale)}
                 className="inline-flex size-11 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100 active:scale-95 sm:w-auto sm:gap-1.5 sm:px-3"

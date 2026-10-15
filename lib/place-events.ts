@@ -42,6 +42,24 @@ export async function recordPlaceEvent({
 
 export const recordProductEvent = recordPlaceEvent;
 
+/**
+ * Records a server-side product event without allowing analytics availability to
+ * affect the action that the user asked us to perform. Some route tests and
+ * migration rollouts intentionally use clients that do not expose the events
+ * table yet, so both synchronous query-builder failures and Supabase errors are
+ * ignored here.
+ */
+export async function recordServerPlaceEvent(
+  client: { from: (table: string) => { insert: (value: Record<string, unknown>) => PromiseLike<unknown> } },
+  value: Record<string, unknown>,
+) {
+  try {
+    await client.from("place_action_events").insert(value);
+  } catch {
+    // Analytics must never block the core server action.
+  }
+}
+
 export function sanitizeAnalyticsMetadata(metadata: Record<string, unknown>) {
   const sanitized: Record<string, string | number | boolean | null | Array<string | number | boolean>> = {};
 

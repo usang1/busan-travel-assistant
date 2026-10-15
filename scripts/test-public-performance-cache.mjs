@@ -69,11 +69,14 @@ assert.match(nearby, /window\.matchMedia\("\(min-width: 1024px\)"\)/);
 assert.match(nearby, /sheetOpen && "hidden"/);
 
 const travelMap = fs.readFileSync("components/TravelMap.tsx", "utf8");
+const naverMapsSdk = fs.readFileSync("lib/naver-maps-sdk.ts", "utf8");
 assert.match(travelMap, /setLoadTimedOut\(true\)/);
 assert.match(travelMap, /3000/);
 assert.match(travelMap, /localizedCopy\.retry/);
 assert.match(travelMap, /localizedCopy\.listView/);
-assert.match(travelMap, /script\[data-naver-maps-sdk='true'\]/);
+assert.match(travelMap, /loadNaverMapsSdk/);
+assert.match(naverMapsSdk, /script\[data-naver-maps-sdk='true'\]/);
+assert.match(naverMapsSdk, /sdkPromise = null/, "transient SDK failures must be retryable");
 
 const migration = fs.readFileSync("supabase/migrations/026_public_page_performance_indexes.sql", "utf8");
 assert.match(migration, /places_public_slug_idx/);

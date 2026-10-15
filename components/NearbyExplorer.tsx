@@ -68,6 +68,11 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { formatTimeAwarePrimary, getTimeAwarePlaceState } from "@/lib/time-aware-place";
 import { categoryLabels, type PlaceWithRelations } from "@/types/database";
 import { recordProductEvent } from "@/lib/place-events";
+import {
+  getCurrentBrowserLocation,
+  isBrowserLocationError,
+  type BrowserLocationErrorCode,
+} from "@/lib/browser-geolocation";
 
 type NearbyExplorerProps = {
   places: PlaceWithRelations[];
@@ -448,41 +453,49 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
     clearAreaSearch();
   }
 
-  function requestLocation() {
-    if (!("geolocation" in navigator)) {
-      setLocationStatus(cityScopeCopy.unsupported);
-      setOriginMode("default");
-      return;
-    }
-
+  async function requestLocation() {
     setIsLocating(true);
     setLocationStatus(localizedCopy.locationChecking);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextLocation = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        const distanceToDefault = calculateDistanceMeters(nextLocation, defaultCenter);
 
-        setUserLocation(nextLocation);
-        setOriginMode("current");
-        setLocationFocusRequest((current) => current + 1);
-        clearAreaSearch();
-        setLocationStatus(`${localizedCopy.currentBase} ${cityScopeCopy.distanceToCenter} ${formatDistance(distanceToDefault, locale)}.`);
-        setIsLocating(false);
-      },
-      () => {
-        setOriginMode("default");
-        setLocationStatus(cityScopeCopy.denied);
-        setIsLocating(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 60000,
-      },
-    );
+    void recordProductEvent({
+      eventType: "location_requested",
+      locale,
+      userId: user?.id,
+      metadata: { surface: "nearby" },
+    });
+
+    try {
+      const result = await getCurrentBrowserLocation();
+      const distanceToDefault = calculateDistanceMeters(result.coordinates, defaultCenter);
+      const accuracyNotice = result.lowAccuracy ? ` ${getLocationAccuracyNotice(locale, result.accuracyMeters)} ` : " ";
+
+      setUserLocation(result.coordinates);
+      setOriginMode("current");
+      setLocationFocusRequest((current) => current + 1);
+      clearAreaSearch();
+      setLocationStatus(`${localizedCopy.currentBase}${accuracyNotice}${cityScopeCopy.distanceToCenter} ${formatDistance(distanceToDefault, locale)}.`);
+      void recordProductEvent({
+        eventType: "location_succeeded",
+        locale,
+        userId: user?.id,
+        metadata: {
+          surface: "nearby",
+          accuracy_bucket: getAccuracyBucket(result.accuracyMeters),
+        },
+      });
+    } catch (error) {
+      const reason = isBrowserLocationError(error) ? error.code : "unknown";
+      setOriginMode("default");
+      setLocationStatus(getLocationFailureMessage(locale, reason, cityScopeCopy));
+      void recordProductEvent({
+        eventType: "location_failed",
+        locale,
+        userId: user?.id,
+        metadata: { surface: "nearby", reason },
+      });
+    } finally {
+      setIsLocating(false);
+    }
   }
 
   function changeCategory(nextCategory: MapCategoryFilter) {
@@ -548,14 +561,13 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
 
       {userLocation ? <NearbyPopularPlaces origin={userLocation} locale={locale} /> : null}
 
-      <section className="hidden min-h-[calc(100dvh-180px)] grid-cols-[minmax(320px,38%)_minmax(0,1fr)] gap-4 lg:grid">
+      {desktopMapMounted ? <section className="min-h-[calc(100dvh-180px)] grid grid-cols-[minmax(320px,38%)_minmax(0,1fr)] gap-4">
         <aside className="flex min-h-0 flex-col border border-[#e8e4dd] bg-white shadow-[0_18px_50px_rgba(37,40,36,0.06)]">
           <div className="border-b border-slate-100 p-4">{searchControls}</div>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">{list}</div>
         </aside>
         <div className="sticky top-[160px] h-[calc(100dvh-184px)] min-h-[360px]">
-          {desktopMapMounted ? (
-            <TravelMap
+          <TravelMap
               center={origin}
               markers={markers}
               userLocation={originMode === "current" ? userLocation : null}
@@ -576,12 +588,11 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
               }}
               onShowList={() => setSheetOpen(true)}
               className="h-full"
-            />
-          ) : null}
+          />
         </div>
-      </section>
+      </section> : null}
 
-      <section className="lg:hidden">
+      {!desktopMapMounted ? <section>
         <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" role="tablist" aria-label={localizedCopy.viewMode}>
           <button
             type="button"
@@ -638,7 +649,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
         </div>
 
         <div id="nearby-mobile-list" role="tabpanel" hidden={!sheetOpen} className="pb-4">{list}</div>
-      </section>
+      </section> : null}
 
       <p className="hidden text-center text-xs text-slate-500 lg:block">
         {copy.places.countLabel} {filteredItems.length} / {baseItems.length}
@@ -1384,6 +1395,67 @@ const nearbyCopy: Record<Locale, {
     nowRecommended: "지금 추천",
   },
 };
+
+function getAccuracyBucket(accuracyMeters: number | null) {
+  if (accuracyMeters === null) return "unknown";
+  if (accuracyMeters <= 30) return "high";
+  if (accuracyMeters <= 100) return "medium";
+  return "low";
+}
+
+function getLocationAccuracyNotice(locale: Locale, accuracyMeters: number | null) {
+  const rounded = accuracyMeters === null ? null : Math.round(accuracyMeters);
+  return {
+    ko: `위치 정확도가 낮을 수 있습니다${rounded ? ` (약 ${rounded}m)` : ""}.`,
+    zh: `定位精度可能较低${rounded ? `（约 ${rounded} 米）` : ""}。`,
+    en: `Location accuracy may be low${rounded ? ` (about ${rounded} m)` : ""}.`,
+    ja: `位置精度が低い可能性があります${rounded ? `（約${rounded}m）` : ""}。`,
+  }[locale];
+}
+
+function getLocationFailureMessage(
+  locale: Locale,
+  code: BrowserLocationErrorCode,
+  cityCopy: ReturnType<typeof getNearbyCityScopeCopy>,
+) {
+  if (code === "permission_denied") {
+    return {
+      ko: `${cityCopy.denied} 브라우저 사이트 설정에서 위치 권한을 허용하거나 지도·목록 검색을 이용해 주세요.`,
+      zh: `${cityCopy.denied} 请在浏览器的网站设置中允许位置权限，或使用地图和列表搜索。`,
+      en: `${cityCopy.denied} Allow location in your browser site settings, or use map and list search.`,
+      ja: `${cityCopy.denied} ブラウザのサイト設定で位置情報を許可するか、地図・一覧検索をご利用ください。`,
+    }[locale];
+  }
+
+  if (code === "insecure_context") {
+    return {
+      ko: `${cityCopy.unsupported} 현재 위치는 HTTPS 환경에서만 사용할 수 있습니다.`,
+      zh: `${cityCopy.unsupported} 当前位置只能在 HTTPS 环境中使用。`,
+      en: `${cityCopy.unsupported} Current location requires HTTPS.`,
+      ja: `${cityCopy.unsupported} 現在地は HTTPS 環境でのみ利用できます。`,
+    }[locale];
+  }
+
+  if (code === "timeout") {
+    return {
+      ko: `${cityCopy.unsupported} 위치 확인 시간이 초과되었습니다. 다시 시도하거나 지도·목록 검색을 이용해 주세요.`,
+      zh: `${cityCopy.unsupported} 定位超时，请重试或使用地图和列表搜索。`,
+      en: `${cityCopy.unsupported} Location timed out. Try again, or use map and list search.`,
+      ja: `${cityCopy.unsupported} 位置確認がタイムアウトしました。再試行するか、地図・一覧検索をご利用ください。`,
+    }[locale];
+  }
+
+  if (code === "position_unavailable") {
+    return {
+      ko: `${cityCopy.unsupported} 기기의 위치 서비스를 확인하거나 지도·목록 검색을 이용해 주세요.`,
+      zh: `${cityCopy.unsupported} 请检查设备定位服务，或使用地图和列表搜索。`,
+      en: `${cityCopy.unsupported} Check your device location service, or use map and list search.`,
+      ja: `${cityCopy.unsupported} 端末の位置情報サービスを確認するか、地図・一覧検索をご利用ください。`,
+    }[locale];
+  }
+
+  return cityCopy.unsupported;
+}
 
 const selectClass = "h-11 w-full bg-white px-3 text-sm font-bold text-[#3f433f] outline-none ring-1 ring-[#e8e4dd] focus:ring-2 focus:ring-[#4f6652]";
 
