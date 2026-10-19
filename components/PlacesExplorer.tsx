@@ -269,7 +269,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            onBlur={() => { if (query.trim()) trackFilter("search", "present"); }}
+            onBlur={() => { if (query.trim()) void recordProductEvent({ eventType: "search", locale, userId: user?.id, metadata: { surface: "places", city, result_count: filteredPlaces.length } }); }}
             placeholder={copy.places.searchPlaceholder}
             className="h-14 w-full border border-[#dcd8d1] bg-[#faf9f6] pl-11 pr-12 text-[16px] text-[#252824] outline-none transition focus:border-[#768a75] focus:bg-white focus:ring-4 focus:ring-[#e3ebe1]"
           />

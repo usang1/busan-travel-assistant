@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Copy, TicketPercent } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { captureSessionAttribution, readSessionAttribution } from "@/lib/analytics-source";
+import { recordProductEvent } from "@/lib/place-events";
 import type { Locale } from "@/lib/i18n";
 
 type Coupon = { id: string; name: string; benefit_text: string; valid_until: string; daily_start: string | null; daily_end: string | null };
@@ -25,6 +26,11 @@ export function PlaceCouponPanel({ placeId, locale }: { placeId: string; locale:
       .catch(() => undefined);
     return () => controller.abort();
   }, [placeId]);
+
+  useEffect(() => {
+    if (!coupons.length) return;
+    void recordProductEvent({ eventType: "coupon_view", locale, placeId, metadata: { coupon_count: coupons.length, surface: "place_detail" } });
+  }, [coupons.length, locale, placeId]);
 
   async function issue(coupon: Coupon) {
     captureSessionAttribution();

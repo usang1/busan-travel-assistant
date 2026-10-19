@@ -14,15 +14,19 @@ type AnalyticsLinkProps = {
   locale: Locale;
   placeId?: string;
   metadata: Record<string, unknown>;
+  target?: "_blank";
+  rel?: string;
   children: ReactNode;
 };
 
-export function AnalyticsLink({ href, className, eventType, locale, placeId, metadata, children }: AnalyticsLinkProps) {
+export function AnalyticsLink({ href, className, eventType, locale, placeId, metadata, target, rel, children }: AnalyticsLinkProps) {
   const { user } = useAuth();
   return (
     <Link
       href={href}
       className={className}
+      target={target}
+      rel={rel}
       onClick={() => void recordProductEvent({ eventType, locale, placeId, userId: user?.id, metadata })}
     >
       {children}

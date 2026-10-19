@@ -14,9 +14,10 @@ export function AnalyticsAttribution() {
     captureSessionAttribution();
     const locale = readLocale(pathname);
     const pageKey = `spotzari-page-view:${pathname}`;
-    const lastRecordedAt = Number(window.sessionStorage.getItem(pageKey) || 0);
+    let lastRecordedAt = 0;
+    try { lastRecordedAt = Number(window.sessionStorage.getItem(pageKey) || 0); } catch { /* Storage may be unavailable. */ }
     if (Date.now() - lastRecordedAt >= 30_000) {
-      window.sessionStorage.setItem(pageKey, String(Date.now()));
+      try { window.sessionStorage.setItem(pageKey, String(Date.now())); } catch { /* Server deduplication remains authoritative. */ }
       void recordProductEvent({ eventType: "page_view", locale, metadata: { page_path: pathname } });
     }
   }, [pathname, searchParams]);

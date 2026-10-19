@@ -8,17 +8,38 @@ export type AnalyticsEventRow = {
   event_type: string;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  occurred_at?: string | null;
+  anonymous_session_id?: string | null;
+  device_type?: string | null;
+  channel?: string | null;
+  source?: string | null;
+};
+
+export type DailyAnalyticsRow = {
+  stat_date: string; place_id?: string | null; event_name: string; locale: string;
+  device_type: string; channel: string; source: string; campaign_id: string;
+  event_count: number | string; unique_visitors: number | string; updated_at: string;
 };
 
 export function aggregateGrowthEvents(rows: AnalyticsEventRow[]) {
   const metricTypes: Record<string, string[]> = {
     pageViews: ["page_view", "home_view"],
     placeViews: ["place_view", "place_opened"],
+    impressions: ["place_impression"],
     saves: ["place_save", "place_saved"],
-    directions: ["directions_click"],
+    unsaves: ["place_unsave"],
+    photoClicks: ["photo_click"],
+    menuClicks: ["menu_click", "menu_view"],
+    mapClicks: ["map_click"],
+    directions: ["directions_click", "map_opened"],
     phoneClicks: ["phone_click"],
-    couponIssues: ["coupon_issued"],
-    couponRedemptions: ["coupon_redeemed"],
+    websiteClicks: ["website_click"],
+    couponViews: ["coupon_view"],
+    couponIssues: ["coupon_claim", "coupon_issued"],
+    couponRedemptions: ["coupon_redeem", "coupon_redeemed"],
+    searches: ["search", "place_search"],
+    filters: ["filter_apply", "filter_applied"],
+    courseSaves: ["course_save", "route_saved", "ai_route_saved"],
     stayQrLandings: ["stay_qr_landing"],
     importSearches: ["place_import_search"],
     importApplied: ["place_import_applied"],
@@ -30,8 +51,10 @@ export function aggregateGrowthEvents(rows: AnalyticsEventRow[]) {
   };
   const metrics = Object.fromEntries(Object.entries(metricTypes).map(([key, types]) => [key, countTypes(rows, types)]));
   const visitors = new Set(rows.map(visitorKey).filter(Boolean)).size;
-  const channels = countBy(rows, (row) => metadataText(row, "channel") || inferLegacyChannel(row) || "unknown");
+  const channels = countBy(rows, (row) => row.channel || metadataText(row, "channel") || inferLegacyChannel(row) || "unknown");
   const locales = countBy(rows, (row) => row.locale || "unknown");
+  const devices = countBy(rows, (row) => row.device_type || "unknown");
+  const sources = countBy(rows, (row) => row.source || metadataText(row, "initial_source") || "unknown");
   const daily = Object.entries(groupBy(rows, (row) => seoulDate(row.created_at)))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, events]) => ({
@@ -67,15 +90,51 @@ export function aggregateGrowthEvents(rows: AnalyticsEventRow[]) {
     totalEvents: rows.length,
     metrics: {
       ...metrics,
+      uniquePlaceViews: uniqueEventVisitors(rows, metricTypes.placeViews),
+      saveConversionRate: rate(metrics.saves, metrics.placeViews),
+      directionsClickRate: rate(metrics.directions, metrics.placeViews),
       locationSuccessRate: rate(metrics.locationSuccesses, metrics.locationRequests),
       importApplyRate: rate(metrics.importApplied, metrics.importSearches),
     },
     channels,
     locales,
+    devices,
+    sources,
     daily,
     popularPlaces,
     campaigns,
   };
+}
+
+export function aggregateDailyGrowthStats(rows: DailyAnalyticsRow[]) {
+  const count = (types: string[]) => rows.filter((row) => types.includes(row.event_name)).reduce((sum, row) => sum + Number(row.event_count || 0), 0);
+  const placeViews = count(["place_view", "place_opened"]);
+  const saves = count(["place_save", "place_saved"]);
+  const metrics = {
+    pageViews: count(["page_view", "home_view"]), impressions: count(["place_impression"]), placeViews,
+    uniquePlaceViews: rows.filter((row) => row.event_name === "__place_view_unique__").reduce((sum, row) => sum + Number(row.unique_visitors || 0), 0),
+    saves, unsaves: count(["place_unsave"]), photoClicks: count(["photo_click"]), menuClicks: count(["menu_click", "menu_view"]),
+    mapClicks: count(["map_click"]), directions: count(["directions_click", "map_opened"]), phoneClicks: count(["phone_click"]),
+    websiteClicks: count(["website_click"]), couponViews: count(["coupon_view"]), couponIssues: count(["coupon_claim", "coupon_issued"]),
+    couponRedemptions: count(["coupon_redeem", "coupon_redeemed"]), searches: count(["search", "place_search"]),
+    filters: count(["filter_apply", "filter_applied"]), courseSaves: count(["course_save", "route_saved", "ai_route_saved"]),
+    saveConversionRate: rate(saves, placeViews), directionsClickRate: rate(count(["directions_click", "map_opened"]), placeViews),
+  };
+  const detailRows = rows.filter((row) => !row.event_name.startsWith("__"));
+  const dimensions = (key: "channel" | "locale" | "device_type" | "source") => Object.entries(detailRows.reduce<Record<string, { count: number; visitors: number }>>((all, row) => {
+    const value = row[key] || "unknown"; const item = all[value] ??= { count: 0, visitors: 0 };
+    item.count += Number(row.event_count || 0); item.visitors += Number(row.unique_visitors || 0); return all;
+  }, {})).map(([value, item]) => ({ value, ...item })).sort((a, b) => b.count - a.count);
+  const daily = Object.entries(rows.reduce<Record<string, DailyAnalyticsRow[]>>((all, row) => { (all[row.stat_date] ??= []).push(row); return all; }, {}))
+    .sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => ({ date, events: items.filter((row) => !row.event_name.startsWith("__")).reduce((sum, row) => sum + Number(row.event_count || 0), 0), visitors: Number(items.find((row) => row.event_name === "__all__")?.unique_visitors || 0), placeViews: items.filter((row) => ["place_view", "place_opened"].includes(row.event_name)).reduce((sum, row) => sum + Number(row.event_count || 0), 0), directions: items.filter((row) => ["directions_click", "map_opened"].includes(row.event_name)).reduce((sum, row) => sum + Number(row.event_count || 0), 0), couponRedemptions: items.filter((row) => ["coupon_redeem", "coupon_redeemed"].includes(row.event_name)).reduce((sum, row) => sum + Number(row.event_count || 0), 0) }));
+  const places = rows.filter((row) => row.place_id).reduce<Record<string, DailyAnalyticsRow[]>>((all, row) => { (all[row.place_id!] ??= []).push(row); return all; }, {});
+  const popularPlaces = Object.entries(places).map(([placeId, items]) => ({ placeId, views: sumDaily(items, ["place_view", "place_opened"]), saves: sumDaily(items, ["place_save", "place_saved"]), directions: sumDaily(items, ["directions_click", "map_opened"]), couponRedemptions: sumDaily(items, ["coupon_redeem", "coupon_redeemed"]) })).sort((a, b) => b.views - a.views).slice(0, 20);
+  return { visitors: null, totalEvents: detailRows.reduce((sum, row) => sum + Number(row.event_count || 0), 0), metrics, channels: dimensions("channel"), locales: dimensions("locale"), devices: dimensions("device_type"), sources: dimensions("source"), daily, popularPlaces, campaigns: [], aggregateUpdatedAt: rows.map((row) => row.updated_at).sort().at(-1) ?? null };
+}
+
+export function aggregateDailyPlaceRankings(rows: DailyAnalyticsRow[]) {
+  const places = rows.filter((row) => row.place_id).reduce<Record<string, DailyAnalyticsRow[]>>((all, row) => { (all[row.place_id!] ??= []).push(row); return all; }, {});
+  return Object.entries(places).map(([placeId, items]) => ({ placeId, views: sumDaily(items, ["place_view", "place_opened"]), saves: sumDaily(items, ["place_save", "place_saved"]), directions: sumDaily(items, ["directions_click", "map_opened"]), couponRedemptions: sumDaily(items, ["coupon_redeem", "coupon_redeemed"]) })).sort((a, b) => b.views - a.views).slice(0, 20);
 }
 
 function countTypes(rows: AnalyticsEventRow[], types: string[]) {
@@ -84,8 +143,15 @@ function countTypes(rows: AnalyticsEventRow[], types: string[]) {
 }
 
 function visitorKey(row: AnalyticsEventRow) {
-  return metadataText(row, "visit_id") || (row.user_id ? `user:${row.user_id}` : "");
+  return row.user_id ? `user:${row.user_id}` : row.anonymous_session_id || metadataText(row, "visit_id") || "";
 }
+
+function uniqueEventVisitors(rows: AnalyticsEventRow[], types: string[]) {
+  const allowed = new Set(types);
+  return new Set(rows.filter((row) => allowed.has(row.event_type)).map(visitorKey).filter(Boolean)).size;
+}
+
+function sumDaily(rows: DailyAnalyticsRow[], types: string[]) { return rows.filter((row) => types.includes(row.event_name)).reduce((sum, row) => sum + Number(row.event_count || 0), 0); }
 
 function metadataText(row: AnalyticsEventRow, key: string) {
   const value = row.metadata?.[key];

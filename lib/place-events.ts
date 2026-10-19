@@ -1,5 +1,6 @@
 import { getSupabaseClient } from "@/lib/supabase";
-import { getAnalyticsMetadata } from "@/lib/analytics-source";
+import { captureSessionAttribution, getAnalyticsMetadata, readSessionAttribution } from "@/lib/analytics-source";
+import { sanitizeAnalyticsMetadata } from "@/lib/analytics-schema";
 import type { Locale } from "@/lib/i18n";
 import type { PlaceActionEventType } from "@/types/database";
 
@@ -11,9 +12,6 @@ type RecordPlaceEventInput = {
   metadata?: Record<string, unknown>;
 };
 
-const forbiddenMetadataKey = /(email|phone|token|secret|password|session|cookie|authorization|query|search_text|request_text|source_url|full_url|latitude|longitude|coordinates|address|notes)/i;
-const metadataKeyPattern = /^[a-z][a-z0-9_]{0,47}$/;
-
 export async function recordPlaceEvent({
   eventType,
   locale,
@@ -21,19 +19,32 @@ export async function recordPlaceEvent({
   userId = null,
   metadata = {},
 }: RecordPlaceEventInput) {
-  const client = getSupabaseClient();
-
-  if (!client) {
-    return;
-  }
-
   try {
-    await client.from("place_action_events").insert({
-      event_type: eventType,
-      locale,
-      place_id: placeId,
-      user_id: userId,
-      metadata: sanitizeAnalyticsMetadata(getAnalyticsMetadata(metadata)),
+    captureSessionAttribution();
+    const attribution = readSessionAttribution();
+    if (!attribution?.visit_id) return;
+    const client = getSupabaseClient();
+    const session = client ? (await client.auth.getSession()).data.session : null;
+    const enrichedMetadata = sanitizeAnalyticsMetadata(getAnalyticsMetadata(metadata));
+    await fetch("/api/analytics/events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({
+        eventId: createEventId(),
+        eventName: eventType,
+        placeId,
+        anonymousSessionId: attribution.visit_id,
+        sourcePage: window.location.pathname,
+        referrer: document.referrer,
+        campaignId: attribution.campaign_id,
+        locale,
+        deviceType: browserDeviceType(),
+        metadata: enrichedMetadata,
+      }),
+      keepalive: true,
     });
   } catch {
     // Analytics must never block the core user action.
@@ -60,31 +71,24 @@ export async function recordServerPlaceEvent(
   }
 }
 
-export function sanitizeAnalyticsMetadata(metadata: Record<string, unknown>) {
-  const sanitized: Record<string, string | number | boolean | null | Array<string | number | boolean>> = {};
+export { sanitizeAnalyticsMetadata } from "@/lib/analytics-schema";
 
-  for (const [key, rawValue] of Object.entries(metadata).slice(0, 32)) {
-    if (!metadataKeyPattern.test(key) || forbiddenMetadataKey.test(key)) continue;
-    const value = sanitizeValue(rawValue);
-    if (value !== undefined) sanitized[key] = value;
-  }
-
-  return sanitized;
+function createEventId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : fallbackUuid();
 }
 
-function sanitizeValue(value: unknown): string | number | boolean | null | Array<string | number | boolean> | undefined {
-  if (value === null) return null;
-  if (typeof value === "string") return value.slice(0, 120);
-  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  if (typeof value === "boolean") return value;
-  if (Array.isArray(value)) {
-    const items: Array<string | number | boolean> = [];
-    for (const item of value.slice(0, 10)) {
-      if (typeof item === "string") items.push(item.slice(0, 80));
-      else if (typeof item === "number" && Number.isFinite(item)) items.push(item);
-      else if (typeof item === "boolean") items.push(item);
-    }
-    return items;
-  }
-  return undefined;
+function fallbackUuid() {
+  const bytes = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16));
+  bytes[12] = "4";
+  bytes[16] = (8 + Math.floor(Math.random() * 4)).toString(16);
+  const hex = bytes.join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function browserDeviceType() {
+  if (typeof navigator === "undefined") return "desktop";
+  if (/ipad|tablet/iu.test(navigator.userAgent)) return "tablet";
+  return /mobile|android|iphone/iu.test(navigator.userAgent) ? "mobile" : "desktop";
 }

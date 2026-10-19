@@ -17,7 +17,7 @@ for (const event of requiredEvents) assert.match(migration, new RegExp(`'${event
 assert.match(migration, /octet_length\(metadata::text\) <= 4096/);
 assert.match(migration, /Do not store raw search text, exact coordinates, email, phone, tokens/);
 
-const analytics = read("../lib/place-events.ts");
+const analytics = `${read("../lib/place-events.ts")}\n${read("../lib/analytics-schema.ts")}`;
 assert.match(analytics, /forbiddenMetadataKey/);
 for (const sensitive of ["email", "phone", "token", "secret", "request_text", "latitude", "longitude", "address"]) {
   assert.match(analytics, new RegExp(sensitive));
@@ -33,7 +33,7 @@ const componentEvents = new Map([
   ["../components/PlaceCard.tsx", ["place_impression"]],
   ["../components/TravelerDecisionCard.tsx", ["decision_card_viewed", "warning_viewed"]],
   ["../components/SaveButton.tsx", ["place_saved"]],
-  ["../components/DirectionsButton.tsx", ["map_opened"]],
+  ["../components/DirectionsButton.tsx", ["map_click", "directions_click"]],
   ["../components/TripPlanner.tsx", ["route_saved", "itinerary_created", "itinerary_place_added", "ai_route_saved"]],
   ["../components/SocialPlaceFinder.tsx", ["sns_search_started", "sns_candidate_confirmed"]],
   ["../components/TravelerVerification.tsx", ["visit_confirmed", "fact_report_submitted"]],

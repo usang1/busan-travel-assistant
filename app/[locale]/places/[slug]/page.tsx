@@ -262,14 +262,16 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
         <div className="lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="relative h-[280px] bg-[#ece9e3] sm:h-[360px] lg:h-[520px]">
           {photo.kind === "image" ? (
-            <Image
-              src={photo.url}
-              alt={nameDisplay.secondaryName ? `${nameDisplay.name} / ${nameDisplay.secondaryName}` : nameDisplay.name}
-              fill
-              sizes="(max-width: 768px) 100vw, 720px"
-              className="object-cover"
-              priority
-            />
+            <AnalyticsLink href={photo.url} target="_blank" rel="noreferrer" eventType="photo_click" locale={locale} placeId={place.id} metadata={{ surface: "place_detail_hero" }} className="absolute inset-0">
+              <Image
+                src={photo.url}
+                alt={nameDisplay.secondaryName ? `${nameDisplay.name} / ${nameDisplay.secondaryName}` : nameDisplay.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 720px"
+                className="object-cover"
+                priority
+              />
+            </AnalyticsLink>
           ) : (
             <div className="grid h-full place-items-center bg-slate-100 px-5 text-center">
               <div>
@@ -364,7 +366,7 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
             {locale === "zh" && content.addressTranslationMissing ? <DetailFact icon={MapPin} label={factLabels.address} value="中文地址确认中" /> : null}
             {locale === "zh" && content.addressOriginalKo ? <DetailFact icon={MapPin} label="韩国原地址" value={content.addressOriginalKo} /> : null}
             {place.phone ? <DetailFact icon={Phone} label={factLabels.phone} value={place.phone} href={`tel:${place.phone.replace(/[^\d+]/g, "")}`} eventType="phone_click" locale={locale} placeId={place.id} /> : null}
-            {websiteHref ? <DetailFact icon={Globe2} label={factLabels.website} value={place.website ?? ""} href={websiteHref} external /> : null}
+            {websiteHref ? <DetailFact icon={Globe2} label={factLabels.website} value={place.website ?? ""} href={websiteHref} external eventType="website_click" locale={locale} placeId={place.id} /> : null}
           </div>
           <div className="mt-6">
             <PlaceFieldVerificationSummary rows={fieldVerifications} locale={locale} />
@@ -394,7 +396,9 @@ export default async function LocalizedPlaceDetailPage({ params }: LocalizedPlac
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {place.direct_visit_photos.map((photo, index) => (
               <figure key={`${photo.url}-${index}`} className="overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200">
-                <img src={photo.url} alt={photo.caption || `${content.name} ${index + 1}`} className="aspect-[4/3] w-full object-cover" />
+                <AnalyticsLink href={photo.url} target="_blank" rel="noreferrer" eventType="photo_click" locale={locale} placeId={place.id} metadata={{ surface: "field_visit_photo", photo_index: index }} className="block">
+                  <img src={photo.url} alt={photo.caption || `${content.name} ${index + 1}`} className="aspect-[4/3] w-full object-cover" />
+                </AnalyticsLink>
                 {photo.caption ? <figcaption className="p-3 text-sm font-bold text-slate-700">{photo.caption}</figcaption> : null}
               </figure>
             ))}
@@ -718,7 +722,7 @@ function DetailFact({
   value: string;
   href?: string;
   external?: boolean;
-  eventType?: "phone_click";
+  eventType?: "phone_click" | "website_click";
   locale?: Locale;
   placeId?: string;
 }) {
@@ -729,7 +733,7 @@ function DetailFact({
       <Icon size={17} className="mt-0.5 text-teal-700" aria-hidden="true" />
       <span className="text-sm text-slate-500">{label}</span>
       {href && eventType && locale ? (
-        <AnalyticsLink href={href} eventType={eventType} locale={locale} placeId={placeId} metadata={{ surface: "place_detail" }} className="min-w-0 text-teal-700 underline-offset-4 hover:underline">
+        <AnalyticsLink href={href} eventType={eventType} locale={locale} placeId={placeId} metadata={{ surface: "place_detail" }} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="min-w-0 text-teal-700 underline-offset-4 hover:underline">
           {content}
         </AnalyticsLink>
       ) : href ? (

@@ -16,6 +16,7 @@ export type SessionAttribution = {
 
 const attributionStorageKey = "busan-travel-assistant-session-attribution";
 const utmKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
+let memoryAttribution: SessionAttribution | null = null;
 
 export function captureSessionAttribution() {
   if (typeof window === "undefined") return;
@@ -44,8 +45,14 @@ export function captureSessionAttribution() {
     campaign_id: safeIdentifier(params.get("sp_campaign")) || current?.campaign_id,
     stay_id: stayId,
   };
+  memoryAttribution = attribution;
 
-  window.sessionStorage.setItem(attributionStorageKey, JSON.stringify(attribution));
+  try {
+    window.sessionStorage.setItem(attributionStorageKey, JSON.stringify(attribution));
+  } catch {
+    // Storage can be blocked in private or hardened browser contexts. Analytics
+    // may be incomplete, but the product flow must remain available.
+  }
 }
 
 export function readSessionAttribution(): SessionAttribution | null {
@@ -53,12 +60,13 @@ export function readSessionAttribution(): SessionAttribution | null {
 
   try {
     const raw = window.sessionStorage.getItem(attributionStorageKey);
-    if (!raw) return null;
+    if (!raw) return memoryAttribution;
     const parsed = JSON.parse(raw);
-    if (!isAttribution(parsed)) return null;
-    return { ...parsed, landing_path: sanitizePath(parsed.landing_path) };
+    if (!isAttribution(parsed)) return memoryAttribution;
+    memoryAttribution = { ...parsed, landing_path: sanitizePath(parsed.landing_path) };
+    return memoryAttribution;
   } catch {
-    return null;
+    return memoryAttribution;
   }
 }
 

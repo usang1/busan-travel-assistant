@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { businessErrorResponse, requireAuthenticatedUser } from "@/lib/business-auth";
+import { recordServerAnalyticsEvent } from "@/lib/server-analytics";
 
 export async function POST(request: Request) {
   try {
-    const { client } = await requireAuthenticatedUser(request);
+    const { client, user } = await requireAuthenticatedUser(request);
     const body = await request.json().catch(() => null) as { token?: string } | null;
     if (!body?.token || !/^[0-9a-f-]{36}$/iu.test(body.token)) return NextResponse.json({ message: "쿠폰 인증코드를 확인해 주세요." }, { status: 400 });
     const { data, error } = await client.rpc("redeem_coupon", { issue_token: body.token });
     if (error) return NextResponse.json({ message: redeemError(error.message) }, { status: /already|expired|ownership|unavailable/iu.test(error.message) ? 409 : 503 });
     const redemption = Array.isArray(data) ? data[0] : data;
-    await client.from("place_action_events").insert({ place_id: redemption?.place_id, event_type: "coupon_redeemed", locale: "ko", metadata: { coupon_id: redemption?.coupon_id } });
+    await recordServerAnalyticsEvent({ eventName: "coupon_redeem", legacyEventName: "coupon_redeemed", placeId: redemption?.place_id, userId: user.id, metadata: { coupon_id: redemption?.coupon_id } });
     return NextResponse.json({ redemption, message: "쿠폰 사용을 확인했습니다." });
   } catch (error) { const response = businessErrorResponse(error); return NextResponse.json({ message: response.message }, { status: response.status }); }
 }

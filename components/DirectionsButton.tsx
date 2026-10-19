@@ -54,7 +54,7 @@ export function DirectionsButton({
   function recordProvider(provider: DirectionsProvider) {
     rememberMapOpen(placeId);
     void recordPlaceEvent({
-      eventType: "map_opened",
+      eventType: "directions_click",
       placeId,
       locale,
       userId: user?.id,
@@ -63,11 +63,23 @@ export function DirectionsButton({
     setOpen(false);
   }
 
+  function toggleProviderMenu() {
+    const willOpen = !open;
+    setOpen(willOpen);
+    if (willOpen) void recordPlaceEvent({
+      eventType: "map_click",
+      placeId,
+      locale,
+      userId: user?.id,
+      metadata: { surface: compact ? "place_card" : "place_detail" },
+    });
+  }
+
   return (
     <div className={cn("relative inline-flex", className)}>
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggleProviderMenu}
         aria-haspopup="menu"
         aria-expanded={open}
         className={cn(

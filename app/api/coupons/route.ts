@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerAnonClient } from "@/lib/server-supabase";
+import { recordServerAnalyticsEvent } from "@/lib/server-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     const issue = Array.isArray(data) ? data[0] : data;
     const coupon = await client.from("coupons").select("place_id").eq("id", body.couponId).maybeSingle();
     if (coupon.data?.place_id) {
-      await client.from("place_action_events").insert({ place_id: coupon.data.place_id, event_type: "coupon_issued", locale: "ko", metadata: { visit_id: body.visitId, coupon_id: body.couponId } });
+      await recordServerAnalyticsEvent({ eventName: "coupon_claim", legacyEventName: "coupon_issued", placeId: coupon.data.place_id, anonymousSessionId: body.visitId, metadata: { coupon_id: body.couponId } });
     }
     return NextResponse.json({ issue: { token: issue?.public_token, expiresAt: issue?.expires_at, status: issue?.status } });
   } catch {
