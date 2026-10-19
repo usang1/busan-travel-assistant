@@ -7,6 +7,7 @@ import { AdminAiDraftPanel } from "@/components/AdminAiDraftPanel";
 import type { AdminAiDraftApplyField } from "@/components/AdminAiDraftPanel";
 import { AdminPlaceImageUpload } from "@/components/AdminPlaceImageUpload";
 import { AdminPlaceVerificationManager } from "@/components/AdminPlaceVerificationManager";
+import { AdminAutofillResults } from "@/components/AdminAutofillResults";
 import { EmptyState } from "@/components/EmptyState";
 import { TagChip } from "@/components/TagChip";
 import { TravelMap } from "@/components/TravelMap";
@@ -41,6 +42,7 @@ import { validatePlacePayloadForSave } from "@/lib/place-validation";
 import { getPlaceScopeIssueLabels } from "@/lib/place-scope";
 import { getProviderUnavailableCapabilities, toSupportedProvider } from "@/lib/place-providers/capabilities";
 import { formatPlaceFactSource } from "@/lib/place-draft";
+import { buildAutofillFieldResults, type PlaceAutofillDiagnostics, type PlaceAutofillField } from "@/lib/place-autofill";
 import type { NormalizedPlace } from "@/lib/place-providers/types";
 import { canUseNaverGeocoder, geocodeKoreanAddress } from "@/lib/naver-geocoder";
 import { getCurrentBrowserLocation, isBrowserLocationError } from "@/lib/browser-geolocation";
@@ -627,6 +629,7 @@ function mergeMenuDrafts(current: MenuDraft[], incoming: MenuDraft[]) {
       merged[existingIndex] = {
         ...existing,
         price: existing.price_is_variable ? "" : existing.price.trim() || item.price,
+        ordering_note: existing.ordering_note?.ko?.trim() ? existing.ordering_note : item.ordering_note,
         is_recommended: existing.is_recommended || item.is_recommended,
       };
     } else {
@@ -886,6 +889,7 @@ function applyProviderFactsToForm(form: FormState, place: NormalizedPlace): Form
     name_ko: item.name,
     name_zh: item.name,
     description_zh: "",
+    ordering_note: item.description || item.composition?.length ? { ko: item.description || item.composition?.join(" · ") || "", zh: "", en: "", ja: "" } : undefined,
     price: item.price === undefined ? "" : String(item.price),
     is_recommended: item.role === "signature" || item.role === "popular",
     sort_order: String(index + 1),
@@ -1168,6 +1172,34 @@ function describeAutoFilledFields(before: FormState, after: FormState) {
     .map(({ label }) => label);
 }
 
+function markManualFields(diagnostics: PlaceAutofillDiagnostics, form: FormState): PlaceAutofillDiagnostics {
+  const manualValues: Partial<Record<PlaceAutofillField, boolean>> = {
+    name: Boolean(form.name_ko.trim()),
+    address: Boolean(form.address_ko.trim()),
+    coordinates: hasValidFormCoordinates(form),
+    phone: Boolean(form.phone.trim()),
+    openingHours: Boolean(form.opening_hours.trim()),
+    closedDays: Boolean(form.closed_days.trim()),
+    menu: form.menu_items.some((item) => Boolean(item.name_ko.trim())),
+    menuPrice: form.menu_items.some((item) => Boolean(item.price.trim())),
+    menuDescription: form.menu_items.some((item) => Boolean(item.description_zh.trim() || item.ordering_note?.ko?.trim())),
+    image: Boolean(form.thumbnail_url.trim()),
+    category: Boolean(form.category),
+    website: Boolean(form.website.trim()),
+    amenities: Boolean(form.provider_amenities.trim()),
+    payment: form.china_info.foreign_card !== "unknown",
+    foreignAccess: form.china_info.chinese_menu !== "unknown" || form.china_info.chinese_service !== "unknown",
+  };
+  return {
+    ...diagnostics,
+    fieldResults: diagnostics.fieldResults.map((field) => (
+      manualValues[field.field] && (field.status === "auto_filled" || field.status === "review_required")
+        ? { ...field, status: "manual_preserved", retryable: false }
+        : field
+    )),
+  };
+}
+
 function formatCollectedAt(value?: string) {
   if (!value) return "확인 필요";
   const date = new Date(value);
@@ -1264,6 +1296,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
   const [placeSearchResults, setPlaceSearchResults] = useState<NormalizedPlace[]>([]);
   const [placeSearchProviderNotice, setPlaceSearchProviderNotice] = useState("");
   const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
+  const [autofillDiagnostics, setAutofillDiagnostics] = useState<PlaceAutofillDiagnostics | null>(null);
   const [locationFocusRequest, setLocationFocusRequest] = useState(0);
   const [translating, setTranslating] = useState(false);
   const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
@@ -1434,6 +1467,14 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     setForm(next);
     setLastNormalizedPlace(place);
     setAutoFilledFields(filled);
+    setAutofillDiagnostics(markManualFields({
+      runId: crypto.randomUUID(),
+      provider: place.provider,
+      startedAt: new Date().toISOString(),
+      durationMs: 0,
+      status: "partial",
+      fieldResults: buildAutofillFieldResults({ place, provider: place.provider }),
+    }, form));
     setLocationFocusRequest((current) => current + 1);
     setStatus(`공식 ${providerDisplayName(place.provider)} 정보를 적용했습니다.${filled.length ? ` 자동 입력: ${filled.join(", ")}.` : " 기존 직접 입력값은 유지했습니다."} 저장 전 실제 영업 여부와 영업시간을 확인해 주세요.`);
     void recordProductEvent({
@@ -1890,7 +1931,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
     }
   }
 
-  async function parseSourceUrl(forceWebSearch = false) {
+  async function parseSourceUrl(forceWebSearch = false, retryFields: PlaceAutofillField[] = []) {
     const parsed = parseMapUrl(form.source_url);
 
     if (!parsed.normalizedUrl) {
@@ -1919,6 +1960,8 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         body: JSON.stringify({
           url: parsed.normalizedUrl,
           forceWebSearch,
+          retryFields,
+          retryOf: retryFields.length ? autofillDiagnostics?.runId : undefined,
           searchHints: {
             name: form.name_ko,
             address: form.address_ko,
@@ -1955,6 +1998,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
         koreanContentError?: string;
         aiConfigured?: boolean;
         providerLookup?: { configured: boolean; enriched: boolean; message: string };
+        autofillDiagnostics?: PlaceAutofillDiagnostics;
       };
       const { analysis } = body;
       const normalizedPlace = body.normalizedPlace;
@@ -1965,14 +2009,14 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
       const latitude = normalizedPlace?.latitude ?? analysis.latitude;
       const longitude = normalizedPlace?.longitude ?? analysis.longitude;
       const hasResolvedCoordinates = normalizeLatitude(latitude) !== null && normalizeLongitude(longitude) !== null;
-      const openingHours = Array.isArray(normalizedPlace?.openingHours)
-        ? normalizedPlace.openingHours.join("\n")
-        : normalizedPlace?.openingHours ?? "";
+      const providerHours = normalizedPlace?.openingHours ?? normalizedPlace?.currentOpeningHours;
+      const openingHours = Array.isArray(providerHours) ? providerHours.join("\n") : providerHours ?? "";
 
       setLastNormalizedPlace(normalizedPlace ?? null);
       setAdminSummaryFailed(Boolean(body.adminSummaryError));
       setAdminSummaryErrorMessage(body.adminSummaryError ?? "");
       setProviderLookupNotice(body.providerLookup?.message ?? "");
+      if (body.autofillDiagnostics) setAutofillDiagnostics(markManualFields(body.autofillDiagnostics, form));
 
       setForm((current) => {
         const enriched = normalizedPlace ? applyProviderFactsToForm(current, normalizedPlace) : current;
@@ -2567,6 +2611,7 @@ export function AdminPlaceManager({ initialPlaces, source, error, supabaseConfig
                 <p className="mt-1 text-sm font-semibold text-slate-700">{autoFilledFields.join(" · ")}</p>
               </div>
             ) : null}
+            <AdminAutofillResults diagnostics={autofillDiagnostics} busy={analyzing || webSearching} onRetry={(fields) => void parseSourceUrl(true, fields)} />
           </section>
           {!businessMode && form.id && adminAccessToken ? (
             <AdminPlaceVerificationManager
@@ -3382,6 +3427,13 @@ function PlaceMenuEditor({
                   <input type="checkbox" checked={item.price_is_variable === true} onChange={(event) => onUpdate(index, { price_is_variable: event.target.checked, price: event.target.checked ? "" : item.price })} />
                   가격 변동 (정가 없음 · 주문 전 확인)
                 </label>
+                <textarea
+                  aria-label={`${menuLabel} 한국어 설명`}
+                  placeholder="메뉴 구성·설명 KO"
+                  value={item.ordering_note?.ko ?? ""}
+                  onChange={(event) => onUpdate(index, { ordering_note: { ko: event.target.value, zh: item.ordering_note?.zh ?? "", en: item.ordering_note?.en ?? "", ja: item.ordering_note?.ja ?? "" } })}
+                  className={`${textareaClass} mt-3`}
+                />
                 <textarea
                   aria-label={`${menuLabel} 중국어 설명`}
                   placeholder="중국어 메뉴 설명"

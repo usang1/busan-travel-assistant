@@ -41,6 +41,7 @@ export type PlaceSourceCitation = {
 export type PlaceMenuItem = {
   name: string;
   price?: number;
+  description?: string;
   priceApproximate?: boolean;
   role?: "signature" | "popular" | "set" | "course" | "other";
   composition?: string[];
@@ -277,9 +278,11 @@ function normalizeFieldValue(field: PlaceDraftField, value: unknown) {
       const composition = normalizeTextArray(record.composition, 8, 120);
       const reviewHighlights = normalizeTextArray(record.reviewHighlights, 6, 160);
       const priceApproximate = typeof record.priceApproximate === "boolean" ? record.priceApproximate : undefined;
+      const description = typeof record.description === "string" && record.description.trim() ? record.description.trim().slice(0, 500) : undefined;
       return name ? [{
         name,
         ...(price === undefined ? {} : { price }),
+        ...(description ? { description } : {}),
         ...(priceApproximate === undefined ? {} : { priceApproximate }),
         ...(role ? { role } : {}),
         ...(composition ? { composition } : {}),

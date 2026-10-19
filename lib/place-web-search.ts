@@ -82,7 +82,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
   }
 
   const model = process.env.OPENAI_PLACE_MODEL || defaultModel;
-  const client = new OpenAI({ apiKey, timeout: requestTimeoutMs, maxRetries: 0 });
+  const client = new OpenAI({ apiKey, timeout: requestTimeoutMs, maxRetries: 1 });
   try {
     const response = await client.responses.create({
       model,
@@ -99,7 +99,7 @@ export async function searchMissingPlaceData(place: PlaceDraft, missingFields: P
             "matchedPlace must describe the page/entity from which the returned facts were taken, including its actual name, address, category, provider place ID when visible, confidence, and evidence URLs.",
             "Use official website, official social account, or official business page first; then major map or business pages; then trustworthy booking or travel platforms; use blogs only as a last resort.",
             "Research only these normalized fields when requested: name, address, roadAddress, category, phone, openingHours, closedDays, menu, recommendedOrder, priceRange, parking, description, websiteUrl, and coordinates.",
-            "For menu, identify signature items, set or course composition, and prices only when a cited source states them.",
+            "For menu, identify names, factual descriptions, set or course composition, and prices only when a cited source states them.",
             "priceRange means a verified approximate per-person spend or average check. Do not derive it from the cheapest and most expensive menu items unless a source explicitly describes per-person spending.",
             "Mark a menu as popular only when multiple independent visitor sources repeatedly mention ordering it; a menu's display order is not popularity evidence.",
             "recommendedOrder is only for a first-time order supported by an official recommendation or repeated ordering evidence. Otherwise return null.",
@@ -234,12 +234,13 @@ const menuFactSchema = {
         properties: {
           name: { type: "string" },
           price: { type: ["number", "null"] },
+          description: { type: ["string", "null"] },
           priceApproximate: { type: "boolean" },
           role: { type: "string", enum: ["signature", "popular", "set", "course", "other"] },
           composition: { type: "array", items: { type: "string" } },
           reviewHighlights: { type: "array", items: { type: "string" } },
         },
-        required: ["name", "price", "priceApproximate", "role", "composition", "reviewHighlights"],
+        required: ["name", "price", "description", "priceApproximate", "role", "composition", "reviewHighlights"],
       },
     },
     confidence: { type: "number" },

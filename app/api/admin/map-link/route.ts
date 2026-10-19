@@ -4,28 +4,42 @@ import { resolveMapUrlCached } from "@/lib/map-url-resolver";
 import { generateAdminPlaceSummaryCached } from "@/lib/place-ai/admin-summary";
 import { createPlaceDraft, getMissingPlaceFields, mergePlaceData, type PlaceDraftField } from "@/lib/place-draft";
 import { searchMissingPlaceData, searchMissingPlaceDataCached, type PlaceWebSearchHints, type PlaceWebSearchResult } from "@/lib/place-web-search";
+import { buildAutofillFieldResults, buildFailedAutofillFieldResults, sanitizeAutofillFields, toDraftRetryFields, type PlaceAutofillDiagnostics, type PlaceAutofillField } from "@/lib/place-autofill";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const startedAt = new Date();
+  const runId = crypto.randomUUID();
+  let logger: Awaited<ReturnType<typeof requireAdmin>> | null = null;
+  let provider = "unknown";
+  let retryOf: string | undefined;
+  let requestedFields: PlaceAutofillField[] = [];
   try {
-    await requireAdmin(request);
-    const body = (await request.json()) as { url?: string; forceWebSearch?: boolean; searchHints?: PlaceWebSearchHints };
+    logger = await requireAdmin(request);
+    const body = (await request.json()) as { url?: string; forceWebSearch?: boolean; searchHints?: PlaceWebSearchHints; retryFields?: unknown; retryOf?: string };
     const inputUrl = body.url?.trim();
     const forceWebSearch = body.forceWebSearch === true;
     const searchHints = sanitizeSearchHints(body.searchHints);
+    const retryFields = sanitizeAutofillFields(body.retryFields);
+    requestedFields = retryFields;
+    retryOf = isUuid(body.retryOf) ? body.retryOf : undefined;
 
     if (!inputUrl) {
-      return NextResponse.json({ message: "지도 링크를 먼저 입력해 주세요." }, { status: 400 });
+      throw Object.assign(new Error("지도 링크를 먼저 입력해 주세요."), { status: 400, expose: true, code: "MISSING_SOURCE_URL" });
     }
 
     const resolution = await resolveMapUrlCached(inputUrl);
+    provider = resolution.provider;
     const providerDraft = createPlaceDraft(resolution.normalizedPlace);
     const missingFields = getMissingPlaceFields(providerDraft);
     const forcedWebSearchFields: PlaceDraftField[] = ["menu", "recommendedOrder", "priceRange"];
-    const webSearchFields = forceWebSearch
-      ? Array.from(new Set([...missingFields, ...forcedWebSearchFields]))
-      : missingFields;
+    const retryDraftFields = toDraftRetryFields(retryFields);
+    const webSearchFields = retryDraftFields.length
+      ? retryDraftFields
+      : forceWebSearch
+        ? Array.from(new Set([...missingFields, ...forcedWebSearchFields]))
+        : missingFields;
     let normalizedPlace = mergePlaceData(resolution.normalizedPlace, null).normalizedPlace;
     let webSearch: PlaceWebSearchResult | null = null;
     let webSearchError = "";
@@ -92,6 +106,26 @@ export async function POST(request: Request) {
       }
     }
 
+    const fieldResults = buildAutofillFieldResults({
+      place: normalizedPlace,
+      provider: resolution.provider,
+      lookupFailed: Boolean(resolution.lookupError),
+      webSearchAttempted: webSearchFields.length > 0,
+      webSearchFailed: Boolean(webSearchError) || (webSearchFields.length > 0 && !process.env.OPENAI_API_KEY?.trim()),
+      needsReviewFields: webSearchNeedsReviewFields,
+      requestedFields: retryFields,
+    });
+    const diagnostics: PlaceAutofillDiagnostics = {
+      runId,
+      provider: resolution.provider,
+      startedAt: startedAt.toISOString(),
+      durationMs: Date.now() - startedAt.getTime(),
+      status: fieldResults.every((field) => field.status === "auto_filled") ? "success" : fieldResults.some((field) => field.status === "auto_filled" || field.status === "review_required") ? "partial" : "failed",
+      ...(retryOf ? { retryOf } : {}),
+      fieldResults,
+    };
+    await logAutofillRun(logger, diagnostics);
+
     return NextResponse.json({
       ...resolution,
       normalizedPlace,
@@ -108,12 +142,59 @@ export async function POST(request: Request) {
       koreanContent: null,
       koreanContentError: "",
       aiConfigured: Boolean(process.env.OPENAI_API_KEY),
+      autofillDiagnostics: diagnostics,
     });
   } catch (error) {
     const response = adminErrorResponse(error);
+    if (logger) {
+      await logAutofillRun(logger, {
+        runId,
+        provider,
+        startedAt: startedAt.toISOString(),
+        durationMs: Date.now() - startedAt.getTime(),
+        status: "failed",
+        errorCode: errorCode(error),
+        ...(retryOf ? { retryOf } : {}),
+        fieldResults: buildFailedAutofillFieldResults(provider, requestedFields),
+      });
+    }
 
-    return NextResponse.json({ message: response.message }, { status: response.status });
+    return NextResponse.json({ message: response.message, runId }, { status: response.status });
   }
+}
+
+async function logAutofillRun(context: Awaited<ReturnType<typeof requireAdmin>>, diagnostics: PlaceAutofillDiagnostics) {
+  try {
+    const { error } = await context.client.from("place_autofill_runs").insert({
+      id: diagnostics.runId,
+      requested_by: context.user.id,
+      source_provider: diagnostics.provider,
+      requested_at: diagnostics.startedAt,
+      completed_at: new Date(new Date(diagnostics.startedAt).getTime() + diagnostics.durationMs).toISOString(),
+      duration_ms: diagnostics.durationMs,
+      status: diagnostics.status,
+      error_code: diagnostics.errorCode ?? null,
+      retry_of: diagnostics.retryOf ?? null,
+      field_results: diagnostics.fieldResults,
+    });
+    if (error && !["42P01", "PGRST205"].includes(error.code ?? "")) {
+      // eslint-disable-next-line no-console
+      console.warn("[place:autofill-log] write failed", { runId: diagnostics.runId, code: error.code });
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn("[place:autofill-log] unavailable", { runId: diagnostics.runId, code: errorCode(error) });
+  }
+}
+
+function errorCode(error: unknown) {
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") return error.code.slice(0, 80);
+  if (error && typeof error === "object" && "status" in error && typeof error.status === "number") return `HTTP_${error.status}`;
+  return "AUTOFILL_FAILED";
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 }
 
 function sanitizeSearchHints(value: PlaceWebSearchHints | undefined): PlaceWebSearchHints {

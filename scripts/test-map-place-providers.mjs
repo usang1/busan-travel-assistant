@@ -172,6 +172,7 @@ const resolver = loadTsModule("lib/map-url-resolver.ts", {
   "@/lib/place-providers/nearest-station": nearestStation,
   "@/lib/place-providers/registry": registry,
   "@/lib/place-providers/capabilities": capabilities,
+  "@/lib/provider-fetch": { createProviderFetcher: (fetcher) => fetcher },
 });
 const databaseRuntime = {
   placeCategories: ["restaurant", "cafe", "bar", "attraction", "shopping", "photo_spot", "luggage"],

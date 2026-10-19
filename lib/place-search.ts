@@ -7,6 +7,7 @@ import { normalizeNaverItem, type NaverLocalItem } from "@/lib/place-providers/n
 import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
 import { getPlaceProviderConfiguration } from "@/lib/place-providers/registry";
 import { isValidCoordinates, type Coordinates } from "@/lib/location";
+import { createProviderFetcher } from "@/lib/provider-fetch";
 
 type ProviderSearchStatus = {
   provider: SupportedPlaceProvider;
@@ -159,15 +160,7 @@ async function searchNaver(query: string) {
   });
 }
 
-async function timedFetch(input: URL | string | Request, init?: RequestInit) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+const timedFetch = createProviderFetcher(fetch);
 
 function normalizeQuery(value: string) {
   const query = value.trim().replace(/\s+/g, " ");

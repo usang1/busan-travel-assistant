@@ -22,6 +22,7 @@ export type EnrichablePlaceForm = {
   phone: string;
   website: string;
   opening_hours: string;
+  closed_days: string;
   price_level: string;
   price_min: string;
   price_max: string;
@@ -42,6 +43,7 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
   const providerCategory = mapProviderCategory([place.category, ...(place.types ?? [])].filter(Boolean).join(">"));
   const providerHours = place.openingHours ?? place.currentOpeningHours;
   const openingHours = Array.isArray(providerHours) ? providerHours.join("\n") : providerHours;
+  const closedDays = Array.isArray(place.closedDays) ? place.closedDays.join("\n") : place.closedDays;
   const sourceProvider = toSourceProvider(place.provider);
   const sameSource = isSameProviderSource(form, sourceProvider, place.providerPlaceId);
   const addressKo = place.roadAddressKo ?? place.addressKo ?? "";
@@ -69,6 +71,7 @@ export function enrichPlaceForm<T extends EnrichablePlaceForm>(form: T, place: N
     phone: fillText(form.phone, place.phone),
     website: fillText(form.website, place.website),
     opening_hours: fillText(form.opening_hours, openingHours),
+    closed_days: fillText(form.closed_days, closedDays),
     price_level: fillNumber(form.price_level, place.priceLevel),
     price_min: fillNumber(form.price_min, place.priceMin),
     price_max: fillNumber(form.price_max, place.priceMax),
@@ -171,8 +174,9 @@ export function formatProviderAmenities(value: NormalizedPlace["amenities"] | un
   return labels.join(" · ");
 }
 
-function fillText(current: string, incoming?: string) {
-  return current.trim() || !incoming?.trim() ? current : incoming.trim();
+function fillText(current: string | undefined, incoming?: string) {
+  const existing = current ?? "";
+  return existing.trim() || !incoming?.trim() ? existing : incoming.trim();
 }
 
 function fillNumber(current: string, incoming?: number) {

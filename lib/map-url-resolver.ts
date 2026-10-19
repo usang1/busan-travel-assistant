@@ -6,6 +6,7 @@ import { getPlaceProvider, getPlaceProviderConfiguration } from "@/lib/place-pro
 import { formatProviderWarnings } from "@/lib/place-providers/capabilities";
 import { resolveNearestStation } from "@/lib/place-providers/nearest-station";
 import type { NormalizedPlace, SupportedPlaceProvider } from "@/lib/place-providers/types";
+import { createProviderFetcher } from "@/lib/provider-fetch";
 
 const maxRedirects = 5;
 const providerCacheTtlMs = 5 * 60 * 1000;
@@ -36,9 +37,10 @@ export async function resolveMapUrlCached(inputUrl: string) {
 }
 
 export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) {
+  const providerFetcher = createProviderFetcher(fetcher);
   const originalUrl = normalizeMapUrl(inputUrl);
   const initialUrl = parseResolvableUrl(originalUrl);
-  const resolvedUrls = await resolveMapRedirects(initialUrl, fetcher);
+  const resolvedUrls = await resolveMapRedirects(initialUrl, providerFetcher);
   const parsedUrls = [parseMapUrl(originalUrl), ...resolvedUrls.map((url) => parseMapUrl(url))];
   const urlAnalysis = analyzeMapLink(originalUrl, resolvedUrls);
   const provider = urlAnalysis.provider as SupportedPlaceProvider;
@@ -62,7 +64,7 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
       sourceUrl: originalUrl,
       finalResolvedUrl,
       parsedUrls,
-      fetcher,
+      fetcher: providerFetcher,
     });
   } catch (error) {
     lookupError = getErrorMessage(error) ?? `${providerLabel(provider)} 상세 조회에 실패했습니다.`;
@@ -86,7 +88,7 @@ export async function resolveMapUrl(inputUrl: string, fetcher: Fetcher = fetch) 
   }
 
   if (normalizedPlace.latitude !== undefined && normalizedPlace.longitude !== undefined) {
-    const station = await resolveNearestStation(normalizedPlace.latitude, normalizedPlace.longitude, fetcher).catch(() => null);
+    const station = await resolveNearestStation(normalizedPlace.latitude, normalizedPlace.longitude, providerFetcher).catch(() => null);
     if (station) {
       normalizedPlace = {
         ...normalizedPlace,

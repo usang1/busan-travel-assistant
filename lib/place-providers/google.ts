@@ -130,12 +130,8 @@ export function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> |
   const openingHours = asRecord(place.regularOpeningHours);
   const currentOpeningHours = asRecord(place.currentOpeningHours);
   const priceRange = asRecord(place.priceRange);
-  const weekdayDescriptions = Array.isArray(openingHours?.weekdayDescriptions)
-    ? openingHours.weekdayDescriptions.filter((item): item is string => typeof item === "string")
-    : undefined;
-  const currentWeekdayDescriptions = Array.isArray(currentOpeningHours?.weekdayDescriptions)
-    ? currentOpeningHours.weekdayDescriptions.filter((item): item is string => typeof item === "string")
-    : undefined;
+  const weekdayDescriptions = openingHourLines(openingHours);
+  const currentWeekdayDescriptions = openingHourLines(currentOpeningHours);
   const coordinates = normalizeCoordinates(location?.latitude, location?.longitude);
   const priceMin = normalizeKrwMoney(priceRange?.startPrice);
   const priceMax = normalizeKrwMoney(priceRange?.endPrice);
@@ -154,6 +150,7 @@ export function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> |
     providerUri: text(place.googleMapsUri),
     openingHours: weekdayDescriptions?.length ? weekdayDescriptions : undefined,
     currentOpeningHours: currentWeekdayDescriptions?.length ? currentWeekdayDescriptions : undefined,
+    closedDays: extractClosedDays(weekdayDescriptions ?? currentWeekdayDescriptions),
     rating: finiteNumber(place.rating),
     reviewCount: finiteNumber(place.userRatingCount),
     priceLevel: normalizeGooglePriceLevel(place.priceLevel),
@@ -165,6 +162,18 @@ export function normalizeGooglePlace(value: unknown): Partial<NormalizedPlace> |
     amenities: normalizeGoogleAmenities(place),
     raw: sanitizeGoogleRaw(place),
   };
+}
+
+function openingHourLines(value: Record<string, unknown> | null) {
+  const raw = value?.weekdayDescriptions ?? value?.weekdayText;
+  if (!Array.isArray(raw)) return undefined;
+  const lines = raw.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim());
+  return lines.length ? lines : undefined;
+}
+
+function extractClosedDays(lines: string[] | undefined) {
+  const days = (lines ?? []).filter((line) => /(?:휴무|closed)\s*$/iu.test(line));
+  return days.length ? days : undefined;
 }
 
 export async function resolveGooglePhotos(value: unknown, apiKey: string, fetcher: typeof fetch) {

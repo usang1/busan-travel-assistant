@@ -1345,9 +1345,8 @@ export function AdminSubmissionWorkflow({ accessToken, places, onPlaceCreated }:
       const latitude = normalizedPlace?.latitude ?? analysis.latitude;
       const longitude = normalizedPlace?.longitude ?? analysis.longitude;
       const hasResolvedCoordinates = normalizeLatitude(latitude) !== null && normalizeLongitude(longitude) !== null;
-      const openingHours = Array.isArray(normalizedPlace?.openingHours)
-        ? normalizedPlace.openingHours.join("\n")
-        : normalizedPlace?.openingHours ?? "";
+      const providerHours = normalizedPlace?.openingHours ?? normalizedPlace?.currentOpeningHours;
+      const openingHours = Array.isArray(providerHours) ? providerHours.join("\n") : providerHours ?? "";
 
       setLastNormalizedPlace(normalizedPlace ?? null);
       setAdminSummaryFailed(Boolean(body.adminSummaryError));
