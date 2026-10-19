@@ -159,6 +159,7 @@ supabase/migrations/034_social_discovery_matching.sql
 supabase/migrations/035_grounded_trip_planning.sql
 supabase/migrations/036_product_rollout_analytics.sql
 supabase/migrations/054_analytics_event_pipeline.sql
+supabase/migrations/055_business_reports_and_coupon_operations.sql
 supabase/migrations/037_lightweight_place_verification_signals.sql
 supabase/seed.sql
 ```
@@ -188,6 +189,10 @@ supabase/seed.sql
 - `place_action_events`: 운영 데이터와 분리된 개인정보 최소화 퍼널 이벤트입니다. 검색 원문, 정확한 위치, 토큰, 이메일을 저장하지 않습니다.
 - 분석 이벤트는 `/api/analytics/events`에서 스키마 검증, 세션 기반 rate limit, 봇 필터, 서버 측 사용자 확인과 이벤트별 중복 제거를 거쳐 저장합니다. 원본 IP는 저장하지 않습니다.
 - `analytics_daily_place_stats`, `analytics_daily_platform_stats`: 관리자·사업자 리포트용 일별 집계입니다. 관리자 화면의 `일별 집계 갱신` 또는 서비스 역할로 `refresh_analytics_daily_stats` RPC를 호출해 최근 3일을 매일 재집계하세요. 지연 이벤트를 반영하기 위해 당일만 집계하지 않습니다.
+- `business_performance_reports`: 관리자가 생성한 가게별 성과 스냅샷입니다. 같은 리포트를 다시 내려받아도 수치를 재계산하지 않습니다.
+- `coupon_redemption_events`: 쿠폰 사용과 사용 취소의 감사 이력입니다. 쿠폰 발급은 저장소 초기화로 제한을 우회할 수 있는 익명 ID 대신 로그인 계정만 허용합니다.
+- Free·Pro·Business 기능은 `subscription_plans.features`와 `lib/business-entitlements.ts`의 공통 feature key로 관리합니다. 현재 결제는 연결하지 않으며 관리자 수동 활성화와 체험 권한만 지원합니다.
+- 사업자 리포트에서 길찾기는 방문 의향으로만 표시하고 실제 방문자·매출·ROI를 추정하지 않습니다.
 - 원시 이벤트 기본 보관 권장 기간은 180일입니다. 운영 스케줄에서 `purge_expired_analytics_events(180)`를 호출하고, 삭제 전 일별 집계가 완료됐는지 확인하세요. 광고 차단기·오프라인·네트워크 장애로 일부 이벤트가 누락될 수 있으며 길찾기나 전화 클릭은 실제 방문으로 해석하지 않습니다.
 
 기존 `places.name_zh/name_ko` 계열 컬럼은 호환을 위해 유지합니다. `003_multilingual_place_architecture.sql`은 기존 중국어/한국어 데이터를 `place_translations`로 backfill하며, 새 기능은 점진적으로 번역 테이블을 우선 사용하도록 확장할 수 있습니다.

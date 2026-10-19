@@ -20,26 +20,12 @@ export async function GET(request: Request) {
     const placeResult = placeIds.size ? await getPlaces({ activeOnly: false, includeAdminRelations: true, ids: [...placeIds], debugLabel: "business-dashboard" }, client) : { places: [], source: "none" as const };
     if ("error" in placeResult && placeResult.error) throw new Error("Managed places unavailable");
     const places = placeResult.places.filter((place) => placeIds.has(place.id)).map(toPublicPlace);
-    const now = new Date();
-    const currentStart = new Date(now.getTime() - 30 * 86_400_000);
-    const previousStart = new Date(now.getTime() - 60 * 86_400_000);
-    const [currentAnalytics, previousAnalytics] = placeIds.size ? await Promise.all([
-      client.rpc("get_business_place_analytics", { period_start: currentStart.toISOString(), period_end: now.toISOString() }),
-      client.rpc("get_business_place_analytics", { period_start: previousStart.toISOString(), period_end: currentStart.toISOString() }),
-    ]) : [{ data: [], error: null }, { data: [], error: null }];
-    const analyticsUnavailable = Boolean(currentAnalytics.error || previousAnalytics.error);
-
     return NextResponse.json({
       role,
       applications: applicationsResult.data ?? [],
       memberships: membershipsResult.data ?? [],
       changes: changesResult.data ?? [],
       places,
-      analytics: {
-        current: currentAnalytics.data ?? [],
-        previous: previousAnalytics.data ?? [],
-        unavailable: analyticsUnavailable,
-      },
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const response = businessErrorResponse(error);

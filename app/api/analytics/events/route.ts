@@ -100,7 +100,11 @@ function createDedupeKey(input: { eventName: string; sessionId: string; placeId:
   const windowSeconds = analyticsDedupeWindowSeconds(input.eventName);
   if (!windowSeconds) return null;
   const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
-  const discriminator = input.eventName === "filter_apply" ? `${input.metadata.filter_kind || ""}:${input.metadata.filter_value || ""}` : "";
+  const discriminator = input.eventName === "filter_apply"
+    ? `${input.metadata.filter_kind || ""}:${input.metadata.filter_value || ""}`
+    : input.eventName === "coupon_view"
+      ? `${input.metadata.coupon_id || ""}:${input.metadata.stage || "detail"}`
+      : "";
   return createHash("sha256").update([input.sessionId, input.eventName, input.placeId || "", input.sourcePage, discriminator, bucket].join("|")).digest("hex");
 }
 

@@ -5,6 +5,7 @@ import { CalendarDays, Flag, LogOut, Mail, ShieldCheck, Store, UserRound, type L
 import { AuthRequiredPanel } from "@/components/AuthRequiredPanel";
 import { MySubmissionsView } from "@/components/MySubmissionsView";
 import { MyTripsPanel } from "@/components/MyTripsPanel";
+import { MyCoupons } from "@/components/MyCoupons";
 import { SavedGuides } from "@/components/SavedGuides";
 import { SavedItemsView } from "@/components/SavedItemsView";
 import { useAuth } from "@/components/AuthProvider";
@@ -92,6 +93,8 @@ export function MyPageView({ locale }: MyPageViewProps) {
       </section>
 
       <MyTripsPanel locale={locale} />
+
+      <MyCoupons locale={locale} />
 
       <section>
         <h2 className="text-xl font-black text-slate-950">{copy.mypage.savedPlaces}</h2>

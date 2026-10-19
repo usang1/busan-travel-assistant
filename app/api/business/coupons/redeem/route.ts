@@ -15,4 +15,15 @@ export async function POST(request: Request) {
   } catch (error) { const response = businessErrorResponse(error); return NextResponse.json({ message: response.message }, { status: response.status }); }
 }
 
-function redeemError(value: string) { if (/already_used/iu.test(value)) return "이미 사용된 쿠폰입니다."; if (/expired/iu.test(value)) return "만료된 쿠폰입니다."; if (/ownership/iu.test(value)) return "다른 가게의 쿠폰이거나 처리 권한이 없습니다."; if (/not_found/iu.test(value)) return "쿠폰을 찾을 수 없습니다."; return "쿠폰을 사용할 수 없습니다."; }
+export async function DELETE(request: Request) {
+  try {
+    const { client } = await requireAuthenticatedUser(request);
+    const body = await request.json().catch(() => null) as { issueId?: string; reason?: string } | null;
+    if (!body?.issueId || !/^[0-9a-f-]{36}$/iu.test(body.issueId) || typeof body.reason !== "string" || !body.reason.trim()) return NextResponse.json({ message: "취소할 사용 기록과 사유를 확인해 주세요." }, { status: 400 });
+    const { data, error } = await client.rpc("cancel_coupon_redemption", { target_issue_id: body.issueId, cancellation_reason: body.reason.trim().slice(0, 500) });
+    if (error) return NextResponse.json({ message: redeemError(error.message) }, { status: /ownership|not_redeemed|not_found/iu.test(error.message) ? 409 : 503 });
+    return NextResponse.json({ issue: Array.isArray(data) ? data[0] : data, message: "쿠폰 사용 처리를 취소하고 이력을 기록했습니다." });
+  } catch (error) { const response = businessErrorResponse(error); return NextResponse.json({ message: response.message }, { status: response.status }); }
+}
+
+function redeemError(value: string) { if (/redemption_limit/iu.test(value)) return "이 사용자의 쿠폰 사용 한도에 도달했습니다."; if (/not_redeemed/iu.test(value)) return "사용 완료된 쿠폰만 취소할 수 있습니다."; if (/already_used/iu.test(value)) return "이미 사용된 쿠폰입니다."; if (/expired/iu.test(value)) return "만료된 쿠폰입니다."; if (/ownership/iu.test(value)) return "다른 가게의 쿠폰이거나 처리 권한이 없습니다."; if (/not_found/iu.test(value)) return "쿠폰을 찾을 수 없습니다."; return "쿠폰을 사용할 수 없습니다."; }

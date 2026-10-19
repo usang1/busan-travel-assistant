@@ -19,6 +19,7 @@ import { AdminCouponReview } from "@/components/AdminCouponReview";
 import { AdminSubscriptionManager } from "@/components/AdminSubscriptionManager";
 import { AdminPlaceImportManager } from "@/components/AdminPlaceImportManager";
 import { AdminVerificationQueue } from "@/components/AdminVerificationQueue";
+import { AdminBusinessReports } from "@/components/AdminBusinessReports";
 import { useAuth } from "@/components/AuthProvider";
 import { defaultLocale, type Locale, ui, withLocale } from "@/lib/i18n";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
@@ -143,6 +144,7 @@ export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
         <a href="#growth-analytics" className="inline-flex min-h-11 items-center rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white">유입·전환 분석</a>
         <a href="#stay-management" className="inline-flex min-h-11 items-center rounded-lg bg-violet-700 px-4 text-sm font-bold text-white">숙소·QR</a>
         <a href="#coupon-review" className="inline-flex min-h-11 items-center rounded-lg bg-orange-700 px-4 text-sm font-bold text-white">쿠폰 검수</a>
+        <a href="#business-reports" className="inline-flex min-h-11 items-center rounded-lg bg-emerald-800 px-4 text-sm font-bold text-white">가게 리포트</a>
         <a href="#subscription-management" className="inline-flex min-h-11 items-center rounded-lg bg-slate-700 px-4 text-sm font-bold text-white">요금제·구독</a>
         <a href="#business-applications" className="inline-flex min-h-11 items-center rounded-lg bg-blue-700 px-4 text-sm font-bold text-white">입점 신청</a>
         <a href="#business-place-changes" className="inline-flex min-h-11 items-center rounded-lg bg-indigo-700 px-4 text-sm font-bold text-white">사업자 변경 검수</a>
@@ -156,6 +158,7 @@ export function AdminShell({ locale = defaultLocale }: { locale?: Locale }) {
       <AdminGrowthAnalytics accessToken={accessToken as string} places={places} />
       <AdminStayManager accessToken={accessToken as string} places={places} />
       <AdminCouponReview accessToken={accessToken as string} />
+      <AdminBusinessReports accessToken={accessToken as string} places={places} />
       <AdminSubscriptionManager accessToken={accessToken as string} />
       <AdminBusinessApplications accessToken={accessToken as string} places={places} />
       <AdminBusinessPlaceChanges accessToken={accessToken as string} onApproved={loadPlaces} />
