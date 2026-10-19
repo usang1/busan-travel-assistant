@@ -59,6 +59,8 @@ AI_TRIP_PLANNER_ENABLED=false
 NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED=false
 NEXT_PUBLIC_VISIT_PROXIMITY_VERIFICATION_ENABLED=false
 NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID=
+NAVER_MAPS_API_KEY_ID=
+NAVER_MAPS_API_KEY=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_CONTACT_EMAIL=
 TELEGRAM_BOT_TOKEN=
@@ -89,6 +91,7 @@ OPENAI_TRIP_PLANNER_MODEL=
 - `NEXT_PUBLIC_TRAVELER_EVIDENCE_UPLOAD_ENABLED`: 여행자 사진·영수증 스토리지와 개인정보 검수 절차가 준비된 뒤에만 `true`로 전환할 feature flag입니다. 현재 UI는 업로드를 공개하지 않습니다.
 - `NEXT_PUBLIC_VISIT_PROXIMITY_VERIFICATION_ENABLED`: 근처 위치 확인을 여는 Phase 2 플래그입니다. 꺼져 있어도 위치 없는 10초 현장 확인은 동작합니다.
 - `NEXT_PUBLIC_NAVER_MAP_NCP_KEY_ID`: Naver Maps JavaScript API v3 Web Dynamic Map 키입니다. 지도 표시와 관리자 주소 자동 좌표 변환에 사용합니다. 없으면 좌표 기반 fallback 지도가 표시됩니다.
+- `NAVER_MAPS_API_KEY_ID`, `NAVER_MAPS_API_KEY`: 서버의 Geocoding·Reverse Geocoding fallback에 사용하는 Naver Maps Key ID와 비밀 Key입니다. 비밀 Key에는 `NEXT_PUBLIC_` 접두사를 붙이지 마세요. `NAVER_API_HUB_CLIENT_ID`/`NAVER_API_HUB_CLIENT_SECRET`도 호환됩니다.
 - `NEXT_PUBLIC_SITE_URL`: canonical, OpenGraph, sitemap URL 생성에 사용합니다. Vercel 배포 후 실제 도메인으로 바꾸세요.
 - `NEXT_PUBLIC_CONTACT_EMAIL`: 공개 문의 이메일입니다. 비워두면 문의 페이지에 이메일을 표시하지 않고 문의/제보 폼만 제공합니다.
 - `GOOGLE_MAPS_API_KEY`: Google Places API (New)의 Place Details/Text Search 서버 호출에 사용합니다.

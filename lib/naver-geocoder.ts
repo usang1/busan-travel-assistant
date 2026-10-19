@@ -40,7 +40,9 @@ export async function geocodeKoreanAddress(address: string): Promise<NaverGeocod
   return new Promise((resolve, reject) => {
     maps.Service.geocode({ address: query, query }, (status, response) => {
       if (status !== maps.Service.Status.OK && status !== "OK") {
-        reject(new Error("네이버 주소 검색에 실패했습니다."));
+        reject(new Error(
+          "네이버 주소 검색 권한이 거부되었습니다. Naver Cloud Maps 애플리케이션에서 Geocoding을 활성화하고 허용 도메인을 확인해 주세요.",
+        ));
         return;
       }
 

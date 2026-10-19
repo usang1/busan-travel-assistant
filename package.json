@@ -15,6 +15,7 @@
     "test:routes": "node scripts/test-practical-routes-and-courses.mjs",
     "test:verification": "node scripts/test-traveler-verification.mjs",
     "test:verification-system": "node scripts/test-place-verification-system.mjs",
+    "test:location-geocoding": "node scripts/test-location-geocoding.mjs",
     "test:social": "node scripts/test-social-discovery.mjs",
     "test:grounded": "node scripts/test-grounded-trip-planner.mjs",
     "test:rollout": "node scripts/test-product-rollout.mjs",
