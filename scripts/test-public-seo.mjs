@@ -20,6 +20,11 @@ function load(request) {
 const seo = load("@/lib/public-seo");
 const i18n = load("@/lib/i18n");
 const trust = load("@/lib/place-trust");
+const site = load("@/config/site");
+assert.equal(site.resolvePublicSiteUrl(undefined, "production"), "https://spotzari.com");
+assert.equal(site.resolvePublicSiteUrl(undefined, "development"), "http://localhost:3000");
+assert.equal(site.resolvePublicSiteUrl("https://preview.example.test/path", "production"), "https://preview.example.test");
+assert.equal(site.resolvePublicSiteUrl("javascript:alert(1)", "production"), "https://spotzari.com");
 const place = {
   id: "fixture-place", slug: "fixture-cafe", category: "cafe", status: "PUBLISHED", is_active: true,
   name_ko: "테스트 카페", name_zh: "测试咖啡馆", short_description_ko: "지역의 대표 메뉴와 이용 정보를 확인한 공개 장소입니다.", short_description_zh: "这是一家提供咖啡与甜品的咖啡馆，出发前请确认营业信息。",
