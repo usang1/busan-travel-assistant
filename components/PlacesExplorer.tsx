@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
 import { readPlacesSearchQuery } from "@/lib/place-search-url";
+import { getMenuSearchFields, matchesSearchQuery } from "@/lib/search-match";
 import { getHomeIntentKeyFromSlug, getHomeIntentLabel, isHomeIntentKey, type HomeIntentKey } from "@/lib/home-intent-tags";
 import { getPlaceCategoryLabel } from "@/lib/place-trust";
 import { categoryLabels, type PlaceCategory, type PlaceRankingCollection, type PlaceWithRelations } from "@/types/database";
@@ -154,7 +155,6 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
   }, [city, places, userLocation]);
 
   const filteredPlaces = useMemo(() => {
-    const lowered = debouncedQuery.trim().toLowerCase();
     const chinaFilteredPlaces = new Set(
       filterPlacesForChineseTraveler(
         enrichedPlaces.map((item) => item.place),
@@ -167,7 +167,7 @@ export function PlacesExplorer({ places, initialCategory, locale = defaultLocale
       .filter(({ place, distance }) => {
         const categoryMatch = category === "all" || place.category === category;
         const regionMatch = region === "all" || getPlaceRegion(place).region_key === region;
-        const searchMatch = lowered.length === 0 || buildSearchText(place, locale).includes(lowered);
+        const searchMatch = matchesSearchQuery(debouncedQuery, [buildSearchText(place, locale), ...place.menu_items.flatMap(getMenuSearchFields)]);
         const chinaMatch = chinaFilteredPlaces.has(place.id);
         const timeMatch = activeChinaFilters.filter((filter) => timeAwareDiscoveryFilters.includes(filter)).every((filter) => matchesTimeAwareFilter(place, filter, estimateWalkingMinutes(distance)));
         const intentMatch = !homeIntent || place.tags.some((tag) => getHomeIntentKeyFromSlug(tag.slug) === homeIntent);

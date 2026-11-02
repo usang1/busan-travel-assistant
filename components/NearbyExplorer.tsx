@@ -53,6 +53,8 @@ import {
 import { formatPriceRange } from "@/lib/place-store";
 import { cn } from "@/lib/utils";
 import { defaultLocale, getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
+import { getSavedPlaceIds, savedItemsChangeEvent } from "@/lib/saved-items";
+import { getMenuSearchFields, matchesSearchQuery } from "@/lib/search-match";
 import { getPreferredMapProvider, type MapBounds, type MapMarker } from "@/lib/map-provider";
 import {
   getLocalizedRecommendationDisplay,
@@ -122,7 +124,7 @@ function isInsideBounds(place: PlaceWithRelations, bounds: MapBounds | null) {
 }
 
 export function NearbyExplorer({ places, locale = defaultLocale, loadError, city = "busan" }: NearbyExplorerProps) {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -234,7 +236,10 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
       const client = getSupabaseClient();
 
       if (!client || !user) {
-        if (mounted) setSavedPlaceIds(new Set());
+        if (mounted) {
+          setSavedPlaceIds(new Set(getSavedPlaceIds()));
+          setFilterNotice("");
+        }
         return;
       }
 
@@ -257,19 +262,14 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
 
     void loadSavedPlaceIds();
     window.addEventListener("place-save-change", loadSavedPlaceIds);
+    window.addEventListener(savedItemsChangeEvent, loadSavedPlaceIds);
 
     return () => {
       mounted = false;
       window.removeEventListener("place-save-change", loadSavedPlaceIds);
+      window.removeEventListener(savedItemsChangeEvent, loadSavedPlaceIds);
     };
   }, [localizedCopy.savedLoadFailed, user]);
-
-  useEffect(() => {
-    if (!authLoading && !user && category === "saved") {
-      setCategory("all");
-      setFilterNotice(localizedCopy.savedLoginRequired);
-    }
-  }, [authLoading, category, localizedCopy.savedLoginRequired, user]);
 
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1024px)");
@@ -297,7 +297,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
   }, [origin, places]);
 
   const filteredItems = useMemo(() => {
-    const lowered = query.trim().toLowerCase();
     const chinaFilteredPlaces = new Set(
       filterPlacesForChineseTraveler(
         baseItems.map((item) => item.place),
@@ -320,7 +319,7 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
         const boundsMatch = isInsideBounds(item.place, appliedBounds);
         const chinaMatch = chinaFilteredPlaces.has(item.place.id);
         const timeMatch = activeChinaFilters.filter((filter) => timeAwareDiscoveryFilters.includes(filter)).every((filter) => matchesTimeAwareFilter(item.place, filter, item.walkingMinutes));
-        const searchText = [
+        const searchFields = [
           content.name,
           content.secondaryName,
           content.description,
@@ -333,10 +332,9 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
           getPlaceCategoryLabel(item.place.category, locale),
           ...(item.place.tags ?? []).map((tag) => `${tag.label_zh} ${tag.label_ko} ${tag.slug}`),
           ...getChinaDiscoveryTags(item.place, locale, 6),
-        ]
-          .join(" ")
-          .toLowerCase();
-        const searchMatch = lowered.length === 0 || searchText.includes(lowered);
+          ...item.place.menu_items.flatMap(getMenuSearchFields),
+        ];
+        const searchMatch = matchesSearchQuery(query, searchFields);
 
         return categoryMatch && boundsMatch && searchMatch && chinaMatch && timeMatch && distanceMatch;
       });
@@ -499,11 +497,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
   }
 
   function changeCategory(nextCategory: MapCategoryFilter) {
-    if (nextCategory === "saved" && !user) {
-      setFilterNotice(localizedCopy.savedLoginRequired);
-      return;
-    }
-
     setFilterNotice("");
     setCategory(nextCategory);
   }
@@ -521,7 +514,6 @@ export function NearbyExplorer({ places, locale = defaultLocale, loadError, city
       originMode={originMode}
       defaultLocationLabel={cityScopeCopy.locationLabel}
       filterNotice={filterNotice}
-      userLoggedIn={Boolean(user)}
       userLocation={userLocation}
       distanceFilter={distanceFilter}
       onDistanceFilterChange={setDistanceFilter}
@@ -667,7 +659,6 @@ function SearchAndFilters({
   originMode,
   defaultLocationLabel,
   filterNotice,
-  userLoggedIn,
   userLocation,
   distanceFilter,
   priceBucket,
@@ -696,7 +687,6 @@ function SearchAndFilters({
   originMode: OriginMode;
   defaultLocationLabel: string;
   filterNotice: string;
-  userLoggedIn: boolean;
   userLocation: Coordinates | null;
   distanceFilter: DistanceFilter;
   priceBucket: ChinaPriceBucket;
@@ -754,7 +744,7 @@ function SearchAndFilters({
             type="button"
             onClick={() => onCategoryChange(option.value)}
             aria-pressed={category === option.value}
-            title={option.value === "saved" && !userLoggedIn ? localizedCopy.savedLoginRequired : undefined}
+            title={option.value === "saved" ? localizedCopy.savedLoginRequired : undefined}
             className={cn(
               "inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-black ring-1 transition active:scale-95",
               category === option.value ? "bg-[#4f6652] text-white ring-[#4f6652]" : "bg-white text-[#555b55] ring-[#e8e4dd]",
@@ -1260,7 +1250,7 @@ const nearbyCopy: Record<Locale, {
     distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "全部" },
     walkingLabels: { "500": "步行约5-10分", "1000": "步行约10-20分" },
     walkingEstimateNotice: "步行时间仅为距离换算的大致参考。",
-    savedLoginRequired: "登录后可以只查看已保存的地点。",
+    savedLoginRequired: "显示当前设备或账号中已收藏的地点。",
     savedLoadFailed: "无法读取已保存的地点，请稍后重试。",
     savedCount: "收藏",
     nowRecommended: "现在推荐",
@@ -1303,7 +1293,7 @@ const nearbyCopy: Record<Locale, {
     distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "All" },
     walkingLabels: { "500": "about 5-10 min", "1000": "about 10-20 min" },
     walkingEstimateNotice: "Walking times are rough distance-based estimates, not live directions.",
-    savedLoginRequired: "Sign in to show only your saved places.",
+    savedLoginRequired: "Show places saved on this device or account.",
     savedLoadFailed: "Saved places could not be loaded. Please try again.",
     savedCount: "Saved",
     nowRecommended: "Recommended now",
@@ -1346,7 +1336,7 @@ const nearbyCopy: Record<Locale, {
     distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "すべて" },
     walkingLabels: { "500": "徒歩約5〜10分", "1000": "徒歩約10〜20分" },
     walkingEstimateNotice: "徒歩時間は距離換算による目安で、実際の経路時間ではありません。",
-    savedLoginRequired: "ログインすると保存したスポットだけを表示できます。",
+    savedLoginRequired: "この端末またはアカウントに保存したスポットを表示します。",
     savedLoadFailed: "保存したスポットを読み込めませんでした。時間をおいて再度お試しください。",
     savedCount: "保存",
     nowRecommended: "今おすすめ",
@@ -1389,7 +1379,7 @@ const nearbyCopy: Record<Locale, {
     distanceLabels: { "500": "500m", "1000": "1km", "3000": "3km", all: "전체" },
     walkingLabels: { "500": "도보 약 5~10분", "1000": "도보 약 10~20분" },
     walkingEstimateNotice: "도보 시간은 실제 경로 안내가 아닌 거리 기준의 대략적인 값입니다.",
-    savedLoginRequired: "로그인하면 저장한 장소만 지도에서 볼 수 있습니다.",
+    savedLoginRequired: "이 기기 또는 계정에 저장한 장소만 표시합니다.",
     savedLoadFailed: "저장한 장소를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
     savedCount: "저장",
     nowRecommended: "지금 추천",

@@ -14,6 +14,8 @@ const locationSource = readFileSync(new URL("../lib/location.ts", import.meta.ur
 const directionsSource = readFileSync(new URL("../lib/directions.ts", import.meta.url), "utf8");
 const placeSearchUrlSource = readFileSync(new URL("../lib/place-search-url.ts", import.meta.url), "utf8");
 const chinaDiscoverySource = readFileSync(new URL("../lib/place-china/discovery.ts", import.meta.url), "utf8");
+const searchMatchSource = readFileSync(new URL("../lib/search-match.ts", import.meta.url), "utf8");
+const savedItemsSource = readFileSync(new URL("../lib/saved-items.ts", import.meta.url), "utf8");
 
 const compiledLocation = ts.transpileModule(locationSource, {
   compilerOptions: {
@@ -76,6 +78,34 @@ const { calculateDistanceMeters, formatDistance, isValidCoordinates } = location
 const { getPreferredMapProvider, naverMapNcpKeyId } = mapProviderModule.exports;
 const { buildDirectionsUrl } = directionsModule.exports;
 const { buildLocalizedPlacesSearchHref, readPlacesSearchQuery } = placeSearchUrlModule.exports;
+const compiledSearchMatch = ts.transpileModule(searchMatchSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, verbatimModuleSyntax: false } }).outputText;
+const searchMatchModule = { exports: {} };
+new Function("module", "exports", "require", compiledSearchMatch)(searchMatchModule, searchMatchModule.exports, () => ({}));
+const { getMenuSearchFields, matchesSearchQuery } = searchMatchModule.exports;
+const porkSoupMenu = { name_ko: "돼지국밥", name_zh: "猪肉汤饭", description_zh: "釜山热汤", localized_name: { en: "Pork soup with rice", ja: "豚肉クッパ" } };
+assert.equal(matchesSearchQuery("猪肉汤饭", getMenuSearchFields(porkSoupMenu)), true);
+assert.equal(matchesSearchQuery("돼지국밥", getMenuSearchFields(porkSoupMenu)), true);
+assert.equal(matchesSearchQuery("海云台 猪肉汤饭", ["海云台", ...getMenuSearchFields(porkSoupMenu)]), true, "Region and menu tokens may match separate fields");
+assert.equal(matchesSearchQuery("海云台 猪肉汤饭", ["广安里", ...getMenuSearchFields(porkSoupMenu)]), false, "A missing region token must not return an unrelated place");
+
+const savedStorage = new Map();
+const savedWindow = {
+  localStorage: {
+    getItem: (key) => savedStorage.get(key) ?? null,
+    setItem: (key, value) => savedStorage.set(key, value),
+    removeItem: (key) => savedStorage.delete(key),
+  },
+  dispatchEvent: () => true,
+};
+const compiledSavedItems = ts.transpileModule(savedItemsSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const savedItemsModule = { exports: {} };
+new Function("module", "exports", "require", "window", "Event", compiledSavedItems)(savedItemsModule, savedItemsModule.exports, () => ({}), savedWindow, class Event { constructor(type) { this.type = type; } });
+const guestPlace = (id) => ({ id, type: "place", titleZh: id, titleKo: id, href: `/zh/places/${id}`, imageUrl: "", meta: "" });
+savedItemsModule.exports.toggleSavedItem(guestPlace("place-a"));
+savedItemsModule.exports.toggleSavedItem(guestPlace("place-b"));
+assert.deepEqual(Array.from(savedItemsModule.exports.getSavedPlaceIds()).sort(), ["place-a", "place-b"], "Two guest saves must remain available to the map filter after local storage reloads");
+savedItemsModule.exports.toggleSavedItem(guestPlace("place-a"));
+assert.deepEqual(Array.from(savedItemsModule.exports.getSavedPlaceIds()), ["place-b"], "Guest unsave must immediately update the saved filter source");
 
 assert.equal(isValidCoordinates({ latitude: 35.15, longitude: 129.11 }), true);
 assert.equal(isValidCoordinates({ latitude: null, longitude: 129.11 }), false);
@@ -128,6 +158,10 @@ assert.match(nearbyExplorer, /nextParams\.set\("city", city\)/);
 assert.match(nearbyExplorer, /router\.replace\(nextQuery \? `\$\{pathname\}\?\$\{nextQuery\}` : pathname, \{ scroll: false \}\)/);
 assert.match(nearbyExplorer, /\.from\("place_saves"\)[\s\S]*\.select\("place_id"\)[\s\S]*\.eq\("user_id", user\.id\)/);
 assert.match(nearbyExplorer, /savedPlaceIds\.has\(item\.place\.id\)/);
+assert.match(nearbyExplorer, /new Set\(getSavedPlaceIds\(\)\)/, "Guest map filters must read local saved places");
+assert.doesNotMatch(nearbyExplorer, /nextCategory === "saved" && !user/, "Guest saved filters must not require authentication");
+assert.match(placesExplorer, /place\.menu_items\.flatMap\(getMenuSearchFields\)/, "Place search must include published menu names");
+assert.match(nearbyExplorer, /item\.place\.menu_items\.flatMap\(getMenuSearchFields\)/, "Map search must include published menu names");
 assert.match(nearbyExplorer, /distanceFromUser !== null && distanceFromUser <= distanceLimit/);
 assert.doesNotMatch(nearbyExplorer, /initialSelectionAppliedRef/, "The mobile map must not open with a place overlay already covering it");
 assert.doesNotMatch(nearbyExplorer, /filteredItems\.find\([^\n]+\) \?\? filteredItems\[0\]/);
