@@ -15,7 +15,10 @@ export type MenuGuidancePreferences = {
 
 export type MenuGuidanceResult = {
   lines: Array<{ item: PlaceMenuItem; quantity: number; reasons: string[] }>;
+  uncertainLines: Array<{ item: PlaceMenuItem; quantity: number; reasons: string[] }>;
+  overBudgetLines: Array<{ item: PlaceMenuItem; quantity: number; reasons: string[] }>;
   total: number | null;
+  overBudgetTotal: number | null;
   warnings: string[];
   koreanOrderText: string;
 };
@@ -31,30 +34,38 @@ export function recommendMenuCombination(menuItems: PlaceMenuItem[], preferences
     .filter((item) => !item.meal_type || item.meal_type === "both" || item.meal_type === preferences.mealType)
     .map((item) => ({ item, score: menuScore(item, preferences), reasons: menuReasons(item, preferences, locale), quantity: item.recommended_party_size ? Math.max(1, Math.ceil(preferences.people / item.recommended_party_size)) : 1 }))
     .sort((a, b) => b.score - a.score || a.item.sort_order - b.item.sort_order);
+  const count = preferences.people >= 2 ? 2 : 1;
+  const confirmedCandidates = candidates.filter((line) => !hasUnverifiedCondition(line.item, preferences));
+  const uncertainCandidates = candidates.filter((line) => hasUnverifiedCondition(line.item, preferences));
+  const selected = selectAffordableMenuLines(confirmedCandidates, count, preferences.budget);
+  const uncertain = selectUncertainMenuLines(uncertainCandidates, count, preferences.budget);
+  const overBudget = preferences.budget === null || selected.length
+    ? []
+    : selectLowestOverBudgetLines(confirmedCandidates, count, preferences.budget);
 
-  const selected = selectMenuLines(candidates, preferences.people >= 2 ? 2 : 1, preferences.budget);
-
-  if (preferences.seafood === "avoid" && selected.some((line) => (line.item.contains_seafood ?? "unknown") === "unknown")) warnings.push(copy[locale].seafoodUnknown);
-  if (preferences.cilantro === "avoid" && selected.some((line) => (line.item.contains_cilantro ?? "unknown") === "unknown")) warnings.push(copy[locale].cilantroUnknown);
-  if (preferences.spicy === "avoid" && selected.some((line) => line.item.spicy_level === null || line.item.spicy_level === undefined)) warnings.push(copy[locale].spicyUnknown);
-  if (preferences.oily === "avoid" && selected.some((line) => line.item.oily_level === null || line.item.oily_level === undefined)) warnings.push(copy[locale].oilyUnknown);
+  if (preferences.seafood === "avoid" && uncertain.some((line) => (line.item.contains_seafood ?? "unknown") === "unknown")) warnings.push(copy[locale].seafoodUnknown);
+  if (preferences.cilantro === "avoid" && uncertain.some((line) => (line.item.contains_cilantro ?? "unknown") === "unknown")) warnings.push(copy[locale].cilantroUnknown);
+  if (preferences.spicy === "avoid" && uncertain.some((line) => line.item.spicy_level === null || line.item.spicy_level === undefined)) warnings.push(copy[locale].spicyUnknown);
+  if (preferences.oily === "avoid" && uncertain.some((line) => line.item.oily_level === null || line.item.oily_level === undefined)) warnings.push(copy[locale].oilyUnknown);
   if (selected.some((line) => !line.item.recommended_party_size)) warnings.push(copy[locale].portionUnknown);
   if (selected.some((line) => line.item.sold_out_risk !== null && line.item.sold_out_risk !== undefined && line.item.sold_out_risk >= 4)) warnings.push(copy[locale].selloutRisk);
   const pricesKnown = selected.length > 0 && selected.every((line) => getKnownMenuAmount(line.item) !== null);
   const total = pricesKnown ? selected.reduce((sum, line) => sum + (getKnownMenuAmount(line.item) ?? 0) * line.quantity, 0) : null;
-  if (preferences.budget !== null && total !== null && total > preferences.budget) warnings.push(copy[locale].overBudget);
-  if (preferences.budget !== null && selected.length > 0 && total === null) warnings.push(selected.some((line) => line.item.price_is_variable) ? variableBudgetWarning[locale] : copy[locale].budgetUnknown);
+  if (preferences.budget !== null && uncertain.some((line) => getKnownMenuAmount(line.item) === null)) warnings.push(uncertain.some((line) => line.item.price_is_variable) ? variableBudgetWarning[locale] : copy[locale].budgetUnknown);
   const koreanParts = selected.map((line) => `${koreanMenuName(line.item)} ${line.quantity === 1 ? "하나" : `${line.quantity}개`}`);
 
   return {
     lines: selected.map(({ item, quantity, reasons }) => ({ item, quantity, reasons })),
+    uncertainLines: uncertain.map(({ item, quantity, reasons }) => ({ item, quantity, reasons })),
+    overBudgetLines: overBudget.map(({ item, quantity, reasons }) => ({ item, quantity, reasons })),
     total,
+    overBudgetTotal: menuLinesTotal(overBudget),
     warnings,
     koreanOrderText: koreanParts.length ? `${koreanParts.join(", ")} 주세요.` : "주문 가능한 메뉴를 추천해 주세요.",
   };
 }
 
-function selectMenuLines<T extends { item: PlaceMenuItem; quantity: number; score: number }>(candidates: T[], count: number, budget: number | null) {
+function selectAffordableMenuLines<T extends { item: PlaceMenuItem; quantity: number; score: number }>(candidates: T[], count: number, budget: number | null) {
   if (budget === null) return candidates.slice(0, count);
   const combinations: T[][] = candidates.map((candidate) => [candidate]);
   if (count > 1) {
@@ -63,7 +74,41 @@ function selectMenuLines<T extends { item: PlaceMenuItem; quantity: number; scor
     }
   }
   const affordable = combinations.filter((lines) => lines.every((line) => getKnownMenuAmount(line.item) !== null) && lines.reduce((sum, line) => sum + (getKnownMenuAmount(line.item) ?? 0) * line.quantity, 0) <= budget);
-  return affordable.sort((left, right) => right.length - left.length || right.reduce((sum, line) => sum + line.score, 0) - left.reduce((sum, line) => sum + line.score, 0))[0] ?? candidates.slice(0, count);
+  return affordable.sort((left, right) => right.length - left.length || right.reduce((sum, line) => sum + line.score, 0) - left.reduce((sum, line) => sum + line.score, 0))[0] ?? [];
+}
+
+function selectUncertainMenuLines<T extends { item: PlaceMenuItem; quantity: number; score: number }>(candidates: T[], count: number, budget: number | null) {
+  return candidates.filter((line) => {
+    if (budget === null) return true;
+    const amount = getKnownMenuAmount(line.item);
+    return amount === null || amount * line.quantity <= budget;
+  }).slice(0, count);
+}
+
+function selectLowestOverBudgetLines<T extends { item: PlaceMenuItem; quantity: number; score: number }>(candidates: T[], count: number, budget: number) {
+  const combinations: T[][] = candidates.map((candidate) => [candidate]);
+  if (count > 1) {
+    for (let left = 0; left < candidates.length; left += 1) {
+      for (let right = left + 1; right < candidates.length; right += 1) combinations.push([candidates[left], candidates[right]]);
+    }
+  }
+  return combinations
+    .map((lines) => ({ lines, total: menuLinesTotal(lines) }))
+    .filter((entry): entry is { lines: T[]; total: number } => entry.total !== null && entry.total > budget)
+    .sort((left, right) => left.total - right.total || right.lines.reduce((sum, line) => sum + line.score, 0) - left.lines.reduce((sum, line) => sum + line.score, 0))[0]?.lines ?? [];
+}
+
+function menuLinesTotal(lines: Array<{ item: PlaceMenuItem; quantity: number }>) {
+  if (!lines.length || lines.some((line) => getKnownMenuAmount(line.item) === null)) return null;
+  return lines.reduce((sum, line) => sum + (getKnownMenuAmount(line.item) ?? 0) * line.quantity, 0);
+}
+
+function hasUnverifiedCondition(item: PlaceMenuItem, preferences: MenuGuidancePreferences) {
+  return (preferences.seafood === "avoid" && (item.contains_seafood ?? "unknown") === "unknown")
+    || (preferences.cilantro === "avoid" && (item.contains_cilantro ?? "unknown") === "unknown")
+    || (preferences.spicy === "avoid" && (item.spicy_level === null || item.spicy_level === undefined))
+    || (preferences.oily === "avoid" && (item.oily_level === null || item.oily_level === undefined))
+    || (preferences.budget !== null && getKnownMenuAmount(item) === null);
 }
 
 function isMenuAvailable(item: PlaceMenuItem, at: Date) {

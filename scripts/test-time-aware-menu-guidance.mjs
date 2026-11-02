@@ -118,8 +118,8 @@ function menuItem(overrides = {}) {
     aroma_level: 1,
     portion_size: 3,
     recommended_party_size: 2,
-    contains_seafood: "unknown",
-    contains_cilantro: "unknown",
+    contains_seafood: "no",
+    contains_cilantro: "no",
     meal_type: "meal",
     sold_out_risk: null,
     ...overrides,
@@ -132,17 +132,25 @@ assert.equal(guidance.lines.length, 1);
 assert.equal(guidance.total, 12000);
 assert.equal(guidance.koreanOrderText, "한국어 원문 메뉴 하나 주세요.");
 assert.doesNotMatch(guidance.koreanOrderText, /翻译菜单名/);
-assert.match(guidance.warnings.join(" "), /海鲜信息尚未确认/);
-assert.match(guidance.warnings.join(" "), /香菜信息尚未确认/);
+
+const unknownIngredient = menu.recommendMenuCombination([menuItem({ contains_seafood: "unknown", contains_cilantro: "unknown" })], preferences, "zh");
+assert.equal(unknownIngredient.lines.length, 0);
+assert.equal(unknownIngredient.uncertainLines.length, 1);
+assert.match(unknownIngredient.warnings.join(" "), /海鲜信息尚未确认/);
+assert.match(unknownIngredient.warnings.join(" "), /香菜信息尚未确认/);
 
 const variableGuidance = menu.recommendMenuCombination([menuItem({ price: null, price_is_variable: true })], preferences, "zh");
-assert.equal(variableGuidance.total, null);
+assert.equal(variableGuidance.lines.length, 0);
+assert.equal(variableGuidance.uncertainLines.length, 1);
 assert.match(variableGuidance.warnings.join(" "), /价格浮动/);
 
 const explicitSeafood = menu.recommendMenuCombination([menuItem({ contains_seafood: "yes" })], preferences, "en");
 assert.equal(explicitSeafood.lines.length, 0, "An explicit seafood item must be excluded when seafood is avoided");
+assert.equal(explicitSeafood.uncertainLines.length, 0);
 
 const unknownTaste = menu.recommendMenuCombination([menuItem({ spicy_level: null, oily_level: null })], preferences, "en");
+assert.equal(unknownTaste.lines.length, 0);
+assert.equal(unknownTaste.uncertainLines.length, 1);
 assert.match(unknownTaste.warnings.join(" "), /Spice level is unverified/);
 assert.match(unknownTaste.warnings.join(" "), /Oiliness is unverified/);
 
@@ -161,6 +169,27 @@ const budgetMenu = menu.recommendMenuCombination([
 ], { ...preferences, budget: 20000 }, "ko");
 assert.equal(budgetMenu.total, 16000);
 assert.deepEqual(Array.from(budgetMenu.lines, (line) => line.item.id), ["budget-1", "budget-2"]);
+
+const overBudgetMenu = menu.recommendMenuCombination([
+  menuItem({ id: "expensive-only", price: 36000, recommended_party_size: 2 }),
+], { ...preferences, budget: 10000 }, "ko");
+assert.equal(overBudgetMenu.lines.length, 0, "An over-budget item must not be a matching recommendation");
+assert.deepEqual(Array.from(overBudgetMenu.overBudgetLines, (line) => line.item.id), ["expensive-only"]);
+assert.equal(overBudgetMenu.overBudgetTotal, 36000);
+assert.equal(overBudgetMenu.koreanOrderText, "주문 가능한 메뉴를 추천해 주세요.", "No stale order phrase may survive an empty match");
+
+const noCandidate = menu.recommendMenuCombination([], { ...preferences, budget: 10000 }, "ja");
+assert.equal(noCandidate.lines.length, 0);
+assert.equal(noCandidate.uncertainLines.length, 0);
+assert.equal(noCandidate.overBudgetLines.length, 0);
+
+for (const people of [1, 2, 3, 4]) {
+  const party = menu.recommendMenuCombination([menuItem({ recommended_party_size: 2 })], { ...preferences, people, budget: 50000 }, "en");
+  assert.equal(party.lines[0].quantity, Math.ceil(people / 2));
+}
+const unknownPortion = menu.recommendMenuCombination([menuItem({ recommended_party_size: null })], preferences, "en");
+assert.equal(unknownPortion.lines[0].quantity, 1);
+assert.match(unknownPortion.warnings.join(" "), /Recommended party size is unknown/);
 
 const orderGuide = readFileSync(new URL("../components/OrderGuide.tsx", import.meta.url), "utf8");
 assert.match(orderGuide, /1인분 주세요/);
