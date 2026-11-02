@@ -19,10 +19,23 @@ const planner = compileCommonJs("../lib/trip-planner.ts", (specifier) => {
   if (specifier === "@/lib/location") return location;
   throw new Error(`Unexpected trip planner runtime import: ${specifier}`);
 });
+const dateInput = compileCommonJs("../lib/date-input.ts", (specifier) => {
+  throw new Error(`Unexpected date input runtime import: ${specifier}`);
+});
 
 assert.equal(planner.getTripDayCount("2026-09-02", "2026-09-04"), 3);
 assert.equal(planner.getTripDayCount("invalid", "2026-09-04"), 1);
 assert.equal(planner.getTripDayDate("2026-09-02", 2), "2026-09-03");
+assert.equal(dateInput.validateDateRange("2026-09-02", "2026-09-04"), null);
+assert.equal(dateInput.validateDateRange("", "2026-09-04"), "missing");
+assert.equal(dateInput.validateDateRange("2026-02-30", "2026-09-04"), "invalid");
+assert.equal(dateInput.validateDateRange("2026-09-05", "2026-09-04"), "reversed");
+const clamped = planner.clampTripLayoutToDayCount([
+  { placeId: "a", dayNumber: 1, sortOrder: 0 },
+  { placeId: "b", dayNumber: 3, sortOrder: 0 },
+  { placeId: "c", dayNumber: 2, sortOrder: 0 },
+], 1);
+assert.deepEqual(Array.from(clamped, (item) => [item.placeId, item.dayNumber, item.sortOrder]), [["a", 1, 0], ["c", 1, 1], ["b", 1, 2]], "Shrinking a trip must preserve every place with deterministic order");
 
 function place(id, category, latitude, longitude, openingHours = "10:00-22:00") {
   return { id, category, latitude, longitude, opening_hours: openingHours, is_active: true };
@@ -49,6 +62,7 @@ const openingAware = planner.autoArrangeTripPlaces([
 assert.equal(openingAware[0].placeId, "morning-cafe");
 
 const migration = readFileSync(new URL("../supabase/migrations/018_trip_planning_and_sharing.sql", import.meta.url), "utf8");
+const dateGuardMigration = readFileSync(new URL("../supabase/migrations/057_trip_date_range_guard.sql", import.meta.url), "utf8");
 const tripPlanner = readFileSync(new URL("../components/TripPlanner.tsx", import.meta.url), "utf8");
 const tripDayMap = readFileSync(new URL("../components/TripDayMap.tsx", import.meta.url), "utf8");
 const travelMap = readFileSync(new URL("../components/TravelMap.tsx", import.meta.url), "utf8");
@@ -74,7 +88,13 @@ assert.match(migration, /using \(user_id = auth\.uid\(\)\)/);
 assert.match(migration, /public\.is_trip_owner\(trip_id\)/);
 assert.match(migration, /create or replace function public\.copy_shared_trip/);
 assert.match(migration, /current_user_id is null/);
+assert.match(dateGuardMigration, /check \(start_date <= end_date\) not valid/);
+assert.match(dateGuardMigration, /select id, start_date, end_date from public\.trips where start_date > end_date/);
+assert.match(dateGuardMigration, /drop constraint if exists trips_date_range_valid/, "Rollback must keep trip rows intact");
 assert.match(tripPlanner, /autoArrangeTripPlaces\(allPlaces, dayCount\)/);
+assert.match(tripPlanner, /validateDateRange\(createForm\.startDate, createForm\.endDate\)/);
+assert.match(tripPlanner, /clampTripLayoutToDayCount/);
+assert.match(tripStore, /validateDateRange\(input\.startDate, input\.endDate\)/);
 assert.match(tripDayMap, /sequence: index \+ 1/);
 assert.match(travelMap, /item\.marker\.sequence !== undefined/);
 assert.match(tripStore, /rpc\("get_shared_trip"/);

@@ -160,6 +160,7 @@ supabase/migrations/035_grounded_trip_planning.sql
 supabase/migrations/036_product_rollout_analytics.sql
 supabase/migrations/054_analytics_event_pipeline.sql
 supabase/migrations/055_business_reports_and_coupon_operations.sql
+supabase/migrations/057_trip_date_range_guard.sql
 supabase/migrations/037_lightweight_place_verification_signals.sql
 supabase/seed.sql
 ```

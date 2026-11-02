@@ -42,7 +42,8 @@ function createWindow({ failReads = false, failWrites = false, initial = "{}" } 
   };
 }
 
-const guestTrips = compileCommonJs("../lib/guest-trips.ts", () => ({}));
+const dateInput = compileCommonJs("../lib/date-input.ts", () => ({}));
+const guestTrips = compileCommonJs("../lib/guest-trips.ts", (specifier) => specifier === "@/lib/date-input" ? dateInput : {});
 
 globalThis.window = createWindow();
 
@@ -55,6 +56,9 @@ const trip = guestTrips.createGuestTrip({
   visibility: "private",
 });
 assert.equal(trip.user_id, "guest");
+const beforeInvalidCreate = globalThis.window.stored;
+assert.throws(() => guestTrips.createGuestTrip({ title: "Invalid", startDate: "2026-09-12", endDate: "2026-09-10", visibility: "private" }), /invalid_trip_dates:reversed/);
+assert.equal(globalThis.window.stored, beforeInvalidCreate, "Invalid dates must not overwrite the existing guest schedule");
 
 const firstAdd = guestTrips.addGuestPlaceToTrip(trip.id, "place-a", 1);
 assert.equal(firstAdd.status, "added");

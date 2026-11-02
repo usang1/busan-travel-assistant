@@ -15,3 +15,13 @@ export function fromDateInputValue(value: string | null | undefined) {
   return toDateInputValue(value) || null;
 }
 
+export type DateRangeValidation = "missing" | "invalid" | "reversed" | null;
+
+export function validateDateRange(startDate: string | null | undefined, endDate: string | null | undefined): DateRangeValidation {
+  if (!startDate || !endDate) return "missing";
+  const start = toDateInputValue(startDate);
+  const end = toDateInputValue(endDate);
+  if (!start || !end || start !== startDate || end !== endDate) return "invalid";
+  return start <= end ? null : "reversed";
+}
+

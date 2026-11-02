@@ -16,6 +16,19 @@ export function getTripDayCount(startDate: string, endDate: string) {
   return Math.max(1, Math.min(maxTripDays, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1));
 }
 
+export function clampTripLayoutToDayCount<T extends { dayNumber: number; sortOrder: number }>(layout: T[], dayCount: number): T[] {
+  const safeDayCount = Math.max(1, Math.floor(dayCount));
+  const nextOrder = new Map<number, number>();
+  return [...layout]
+    .sort((left, right) => left.dayNumber - right.dayNumber || left.sortOrder - right.sortOrder)
+    .map((item) => {
+      const dayNumber = Math.min(Math.max(1, item.dayNumber), safeDayCount);
+      const sortOrder = nextOrder.get(dayNumber) ?? 0;
+      nextOrder.set(dayNumber, sortOrder + 1);
+      return { ...item, dayNumber, sortOrder };
+    });
+}
+
 export function getTripDayDate(startDate: string, dayNumber: number) {
   const start = parseDate(startDate);
   if (!start) return "";

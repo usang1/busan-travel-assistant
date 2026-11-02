@@ -1,4 +1,5 @@
 import type { TripInput } from "@/lib/trip-store";
+import { validateDateRange } from "@/lib/date-input";
 import type { TripPlaceRecord, TripRecord } from "@/types/database";
 
 export const guestTripsStorageKey = "busan-travel-assistant-guest-trips";
@@ -13,6 +14,8 @@ export type GuestTripStore = {
 export type GuestTripPlaceAddResult =
   | { status: "added"; item: TripPlaceRecord }
   | { status: "duplicate"; item: TripPlaceRecord };
+
+export type GuestTripLayoutInput = Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null; stayMinutes?: number | null; travelMinutes?: number | null; travelMode?: TripPlaceRecord["travel_mode"]; sourceGuideSequence?: number | null }>;
 
 export function readGuestTripStore(): GuestTripStore {
   if (typeof window === "undefined") return emptyGuestTripStore();
@@ -45,6 +48,7 @@ export function clearGuestTrips() {
 }
 
 export function createGuestTrip(input: TripInput) {
+  assertValidTripDates(input);
   const now = new Date().toISOString();
   const trip: TripRecord = {
     id: createLocalId("trip"),
@@ -66,6 +70,7 @@ export function createGuestTrip(input: TripInput) {
 }
 
 export function updateGuestTrip(tripId: string, input: TripInput) {
+  assertValidTripDates(input);
   const now = new Date().toISOString();
   const store = readGuestTripStore();
   const nextTrips = store.trips.map((trip) => trip.id === tripId
@@ -80,6 +85,34 @@ export function updateGuestTrip(tripId: string, input: TripInput) {
     : trip);
   writeGuestTripStore({ ...store, trips: nextTrips });
   return nextTrips.find((trip) => trip.id === tripId) ?? null;
+}
+
+export function updateGuestTripWithLayout(tripId: string, input: TripInput, layout: GuestTripLayoutInput) {
+  assertValidTripDates(input);
+  const now = new Date().toISOString();
+  const store = readGuestTripStore();
+  const currentTrip = store.trips.find((trip) => trip.id === tripId);
+  if (!currentTrip) return null;
+  const trip: TripRecord = { ...currentTrip, title: input.title.trim() || currentTrip.title, start_date: input.startDate, end_date: input.endDate, visibility: input.visibility, updated_at: now };
+  const byPlace = new Map(store.tripPlaces.filter((item) => item.trip_id === tripId).map((item) => [item.place_id, item]));
+  const tripPlaces = [
+    ...store.tripPlaces.filter((item) => item.trip_id !== tripId),
+    ...layout.map((item) => {
+      const existing = byPlace.get(item.placeId);
+      return {
+        id: existing?.id ?? createLocalId("trip-place"), trip_id: tripId, place_id: item.placeId,
+        day_number: item.dayNumber, sort_order: item.sortOrder, memo: item.memo ?? existing?.memo ?? "",
+        planned_time: item.plannedTime ?? existing?.planned_time ?? null,
+        stay_minutes: item.stayMinutes ?? existing?.stay_minutes ?? null,
+        travel_minutes: item.travelMinutes ?? existing?.travel_minutes ?? null,
+        travel_mode: item.travelMode ?? existing?.travel_mode ?? null,
+        source_guide_sequence: item.sourceGuideSequence ?? existing?.source_guide_sequence ?? null,
+        created_at: existing?.created_at ?? now, updated_at: now,
+      } satisfies TripPlaceRecord;
+    }),
+  ];
+  writeGuestTripStore({ trips: store.trips.map((item) => item.id === tripId ? trip : item), tripPlaces });
+  return trip;
 }
 
 export function deleteGuestTrip(tripId: string) {
@@ -133,7 +166,7 @@ export function addGuestPlaceToTrip(tripId: string, placeId: string, dayNumber =
 
 export function saveGuestTripLayout(
   tripId: string,
-  layout: Array<{ placeId: string; dayNumber: number; sortOrder: number; memo?: string; plannedTime?: string | null; stayMinutes?: number | null; travelMinutes?: number | null; travelMode?: TripPlaceRecord["travel_mode"]; sourceGuideSequence?: number | null }>,
+  layout: GuestTripLayoutInput,
 ) {
   const store = readGuestTripStore();
   const byPlace = new Map(
@@ -257,4 +290,9 @@ function isTripPlaceRecord(value: unknown): value is TripPlaceRecord {
 
 function normalizePlannedTime(value: unknown) {
   return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value) ? value.slice(0, 5) : null;
+}
+
+function assertValidTripDates(input: TripInput) {
+  const error = validateDateRange(input.startDate, input.endDate);
+  if (error) throw new Error(`invalid_trip_dates:${error}`);
 }

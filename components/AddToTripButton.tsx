@@ -10,6 +10,7 @@ import { defaultLocale, getLocaleFromPath, type Locale, withLocale } from "@/lib
 import { addPlaceToTrip, createTrip, getTripPlaces, getUserTrips, type TripInput } from "@/lib/trip-store";
 import type { TripRecord } from "@/types/database";
 import { recordProductEvent } from "@/lib/place-events";
+import { validateDateRange } from "@/lib/date-input";
 
 export function AddToTripButton({ placeId, locale }: { placeId: string; locale?: Locale }) {
   const pathname = usePathname();
@@ -151,6 +152,11 @@ export function AddToTripButton({ placeId, locale }: { placeId: string; locale?:
   async function handleCreateTrip(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (loading) return;
+    if (validateDateRange(createForm.startDate, createForm.endDate)) {
+      setStatus(text.dateError);
+      setStatusTone("error");
+      return;
+    }
 
     if (user) {
       setLoading(true);
@@ -395,6 +401,7 @@ const copy = {
     tripTitle: "일정 제목",
     startDate: "시작일",
     endDate: "종료일",
+    dateError: "시작일과 종료일을 확인해 주세요.",
     guestHint: "로그인 없이 이 기기에 저장되는 일정입니다.",
     userHint: "계정에 저장된 일정에 추가합니다.",
     syncHint: "다른 기기에서도 보려면 로그인하세요.",
@@ -418,6 +425,7 @@ const copy = {
     tripTitle: "计划名称",
     startDate: "开始日期",
     endDate: "结束日期",
+    dateError: "请检查开始和结束日期。",
     guestHint: "未登录时计划会保存在此设备。",
     userHint: "加入已保存在账号中的计划。",
     syncHint: "需要在其他设备查看时可登录同步。",
@@ -441,6 +449,7 @@ const copy = {
     tripTitle: "Trip title",
     startDate: "Start date",
     endDate: "End date",
+    dateError: "Check the start and end dates.",
     guestHint: "Without signing in, this trip is saved on this device.",
     userHint: "Add to a trip saved in your account.",
     syncHint: "Sign in only if you want this available on other devices.",
@@ -464,6 +473,7 @@ const copy = {
     tripTitle: "プラン名",
     startDate: "開始日",
     endDate: "終了日",
+    dateError: "開始日と終了日を確認してください。",
     guestHint: "ログインしていない場合、この端末に保存されます。",
     userHint: "アカウントに保存済みのプランに追加します。",
     syncHint: "他の端末でも見る場合のみログインしてください。",

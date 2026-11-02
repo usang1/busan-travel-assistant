@@ -30,7 +30,7 @@ import {
   readGuestTripStore,
   removeGuestTripPlace,
   saveGuestTripLayout,
-  updateGuestTrip,
+  updateGuestTripWithLayout,
   updateGuestTripPlace,
 } from "@/lib/guest-trips";
 import { getPlaceContent, type Locale, ui, withLocale } from "@/lib/i18n";
@@ -38,7 +38,8 @@ import { calculateDistanceMeters, estimateWalkingMinutes, hasCoordinates } from 
 import { getPublicPlacesByIds } from "@/lib/place-store";
 import { getPlaceCategoryLabel, getPlaceNameDisplay } from "@/lib/place-trust";
 import { getSavedPlaceIds, savedItemsChangeEvent } from "@/lib/saved-items";
-import { autoArrangeTripPlaces, getTripDayCount, getTripDayDate } from "@/lib/trip-planner";
+import { autoArrangeTripPlaces, clampTripLayoutToDayCount, getTripDayCount, getTripDayDate } from "@/lib/trip-planner";
+import { validateDateRange } from "@/lib/date-input";
 import { formatTimeAwareWarning, getTimeAwarePlaceState, getTimeAwareWarningCodes, seoulDateTimeToDate } from "@/lib/time-aware-place";
 import {
   addPlaceToTrip,
@@ -167,6 +168,10 @@ export function TripPlanner({ locale }: TripPlannerProps) {
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (validateDateRange(createForm.startDate, createForm.endDate)) {
+      setStatus(tripDateError[locale]);
+      return;
+    }
     setBusy(true);
     setStatus("");
 
@@ -197,23 +202,21 @@ export function TripPlanner({ locale }: TripPlannerProps) {
   async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeTrip || busy) return;
+    if (validateDateRange(editForm.startDate, editForm.endDate)) {
+      setStatus(tripDateError[locale]);
+      return;
+    }
     setBusy(true);
 
     if (!user) {
-      const trip = updateGuestTrip(activeTrip.id, editForm);
+      const newDayCount = getTripDayCount(editForm.startDate, editForm.endDate);
+      const nextLayout = clampTripLayoutToDayCount(tripPlaces.map((item) => ({
+        placeId: item.place_id, dayNumber: item.day_number, sortOrder: item.sort_order, memo: item.memo,
+        plannedTime: item.planned_time, stayMinutes: item.stay_minutes, travelMinutes: item.travel_minutes,
+        travelMode: item.travel_mode, sourceGuideSequence: item.source_guide_sequence,
+      })), newDayCount);
+      const trip = updateGuestTripWithLayout(activeTrip.id, editForm, nextLayout);
       if (trip) {
-        const newDayCount = getTripDayCount(trip.start_date, trip.end_date);
-        saveGuestTripLayout(activeTrip.id, tripPlaces.map((item) => ({
-          placeId: item.place_id,
-          dayNumber: Math.min(item.day_number, newDayCount),
-          sortOrder: item.sort_order,
-          memo: item.memo,
-          plannedTime: item.planned_time,
-          stayMinutes: item.stay_minutes,
-          travelMinutes: item.travel_minutes,
-          travelMode: item.travel_mode,
-          sourceGuideSequence: item.source_guide_sequence,
-        })));
         setTrips((current) => current.map((item) => item.id === trip.id ? trip : item));
         await refreshTripPlaces(activeTrip.id);
         setStatus(text.guestSaved);
@@ -227,9 +230,9 @@ export function TripPlanner({ locale }: TripPlannerProps) {
     const result = await updateTrip(activeTrip.id, editForm);
     if (result.trip) {
       const newDayCount = getTripDayCount(result.trip.start_date, result.trip.end_date);
-      const clampedLayout = tripPlaces.map((item) => ({
+      const clampedLayout = clampTripLayoutToDayCount(tripPlaces.map((item) => ({
         placeId: item.place_id,
-        dayNumber: Math.min(item.day_number, newDayCount),
+        dayNumber: item.day_number,
         sortOrder: item.sort_order,
         memo: item.memo,
         plannedTime: item.planned_time,
@@ -237,8 +240,14 @@ export function TripPlanner({ locale }: TripPlannerProps) {
         travelMinutes: item.travel_minutes,
         travelMode: item.travel_mode,
         sourceGuideSequence: item.source_guide_sequence,
-      }));
+      })), newDayCount);
       const layoutError = await saveTripLayout(activeTrip.id, clampedLayout);
+      if (layoutError) {
+        const rollback = await updateTrip(activeTrip.id, toTripInput(activeTrip));
+        setStatus(rollback.trip ? layoutError : `${layoutError} · ${rollback.error ?? text.failed}`);
+        setBusy(false);
+        return;
+      }
       setTrips((current) => current.map((trip) => trip.id === result.trip?.id ? result.trip as TripRecord : trip));
       await refreshTripPlaces(activeTrip.id);
       setStatus(layoutError ?? text.saved);
@@ -859,6 +868,13 @@ const groundedStatusCopy: Record<Locale, { saved: string; applied: string }> = {
   zh: { saved: "已将审核路线保存为新计划。", applied: "已将确认后的路线应用到当前计划。" },
   en: { saved: "The reviewed route was saved as a new trip.", applied: "The confirmed route was applied to the current trip." },
   ja: { saved: "確認済みコースを新しい日程として保存しました。", applied: "確認したコースを現在の日程に適用しました。" },
+};
+
+const tripDateError: Record<Locale, string> = {
+  ko: "시작일과 종료일을 확인해 주세요. 시작일은 종료일보다 늦을 수 없습니다.",
+  zh: "请检查开始和结束日期。开始日期不能晚于结束日期。",
+  en: "Check the start and end dates. The start date cannot be after the end date.",
+  ja: "開始日と終了日を確認してください。開始日は終了日より後にできません。",
 };
 
 const copy = {

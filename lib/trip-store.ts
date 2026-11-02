@@ -1,4 +1,5 @@
 import { getPublicPlacesByIds } from "@/lib/place-store";
+import { validateDateRange } from "@/lib/date-input";
 import { getSupabaseClient } from "@/lib/supabase";
 import type {
   PlaceWithRelations,
@@ -116,6 +117,8 @@ export async function getSavedPlacesForTrip(userId: string, client = getSupabase
 
 export async function createTrip(userId: string, input: TripInput, client = getSupabaseClient()) {
   if (!client) return { trip: null, error: "일정 저장 서비스를 사용할 수 없습니다." };
+  const dateError = validateDateRange(input.startDate, input.endDate);
+  if (dateError) return { trip: null, error: `invalid_trip_dates:${dateError}` };
   let { data, error } = await client
     .from("trips")
     .insert({
@@ -162,6 +165,8 @@ function isMissingTripSnapshotColumn(error: { code?: string; message?: string } 
 
 export async function updateTrip(tripId: string, input: TripInput, client = getSupabaseClient()) {
   if (!client) return { trip: null, error: "일정 저장 서비스를 사용할 수 없습니다." };
+  const dateError = validateDateRange(input.startDate, input.endDate);
+  if (dateError) return { trip: null, error: `invalid_trip_dates:${dateError}` };
   const { data, error } = await client
     .from("trips")
     .update({
