@@ -1,6 +1,7 @@
 import { estimateWalkingMinutes, getPlaceDistance, gwangalliCenter, hasCoordinates } from "@/lib/location";
 import { getTimeAwarePlaceState, hasReviewedTimeData, hasTimeFilterData } from "@/lib/time-aware-place";
 import { buildChinaPlaceSummary } from "@/lib/place-china/format";
+import { getTasteLevelLabel } from "@/lib/traveler-practical-display";
 import type { Locale } from "@/lib/i18n";
 import type { ChinaWaitingLevel, PlaceWithRelations } from "@/types/database";
 
@@ -465,7 +466,7 @@ export function getChinaDiscoveryTags(place: PlaceWithRelations, locale: Locale,
     return [];
   }
 
-  if (typeof info?.spicy_level === "number" && info.spicy_level <= 2) tags.push("不辣");
+  if (typeof info?.spicy_level === "number" && info.spicy_level <= 2) tags.push(getTasteLevelLabel("spicy", info.spicy_level, "zh"));
   if (info?.foreign_card === "yes" || (!info && place.card_payment)) tags.push("海外信用卡");
   if (info?.solo_friendly === "yes" || (!info && place.solo_friendly)) tags.push("一个人OK");
   if (info?.luggage_friendly === "yes" || (!info && place.luggage_friendly)) tags.push("行李箱OK");

@@ -6,11 +6,11 @@ export type DifficultyState = "easy" | "moderate" | "hard" | "unknown";
 export function getTasteProfile(place: PlaceWithRelations, locale: Locale) {
   const info = place.china_info;
   return [
-    { key: "spicy", label: tasteLabels.spicy[locale], value: levelLabel("spicy", info?.spicy_level, locale) },
-    { key: "oily", label: tasteLabels.oily[locale], value: levelLabel("oily", info?.greasy_level, locale) },
-    { key: "aroma", label: tasteLabels.aroma[locale], value: levelLabel("aroma", info?.smell_level, locale) },
-    { key: "sweet", label: tasteLabels.sweet[locale], value: levelLabel("sweet", info?.sweetness_level, locale) },
-    { key: "portion", label: tasteLabels.portion[locale], value: levelLabel("portion", info?.portion_level, locale) },
+    { key: "spicy", label: tasteLabels.spicy[locale], value: getTasteLevelLabel("spicy", info?.spicy_level, locale) },
+    { key: "oily", label: tasteLabels.oily[locale], value: getTasteLevelLabel("oily", info?.greasy_level, locale) },
+    { key: "aroma", label: tasteLabels.aroma[locale], value: getTasteLevelLabel("aroma", info?.smell_level, locale) },
+    { key: "sweet", label: tasteLabels.sweet[locale], value: getTasteLevelLabel("sweet", info?.sweetness_level, locale) },
+    { key: "portion", label: tasteLabels.portion[locale], value: getTasteLevelLabel("portion", info?.portion_level, locale) },
     { key: "order", label: tasteLabels.order[locale], value: difficultyLabel(info?.ordering_difficulty, locale) },
   ];
 }
@@ -64,7 +64,7 @@ function difficultyLabel(value: number | null | undefined, locale: Locale) {
   return difficultyStateLabels[numericDifficulty(value) ?? "unknown"][locale];
 }
 
-function levelLabel(kind: "spicy" | "oily" | "aroma" | "sweet" | "portion", value: number | null | undefined, locale: Locale) {
+export function getTasteLevelLabel(kind: "spicy" | "oily" | "aroma" | "sweet" | "portion", value: number | null | undefined, locale: Locale) {
   if (typeof value !== "number") return unknown[locale];
   const bucket = value <= 1 ? 0 : value <= 2 ? 1 : value <= 3 ? 2 : 3;
   return levelLabels[kind][bucket][locale];
@@ -79,7 +79,7 @@ const tasteLabels = {
 const dimensionLabels = {
   wayfinding: { ko: "찾아가기", zh: "找到地点", en: "Wayfinding", ja: "アクセス" }, entry: { ko: "입장·웨이팅", zh: "入店与等位", en: "Entry and queue", ja: "入店・待ち" },
   order: { ko: "주문", zh: "点餐", en: "Ordering", ja: "注文" }, payment: { ko: "결제", zh: "支付", en: "Payment", ja: "支払い" },
-  solo: { ko: "혼자 방문", zh: "一个人", en: "Solo visit", ja: "一人利用" }, language: { ko: "언어 소통", zh: "语言沟通", en: "Language", ja: "言語対応" },
+  solo: { ko: "혼자 이용 난이도", zh: "单人使用难度", en: "Solo visit difficulty", ja: "一人利用の難易度" }, language: { ko: "언어 소통", zh: "语言沟通", en: "Language", ja: "言語対応" },
 } satisfies Record<string, Record<Locale, string>>;
 export const difficultyStateLabels: Record<DifficultyState, Record<Locale, string>> = {
   easy: { ko: "쉬움", zh: "容易", en: "Easy", ja: "簡単" }, moderate: { ko: "보통", zh: "一般", en: "Moderate", ja: "普通" },

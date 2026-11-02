@@ -5,6 +5,7 @@ import type {
   PlaceChinaInfoRecord,
   PlaceFactTristate,
 } from "@/types/database";
+import { getTasteLevelLabel } from "@/lib/traveler-practical-display";
 
 export type ChinaPlaceInfoInput = PlaceChinaInfoPayload | PlaceChinaInfoRecord | null | undefined;
 
@@ -361,7 +362,7 @@ export function buildChinaPlaceTags(info: ChinaPlaceInfoInput) {
   }
 
   if ((info.chinese_taste_score ?? 0) >= 4) tags.push("中国游客推荐");
-  if ((info.spicy_level ?? 0) <= 2 && info.spicy_level) tags.push("不太辣");
+  if ((info.spicy_level ?? 0) <= 2 && info.spicy_level) tags.push(getTasteLevelLabel("spicy", info.spicy_level, "zh"));
   if ((info.ordering_difficulty ?? 0) <= 2 && info.ordering_difficulty) tags.push("点餐容易");
   if (info.chinese_menu === "yes") tags.push("中文菜单");
   if (info.foreign_card === "yes") tags.push("海外卡OK");

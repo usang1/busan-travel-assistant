@@ -35,6 +35,7 @@ function loadTsModule(path, aliases = {}) {
   return module.exports;
 }
 
+const tasteLabelStub = (_kind, value, locale) => value <= 1 ? { zh: "不辣" }[locale] : { zh: "微辣" }[locale];
 const {
   buildChinaPlaceSummary,
   formatPaymentSummary,
@@ -42,7 +43,9 @@ const {
   formatWarnings,
   tristateLabel,
   waitingLabel,
-} = loadTsModule("lib/place-china/format.ts");
+} = loadTsModule("lib/place-china/format.ts", {
+  "@/lib/traveler-practical-display": { getTasteLevelLabel: tasteLabelStub },
+});
 
 const baseInfo = {
   chinese_taste_score: 4,
@@ -166,7 +169,13 @@ const discovery = loadTsModule("lib/place-china/discovery.ts", {
   "@/lib/place-china/format": {
     buildChinaPlaceSummary,
   },
+  "@/lib/traveler-practical-display": {
+    getTasteLevelLabel: tasteLabelStub,
+  },
 });
+
+const discoveryPlace = { china_info: { spicy_level: 2 }, card_payment: false, solo_friendly: false, luggage_friendly: false, chinese_menu: false };
+assert.deepEqual(Array.from(discovery.getChinaDiscoveryTags(discoveryPlace, "zh", 4)), ["微辣"]);
 
 const providerDetection = loadTsModule("lib/place-providers/detect.ts");
 const mapUrl = loadTsModule("lib/map-url.ts", {

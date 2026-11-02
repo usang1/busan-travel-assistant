@@ -40,6 +40,13 @@ const menuPrice = compileTs("lib/menu-price.ts", (specifier) => {
   if (specifier === "@/lib/place-data-integrity") return dataIntegrity;
   throw new Error(`Unexpected menu-price import: ${specifier}`);
 });
+const practicalDisplay = compileTs("lib/traveler-practical-display.ts", (specifier) => {
+  throw new Error(`Unexpected practical-display import: ${specifier}`);
+});
+assert.equal(practicalDisplay.getTasteLevelLabel("spicy", null, "zh"), "确认中");
+assert.equal(practicalDisplay.getTasteLevelLabel("spicy", 1, "zh"), "不辣");
+assert.equal(practicalDisplay.getTasteLevelLabel("spicy", 2, "zh"), "微辣");
+assert.equal(dataIntegrity.resolvePlaceFact({ china_info: null, card_payment: false, solo_friendly: false, chinese_menu: false, luggage_friendly: false }, "solo_friendly"), "unknown");
 
 const i18n = compileTs("lib/i18n.ts", (specifier) => {
   if (specifier === "@/config/site") {

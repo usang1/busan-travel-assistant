@@ -18,28 +18,28 @@ const copy = {
     recommend: "추천", notRecommend: "비추천", warning: "가기 전 주의", practical: "외국인 실용정보",
     difficulty: "이용 난이도", foreigner: "외국인", solo: "혼자", order: "주문",
     easy: "쉬움", normal: "보통", hard: "어려움", unknown: "미확인", yes: "가능", no: "불가",
-    traveler: "여행자 확인", checked: "확인",
+    traveler: "여행자 확인", checked: "장소 정보 확인일",
   },
   zh: {
     title: "30秒到访判断", worth: "值得专程去吗", unknownWorth: "已确认的信息不足",
     recommend: "适合", notRecommend: "不太适合", warning: "去之前先看", practical: "外国游客实用信息",
     difficulty: "使用难度", foreigner: "外国游客", solo: "一个人", order: "点餐",
     easy: "容易", normal: "一般", hard: "较难", unknown: "未确认", yes: "支持", no: "不支持",
-    traveler: "旅行者确认", checked: "确认",
+    traveler: "旅行者确认", checked: "地点信息确认日期",
   },
   en: {
     title: "30-second visit check", worth: "Worth a detour", unknownWorth: "Not enough verified information",
     recommend: "Good for", notRecommend: "Not ideal for", warning: "Know before you go", practical: "Practical information",
     difficulty: "Difficulty", foreigner: "For visitors", solo: "Solo visit", order: "Ordering",
     easy: "Easy", normal: "Moderate", hard: "Hard", unknown: "Unknown", yes: "Available", no: "Unavailable",
-    traveler: "traveler checks", checked: "checked",
+    traveler: "traveler checks", checked: "place information checked",
   },
   ja: {
     title: "30秒で訪問判断", worth: "わざわざ行く価値", unknownWorth: "確認済み情報が不足",
     recommend: "おすすめ", notRecommend: "不向き", warning: "行く前の注意", practical: "外国人向け実用情報",
     difficulty: "利用難易度", foreigner: "外国人", solo: "一人", order: "注文",
     easy: "簡単", normal: "普通", hard: "難しい", unknown: "未確認", yes: "利用可", no: "利用不可",
-    traveler: "旅行者確認", checked: "確認",
+    traveler: "旅行者確認", checked: "スポット情報の確認日",
   },
 } satisfies Record<Locale, Record<string, string>>;
 
